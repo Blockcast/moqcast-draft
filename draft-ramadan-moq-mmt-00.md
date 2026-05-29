@@ -353,6 +353,14 @@ Rationale for the chosen unit:
   expressed in integer milliseconds at all and which low-latency
   MoQ deployments routinely need.
 
+A track's container kind is carried in the catalog `packaging` field
+([I-D.ietf-moq-catalogformat]), NOT a `container` field: the spec
+defines values `cmaf` and `loc`, and this document defines the value
+`mmtp`.  ("container kind" is used informally below as a synonym for
+the `packaging` value.)  Per-track codec is carried in
+`selectionParams.codec` (a nested object), not a top-level `codec`
+field.
+
 The subscriber converts to ticks using the timescale appropriate to
 the track's container kind:
 
