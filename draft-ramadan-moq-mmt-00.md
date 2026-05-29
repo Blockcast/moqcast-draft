@@ -206,7 +206,8 @@ An MMT stream maps to MoQ tracks as follows:
 | Packet ID (video) | Track "video" |
 | Packet ID (audio) | Track "audio" |
 | MPU sequence | Group ID |
-| MFU sequence | Object ID |
+| MFU within MPU (and Init metadata) | Subgroup ID |
+| MMTP packet (fragment) within MFU | Object ID |
 | AL-FEC repair | Track "video/repair" |
 
 ### 4.2. Object Payload
@@ -229,16 +230,31 @@ headers for this information.
 
 ### 4.3. Group Boundaries
 
-Group boundaries align with MPU boundaries:
-- Group N contains all MFUs of MPU N
-- Object 0 of each group contains the MPU metadata (mmpu/moov boxes)
-- Subsequent objects contain MFU payloads
-- The first object of each group SHOULD have RAP Flag = 1
+Group boundaries align with MPU boundaries, and subgroup boundaries
+align with MFU boundaries:
+- Group N contains all objects of MPU N.
+- Subgroup 0 of each group carries the MPU metadata (mmpu/moov boxes)
+  as its single object.
+- Subgroups 1..M each carry exactly one MFU.  The objects within an MFU
+  subgroup are that MFU's MMTP packets in fragment order: a single
+  object with Fragmentation Indicator FI=0 (a complete, unfragmented
+  MFU), or objects with FI=1 (first), FI=2 (zero or more middle), and
+  FI=3 (last) for an MFU fragmented across packets.
+- The first media object of each group SHOULD have RAP Flag = 1.
 
-The mapping above realizes the Chunk-to-Object mode of
-[I-D.wilaw-moq-cmafpackaging] when the source is CMAF: an MMT MPU
-corresponds to a CMAF Fragment, each MFU corresponds to a CMAF
-Chunk, and each MFU is published as exactly one MoQ object.
+This realizes the Chunk-to-Object mode of [I-D.wilaw-moq-cmafpackaging]
+when the source is CMAF: an MMT MPU corresponds to a CMAF Fragment and
+each MFU corresponds to a CMAF Chunk.  Because a CMAF Fragment generally
+contains multiple Chunks, an MPU generally contains multiple MFUs, each
+in its own subgroup.  A Chunk that the encoder fragmented across
+multiple MMTP packets is published as multiple objects within that
+MFU's subgroup; the receiver reassembles them (Section 5.1).
+
+Mapping each MFU to its own subgroup makes an MFU the unit of in-order
+delivery, loss, and FEC.  To preserve this, relays and subgroup readers
+MUST be able to deliver objects from multiple concurrently-open
+subgroups of the same group; an MFU's subgroup MUST NOT be discarded in
+favor of a later MFU's subgroup before its objects are delivered.
 
 ### 4.4. Switching Sets
 
@@ -378,12 +394,27 @@ group-boundary discontinuities.
 
 ### 4.5. Init Segment Signaling
 
-Publishers MAY signal MPU metadata (mmpu/moov) either inline as
-Object 0 of each group (the default form in Section 4.3), or as a
-separate init track per [I-D.wilaw-moq-cmafpackaging] Section 4.2.
-The catalog field `initMode` (values: "inline" | "track") selects
-between the two; subscribers determine the active mode from the
-catalog before issuing SUBSCRIBE.
+Publishers MAY signal MPU metadata (mmpu/moov) either inline as the
+single object of Subgroup 0 of each group (the default form in
+Section 4.3), or as a separate init track per
+[I-D.wilaw-moq-cmafpackaging] Section 4.2.  The catalog field
+`initMode` (values: "inline" | "track") selects between the two;
+subscribers determine the active mode from the catalog before issuing
+SUBSCRIBE.
+
+### 4.6. Object Identifier Reconstruction
+
+MoQ subgroup objects carry their Object ID as a delta from the
+previous object in the subgroup.  A receiver MUST reconstruct the
+absolute Object ID by maintaining a running value per subgroup and
+adding each delta to it; it MUST NOT assume the on-the-wire delta is
+non-zero, nor that an absolute Object ID is carried explicitly.
+
+This makes receivers robust both to publishers that emit a constant
+zero delta (relying on a relay to re-sequence Object IDs on egress)
+and to direct publisher-to-subscriber topologies where no relay
+re-sequencing occurs.  Within an MFU subgroup the reconstructed Object
+IDs give the fragment order used for reassembly (Section 5.1).
 
 ## 5. Media Fragment Unit (MFU) Mode
 
@@ -391,15 +422,20 @@ For ultra-low-latency applications, MMT supports MFU mode where
 each video frame is delivered as a separate unit:
 
 ```
-Standard MPU Mode:
-  Object 0: [MMTP][MPU: mmpu+moov+moof+mdat containing all frames]
+Standard MPU Mode (whole MPU in one object):
+  Group N / Subgroup 0 / Object 0:
+    [MMTP][MPU: mmpu+moov+moof+mdat containing all frames]
 
-MFU Mode:
-  Object 0: [MMTP][MPU metadata: mmpu+moov+moof header]
-  Object 1: [MMTP][MFU: IDR frame NALUs]
-  Object 2: [MMTP][MFU: P frame NALUs]
-  Object 3: [MMTP][MFU: P frame NALUs]
+MFU Mode (one subgroup per MFU):
+  Group N / Subgroup 0 / Object 0: [MMTP][MPU metadata: mmpu+moov]
+  Group N / Subgroup 1 / Object 0: [MMTP FI=0][MFU: IDR frame NALUs]
+  Group N / Subgroup 2 / Object 0: [MMTP FI=0][MFU: P frame NALUs]
   ...
+
+MFU Mode, IDR fragmented across packets (Section 5.1):
+  Group N / Subgroup 1 / Object 0: [MMTP FI=1][IDR fragment 1]
+  Group N / Subgroup 1 / Object 1: [MMTP FI=2][IDR fragment 2]
+  Group N / Subgroup 1 / Object 2: [MMTP FI=3][IDR fragment 3]
 ```
 
 MFU mode enables:
@@ -407,25 +443,48 @@ MFU mode enables:
 - Frame-level prioritization (IDR vs P/B)
 - Lower end-to-end latency
 
-### 5.1. MFU Fragmentation
+### 5.1. MFU Fragmentation (Raw Passthrough)
 
-When MFU size exceeds typical MTU (1200-1400 bytes for QUIC),
-publishers SHOULD:
+A single MFU frequently exceeds the path MTU.  A 4K or 8K intra-coded
+frame is hundreds of kilobytes to several megabytes and is fragmented
+by the encoder into hundreds or thousands of MMTP packets.  Requiring
+the publisher to reassemble such an MFU before forming a MoQ object
+would force every receiver to re-fragment it for its own decoder
+pipeline and would defeat per-fragment FEC and prioritization.
 
-1. Fragment MFU across multiple MMTP packets
-2. Set Packet Counter Flag (C=1) for reassembly tracking
-3. Publish all fragments as a single MoQ object (not multiple objects)
-4. Include the complete MFU in the object payload
+Therefore each MMTP packet maps to exactly one MoQ object, and the
+publisher MUST NOT reassemble MFU fragments:
 
-Receivers reassemble MFUs using the Packet Counter and Packet Sequence
-Number before media processing.  The MMTP fragmentation is transparent
-to MoQ; each MoQ object represents a complete, potentially multi-packet
-MFU.
+1. The publisher MUST publish each MMTP packet of an MFU as a separate
+   object within that MFU's subgroup (Section 4.3), preserving the MMTP
+   and MPU headers.  Those headers carry the Fragmentation Indicator
+   and MPU sequence number; the reconstructed MoQ Object ID
+   (Section 4.6) gives the fragment order within the subgroup.
+2. The publisher MUST NOT interpret or act on the Fragmentation
+   Indicator.  It routes each packet to (track, group, subgroup) by
+   packet_id, MPU sequence, and MFU index only.
+3. The receiver MUST reassemble each MFU from the objects of its
+   subgroup before media processing, ordering by reconstructed Object
+   ID:
+   - A single object with FI=0 is a complete, unfragmented MFU.
+   - Objects with FI=1 (first), FI=2 (zero or more middle), and FI=3
+     (last) reassemble, in Object ID order, into one MFU by
+     concatenating their payloads.
+   - The reassembled MFU's RAP flag is taken from its FI=1 (or FI=0)
+     object.
+4. The receiver MUST bound the memory used for in-flight reassembly and
+   MUST discard an MFU whose objects do not all arrive (for example
+   under loss that FEC cannot repair), rather than buffer without
+   limit.
 
-For very large frames (e.g., 8K I-frames), consider:
-- Using QUIC's stream-based reliable delivery
-- Increasing QUIC max datagram size
-- Fragmenting at the MoQ object level with object dependencies
+The optional MMTP-header-stripping mode of Section 4.2 is incompatible
+with fragmenting a single MFU across objects, because a stripped object
+would lack the Fragmentation Indicator; a publisher that strips MMTP
+headers MUST deliver each MFU as a single complete object.
+
+For very large frames where FEC cannot recover the loss, receivers
+SHOULD support resolution-tier fallback (subscribe to a lower-resolution
+track of the switching set and upscale) rather than stalling.
 
 ## 6. FEC Integration
 
