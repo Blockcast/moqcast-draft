@@ -176,6 +176,17 @@ For tracks available via multicast, the MoQ catalog includes a
 top-level `multicast` field containing an `endpoints` array for
 endpoint discovery.
 
+The catalog is itself delivered as a MoQ track.  Per
+[I-D.ietf-moq-msf] Section 5.2, the catalog track MUST have the
+case-sensitive Track Name `catalog`, and publishers conforming to this
+document MUST publish the catalog under that name.  Some WARP-lineage
+deployments instead use the legacy name `.catalog`; the leading dot
+prefix is reserved at the Track Namespace level by
+[I-D.ietf-moq-transport] Section 3.2.1 and SHOULD NOT be used as a
+catalog Track Name.  A publisher MAY additionally publish the catalog
+under `.catalog` as a transitional compatibility alias for non-MSF
+consumers.
+
 ### 4.1. Multicast Endpoint Format
 
 The `multicast` field is a catalog extension per
@@ -610,6 +621,10 @@ registration.
            Curley, L., Pugin, K., Nandakumar, S., Vasiliev, V., and
            I. Swett, "Media over QUIC Transport",
            draft-ietf-moq-transport (work in progress).
+
+[I-D.ietf-moq-msf]
+           Law, W., et al., "MOQT Streaming Format",
+           draft-ietf-moq-msf (work in progress).
 
 [I-D.bouazizi-mmtp]
            Bouazizi, I., "MMT Protocol (MMTP)",
