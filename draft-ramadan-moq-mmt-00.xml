@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.nl" -->
+<!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
 
 <section anchor="mpeg-media-transport-mmt-packaging-for-media-over-quic"><name>MPEG Media Transport (MMT) Packaging for Media over QUIC</name>
 
-<artwork>Internet-Draft                                              O. Ramadan
+<artwork><![CDATA[Internet-Draft                                              O. Ramadan
 Intended status: Standards Track                             Blockcast
 Expires: January 2027                                       July 2026
 
@@ -66,7 +66,7 @@ Table of Contents
    Appendix A. Bandwidth Comparison
    Appendix B. S-TSID Conversion Example
    Authors' Addresses
-</artwork>
+]]></artwork>
 
 <section anchor="1-introduction"><name>1. Introduction</name>
 <t>MPEG Media Transport (MMT) [ISO.23008-1] is a transport protocol
@@ -76,34 +76,26 @@ broadcast television (Americas, South Korea) alongside the primary
 ROUTE/DASH transport, and is the basis for ARIB STD-B60 (Japan).
 MMT provides native support for:</t>
 
-<ul>
-<li><t>Media Processing Units (MPU, branded &quot;mpuf&quot; in ISOBMFF) as the
-media container, with structural similarities to fMP4</t>
-</li>
-<li><t>Application-Layer FEC (AL-FEC) supporting multiple schemes
-including RaptorQ and Reed-Solomon</t>
-</li>
-<li><t>Cross-layer signaling for adaptive streaming</t>
-</li>
-<li><t>Hybrid delivery combining broadcast and broadband</t>
-</li>
+<ul spacing="compact">
+<li>Media Processing Units (MPU, branded &quot;mpuf&quot; in ISOBMFF) as the
+media container, with structural similarities to fMP4</li>
+<li>Application-Layer FEC (AL-FEC) supporting multiple schemes
+including RaptorQ and Reed-Solomon</li>
+<li>Cross-layer signaling for adaptive streaming</li>
+<li>Hybrid delivery combining broadcast and broadband</li>
 </ul>
 <t>This document defines how MMT-encapsulated media can be transported
 over MoQ [I-D.ietf-moq-transport], enabling:</t>
 
-<ol>
-<li><t><strong>Broadcast-to-Unicast bridging</strong>: Content from ATSC 3.0 or ARIB STD-B60
-broadcasts can be relayed to MoQ subscribers without transcoding</t>
-</li>
-<li><t><strong>Unified FEC</strong>: MMT's AL-FEC integrates with MoQ FEC repair tracks
-per <eref target="">I-D.ramadan-moq-fec</eref></t>
-</li>
-<li><t><strong>Multicast promotion</strong>: MoQ clients can receive SSM multicast
-directly when available, per [I-D.ramadan-moq-multicast]</t>
-</li>
-<li><t><strong>Bidirectional signaling</strong>: Convert between S-TSID (ATSC) and MoQ
-catalogs for seamless interoperability</t>
-</li>
+<ol spacing="compact">
+<li><strong>Broadcast-to-Unicast bridging</strong>: Content from ATSC 3.0 or ARIB STD-B60
+broadcasts can be relayed to MoQ subscribers without transcoding</li>
+<li><strong>Unified FEC</strong>: MMT's AL-FEC integrates with MoQ FEC repair tracks
+per <eref target="">I-D.ramadan-moq-fec</eref></li>
+<li><strong>Multicast promotion</strong>: MoQ clients can receive SSM multicast
+directly when available, per [I-D.ramadan-moq-multicast]</li>
+<li><strong>Bidirectional signaling</strong>: Convert between S-TSID (ATSC) and MoQ
+catalogs for seamless interoperability</li>
 </ol>
 
 <section anchor="1-1-relationship-to-other-moq-media-formats"><name>1.1. Relationship to Other MoQ Media Formats</name>
@@ -180,7 +172,7 @@ ATSC 3.0 signaling table containing transport and FEC parameters</t>
 <section anchor="3-mmt-overview"><name>3. MMT Overview</name>
 <t>MMT uses a layered architecture:</t>
 
-<artwork>┌─────────────────────────────────────────────┐
+<artwork><![CDATA[┌─────────────────────────────────────────────┐
 │              Application Layer              │
 ├─────────────────────────────────────────────┤
 │  MPU (Media Processing Unit)                │
@@ -198,11 +190,11 @@ ATSC 3.0 signaling table containing transport and FEC parameters</t>
 │  Transport: UDP/IP (broadcast/multicast)    │
 │             QUIC/WebTransport (unicast)     │
 └─────────────────────────────────────────────┘
-</artwork>
+]]></artwork>
 
 <section anchor="3-1-mmtp-header-format"><name>3.1. MMTP Header Format</name>
 
-<artwork>MMTP Header (12 bytes minimum) {
+<artwork><![CDATA[MMTP Header (12 bytes minimum) {
   Version (2),
   Packet Counter Flag (C) (1),
   FEC Type (F) (2),
@@ -216,7 +208,7 @@ ATSC 3.0 signaling table containing transport and FEC parameters</t>
   [Packet Counter (32)],       // Present if C=1
   [Header Extension (..)]      // Present if X=1
 }
-</artwork>
+]]></artwork>
 <t>Key fields for MoQ mapping:
 - <strong>Packet ID</strong>: Maps to MoQ track within namespace
 - <strong>Timestamp</strong>: UTC wallclock time in NTP short format, maps to MoQ object timestamp
@@ -261,7 +253,12 @@ ATSC 3.0 signaling table containing transport and FEC parameters</t>
 </tr>
 
 <tr>
-<td>MFU sequence</td>
+<td>MFU within MPU (and Init metadata)</td>
+<td>Subgroup ID</td>
+</tr>
+
+<tr>
+<td>MMTP packet (fragment) within MFU</td>
 <td>Object ID</td>
 </tr>
 
@@ -275,11 +272,11 @@ ATSC 3.0 signaling table containing transport and FEC parameters</t>
 <section anchor="4-2-object-payload"><name>4.2. Object Payload</name>
 <t>Each MoQ object carries one MMTP packet:</t>
 
-<artwork>MoQ Object Payload {
+<artwork><![CDATA[MoQ Object Payload {
   MMTP Header (12+ bytes),
   MPU Fragment (MPU metadata or MFU payload),
 }
-</artwork>
+]]></artwork>
 <t>Publishers MAY strip the MMTP header if subscribers negotiate
 raw ISOBMFF delivery via catalog <tt>container</tt> field.  When MMTP headers
 are stripped, the object payload contains only the MPU/ISOBMFF fragment.
@@ -289,15 +286,29 @@ headers for this information.</t>
 </section>
 
 <section anchor="4-3-group-boundaries"><name>4.3. Group Boundaries</name>
-<t>Group boundaries align with MPU boundaries:
-- Group N contains all MFUs of MPU N
-- Object 0 of each group contains the MPU metadata (mmpu/moov boxes)
-- Subsequent objects contain MFU payloads
-- The first object of each group SHOULD have RAP Flag = 1</t>
-<t>The mapping above realizes the Chunk-to-Object mode of
-[I-D.wilaw-moq-cmafpackaging] when the source is CMAF: an MMT MPU
-corresponds to a CMAF Fragment, each MFU corresponds to a CMAF
-Chunk, and each MFU is published as exactly one MoQ object.</t>
+<t>Group boundaries align with MPU boundaries, and subgroup boundaries
+align with MFU boundaries:
+- Group N contains all objects of MPU N.
+- Subgroup 0 of each group carries the MPU metadata (mmpu/moov boxes)
+  as its single object.
+- Subgroups 1..M each carry exactly one MFU.  The objects within an MFU
+  subgroup are that MFU's MMTP packets in fragment order: a single
+  object with Fragmentation Indicator FI=0 (a complete, unfragmented
+  MFU), or objects with FI=1 (first), FI=2 (zero or more middle), and
+  FI=3 (last) for an MFU fragmented across packets.
+- The first media object of each group SHOULD have RAP Flag = 1.</t>
+<t>This realizes the Chunk-to-Object mode of [I-D.wilaw-moq-cmafpackaging]
+when the source is CMAF: an MMT MPU corresponds to a CMAF Fragment and
+each MFU corresponds to a CMAF Chunk.  Because a CMAF Fragment generally
+contains multiple Chunks, an MPU generally contains multiple MFUs, each
+in its own subgroup.  A Chunk that the encoder fragmented across
+multiple MMTP packets is published as multiple objects within that
+MFU's subgroup; the receiver reassembles them (Section 5.1).</t>
+<t>Mapping each MFU to its own subgroup makes an MFU the unit of in-order
+delivery, loss, and FEC.  To preserve this, relays and subgroup readers
+MUST be able to deliver objects from multiple concurrently-open
+subgroups of the same group; an MFU's subgroup MUST NOT be discarded in
+favor of a later MFU's subgroup before its objects are delivered.</t>
 </section>
 
 <section anchor="4-4-switching-sets"><name>4.4. Switching Sets</name>
@@ -312,25 +323,22 @@ subscribers can switch at group boundaries without discontinuity.</t>
 group number for a given media time within a switching set is
 computed as:</t>
 
-<artwork>  group_number = base + floor(ticks / group_duration_ticks)
-</artwork>
+<artwork><![CDATA[  group_number = base + floor(ticks / group_duration_ticks)
+]]></artwork>
 <t>where:</t>
 
-<ul>
-<li><t><tt>ticks</tt> is the presentation timestamp expressed in the catalog's
+<ul spacing="compact">
+<li><tt>ticks</tt> is the presentation timestamp expressed in the catalog's
 media <tt>timescale</tt> (Hz), as a signed integer.  Values less than or
 equal to zero (which can occur during encoder start-up, on B-frame
-reorder, or after an epoch reseed) MUST clamp to <tt>base</tt>.</t>
-</li>
-<li><t><tt>group_duration_ticks</tt> is the per-track group duration expressed
+reorder, or after an epoch reseed) MUST clamp to <tt>base</tt>.</li>
+<li><tt>group_duration_ticks</tt> is the per-track group duration expressed
 in the same <tt>timescale</tt>, as a positive integer.  The catalog
 signals it via §4.4.4; conversion from the integer-millisecond
 form is exact by construction (the catalog publisher rejects
-non-exact pairs and uses the integer-tick override instead).</t>
-</li>
-<li><t><tt>base</tt> is a non-negative integer offset assigned to the switching
-set, defaulting to 0 unless the catalog specifies otherwise.</t>
-</li>
+non-exact pairs and uses the integer-tick override instead).</li>
+<li><tt>base</tt> is a non-negative integer offset assigned to the switching
+set, defaulting to 0 unless the catalog specifies otherwise.</li>
 </ul>
 <t>Integer math is normative.  Implementations MAY accept seconds-form
 inputs at API boundaries, but the seconds-to-ticks conversion MUST
@@ -355,19 +363,16 @@ machine-checkable cross-language agreement.</t>
 
 <section anchor="4-4-3-reference-implementations"><name>4.4.3. Reference Implementations</name>
 
-<ul>
-<li><t>Go (sender): <tt>Blockcast/multicast cmd/caddy/sender/group_align.go</tt>
-at commit <tt>695caa14</tt> (see [GroupAligner]).</t>
-</li>
-<li><t>Rust (relay): <tt>moqtail/moqtail apps/relay/src/server/abr.rs</tt> at
+<ul spacing="compact">
+<li>Go (sender): <tt>Blockcast/multicast cmd/caddy/sender/group_align.go</tt>
+at commit <tt>695caa14</tt> (see [GroupAligner]).</li>
+<li>Rust (relay): <tt>moqtail/moqtail apps/relay/src/server/abr.rs</tt> at
 commit <tt>39accbf4</tt> (see [moqtail-abr]).  Currently lives on the
 experimental <tt>server-side-abr</tt> branch; the SHA is the durable
-anchor.</t>
-</li>
-<li><t>TypeScript (subscriber): <tt>Blockcast/libmmt
+anchor.</li>
+<li>TypeScript (subscriber): <tt>Blockcast/libmmt
 packages/container/src/align.ts</tt>, exporting <tt>groupIdForTicks</tt> as
-the canonical entry point.</t>
-</li>
+the canonical entry point.</li>
 </ul>
 <t>Implementation note: the TypeScript reference also exports a
 seconds-form wrapper (<tt>groupIdFor</tt>) for compatibility with existing
@@ -384,28 +389,32 @@ implementations in the same release.</t>
 MUST publish the group duration to each track in the switching set.
 This document defines a single per-track field:</t>
 
-<artwork>  groupDurationMs (REQUIRED, unsigned integer, milliseconds)
-</artwork>
+<artwork><![CDATA[  groupDurationMs (REQUIRED, unsigned integer, milliseconds)
+]]></artwork>
 <t>Rationale for the chosen unit:</t>
 
-<ul>
-<li><t>Integer milliseconds is unambiguous across catalog encodings (JSON,
+<ul spacing="compact">
+<li>Integer milliseconds is unambiguous across catalog encodings (JSON,
 CBOR) and avoids the float-vs-integer tension that motivated the
-integer-ticks form of the formula in the first place.</t>
-</li>
-<li><t>Most segment-aligned ABR ladders deployed today pick group
+integer-ticks form of the formula in the first place.</li>
+<li>Most segment-aligned ABR ladders deployed today pick group
 durations in whole-millisecond multiples (e.g. 100, 1000, 2000,
 4000), and the publisher-side configuration in current
 implementations already operates in milliseconds.  Catalog and
-encoder agree without conversion in the common case.</t>
-</li>
-<li><t>The primary use case for the integer-tick override (below) is
+encoder agree without conversion in the common case.</li>
+<li>The primary use case for the integer-tick override (below) is
 per-frame group durations at non-integer-millisecond cadences
 (e.g. 1/30 s = 33.333… ms, 1/60 s = 16.666… ms), which cannot be
 expressed in integer milliseconds at all and which low-latency
-MoQ deployments routinely need.</t>
-</li>
+MoQ deployments routinely need.</li>
 </ul>
+<t>A track's container kind is carried in the catalog <tt>packaging</tt> field
+([I-D.ietf-moq-catalogformat]), NOT a <tt>container</tt> field: the spec
+defines values <tt>cmaf</tt> and <tt>loc</tt>, and this document defines the value
+<tt>mmtp</tt>.  (&quot;container kind&quot; is used informally below as a synonym for
+the <tt>packaging</tt> value.)  Per-track codec is carried in
+<tt>selectionParams.codec</tt> (a nested object), not a top-level <tt>codec</tt>
+field.</t>
 <t>The subscriber converts to ticks using the timescale appropriate to
 the track's container kind:</t>
 <table>
@@ -443,22 +452,20 @@ resulting tick count is exact (i.e. <tt>(groupDurationMs * timescale) %
 1000 == 0</tt>).  If this cannot be satisfied, the catalog MUST publish
 ticks directly via the optional override field:</t>
 
-<artwork>  groupDurationTicks (OPTIONAL, unsigned integer)
-</artwork>
+<artwork><![CDATA[  groupDurationTicks (OPTIONAL, unsigned integer)
+]]></artwork>
 <t>If both <tt>groupDurationMs</tt> and <tt>groupDurationTicks</tt> are present,
 <tt>groupDurationTicks</tt> wins.  Cases where the override is required
 include:</t>
 
-<ul>
-<li><t>Per-frame group durations at a 30 fps cadence (<tt>1/30 s ≈ 33.333 ms</tt>)
+<ul spacing="compact">
+<li>Per-frame group durations at a 30 fps cadence (<tt>1/30 s ≈ 33.333 ms</tt>)
 on any timescale: expressing this in integer ms is impossible, so
 publishers set <tt>groupDurationTicks: timescale / 30</tt> directly
-(e.g. <tt>3000</tt> at 90 000 Hz, <tt>1500</tt> at 45 000 Hz).</t>
-</li>
-<li><t>Audio sample-rate timescales not divisible by 1000 Hz, such as
+(e.g. <tt>3000</tt> at 90 000 Hz, <tt>1500</tt> at 45 000 Hz).</li>
+<li>Audio sample-rate timescales not divisible by 1000 Hz, such as
 44 100 Hz: <tt>333 ms × 44 100 / 1000 = 14 685.3</tt> is non-integer; a
-publisher selecting a 333 ms audio group MUST publish ticks.</t>
-</li>
+publisher selecting a 333 ms audio group MUST publish ticks.</li>
 </ul>
 <t>Switching-set agreement: every track in the same switching set MUST
 publish the same effective <tt>group_duration_ticks</tt> (after timescale
@@ -472,12 +479,26 @@ group-boundary discontinuities.</t>
 </section>
 
 <section anchor="4-5-init-segment-signaling"><name>4.5. Init Segment Signaling</name>
-<t>Publishers MAY signal MPU metadata (mmpu/moov) either inline as
-Object 0 of each group (the default form in Section 4.3), or as a
-separate init track per [I-D.wilaw-moq-cmafpackaging] Section 4.2.
-The catalog field <tt>initMode</tt> (values: &quot;inline&quot; | &quot;track&quot;) selects
-between the two; subscribers determine the active mode from the
-catalog before issuing SUBSCRIBE.</t>
+<t>Publishers MAY signal MPU metadata (mmpu/moov) either inline as the
+single object of Subgroup 0 of each group (the default form in
+Section 4.3), or as a separate init track per
+[I-D.wilaw-moq-cmafpackaging] Section 4.2.  The catalog field
+<tt>initMode</tt> (values: &quot;inline&quot; | &quot;track&quot;) selects between the two;
+subscribers determine the active mode from the catalog before issuing
+SUBSCRIBE.</t>
+</section>
+
+<section anchor="4-6-object-identifier-reconstruction"><name>4.6. Object Identifier Reconstruction</name>
+<t>MoQ subgroup objects carry their Object ID as a delta from the
+previous object in the subgroup.  A receiver MUST reconstruct the
+absolute Object ID by maintaining a running value per subgroup and
+adding each delta to it; it MUST NOT assume the on-the-wire delta is
+non-zero, nor that an absolute Object ID is carried explicitly.</t>
+<t>This makes receivers robust both to publishers that emit a constant
+zero delta (relying on a relay to re-sequence Object IDs on egress)
+and to direct publisher-to-subscriber topologies where no relay
+re-sequencing occurs.  Within an MFU subgroup the reconstructed Object
+IDs give the fragment order used for reassembly (Section 5.1).</t>
 </section>
 </section>
 
@@ -485,43 +506,69 @@ catalog before issuing SUBSCRIBE.</t>
 <t>For ultra-low-latency applications, MMT supports MFU mode where
 each video frame is delivered as a separate unit:</t>
 
-<artwork>Standard MPU Mode:
-  Object 0: [MMTP][MPU: mmpu+moov+moof+mdat containing all frames]
+<artwork><![CDATA[Standard MPU Mode (whole MPU in one object):
+  Group N / Subgroup 0 / Object 0:
+    [MMTP][MPU: mmpu+moov+moof+mdat containing all frames]
 
-MFU Mode:
-  Object 0: [MMTP][MPU metadata: mmpu+moov+moof header]
-  Object 1: [MMTP][MFU: IDR frame NALUs]
-  Object 2: [MMTP][MFU: P frame NALUs]
-  Object 3: [MMTP][MFU: P frame NALUs]
+MFU Mode (one subgroup per MFU):
+  Group N / Subgroup 0 / Object 0: [MMTP][MPU metadata: mmpu+moov]
+  Group N / Subgroup 1 / Object 0: [MMTP FI=0][MFU: IDR frame NALUs]
+  Group N / Subgroup 2 / Object 0: [MMTP FI=0][MFU: P frame NALUs]
   ...
-</artwork>
+
+MFU Mode, IDR fragmented across packets (Section 5.1):
+  Group N / Subgroup 1 / Object 0: [MMTP FI=1][IDR fragment 1]
+  Group N / Subgroup 1 / Object 1: [MMTP FI=2][IDR fragment 2]
+  Group N / Subgroup 1 / Object 2: [MMTP FI=3][IDR fragment 3]
+]]></artwork>
 <t>MFU mode enables:
 - Per-frame FEC protection
 - Frame-level prioritization (IDR vs P/B)
 - Lower end-to-end latency</t>
 
-<section anchor="5-1-mfu-fragmentation"><name>5.1. MFU Fragmentation</name>
-<t>When MFU size exceeds typical MTU (1200-1400 bytes for QUIC),
-publishers SHOULD:</t>
+<section anchor="5-1-mfu-fragmentation-raw-passthrough"><name>5.1. MFU Fragmentation (Raw Passthrough)</name>
+<t>A single MFU frequently exceeds the path MTU.  A 4K or 8K intra-coded
+frame is hundreds of kilobytes to several megabytes and is fragmented
+by the encoder into hundreds or thousands of MMTP packets.  Requiring
+the publisher to reassemble such an MFU before forming a MoQ object
+would force every receiver to re-fragment it for its own decoder
+pipeline and would defeat per-fragment FEC and prioritization.</t>
+<t>Therefore each MMTP packet maps to exactly one MoQ object, and the
+publisher MUST NOT reassemble MFU fragments:</t>
 
-<ol>
-<li><t>Fragment MFU across multiple MMTP packets</t>
-</li>
-<li><t>Set Packet Counter Flag (C=1) for reassembly tracking</t>
-</li>
-<li><t>Publish all fragments as a single MoQ object (not multiple objects)</t>
-</li>
-<li><t>Include the complete MFU in the object payload</t>
-</li>
+<ol spacing="compact">
+<li>The publisher MUST publish each MMTP packet of an MFU as a separate
+object within that MFU's subgroup (Section 4.3), preserving the MMTP
+and MPU headers.  Those headers carry the Fragmentation Indicator
+and MPU sequence number; the reconstructed MoQ Object ID
+(Section 4.6) gives the fragment order within the subgroup.</li>
+<li>The publisher MUST NOT interpret or act on the Fragmentation
+Indicator.  It routes each packet to (track, group, subgroup) by
+packet_id, MPU sequence, and MFU index only.</li>
+<li><t>The receiver MUST reassemble each MFU from the objects of its
+subgroup before media processing, ordering by reconstructed Object
+ID:</t>
+
+<ul spacing="compact">
+<li>A single object with FI=0 is a complete, unfragmented MFU.</li>
+<li>Objects with FI=1 (first), FI=2 (zero or more middle), and FI=3
+(last) reassemble, in Object ID order, into one MFU by
+concatenating their payloads.</li>
+<li>The reassembled MFU's RAP flag is taken from its FI=1 (or FI=0)
+object.</li>
+</ul></li>
+<li>The receiver MUST bound the memory used for in-flight reassembly and
+MUST discard an MFU whose objects do not all arrive (for example
+under loss that FEC cannot repair), rather than buffer without
+limit.</li>
 </ol>
-<t>Receivers reassemble MFUs using the Packet Counter and Packet Sequence
-Number before media processing.  The MMTP fragmentation is transparent
-to MoQ; each MoQ object represents a complete, potentially multi-packet
-MFU.</t>
-<t>For very large frames (e.g., 8K I-frames), consider:
-- Using QUIC's stream-based reliable delivery
-- Increasing QUIC max datagram size
-- Fragmenting at the MoQ object level with object dependencies</t>
+<t>The optional MMTP-header-stripping mode of Section 4.2 is incompatible
+with fragmenting a single MFU across objects, because a stripped object
+would lack the Fragmentation Indicator; a publisher that strips MMTP
+headers MUST deliver each MFU as a single complete object.</t>
+<t>For very large frames where FEC cannot recover the loss, receivers
+SHOULD support resolution-tier fallback (subscribe to a lower-resolution
+track of the switching set and upscale) rather than stalling.</t>
 </section>
 </section>
 
@@ -532,21 +579,21 @@ with parameters signaled via MMTP signaling messages or, in
 ATSC 3.0, via S-TSID (which is part of the ROUTE transport layer).
 For MoQ, FEC repair uses the model defined in</t>
 
-<artwork>Source Track: video
+<artwork><![CDATA[Source Track: video
   └── Objects: MMTP packets with FEC Type=0 or 1 (source)
 
 Repair Track: video/repair
   └── Objects: MMTP packets with FEC Type=2 (repair)
-</artwork>
+]]></artwork>
 
 <section anchor="6-1-interleaving"><name>6.1. Interleaving</name>
 <t>MMT AL-FEC interleaves source symbols across multiple MFUs:</t>
 
-<artwork>MFU:        0    1    2    3    4    5    6    7
+<artwork><![CDATA[MFU:        0    1    2    3    4    5    6    7
             │    │    │    │    │    │    │    │
 Block 0:    S0   S1   S2   S3   ─────────────────►  R0, R1
 Block 1:                        S4   S5   S6   S7 ► R2, R3
-</artwork>
+]]></artwork>
 <t>Default interleave depth varies by application:
 - ATSC 3.0: 30-60 frames (~1-2 seconds at 30fps)
 - ARIB STD-B60: 60 frames (~2 seconds at 30fps)
@@ -556,7 +603,7 @@ Block 1:                        S4   S5   S6   S7 ► R2, R3
 <section anchor="6-2-oti-signaling"><name>6.2. OTI Signaling</name>
 <t>The S-TSID table contains RaptorQ OTI (Object Transmission Info):</t>
 
-<artwork>S-TSID {
+<artwork><![CDATA[S-TSID {
   source_filter (S,G address),
   fec_oti {
     transfer_length (40 bits),
@@ -566,34 +613,30 @@ Block 1:                        S4   S5   S6   S7 ► R2, R3
     alignment (8 bits),
   }
 }
-</artwork>
+]]></artwork>
 <t>For MoQ, OTI is signaled via FEC_CONFIG message per
 <eref target="">I-D.ramadan-moq-fec</eref> Section 4.</t>
 </section>
 </section>
 
 <section anchor="7-fec-config-message"><name>7. FEC_CONFIG Message</name>
-<t>The FEC<em>CONFIG message and its wire format are defined normatively
+<t>The FEC_CONFIG message and its wire format are defined normatively
 in <eref target="">I-D.ramadan-moq-fec</eref> Section 4.1.  This document does not
-redefine FEC</em>CONFIG but specifies MMT-specific considerations for
+redefine FEC_CONFIG but specifies MMT-specific considerations for
 its use.</t>
 
 <section anchor="7-1-mmt-specific-fec-config-usage"><name>7.1. MMT-Specific FEC_CONFIG Usage</name>
 <t>When used with MMT packaging, the FEC_CONFIG fields map as follows:</t>
 
-<ul>
-<li><t><strong>FEC Algorithm</strong>: Typically 0x01 (RaptorQ) for ATSC 3.0 ingest,
-or as specified in MMTP AL-FEC signaling</t>
-</li>
-<li><t><strong>Source Symbols Per Block</strong>: Corresponds to the number of MFUs
-(or MMTP packets) covered by one FEC block</t>
-</li>
-<li><t><strong>Interleave Depth</strong>: Number of MPU frames spanned by each FEC
-block, matching the original broadcast FEC interleave depth</t>
-</li>
-<li><t><strong>OTI</strong>: For RaptorQ, the 12-byte concatenation of Common FEC OTI
-and Scheme-Specific FEC OTI per [RFC6330]</t>
-</li>
+<ul spacing="compact">
+<li><strong>FEC Algorithm</strong>: Typically 0x01 (RaptorQ) for ATSC 3.0 ingest,
+or as specified in MMTP AL-FEC signaling</li>
+<li><strong>Source Symbols Per Block</strong>: Corresponds to the number of MFUs
+(or MMTP packets) covered by one FEC block</li>
+<li><strong>Interleave Depth</strong>: Number of MPU frames spanned by each FEC
+block, matching the original broadcast FEC interleave depth</li>
+<li><strong>OTI</strong>: For RaptorQ, the 12-byte concatenation of Common FEC OTI
+and Scheme-Specific FEC OTI per [RFC6330]</li>
 </ul>
 <t>See <eref target="">I-D.ramadan-moq-fec</eref> for the complete message format, field
 definitions, algorithm registry, and precedence rules.</t>
@@ -603,9 +646,9 @@ definitions, algorithm registry, and precedence rules.</t>
 <t>When FEC is enabled, the repair track uses the naming convention
 defined in <eref target="">I-D.ramadan-moq-fec</eref> Section 6.1:</t>
 
-<artwork>Source Track:  [namespace, track_name]
-Repair Track:  [namespace, track_name, &quot;repair&quot;]
-</artwork>
+<artwork><![CDATA[Source Track:  [namespace, track_name]
+Repair Track:  [namespace, track_name, "repair"]
+]]></artwork>
 <t>The subscriber MUST subscribe to the repair track separately.
 The repair track uses lower priority (typically 7) so repair
 symbols are dropped first under congestion.</t>
@@ -623,20 +666,20 @@ per ISO/IEC 23008-1:2023 Amendment 1:2025</t>
 </li>
 </ol>
 
-<sourcecode type="json">{
-  &quot;tracks&quot;: [{
-    &quot;name&quot;: &quot;video&quot;,
-    &quot;fec&quot;: {
-      &quot;algorithm&quot;: &quot;raptorq&quot;,
-      &quot;sourceSymbols&quot;: 32,
-      &quot;repairSymbols&quot;: 8,
-      &quot;interleaveDepth&quot;: 30,
-      &quot;symbolSize&quot;: 1312,
-      &quot;repairTrack&quot;: &quot;video/repair&quot;
+<sourcecode type="json"><![CDATA[{
+  "tracks": [{
+    "name": "video",
+    "fec": {
+      "algorithm": "raptorq",
+      "sourceSymbols": 32,
+      "repairSymbols": 8,
+      "interleaveDepth": 30,
+      "symbolSize": 1312,
+      "repairTrack": "video/repair"
     }
   }]
 }
-</sourcecode>
+]]></sourcecode>
 </section>
 </section>
 
@@ -666,9 +709,9 @@ UTC send time of the packet, which maps to MoQ object timestamps.</t>
 <t>The MMTP Timestamp uses NTP short format (32-bit: 16-bit seconds +
 16-bit fractional seconds relative to NTP epoch):</t>
 
-<artwork>MoQ Timestamp (seconds) = MMTP Timestamp upper 16 bits
+<artwork><![CDATA[MoQ Timestamp (seconds) = MMTP Timestamp upper 16 bits
                           + (lower 16 bits / 65536)
-</artwork>
+]]></artwork>
 <t>Note: This differs from MPEG-2 TS, which uses a 90kHz PTS/DTS clock.</t>
 </section>
 
@@ -677,50 +720,44 @@ UTC send time of the packet, which maps to MoQ object timestamps.</t>
 at Level 6.1 (4:2:0, 10-bit).
 For efficient 8K delivery:</t>
 
-<ol>
-<li><t><strong>Tiled Delivery</strong>: MoQ Group boundaries SHOULD align with HEVC
-CTU rows for spatial random access</t>
-</li>
-<li><t><strong>Parallel Decoding</strong>: Multiple MoQ tracks MAY carry tile regions
-for parallel decode</t>
-</li>
-<li><t><strong>Bandwidth</strong>: 8K @ 60fps requires ~80-100 Mbps; FEC adds 25%</t>
-</li>
+<ol spacing="compact">
+<li><strong>Tiled Delivery</strong>: MoQ Group boundaries SHOULD align with HEVC
+CTU rows for spatial random access</li>
+<li><strong>Parallel Decoding</strong>: Multiple MoQ tracks MAY carry tile regions
+for parallel decode</li>
+<li><strong>Bandwidth</strong>: 8K @ 60fps requires ~80-100 Mbps; FEC adds 25%</li>
 </ol>
 <t>Example 8K track structure:</t>
 
-<artwork>namespace: &quot;live/8k&quot;
+<artwork><![CDATA[namespace: "live/8k"
 tracks:
   - video/tile_0_0  (top-left quadrant)
   - video/tile_0_1  (top-right quadrant)
   - video/tile_1_0  (bottom-left quadrant)
   - video/tile_1_1  (bottom-right quadrant)
   - video/repair    (FEC for all tiles)
-</artwork>
+]]></artwork>
 </section>
 
 <section anchor="9-3-hybridcast-integration"><name>9.3. Hybridcast Integration</name>
 <t>ARIB defines Hybridcast for companion device synchronization
 (second screen experiences).  When bridging Hybridcast services:</t>
 
-<ol>
-<li><t>Include timeline alignment metadata in MoQ catalog</t>
-</li>
-<li><t>Preserve MMT Composition Timeline (CT) information</t>
-</li>
-<li><t>Signal synchronization points via MoQ object timestamps</t>
-</li>
+<ol spacing="compact">
+<li>Include timeline alignment metadata in MoQ catalog</li>
+<li>Preserve MMT Composition Timeline (CT) information</li>
+<li>Signal synchronization points via MoQ object timestamps</li>
 </ol>
 <t>Catalog extension for Hybridcast:</t>
 
-<sourcecode type="json">{
-  &quot;hybridcast&quot;: {
-    &quot;timelineId&quot;: &quot;urn:isdb:timeline:ct&quot;,
-    &quot;ptsOffset&quot;: 0,
-    &quot;syncToleranceMs&quot;: 100
+<sourcecode type="json"><![CDATA[{
+  "hybridcast": {
+    "timelineId": "urn:isdb:timeline:ct",
+    "ptsOffset": 0,
+    "syncToleranceMs": 100
   }
 }
-</sourcecode>
+]]></sourcecode>
 </section>
 
 <section anchor="9-4-typical-fec-parameters"><name>9.4. Typical FEC Parameters</name>
@@ -805,17 +842,17 @@ fallback.</t>
 </tbody>
 </table><t>Example:</t>
 
-<sourcecode type="json">{
-  &quot;tracks&quot;: [{
-    &quot;name&quot;: &quot;video&quot;,
-    &quot;container&quot;: &quot;mmtp&quot;,
-    &quot;codec&quot;: &quot;avc1.64001f&quot;,
-    &quot;width&quot;: 1920,
-    &quot;height&quot;: 1080,
-    &quot;framerate&quot;: 30
+<sourcecode type="json"><![CDATA[{
+  "tracks": [{
+    "name": "video",
+    "container": "mmtp",
+    "codec": "avc1.64001f",
+    "width": 1920,
+    "height": 1080,
+    "framerate": 30
   }]
 }
-</sourcecode>
+]]></sourcecode>
 </section>
 
 <section anchor="11-2-s-tsid-to-moq-catalog-conversion"><name>11.2. S-TSID to MoQ Catalog Conversion</name>
@@ -824,58 +861,58 @@ catalog from the S-TSID signaling table (defined in ATSC A/331 for
 the ROUTE transport layer).  For MMT-delivered content, equivalent
 parameters are obtained from MMTP signaling messages (MPT/MPI):</t>
 
-<artwork>S-TSID Input:
-&lt;S-TSID&gt;
-  &lt;RS sIpAddr=&quot;192.168.1.100&quot; dIpAddr=&quot;232.1.1.50&quot; dPort=&quot;5000&quot;&gt;
-    &lt;LS tsi=&quot;1&quot; bw=&quot;5000000&quot;&gt;
-      &lt;SrcFlow rt=&quot;true&quot;&gt;
-        &lt;ContentInfo&gt;
-          &lt;MediaInfo contentType=&quot;video&quot; repId=&quot;1080p&quot;/&gt;
-        &lt;/ContentInfo&gt;
-        &lt;Payload codePoint=&quot;128&quot; formatId=&quot;2&quot;/&gt;
-      &lt;/SrcFlow&gt;
-      &lt;RepairFlow&gt;
-        &lt;FECParameters maximumDelay=&quot;1000&quot; overhead=&quot;25&quot;
-                       fecOTI=&quot;K=32;T=1312;Z=4&quot;&gt;
-          &lt;ProtectedObject tsi=&quot;1&quot;&gt;
-            &lt;SourceTOI x=&quot;0&quot; y=&quot;255&quot;/&gt;
-          &lt;/ProtectedObject&gt;
-        &lt;/FECParameters&gt;
-      &lt;/RepairFlow&gt;
-    &lt;/LS&gt;
-  &lt;/RS&gt;
-&lt;/S-TSID&gt;
+<artwork><![CDATA[S-TSID Input:
+<S-TSID>
+  <RS sIpAddr="192.168.1.100" dIpAddr="232.1.1.50" dPort="5000">
+    <LS tsi="1" bw="5000000">
+      <SrcFlow rt="true">
+        <ContentInfo>
+          <MediaInfo contentType="video" repId="1080p"/>
+        </ContentInfo>
+        <Payload codePoint="128" formatId="2"/>
+      </SrcFlow>
+      <RepairFlow>
+        <FECParameters maximumDelay="1000" overhead="25"
+                       fecOTI="K=32;T=1312;Z=4">
+          <ProtectedObject tsi="1">
+            <SourceTOI x="0" y="255"/>
+          </ProtectedObject>
+        </FECParameters>
+      </RepairFlow>
+    </LS>
+  </RS>
+</S-TSID>
 
 MoQ Catalog Output:
 {
-  &quot;version&quot;: 1,
-  &quot;namespace&quot;: &quot;atsc/service_1&quot;,
-  &quot;tracks&quot;: [{
-    &quot;name&quot;: &quot;video&quot;,
-    &quot;container&quot;: &quot;mmtp&quot;,
-    &quot;codec&quot;: &quot;avc1.64001f&quot;,
-    &quot;bitrate&quot;: 5000000,
-    &quot;fec&quot;: {
-      &quot;algorithm&quot;: &quot;raptorq&quot;,
-      &quot;sourceSymbols&quot;: 32,
-      &quot;repairSymbols&quot;: 8,
-      &quot;symbolSize&quot;: 1312,
-      &quot;interleaveDepth&quot;: 4,
-      &quot;repairTrack&quot;: &quot;video/repair&quot;
+  "version": 1,
+  "namespace": "atsc/service_1",
+  "tracks": [{
+    "name": "video",
+    "container": "mmtp",
+    "codec": "avc1.64001f",
+    "bitrate": 5000000,
+    "fec": {
+      "algorithm": "raptorq",
+      "sourceSymbols": 32,
+      "repairSymbols": 8,
+      "symbolSize": 1312,
+      "interleaveDepth": 4,
+      "repairTrack": "video/repair"
     }
   }],
-  &quot;multicast&quot;: {
-    &quot;endpoints&quot;: [{
-      &quot;protocol&quot;: &quot;ssm&quot;,
-      &quot;source&quot;: &quot;192.168.1.100&quot;,
-      &quot;group&quot;: &quot;232.1.1.50&quot;,
-      &quot;port&quot;: 5000,
-      &quot;tsi&quot;: 1,
-      &quot;tracks&quot;: [&quot;video&quot;, &quot;video/repair&quot;]
+  "multicast": {
+    "endpoints": [{
+      "protocol": "ssm",
+      "source": "192.168.1.100",
+      "group": "232.1.1.50",
+      "port": 5000,
+      "tsi": 1,
+      "tracks": ["video", "video/repair"]
     }]
   }
 }
-</artwork>
+]]></artwork>
 <t>The <tt>multicast</tt> field in the output uses the extended format defined
 in [I-D.ramadan-moq-multicast] Section 7.2.  Conversion rules:
 - <tt>RS@sIpAddr</tt> → <tt>multicast.endpoints[].source</tt>
@@ -890,49 +927,49 @@ in [I-D.ramadan-moq-multicast] Section 7.2.  Conversion rules:
 <section anchor="11-3-moq-catalog-to-s-tsid-conversion"><name>11.3. MoQ Catalog to S-TSID Conversion</name>
 <t>When generating ATSC-compatible output, convert MoQ catalog to S-TSID:</t>
 
-<artwork>MoQ Catalog Input:
+<artwork><![CDATA[MoQ Catalog Input:
 {
-  &quot;tracks&quot;: [{
-    &quot;name&quot;: &quot;video&quot;,
-    &quot;bitrate&quot;: 5000000,
-    &quot;fec&quot;: {
-      &quot;algorithm&quot;: &quot;raptorq&quot;,
-      &quot;sourceSymbols&quot;: 32,
-      &quot;repairSymbols&quot;: 8,
-      &quot;symbolSize&quot;: 1312,
-      &quot;interleaveDepth&quot;: 4,
-      &quot;repairTrack&quot;: &quot;video/repair&quot;
+  "tracks": [{
+    "name": "video",
+    "bitrate": 5000000,
+    "fec": {
+      "algorithm": "raptorq",
+      "sourceSymbols": 32,
+      "repairSymbols": 8,
+      "symbolSize": 1312,
+      "interleaveDepth": 4,
+      "repairTrack": "video/repair"
     }
   }],
-  &quot;multicast&quot;: {
-    &quot;endpoints&quot;: [{
-      &quot;source&quot;: &quot;192.168.1.100&quot;,
-      &quot;group&quot;: &quot;232.1.1.50&quot;,
-      &quot;port&quot;: 5000,
-      &quot;tsi&quot;: 1
+  "multicast": {
+    "endpoints": [{
+      "source": "192.168.1.100",
+      "group": "232.1.1.50",
+      "port": 5000,
+      "tsi": 1
     }]
   }
 }
 
 S-TSID Output:
-&lt;S-TSID xmlns=&quot;tag:atsc.org,2016:XMLSchemas/ATSC3/Delivery/S-TSID/1.0/&quot;&gt;
-  &lt;RS sIpAddr=&quot;192.168.1.100&quot; dIpAddr=&quot;232.1.1.50&quot; dPort=&quot;5000&quot;&gt;
-    &lt;LS tsi=&quot;1&quot; bw=&quot;5000000&quot;&gt;
-      &lt;SrcFlow rt=&quot;true&quot; minBuffSize=&quot;5000000&quot;&gt;
-        &lt;ContentInfo&gt;
-          &lt;MediaInfo contentType=&quot;video&quot;/&gt;
-        &lt;/ContentInfo&gt;
-        &lt;Payload codePoint=&quot;128&quot; formatId=&quot;2&quot; srcFecPayloadId=&quot;6&quot;/&gt;
-      &lt;/SrcFlow&gt;
-      &lt;RepairFlow&gt;
-        &lt;FECParameters maximumDelay=&quot;133&quot; overhead=&quot;25&quot;
-                       fecOTI=&quot;F=32;T=1312;Z=4;N=1;Al=8&quot;&gt;
-        &lt;/FECParameters&gt;
-      &lt;/RepairFlow&gt;
-    &lt;/LS&gt;
-  &lt;/RS&gt;
-&lt;/S-TSID&gt;
-</artwork>
+<S-TSID xmlns="tag:atsc.org,2016:XMLSchemas/ATSC3/Delivery/S-TSID/1.0/">
+  <RS sIpAddr="192.168.1.100" dIpAddr="232.1.1.50" dPort="5000">
+    <LS tsi="1" bw="5000000">
+      <SrcFlow rt="true" minBuffSize="5000000">
+        <ContentInfo>
+          <MediaInfo contentType="video"/>
+        </ContentInfo>
+        <Payload codePoint="128" formatId="2" srcFecPayloadId="6"/>
+      </SrcFlow>
+      <RepairFlow>
+        <FECParameters maximumDelay="133" overhead="25"
+                       fecOTI="F=32;T=1312;Z=4;N=1;Al=8">
+        </FECParameters>
+      </RepairFlow>
+    </LS>
+  </RS>
+</S-TSID>
+]]></artwork>
 <t>Conversion rules:
 - <tt>multicast.endpoints[].source</tt> → <tt>RS@sIpAddr</tt>
 - <tt>fec.p / fec.k × 100</tt> → <tt>FECParameters@overhead</tt>
@@ -1201,110 +1238,110 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
 
 <section anchor="b-1-original-atsc-s-tsid"><name>B.1. Original ATSC S-TSID</name>
 
-<sourcecode type="xml">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
-&lt;S-TSID xmlns=&quot;tag:atsc.org,2016:XMLSchemas/ATSC3/Delivery/S-TSID/1.0/&quot;&gt;
-  &lt;RS sIpAddr=&quot;10.0.0.1&quot; dIpAddr=&quot;232.1.1.10&quot; dPort=&quot;5000&quot;&gt;
-    &lt;!-- Video 1080p --&gt;
-    &lt;LS tsi=&quot;1&quot; bw=&quot;8000000&quot;&gt;
-      &lt;SrcFlow rt=&quot;true&quot; minBuffSize=&quot;8000000&quot;&gt;
-        &lt;ContentInfo&gt;
-          &lt;MediaInfo contentType=&quot;video&quot; repId=&quot;1080p&quot; lang=&quot;en&quot;/&gt;
-        &lt;/ContentInfo&gt;
-        &lt;EFDT&gt;
-          &lt;FDT-Instance Expires=&quot;4294967295&quot;&gt;
-            &lt;File Content-Location=&quot;video/1080p/init.mp4&quot; TOI=&quot;1&quot;/&gt;
-          &lt;/FDT-Instance&gt;
-        &lt;/EFDT&gt;
-        &lt;Payload codePoint=&quot;128&quot; formatId=&quot;2&quot; srcFecPayloadId=&quot;6&quot;/&gt;
-      &lt;/SrcFlow&gt;
-      &lt;RepairFlow&gt;
-        &lt;FECParameters maximumDelay=&quot;1000&quot; overhead=&quot;25&quot;
-                       fecOTI=&quot;F=32;T=1312;Z=30;N=1;Al=8&quot;&gt;
-          &lt;ProtectedObject tsi=&quot;1&quot;&gt;
-            &lt;SourceTOI x=&quot;0&quot; y=&quot;65535&quot;/&gt;
-          &lt;/ProtectedObject&gt;
-        &lt;/FECParameters&gt;
-      &lt;/RepairFlow&gt;
-    &lt;/LS&gt;
-    &lt;!-- Audio Stereo --&gt;
-    &lt;LS tsi=&quot;2&quot; bw=&quot;128000&quot;&gt;
-      &lt;SrcFlow rt=&quot;true&quot;&gt;
-        &lt;ContentInfo&gt;
-          &lt;MediaInfo contentType=&quot;audio&quot; repId=&quot;stereo&quot; lang=&quot;en&quot;/&gt;
-        &lt;/ContentInfo&gt;
-        &lt;Payload codePoint=&quot;128&quot; formatId=&quot;2&quot;/&gt;
-      &lt;/SrcFlow&gt;
-    &lt;/LS&gt;
-  &lt;/RS&gt;
-&lt;/S-TSID&gt;
-</sourcecode>
+<sourcecode type="xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<S-TSID xmlns="tag:atsc.org,2016:XMLSchemas/ATSC3/Delivery/S-TSID/1.0/">
+  <RS sIpAddr="10.0.0.1" dIpAddr="232.1.1.10" dPort="5000">
+    <!-- Video 1080p -->
+    <LS tsi="1" bw="8000000">
+      <SrcFlow rt="true" minBuffSize="8000000">
+        <ContentInfo>
+          <MediaInfo contentType="video" repId="1080p" lang="en"/>
+        </ContentInfo>
+        <EFDT>
+          <FDT-Instance Expires="4294967295">
+            <File Content-Location="video/1080p/init.mp4" TOI="1"/>
+          </FDT-Instance>
+        </EFDT>
+        <Payload codePoint="128" formatId="2" srcFecPayloadId="6"/>
+      </SrcFlow>
+      <RepairFlow>
+        <FECParameters maximumDelay="1000" overhead="25"
+                       fecOTI="F=32;T=1312;Z=30;N=1;Al=8">
+          <ProtectedObject tsi="1">
+            <SourceTOI x="0" y="65535"/>
+          </ProtectedObject>
+        </FECParameters>
+      </RepairFlow>
+    </LS>
+    <!-- Audio Stereo -->
+    <LS tsi="2" bw="128000">
+      <SrcFlow rt="true">
+        <ContentInfo>
+          <MediaInfo contentType="audio" repId="stereo" lang="en"/>
+        </ContentInfo>
+        <Payload codePoint="128" formatId="2"/>
+      </SrcFlow>
+    </LS>
+  </RS>
+</S-TSID>
+]]></sourcecode>
 </section>
 
 <section anchor="b-2-converted-moq-catalog"><name>B.2. Converted MoQ Catalog</name>
 
-<sourcecode type="json">{
-  &quot;version&quot;: 1,
-  &quot;namespace&quot;: &quot;atsc/service_broadcast&quot;,
-  &quot;generatedAt&quot;: &quot;2026-07-15T10:30:00Z&quot;,
-  &quot;tracks&quot;: [
+<sourcecode type="json"><![CDATA[{
+  "version": 1,
+  "namespace": "atsc/service_broadcast",
+  "generatedAt": "2026-07-15T10:30:00Z",
+  "tracks": [
     {
-      &quot;name&quot;: &quot;video/1080p&quot;,
-      &quot;container&quot;: &quot;mmtp&quot;,
-      &quot;codec&quot;: &quot;avc1.64001f&quot;,
-      &quot;width&quot;: 1920,
-      &quot;height&quot;: 1080,
-      &quot;framerate&quot;: 30,
-      &quot;bitrate&quot;: 8000000,
-      &quot;language&quot;: &quot;en&quot;,
-      &quot;fec&quot;: {
-        &quot;algorithm&quot;: &quot;raptorq&quot;,
-        &quot;sourceSymbols&quot;: 32,
-        &quot;repairSymbols&quot;: 8,
-        &quot;symbolSize&quot;: 1312,
-        &quot;interleaveDepth&quot;: 30,
-        &quot;repairTrack&quot;: &quot;video/1080p/repair&quot;
+      "name": "video/1080p",
+      "container": "mmtp",
+      "codec": "avc1.64001f",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 30,
+      "bitrate": 8000000,
+      "language": "en",
+      "fec": {
+        "algorithm": "raptorq",
+        "sourceSymbols": 32,
+        "repairSymbols": 8,
+        "symbolSize": 1312,
+        "interleaveDepth": 30,
+        "repairTrack": "video/1080p/repair"
       }
     },
     {
-      &quot;name&quot;: &quot;video/1080p/repair&quot;,
-      &quot;container&quot;: &quot;fec-repair&quot;,
-      &quot;priority&quot;: 7
+      "name": "video/1080p/repair",
+      "container": "fec-repair",
+      "priority": 7
     },
     {
-      &quot;name&quot;: &quot;audio/stereo&quot;,
-      &quot;container&quot;: &quot;mmtp&quot;,
-      &quot;codec&quot;: &quot;mp4a.40.2&quot;,
-      &quot;sampleRate&quot;: 48000,
-      &quot;channelCount&quot;: 2,
-      &quot;bitrate&quot;: 128000,
-      &quot;language&quot;: &quot;en&quot;
+      "name": "audio/stereo",
+      "container": "mmtp",
+      "codec": "mp4a.40.2",
+      "sampleRate": 48000,
+      "channelCount": 2,
+      "bitrate": 128000,
+      "language": "en"
     }
   ],
-  &quot;multicast&quot;: {
-    &quot;endpoints&quot;: [
+  "multicast": {
+    "endpoints": [
       {
-        &quot;protocol&quot;: &quot;ssm&quot;,
-        &quot;source&quot;: &quot;10.0.0.1&quot;,
-        &quot;group&quot;: &quot;232.1.1.10&quot;,
-        &quot;port&quot;: 5000,
-        &quot;tsi&quot;: 1,
-        &quot;tracks&quot;: [&quot;video/1080p&quot;, &quot;video/1080p/repair&quot;]
+        "protocol": "ssm",
+        "source": "10.0.0.1",
+        "group": "232.1.1.10",
+        "port": 5000,
+        "tsi": 1,
+        "tracks": ["video/1080p", "video/1080p/repair"]
       },
       {
-        &quot;protocol&quot;: &quot;ssm&quot;,
-        &quot;source&quot;: &quot;10.0.0.1&quot;,
-        &quot;group&quot;: &quot;232.1.1.10&quot;,
-        &quot;port&quot;: 5000,
-        &quot;tsi&quot;: 2,
-        &quot;tracks&quot;: [&quot;audio/stereo&quot;]
+        "protocol": "ssm",
+        "source": "10.0.0.1",
+        "group": "232.1.1.10",
+        "port": 5000,
+        "tsi": 2,
+        "tracks": ["audio/stereo"]
       }
     ],
-    &quot;amtFallback&quot;: {
-      &quot;discovery&quot;: &quot;driad&quot;
+    "amtFallback": {
+      "discovery": "driad"
     }
   }
 }
-</sourcecode>
+]]></sourcecode>
 </section>
 </section>
 

@@ -186,6 +186,16 @@ unicast.</t>
 <t>For tracks available via multicast, the MoQ catalog includes a
 top-level <tt>multicast</tt> field containing an <tt>endpoints</tt> array for
 endpoint discovery.</t>
+<t>The catalog is itself delivered as a MoQ track.  Per
+[I-D.ietf-moq-msf] Section 5.2, the catalog track MUST have the
+case-sensitive Track Name <tt>catalog</tt>, and publishers conforming to this
+document MUST publish the catalog under that name.  Some WARP-lineage
+deployments instead use the legacy name <tt>.catalog</tt>; the leading dot
+prefix is reserved at the Track Namespace level by
+[I-D.ietf-moq-transport] Section 3.2.1 and SHOULD NOT be used as a
+catalog Track Name.  A publisher MAY additionally publish the catalog
+under <tt>.catalog</tt> as a transitional compatibility alias for non-MSF
+consumers.</t>
 
 <section anchor="4-1-multicast-endpoint-format"><name>4.1. Multicast Endpoint Format</name>
 <t>The <tt>multicast</tt> field is a catalog extension per
@@ -400,7 +410,9 @@ UDP datagram MTU (~1300 bytes).  Per [I-D.ietf-moq-loc] Section
 within a QUIC datagram.&quot;  The same constraint applies to multicast
 UDP datagrams.  MMTP [I-D.bouazizi-mmtp] fragments media into
 MTU-sized packets natively per Section 4.1.1.  This is not a design
-choice — it is a physical constraint of datagram-based delivery.</t>
+choice — it is a physical constraint of datagram-based delivery.
+For CMAF sources, this fragmentation realizes the Chunk-to-Object
+mapping of [I-D.wilaw-moq-cmafpackaging].</t>
 <t>No additional multicast framing, encapsulation, or header format is
 needed.  The MMTP packet format is defined in [I-D.ramadan-moq-mmt]
 Section 3.1 and [I-D.bouazizi-mmtp] Section 3.</t>
@@ -522,14 +534,48 @@ of the multicast configuration:</t>
   - &quot;signed_mmt_message&quot;: MMTP-native per-packet authentication
     per [I-D.bouazizi-mmtp] Section 3.1
   - &quot;alta&quot;: ALTA per [I-D.krose-mboned-alta] — lightweight
-    asymmetric loss-tolerant authentication, carried in MMTP
-    header extensions</t>
+    asymmetric loss-tolerant authentication</t>
+
+<section anchor="7-2-1-authentication-carrier-by-wire-layer-alta"><name>7.2.1. Authentication Carrier by Wire Layer (ALTA)</name>
+<t>ATSC 3.0 defines two independent multicast transports with
+independent authentication envelopes, and deployments MAY use
+either or both:</t>
+
+<ul spacing="compact">
+<li><strong>ROUTE</strong> (ALC over LCT) carries auth in an LCT <tt>EXT_AUTH</tt> header
+extension per [RFC5775] Section 5.2, demultiplexed by ASID.  ATSC
+3.0 assigns ASID = 0 to TESLA-style authentication (A/331 §7.1).
+ALTA on the ROUTE/ALC path SHOULD register a distinct ASID (this
+document suggests 10) so that both schemes can coexist in the
+EXT_AUTH registry slot without mutual clobbering.</li>
+<li><strong>MMTP</strong> carries auth in an MMTP header extension per
+[I-D.bouazizi-mmtp] Section 3.1.  ATSC A/360 Section 5.2.2.5
+defines <tt>signed_mmt_message</tt> (A/331 Table 7.41) for MMTP
+signaling and MA3 messages (packet type 0x2).  ALTA on the MMTP
+path SHOULD use an MMTP header-extension <tt>ext_type</tt> (value from
+the private-use range until formally allocated) with X-bit
+kept at 0 so A/331 receivers continue to parse <tt>payload_length</tt>
+for asset packets (type 0x00 MPU, type 0x03 repair) which fall
+OUTSIDE the A3SA signed region.</li>
+</ul>
+<t>A given packet is either an LCT packet or an MMTP packet — the
+two envelopes never coexist on the same packet.  A deployment
+that delivers both an ALC/LCT signaling carousel (TSI = 0 per
+A/331) and MMTP media packets on the same multicast address will
+authenticate each wire layer with its own envelope.  Receivers
+dispatch on the wire framing, not on a unified ASID.</t>
+<t>Sender and receiver implementations SHOULD be carrier-aware and
+MUST NOT assume a single envelope covers both paths.  The ALTA
+signer core (hash-chain construction, MAC derivation, Ed25519
+signature anchor) is identical across envelopes; only the
+placement of the authenticator bytes on the wire differs.</t>
 <t>On MoQ unicast, end-to-end content authentication MAY be provided
 by Secure Objects which provides object-level encryption and
 authentication independent of multicast.</t>
 <t>Content authentication for multicast is an active area of work.
 Deployments SHOULD track developments in [I-D.krose-mboned-alta]
 and related specifications.</t>
+</section>
 </section>
 </section>
 
@@ -561,6 +607,9 @@ registration.</t>
            Curley, L., Pugin, K., Nandakumar, S., Vasiliev, V., and
            I. Swett, &quot;Media over QUIC Transport&quot;,
            draft-ietf-moq-transport (work in progress).</t>
+<t>[I-D.ietf-moq-msf]
+           Law, W., et al., &quot;MOQT Streaming Format&quot;,
+           draft-ietf-moq-msf (work in progress).</t>
 <t>[I-D.bouazizi-mmtp]
            Bouazizi, I., &quot;MMT Protocol (MMTP)&quot;,
            draft-bouazizi-mmtp-01 (work in progress).</t>
@@ -586,6 +635,10 @@ registration.</t>
            Law, W., &quot;CMSF: A CMAF Compliant Implementation of
            MOQT Streaming Format&quot;, draft-ietf-moq-cmsf
            (work in progress).</t>
+<t>[I-D.wilaw-moq-cmafpackaging]
+           Law, W., &quot;CMAF Packaging for Media over QUIC&quot;,
+           draft-wilaw-moq-cmafpackaging-01 (work in progress),
+           April 2026.</t>
 <t>[ISO.23008-1]
            ISO, &quot;Information technology - High efficiency coding and
            media delivery in heterogeneous environments - Part 1:
