@@ -307,8 +307,12 @@ MFU's subgroup; the receiver reassembles them (Section 5.1).</t>
 <t>Mapping each MFU to its own subgroup makes an MFU the unit of in-order
 delivery, loss, and FEC.  To preserve this, relays and subgroup readers
 MUST be able to deliver objects from multiple concurrently-open
-subgroups of the same group; an MFU's subgroup MUST NOT be discarded in
-favor of a later MFU's subgroup before its objects are delivered.</t>
+subgroups of the same group, and MUST NOT let a later MFU's subgroup
+starve an earlier, still-open subgroup of the same group.  This governs
+delivery scheduling, not congestion response: under unrecoverable
+congestion a relay MAY drop an MFU's subgroup, in which case the
+receiver's bounded reassembly (Section 5.1) and FEC (Section 6) handle
+the loss.</t>
 </section>
 
 <section anchor="4-4-switching-sets"><name>4.4. Switching Sets</name>
@@ -489,11 +493,14 @@ SUBSCRIBE.</t>
 </section>
 
 <section anchor="4-6-object-identifier-reconstruction"><name>4.6. Object Identifier Reconstruction</name>
-<t>MoQ subgroup objects carry their Object ID as a delta from the
-previous object in the subgroup.  A receiver MUST reconstruct the
-absolute Object ID by maintaining a running value per subgroup and
-adding each delta to it; it MUST NOT assume the on-the-wire delta is
-non-zero, nor that an absolute Object ID is carried explicitly.</t>
+<t>Within a subgroup, MoQ Object IDs increase monotonically, but the
+increment between successive objects is not guaranteed to be one;
+depending on the transport encoding an object's ID may be carried as a
+delta from the previous object rather than as an explicit absolute
+value.  A receiver MUST reconstruct each object's absolute Object ID by
+maintaining a running value per subgroup; it MUST NOT assume successive
+objects differ by a fixed nonzero step, nor that an absolute Object ID
+is carried explicitly.</t>
 <t>This makes receivers robust both to publishers that emit a constant
 zero delta (relying on a relay to re-sequence Object IDs on egress)
 and to direct publisher-to-subscriber topologies where no relay
@@ -1062,6 +1069,9 @@ in the &quot;MoQ Container Formats&quot; registry:</t>
 <t>[I-D.ietf-moq-transport]
     Curley, L., et al., &quot;Media over QUIC Transport&quot;,
     draft-ietf-moq-transport (work in progress).</t>
+<t>[I-D.ietf-moq-catalogformat]
+    Nandakumar, S., et al., &quot;Common Catalog Format for MoQ&quot;,
+    draft-ietf-moq-catalogformat (work in progress).</t>
 <t><eref target="">I-D.ramadan-moq-fec</eref>
     Ramadan, O., &quot;Forward Error Correction for Media over QUIC&quot;,
     draft-ramadan-moq-fec (work in progress).</t>

@@ -253,8 +253,12 @@ MFU's subgroup; the receiver reassembles them (Section 5.1).
 Mapping each MFU to its own subgroup makes an MFU the unit of in-order
 delivery, loss, and FEC.  To preserve this, relays and subgroup readers
 MUST be able to deliver objects from multiple concurrently-open
-subgroups of the same group; an MFU's subgroup MUST NOT be discarded in
-favor of a later MFU's subgroup before its objects are delivered.
+subgroups of the same group, and MUST NOT let a later MFU's subgroup
+starve an earlier, still-open subgroup of the same group.  This governs
+delivery scheduling, not congestion response: under unrecoverable
+congestion a relay MAY drop an MFU's subgroup, in which case the
+receiver's bounded reassembly (Section 5.1) and FEC (Section 6) handle
+the loss.
 
 ### 4.4. Switching Sets
 
@@ -412,11 +416,14 @@ SUBSCRIBE.
 
 ### 4.6. Object Identifier Reconstruction
 
-MoQ subgroup objects carry their Object ID as a delta from the
-previous object in the subgroup.  A receiver MUST reconstruct the
-absolute Object ID by maintaining a running value per subgroup and
-adding each delta to it; it MUST NOT assume the on-the-wire delta is
-non-zero, nor that an absolute Object ID is carried explicitly.
+Within a subgroup, MoQ Object IDs increase monotonically, but the
+increment between successive objects is not guaranteed to be one;
+depending on the transport encoding an object's ID may be carried as a
+delta from the previous object rather than as an explicit absolute
+value.  A receiver MUST reconstruct each object's absolute Object ID by
+maintaining a running value per subgroup; it MUST NOT assume successive
+objects differ by a fixed nonzero step, nor that an absolute Object ID
+is carried explicitly.
 
 This makes receivers robust both to publishers that emit a constant
 zero delta (relying on a relay to re-sequence Object IDs on egress)
@@ -931,6 +938,10 @@ This document also requests registration of MoQ message type
 [I-D.ietf-moq-transport]
     Curley, L., et al., "Media over QUIC Transport",
     draft-ietf-moq-transport (work in progress).
+
+[I-D.ietf-moq-catalogformat]
+    Nandakumar, S., et al., "Common Catalog Format for MoQ",
+    draft-ietf-moq-catalogformat (work in progress).
 
 [I-D.ramadan-moq-fec]
     Ramadan, O., "Forward Error Correction for Media over QUIC",
