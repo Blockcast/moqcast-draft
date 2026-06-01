@@ -222,7 +222,7 @@ equals one source symbol</t>
 <t>Key fields for MoQ mapping:
 - <strong>Packet ID</strong>: Maps to MoQ track within namespace
 - <strong>Timestamp</strong>: UTC wallclock time in NTP short format, maps to MoQ object timestamp
-- <strong>Packet Sequence Number</strong>: Maps to MoQ object ID within group
+- <strong>Packet Sequence Number</strong>: per-packet_id, monotonic across the flow ([ISO.23008-1] Clause 9.2.2); carried inside the object payload for MMTP-layer loss/ordering detection. NOT the MoQ Object ID -- Object IDs are the per-MFU fragment index within a subgroup (Section 4.1), which resets per subgroup.
 - <strong>FEC Type</strong>: 0=no AL-FEC, 1=AL-FEC source packet,
   2=AL-FEC repair packet, 3=reserved
 - <strong>RAP Flag</strong>: 1 indicates Random Access Point</t>
