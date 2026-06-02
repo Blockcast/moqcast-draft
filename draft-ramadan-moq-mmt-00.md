@@ -183,7 +183,7 @@ MMTP Header (12 bytes minimum) {
 Key fields for MoQ mapping:
 - **Packet ID**: Maps to MoQ track within namespace
 - **Timestamp**: UTC wallclock time in NTP short format, maps to MoQ object timestamp
-- **Packet Sequence Number**: Maps to MoQ object ID within group
+- **Packet Sequence Number**: per-`packet_id`, monotonic across the flow ([ISO.23008-1] Clause 9.2.2); carried inside the object payload for MMTP-layer loss/ordering detection. NOT the MoQ Object ID — Object IDs are the per-MFU fragment index within a subgroup (Section 4.1), which resets per subgroup.
 - **FEC Type**: 0=no AL-FEC, 1=AL-FEC source packet,
   2=AL-FEC repair packet, 3=reserved
 - **RAP Flag**: 1 indicates Random Access Point
