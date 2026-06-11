@@ -54,9 +54,6 @@ Table of Contents
    9.  Multicast Integration
    10. ARIB STD-B60 Compatibility
        10.1. Clock Reference
-       10.2. 8K UHDTV Support
-       10.3. Hybridcast Integration
-       10.4. Typical FEC Parameters
    11. Transport Hierarchy
    12. Catalog Signaling
        12.1. Packaging Value and Track Fields
@@ -67,7 +64,6 @@ Table of Contents
        13.1. Multicast Security
    14. IANA Considerations
    15. References
-   Appendix A. Bandwidth Comparison
    Appendix B. S-TSID Conversion Example
    Authors' Addresses
 ```
@@ -292,7 +288,7 @@ where:
   reorder, or after an epoch reseed) MUST clamp to `base`.
 - `group_duration_ticks` is the per-track group duration expressed
   in the same `timescale`, as a positive integer.  The catalog
-  signals it via §4.4.4; conversion from the integer-millisecond
+  signals it via §4.4.2; conversion from the integer-millisecond
   form is exact by construction (the catalog publisher rejects
   non-exact pairs and uses the integer-tick override instead).
 - `base` is a non-negative integer offset assigned to the switching
@@ -309,39 +305,7 @@ The same `(ticks, timescale, group_duration_ticks)` triple, fed
 through this formula, MUST produce the same group number in every
 implementation that participates in the switching set.
 
-#### 4.4.2. Reference Test Vectors
-
-A normative cross-language test fixture covering boundary, overflow,
-and drift cases is published as part of the libmmt reference
-implementation at `packages/container/test-vectors/align.json`, and
-is loaded unchanged by the Go sender [GroupAligner], the Rust relay
-[moqtail-abr], and the TypeScript subscriber libmmt.  Implementers
-SHOULD load this fixture in their own test suites to establish
-machine-checkable cross-language agreement.
-
-#### 4.4.3. Reference Implementations
-
-- Go (sender): `Blockcast/multicast cmd/caddy/sender/group_align.go`
-  at commit `695caa14` (see [GroupAligner]).
-- Rust (relay): `moqtail/moqtail apps/relay/src/server/abr.rs` at
-  commit `39accbf4` (see [moqtail-abr]).  Currently lives on the
-  experimental `server-side-abr` branch; the SHA is the durable
-  anchor.
-- TypeScript (subscriber): `Blockcast/libmmt
-  packages/container/src/align.ts`, exporting `groupIdForTicks` as
-  the canonical entry point.
-
-Implementation note: the TypeScript reference also exports a
-seconds-form wrapper (`groupIdFor`) for compatibility with existing
-consumers.  This is non-normative; new code SHOULD use the integer
-entry point.
-
-Reference implementations are pinned by commit SHA in §15 to keep
-URLs stable across branch rewrites.  Formula changes are normative:
-any update MUST update the test fixture and all reference
-implementations in the same release.
-
-#### 4.4.4. Catalog Signaling of Group Duration
+#### 4.4.2. Catalog Signaling of Group Duration
 
 For a subscriber to apply the formula in Section 4.4.1, the catalog
 MUST publish the group duration to each track in the switching set.
@@ -540,7 +504,7 @@ A subscriber joins a live mmtp-packaged track as follows:
 
 1. **Catalog.** Fetch and validate the catalog.  Validation includes
    the per-track REQUIRED fields of Section 12.1 and the
-   switching-set agreement check of Section 4.4.4.  A subscriber
+   switching-set agreement check of Section 4.4.2.  A subscriber
    MUST NOT issue SUBSCRIBE for a track whose catalog entry fails
    validation.
 
@@ -733,10 +697,9 @@ not available, FEC_CONFIG parameters are conveyed via:
 ## 9. Multicast Integration
 
 MMT content can be delivered via IP multicast (SSM, AMT) and TreeDN
-for scalable distribution.  Platform-specific delivery paths, SSM
-group allocation, TreeDN integration with ISP router AMT deployment,
-DePIN incentives, and IWA home gateway architecture are defined in
-[I-D.ramadan-moq-multicast].
+for scalable distribution.  Platform-specific delivery paths, the
+multicast endpoint catalog extension, and TreeDN/AMT integration are
+defined in [I-D.ramadan-moq-multicast].
 
 When MMT is delivered over multicast, MMTP packets are transmitted
 as UDP datagrams with the standard MMTP header intact.  MoQ relays
@@ -749,8 +712,10 @@ native delivery path and requires no protocol translation.
 ## 10. ARIB STD-B60 Compatibility
 
 ARIB STD-B60 (Japan's MMT-based broadcasting standard) uses the
-same ISO 23008-1 foundation as ATSC 3.0 with the following specific
-considerations:
+same ISO 23008-1 foundation as ATSC 3.0.  Publishers SHOULD preserve
+the original FEC parameters when ingesting ARIB STD-B60 content;
+ARIB deployments typically use larger source blocks and deeper
+interleaving than ATSC 3.0 (Section 7).
 
 ### 10.1. Clock Reference
 
@@ -767,64 +732,6 @@ MoQ Timestamp (seconds) = MMTP Timestamp upper 16 bits
 ```
 
 Note: This differs from MPEG-2 TS, which uses a 90kHz PTS/DTS clock.
-
-### 10.2. 8K UHDTV Support
-
-ARIB STD-B60 supports 8K UHDTV (7680x4320) via HEVC Main 10 profile
-at Level 6.1 (4:2:0, 10-bit).
-For efficient 8K delivery:
-
-1. **Tiled Delivery**: MoQ Group boundaries SHOULD align with HEVC
-   CTU rows for spatial random access
-2. **Parallel Decoding**: Multiple MoQ tracks MAY carry tile regions
-   for parallel decode
-3. **Bandwidth**: 8K @ 60fps requires ~80-100 Mbps; FEC adds 25%
-
-Example 8K track structure:
-```
-namespace: "live/8k"
-tracks:
-  - video/tile_0_0  (top-left quadrant)
-  - video/tile_0_1  (top-right quadrant)
-  - video/tile_1_0  (bottom-left quadrant)
-  - video/tile_1_1  (bottom-right quadrant)
-  - video/repair    (FEC for all tiles)
-```
-
-### 10.3. Hybridcast Integration
-
-ARIB defines Hybridcast for companion device synchronization
-(second screen experiences).  When bridging Hybridcast services:
-
-1. Include timeline alignment metadata in MoQ catalog
-2. Preserve MMT Composition Timeline (CT) information
-3. Signal synchronization points via MoQ object timestamps
-
-Catalog extension for Hybridcast:
-```json
-{
-  "hybridcast": {
-    "timelineId": "urn:isdb:timeline:ct",
-    "ptsOffset": 0,
-    "syncToleranceMs": 100
-  }
-}
-```
-
-### 10.4. Typical FEC Parameters
-
-ARIB STD-B60 deployments typically use more conservative FEC
-parameters than ATSC 3.0:
-
-| Parameter | ARIB STD-B60 Typical | ATSC 3.0 Typical |
-|-----------|-----------------|------------------|
-| K (source symbols) | 64 | 32 |
-| Interleave depth | 60 frames | 30 frames |
-| Symbol size | 1316 bytes | 1312 bytes |
-| Overhead | 20-30% | 25% |
-
-Publishers SHOULD preserve original FEC parameters when ingesting
-ARIB STD-B60 content.
 
 ## 11. Transport Hierarchy
 
@@ -865,9 +772,9 @@ Per-track catalog fields for mmtp packaging:
 |-------|--------|------|-------------|
 | `packaging` | REQUIRED | String | MUST be "mmtp" |
 | `mmtpMode` | REQUIRED | String | "mpu" or "mfu" (Section 5) |
-| `timescale` | REQUIRED | Number | Media timescale in Hz (Section 4.4.4) |
-| `groupDurationMs` | REQUIRED | Number | Group duration, integer ms (Section 4.4.4) |
-| `groupDurationTicks` | OPTIONAL | Number | Integer-tick override (Section 4.4.4) |
+| `timescale` | REQUIRED | Number | Media timescale in Hz (Section 4.4.2) |
+| `groupDurationMs` | REQUIRED | Number | Group duration, integer ms (Section 4.4.2) |
+| `groupDurationTicks` | OPTIONAL | Number | Integer-tick override (Section 4.4.2) |
 | `initMode` | OPTIONAL | String | "inline" (default) or "track" (Section 4.5) |
 | `initData` | OPTIONAL | String | Base64 ftyp+moov init segment (Section 4.5) |
 | `fec` | OPTIONAL | Object | AL-FEC parameters (Section 8.3) |
@@ -905,66 +812,8 @@ Example:
 When ingesting ATSC 3.0 content delivered via ROUTE, generate MoQ
 catalog from the S-TSID signaling table (defined in ATSC A/331 for
 the ROUTE transport layer).  For MMT-delivered content, equivalent
-parameters are obtained from MMTP signaling messages (MPT/MPI):
-
-```
-S-TSID Input:
-<S-TSID>
-  <RS sIpAddr="192.168.1.100" dIpAddr="232.1.1.50" dPort="5000">
-    <LS tsi="1" bw="5000000">
-      <SrcFlow rt="true">
-        <ContentInfo>
-          <MediaInfo contentType="video" repId="1080p"/>
-        </ContentInfo>
-        <Payload codePoint="128" formatId="2"/>
-      </SrcFlow>
-      <RepairFlow>
-        <FECParameters maximumDelay="1000" overhead="25"
-                       fecOTI="K=32;T=1312;Z=4">
-          <ProtectedObject tsi="1">
-            <SourceTOI x="0" y="255"/>
-          </ProtectedObject>
-        </FECParameters>
-      </RepairFlow>
-    </LS>
-  </RS>
-</S-TSID>
-
-MoQ Catalog Output:
-{
-  "version": 1,
-  "namespace": "atsc/service_1",
-  "tracks": [{
-    "name": "video",
-    "packaging": "mmtp",
-    "mmtpMode": "mfu",
-    "timescale": 90000,
-    "groupDurationMs": 1000,
-    "selectionParams": {
-      "codec": "avc1.64001f",
-      "bitrate": 5000000
-    },
-    "fec": {
-      "algorithm": "raptorq",
-      "sourceSymbols": 32,
-      "repairSymbols": 8,
-      "symbolSize": 1312,
-      "interleaveDepth": 4,
-      "repairTrack": "video/repair"
-    }
-  }],
-  "multicast": {
-    "endpoints": [{
-      "protocol": "ssm",
-      "source": "192.168.1.100",
-      "group": "232.1.1.50",
-      "port": 5000,
-      "tsi": 1,
-      "tracks": ["video", "video/repair"]
-    }]
-  }
-}
-```
+parameters are obtained from MMTP signaling messages (MPT/MPI).
+A complete worked example is given in Appendix B.
 
 The `multicast` field in the output uses the extended format defined
 in [I-D.ramadan-moq-multicast] Section 7.2.  Conversion rules:
@@ -984,60 +833,8 @@ fields (Section 12.1).
 
 ### 12.3. MoQ Catalog to S-TSID Conversion
 
-When generating ATSC-compatible output, convert MoQ catalog to S-TSID:
-
-```
-MoQ Catalog Input:
-{
-  "tracks": [{
-    "name": "video",
-    "packaging": "mmtp",
-    "mmtpMode": "mfu",
-    "timescale": 90000,
-    "groupDurationMs": 1000,
-    "selectionParams": {
-      "bitrate": 5000000
-    },
-    "fec": {
-      "algorithm": "raptorq",
-      "sourceSymbols": 32,
-      "repairSymbols": 8,
-      "symbolSize": 1312,
-      "interleaveDepth": 4,
-      "repairTrack": "video/repair"
-    }
-  }],
-  "multicast": {
-    "endpoints": [{
-      "source": "192.168.1.100",
-      "group": "232.1.1.50",
-      "port": 5000,
-      "tsi": 1
-    }]
-  }
-}
-
-S-TSID Output:
-<S-TSID xmlns="tag:atsc.org,2016:XMLSchemas/ATSC3/Delivery/S-TSID/1.0/">
-  <RS sIpAddr="192.168.1.100" dIpAddr="232.1.1.50" dPort="5000">
-    <LS tsi="1" bw="5000000">
-      <SrcFlow rt="true" minBuffSize="5000000">
-        <ContentInfo>
-          <MediaInfo contentType="video"/>
-        </ContentInfo>
-        <Payload codePoint="128" formatId="2" srcFecPayloadId="6"/>
-      </SrcFlow>
-      <RepairFlow>
-        <FECParameters maximumDelay="133" overhead="25"
-                       fecOTI="F=32;T=1312;Z=4;N=1;Al=8">
-        </FECParameters>
-      </RepairFlow>
-    </LS>
-  </RS>
-</S-TSID>
-```
-
-Conversion rules:
+When generating ATSC-compatible output, convert the MoQ catalog to
+S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 - `multicast.endpoints[].source` → `RS@sIpAddr`
 - `fec.p / fec.k × 100` → `FECParameters@overhead`
 - `fec.interleaveDepth × frameDuration` → `FECParameters@maximumDelay`
@@ -1141,62 +938,6 @@ This document also requests registration of MoQ message type
     Law, W., "CMAF Packaging for Media over QUIC",
     draft-wilaw-moq-cmafpackaging-01 (work in progress),
     April 2026.
-
-[GroupAligner]
-    "MOQT group time-alignment across ABR ladders (Caddy
-    sender)", commit 695caa14, source code,
-    <https://github.com/Blockcast/multicast/blob/695caa14/cmd/caddy/sender/group_align.go>.
-
-[moqtail-abr]
-    "Server-side ABR group alignment (relay)", commit 39accbf4,
-    source code,
-    <https://github.com/moqtail/moqtail/blob/39accbf4/apps/relay/src/server/abr.rs>.
-
-## Appendix A. Bandwidth Comparison
-
-FEC signaling bandwidth overhead:
-
-### A.1. Per-Session Overhead (One-Time)
-
-| Method | Size | When Sent |
-|--------|------|-----------|
-| FEC_CONFIG (0x50) | ~30 bytes | After SUBSCRIBE_OK |
-| MMTP AL-FEC (0x0203) | ~42 bytes | First signaling packet |
-| Catalog JSON FEC | ~100 bytes | Catalog fetch |
-
-### A.2. Per-Object Overhead (Recurring)
-
-| Method | Size | Frequency |
-|--------|------|-----------|
-| LOC Extension | 8 bytes | Every object |
-| MMTP Header | 12 bytes | Every packet |
-| FEC_CONFIG | 0 bytes | N/A (one-time) |
-
-### A.3. Total Overhead Analysis
-
-For a 30fps stream with k=32 source symbols per FEC block:
-
-| Method | Overhead/second | Overhead/hour |
-|--------|-----------------|---------------|
-| FEC_CONFIG | ~0.03 KB | ~0.1 KB |
-| LOC Extension | ~0.24 KB | ~0.86 MB |
-| MMTP (source only) | ~0.36 KB | ~1.3 MB |
-| MMTP + Repair | ~0.50 KB | ~1.8 MB |
-
-FEC_CONFIG has the lowest per-session overhead and zero
-per-object overhead, making it ideal for unicast MoQ.
-
-MMTP AL-FEC signaling has higher initial overhead but
-works without bidirectional signaling (multicast).
-
-### A.4. Recommendations
-
-| Use Case | Recommended Method |
-|----------|-------------------|
-| MoQ Unicast | FEC_CONFIG |
-| SSM Multicast | MMTP AL-FEC |
-| Adaptive FEC | FEC_CONFIG + dynamic updates |
-| Hybrid (MoQ + SSM) | Both (MMTP in-band, FEC_CONFIG for unicast) |
 
 ## Appendix B. S-TSID Conversion Example
 
