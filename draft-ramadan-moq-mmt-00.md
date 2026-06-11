@@ -36,31 +36,37 @@ Table of Contents
        4.1.  Track Structure
        4.2.  Object Payload
        4.3.  Group Boundaries
+       4.4.  Switching Sets
+       4.5.  Init Segment Signaling
+       4.6.  Object Identifier Reconstruction
    5.  Media Fragment Unit (MFU) Mode
-       5.1.  MFU Fragmentation
-   6.  FEC Integration
-       6.1.  Interleaving
-       6.2.  OTI Signaling
-   7.  FEC_CONFIG Message
-       7.1.  MMT-Specific FEC_CONFIG Usage
-       7.2.  Repair Track Discovery
-       7.3.  Multicast Delivery of FEC_CONFIG
-   8.  Multicast Integration
-   9.  ARIB STD-B60 Compatibility
-       9.1.  Clock Reference
-       9.2.  8K UHDTV Support
-       9.3.  Hybridcast Integration
-       9.4.  Typical FEC Parameters
-   10. Transport Hierarchy
-   11. Catalog Signaling
-       11.1. Container Values
-       11.2. S-TSID to MoQ Catalog Conversion
-       11.3. MoQ Catalog to S-TSID Conversion
-       11.4. Multicast Endpoint Catalog Extension
-   12. Security Considerations
-       12.1. Multicast Security
-   13. IANA Considerations
-   14. References
+       5.1.  MFU Fragmentation (Raw Passthrough)
+   6.  Subscriber Join and Relay Behavior
+       6.1.  Subscriber Join Procedure
+       6.2.  Relay Retention for Late Joiners
+   7.  FEC Integration
+       7.1.  Interleaving
+       7.2.  OTI Signaling
+   8.  FEC_CONFIG Message
+       8.1.  MMT-Specific FEC_CONFIG Usage
+       8.2.  Repair Track Discovery
+       8.3.  Multicast Delivery of FEC_CONFIG
+   9.  Multicast Integration
+   10. ARIB STD-B60 Compatibility
+       10.1. Clock Reference
+       10.2. 8K UHDTV Support
+       10.3. Hybridcast Integration
+       10.4. Typical FEC Parameters
+   11. Transport Hierarchy
+   12. Catalog Signaling
+       12.1. Packaging Value and Track Fields
+       12.2. S-TSID to MoQ Catalog Conversion
+       12.3. MoQ Catalog to S-TSID Conversion
+       12.4. Multicast Endpoint Catalog Extension
+   13. Security Considerations
+       13.1. Multicast Security
+   14. IANA Considerations
+   15. References
    Appendix A. Bandwidth Comparison
    Appendix B. S-TSID Conversion Example
    Authors' Addresses
@@ -221,12 +227,14 @@ MoQ Object Payload {
 }
 ```
 
-Publishers MAY strip the MMTP header if subscribers negotiate
-raw ISOBMFF delivery via catalog `container` field.  When MMTP headers
-are stripped, the object payload contains only the MPU/ISOBMFF fragment.
-Note that stripping MMTP headers loses FEC Type, RAP flag, and
-timestamp metadata; receivers MUST rely on catalog and MoQ object
-headers for this information.
+The MMTP header is always preserved: it carries the FEC Type, RAP
+Flag, Fragmentation Indicator, and timestamp metadata that receivers
+and the FEC layer depend on.  This document does not define a
+header-stripped delivery mode.  A publisher that wishes to deliver
+raw ISOBMFF fragments without MMTP encapsulation publishes the track
+with CMAF packaging per [I-D.wilaw-moq-cmafpackaging] instead (an
+MPU corresponds to a CMAF Fragment and an MFU to a CMAF Chunk; see
+Section 4.3).
 
 ### 4.3. Group Boundaries
 
@@ -257,7 +265,7 @@ subgroups of the same group, and MUST NOT let a later MFU's subgroup
 starve an earlier, still-open subgroup of the same group.  This governs
 delivery scheduling, not congestion response: under unrecoverable
 congestion a relay MAY drop an MFU's subgroup, in which case the
-receiver's bounded reassembly (Section 5.1) and FEC (Section 6) handle
+receiver's bounded reassembly (Section 5.1) and FEC (Section 7) handle
 the loss.
 
 ### 4.4. Switching Sets
@@ -328,7 +336,7 @@ seconds-form wrapper (`groupIdFor`) for compatibility with existing
 consumers.  This is non-normative; new code SHOULD use the integer
 entry point.
 
-Reference implementations are pinned by commit SHA in §14 to keep
+Reference implementations are pinned by commit SHA in §15 to keep
 URLs stable across branch rewrites.  Formula changes are normative:
 any update MUST update the test fixture and all reference
 implementations in the same release.
@@ -414,6 +422,26 @@ Section 4.3), or as a separate init track per
 subscribers determine the active mode from the catalog before issuing
 SUBSCRIBE.
 
+In addition, publishers SHOULD carry decoder initialization data
+directly in the catalog via the per-track field:
+
+      initData (OPTIONAL, string)
+
+`initData` is the base64 encoding of an ISOBMFF initialization
+segment (`ftyp` + `moov`) sufficient to initialize the decoder for
+the track (including the codec configuration record, e.g. avcC or
+hvcC).  It lets a subscriber initialize its decoder at catalog load,
+before the first MPU metadata object or init-track object arrives,
+removing one delivery round trip from the join path (Section 6.1).
+
+`initData` is a join optimization, not a replacement for in-band
+metadata: the per-group MPU metadata (or init track) remains
+authoritative, and a receiver MUST adopt in-band metadata when it
+differs from `initData`.  Catalog content is untrusted input; a
+receiver MUST validate that decoded `initData` is a well-formed
+`ftyp` + `moov` sequence before passing it to a decoder, and MUST
+discard it otherwise.
+
 ### 4.6. Object Identifier Reconstruction
 
 Within a subgroup, MoQ Object IDs increase monotonically, but the
@@ -492,16 +520,101 @@ publisher MUST NOT reassemble MFU fragments:
    under loss that FEC cannot repair), rather than buffer without
    limit.
 
-The optional MMTP-header-stripping mode of Section 4.2 is incompatible
-with fragmenting a single MFU across objects, because a stripped object
-would lack the Fragmentation Indicator; a publisher that strips MMTP
-headers MUST deliver each MFU as a single complete object.
-
 For very large frames where FEC cannot recover the loss, receivers
 SHOULD support resolution-tier fallback (subscribe to a lower-resolution
 track of the switching set and upscale) rather than stalling.
 
-## 6. FEC Integration
+## 6. Subscriber Join and Relay Behavior
+
+This section defines the join procedure for subscribers and the
+retention behavior relays apply so that late joiners reach first
+frame without waiting for the next group boundary.  Both are derived
+from deployed implementations of this mapping; the retention rules in
+Section 6.2 are purely positional (group, subgroup, and object
+identifiers plus the Subgroup 0 convention of Section 4.3), so relays
+remain container-blind and never parse MMTP.
+
+### 6.1. Subscriber Join Procedure
+
+A subscriber joins a live mmtp-packaged track as follows:
+
+1. **Catalog.** Fetch and validate the catalog.  Validation includes
+   the per-track REQUIRED fields of Section 12.1 and the
+   switching-set agreement check of Section 4.4.4.  A subscriber
+   MUST NOT issue SUBSCRIBE for a track whose catalog entry fails
+   validation.
+
+2. **Decoder initialization.** If the track carries `initData`
+   (Section 4.5) and it validates, initialize the decoder from it
+   immediately.  Otherwise initialization completes when the first
+   init-track object (`initMode: "track"`) or Subgroup 0 MPU-metadata
+   object (`initMode: "inline"`) arrives.
+
+3. **Subscribe at a group boundary.** Issue SUBSCRIBE requesting
+   delivery from the start of the newest available group, not from
+   the latest object.  The group start carries the MPU metadata
+   (Subgroup 0) and the RAP-bearing first media subgroup
+   (Section 4.3); a mid-group start position yields objects that
+   cannot be decoded until the next group.  Where the relay retains
+   the current group (Section 6.2), starting at the newest group
+   boundary gives immediate decodability; otherwise the subscriber
+   waits for the next group boundary.
+
+4. **Repair track.** If the catalog signals FEC for the track, the
+   subscriber SHOULD subscribe to the repair track (Section 8.2) at
+   the same time as the source track, so that the first FEC block
+   spanning the join point is repairable.
+
+5. **Presentation gate.** A subscriber MUST NOT submit media to the
+   decoder until it has (a) decoder initialization data (step 2) and
+   (b) a completely reassembled MFU whose RAP flag is set
+   (Section 5.1).  Objects received before that point are buffered
+   or discarded according to the receiver's reassembly bounds.
+
+6. **Loss and discontinuity.** If a RAP MFU is discarded under
+   unrepairable loss (Section 5.1, step 4), the subscriber MUST
+   treat the track as discontinuous and MUST NOT resume presentation
+   before the next completely reassembled RAP MFU (normally the
+   start of the next group).
+
+### 6.2. Relay Retention for Late Joiners
+
+A relay that admits subscribers mid-stream SHOULD retain, for each
+track it serves, all objects of the current (most recent) group.  At
+minimum it SHOULD retain:
+
+- the Subgroup 0 MPU-metadata object of the current group, and
+- every object of the current group's first RAP-bearing media
+  subgroup.
+
+When a subscription joins mid-group, the relay SHOULD deliver the
+retained objects of the current group from the group start —
+including objects of subgroups that were already complete or still
+open at join time — in subgroup and object order, ahead of or
+interleaved with newly arriving objects.  A relay that holds earlier
+objects of the current group MUST NOT deliver only objects published
+after the join; doing so strands the subscriber until the next group
+boundary and defeats retention.
+
+Two completeness rules apply to replayed subgroups:
+
+1. The relay MUST track which retained subgroups are finalized
+   (closed by the publisher) and, when replaying a finalized
+   subgroup, MUST deliver it completely; replaying a partial prefix
+   of a finalized subgroup and silently omitting the remainder
+   produces an MFU the receiver can never reassemble and is
+   indistinguishable from network loss.
+2. The relay SHOULD deliver the Subgroup 0 MPU-metadata object
+   before media subgroups of the same group, so receivers without
+   `initData` can initialize before media arrives.
+
+Retention of groups older than the current group (for example to
+serve FETCH-based catch-up) is permitted but out of scope for this
+document.  Under cache pressure a relay MAY evict retained objects;
+eviction converts a late join into a wait for the next group
+boundary, which is the same behavior as a relay that retains nothing.
+
+## 7. FEC Integration
 
 MMT's AL-FEC framework supports multiple FEC schemes including
 RaptorQ [RFC6330] and Reed-Solomon [RFC5510],
@@ -518,7 +631,7 @@ Repair Track: video/repair
   └── Objects: MMTP packets with FEC Type=2 (repair)
 ```
 
-### 6.1. Interleaving
+### 7.1. Interleaving
 
 MMT AL-FEC interleaves source symbols across multiple MFUs:
 
@@ -534,7 +647,7 @@ Default interleave depth varies by application:
 - ARIB STD-B60: 60 frames (~2 seconds at 30fps)
 - Low-latency: 4-8 frames (~130-270ms at 30fps)
 
-### 6.2. OTI Signaling
+### 7.2. OTI Signaling
 
 The S-TSID table contains RaptorQ OTI (Object Transmission Info):
 
@@ -554,14 +667,14 @@ S-TSID {
 For MoQ, OTI is signaled via FEC_CONFIG message per
 [I-D.ramadan-moq-fec] Section 4.
 
-## 7. FEC_CONFIG Message
+## 8. FEC_CONFIG Message
 
 The FEC_CONFIG message and its wire format are defined normatively
 in [I-D.ramadan-moq-fec] Section 4.1.  This document does not
 redefine FEC_CONFIG but specifies MMT-specific considerations for
 its use.
 
-### 7.1. MMT-Specific FEC_CONFIG Usage
+### 8.1. MMT-Specific FEC_CONFIG Usage
 
 When used with MMT packaging, the FEC_CONFIG fields map as follows:
 
@@ -577,7 +690,7 @@ When used with MMT packaging, the FEC_CONFIG fields map as follows:
 See [I-D.ramadan-moq-fec] for the complete message format, field
 definitions, algorithm registry, and precedence rules.
 
-### 7.2. Repair Track Discovery
+### 8.2. Repair Track Discovery
 
 When FEC is enabled, the repair track uses the naming convention
 defined in [I-D.ramadan-moq-fec] Section 6.1:
@@ -591,7 +704,7 @@ The subscriber MUST subscribe to the repair track separately.
 The repair track uses lower priority (typically 7) so repair
 symbols are dropped first under congestion.
 
-### 7.3. Multicast Delivery of FEC_CONFIG
+### 8.3. Multicast Delivery of FEC_CONFIG
 
 For multicast (SSM/ASM) delivery where bidirectional signaling is
 not available, FEC_CONFIG parameters are conveyed via:
@@ -617,7 +730,7 @@ not available, FEC_CONFIG parameters are conveyed via:
 }
 ```
 
-## 8. Multicast Integration
+## 9. Multicast Integration
 
 MMT content can be delivered via IP multicast (SSM, AMT) and TreeDN
 for scalable distribution.  Platform-specific delivery paths, SSM
@@ -633,13 +746,13 @@ content into the MoQ application layer via QUIC/WebTransport.
 For ATSC 3.0 and ARIB STD-B60 receivers, MMTP over SSM is the
 native delivery path and requires no protocol translation.
 
-## 9. ARIB STD-B60 Compatibility
+## 10. ARIB STD-B60 Compatibility
 
 ARIB STD-B60 (Japan's MMT-based broadcasting standard) uses the
 same ISO 23008-1 foundation as ATSC 3.0 with the following specific
 considerations:
 
-### 9.1. Clock Reference
+### 10.1. Clock Reference
 
 ARIB STD-B60 uses UTC wallclock timestamps in NTP short format,
 consistent with ISO 23008-1.  The MMTP Timestamp field carries the
@@ -655,7 +768,7 @@ MoQ Timestamp (seconds) = MMTP Timestamp upper 16 bits
 
 Note: This differs from MPEG-2 TS, which uses a 90kHz PTS/DTS clock.
 
-### 9.2. 8K UHDTV Support
+### 10.2. 8K UHDTV Support
 
 ARIB STD-B60 supports 8K UHDTV (7680x4320) via HEVC Main 10 profile
 at Level 6.1 (4:2:0, 10-bit).
@@ -678,7 +791,7 @@ tracks:
   - video/repair    (FEC for all tiles)
 ```
 
-### 9.3. Hybridcast Integration
+### 10.3. Hybridcast Integration
 
 ARIB defines Hybridcast for companion device synchronization
 (second screen experiences).  When bridging Hybridcast services:
@@ -698,7 +811,7 @@ Catalog extension for Hybridcast:
 }
 ```
 
-### 9.4. Typical FEC Parameters
+### 10.4. Typical FEC Parameters
 
 ARIB STD-B60 deployments typically use more conservative FEC
 parameters than ATSC 3.0:
@@ -713,44 +826,81 @@ parameters than ATSC 3.0:
 Publishers SHOULD preserve original FEC parameters when ingesting
 ARIB STD-B60 content.
 
-## 10. Transport Hierarchy
+## 11. Transport Hierarchy
 
 Clients SHOULD attempt transports in preference order.  The transport
 hierarchy for native clients (TV, mobile) and browser clients is
 defined in [I-D.ramadan-moq-multicast] Section 6.
 
-For MMT-specific deployments, AL-FEC (Section 6) is essential on
+For MMT-specific deployments, AL-FEC (Section 7) is essential on
 SSM/AMT paths since there is no retransmission.  On MoQ/QUIC paths,
 FEC reduces retransmission latency but QUIC provides a reliable
 fallback.
 
-## 11. Catalog Signaling
+## 12. Catalog Signaling
 
-The MoQ catalog indicates MMT container format and multicast endpoints.
+The MoQ catalog indicates MMT packaging and multicast endpoints.
 
-### 11.1. Container Values
+### 12.1. Packaging Value and Track Fields
 
-| Value | Description |
-|-------|-------------|
-| "isobmff" | Raw ISOBMFF/MPU (default, MMTP header stripped) |
-| "mmtp" | MMTP-encapsulated MPU (ISOBMFF) |
-| "mfu" | MMTP MFU mode (per-frame objects) |
+This document defines a single packaging value:
+
+      packaging: "mmtp"
+
+carried in the per-track `packaging` field of the catalog
+[I-D.ietf-moq-catalogformat].  The same value is intended for any
+packaging registry established by the MoQ Streaming Format
+[I-D.ietf-moq-msf]; see Section 14.  Object payloads of an
+mmtp-packaged track are whole MMTP packets per Section 4.2.
+
+Earlier mapping variants are expressed without additional packaging
+values: raw ISOBMFF delivery (formerly "isobmff") is CMAF packaging
+per [I-D.wilaw-moq-cmafpackaging] (Section 4.2 of this document),
+and MFU mode (formerly "mfu") is a mode of mmtp packaging signaled
+by the `mmtpMode` field below.
+
+Per-track catalog fields for mmtp packaging:
+
+| Field | Status | Type | Description |
+|-------|--------|------|-------------|
+| `packaging` | REQUIRED | String | MUST be "mmtp" |
+| `mmtpMode` | REQUIRED | String | "mpu" or "mfu" (Section 5) |
+| `timescale` | REQUIRED | Number | Media timescale in Hz (Section 4.4.4) |
+| `groupDurationMs` | REQUIRED | Number | Group duration, integer ms (Section 4.4.4) |
+| `groupDurationTicks` | OPTIONAL | Number | Integer-tick override (Section 4.4.4) |
+| `initMode` | OPTIONAL | String | "inline" (default) or "track" (Section 4.5) |
+| `initData` | OPTIONAL | String | Base64 ftyp+moov init segment (Section 4.5) |
+| `fec` | OPTIONAL | Object | AL-FEC parameters (Section 8.3) |
+| `selectionParams` | REQUIRED | Object | Codec and rendition parameters per [I-D.ietf-moq-catalogformat] |
+
+`mmtpMode` selects the object layout: "mpu" delivers each whole MPU
+as a single object; "mfu" delivers one subgroup per MFU as defined
+in Sections 4.3 and 5.  A subscriber MUST reject a track whose
+`mmtpMode` is absent or carries an unknown value — the object layout
+cannot be inferred safely from received objects.  Per
+[I-D.ietf-moq-catalogformat], parsers MUST ignore unrecognized
+fields.
 
 Example:
 ```json
 {
   "tracks": [{
     "name": "video",
-    "container": "mmtp",
-    "codec": "avc1.64001f",
-    "width": 1920,
-    "height": 1080,
-    "framerate": 30
+    "packaging": "mmtp",
+    "mmtpMode": "mfu",
+    "timescale": 90000,
+    "groupDurationMs": 1000,
+    "selectionParams": {
+      "codec": "avc1.64001f",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 30
+    }
   }]
 }
 ```
 
-### 11.2. S-TSID to MoQ Catalog Conversion
+### 12.2. S-TSID to MoQ Catalog Conversion
 
 When ingesting ATSC 3.0 content delivered via ROUTE, generate MoQ
 catalog from the S-TSID signaling table (defined in ATSC A/331 for
@@ -786,9 +936,14 @@ MoQ Catalog Output:
   "namespace": "atsc/service_1",
   "tracks": [{
     "name": "video",
-    "container": "mmtp",
-    "codec": "avc1.64001f",
-    "bitrate": 5000000,
+    "packaging": "mmtp",
+    "mmtpMode": "mfu",
+    "timescale": 90000,
+    "groupDurationMs": 1000,
+    "selectionParams": {
+      "codec": "avc1.64001f",
+      "bitrate": 5000000
+    },
     "fec": {
       "algorithm": "raptorq",
       "sourceSymbols": 32,
@@ -817,11 +972,17 @@ in [I-D.ramadan-moq-multicast] Section 7.2.  Conversion rules:
 - `RS@dIpAddr` → `multicast.endpoints[].group`
 - `RS@dPort` → `multicast.endpoints[].port`
 - `LS@tsi` → `multicast.endpoints[].tsi`
-- `LS@bw` → `track.bitrate`
+- `LS@bw` → `selectionParams.bitrate`
 - `FECParameters@overhead` → `fec.p` (computed as K × overhead / 100)
 - `fecOTI` K,T,Z → `fec.k`, `fec.symbolSize`, `fec.interleaveDepth`
 
-### 11.3. MoQ Catalog to S-TSID Conversion
+`timescale`, `groupDurationMs`, and `mmtpMode` are not carried in
+S-TSID; the converter obtains them from MMTP signaling (asset
+descriptors and MPU presentation duration in the MPT/MPI tables) and
+MUST populate them in the output catalog, since they are REQUIRED
+fields (Section 12.1).
+
+### 12.3. MoQ Catalog to S-TSID Conversion
 
 When generating ATSC-compatible output, convert MoQ catalog to S-TSID:
 
@@ -830,7 +991,13 @@ MoQ Catalog Input:
 {
   "tracks": [{
     "name": "video",
-    "bitrate": 5000000,
+    "packaging": "mmtp",
+    "mmtpMode": "mfu",
+    "timescale": 90000,
+    "groupDurationMs": 1000,
+    "selectionParams": {
+      "bitrate": 5000000
+    },
     "fec": {
       "algorithm": "raptorq",
       "sourceSymbols": 32,
@@ -875,39 +1042,41 @@ Conversion rules:
 - `fec.p / fec.k × 100` → `FECParameters@overhead`
 - `fec.interleaveDepth × frameDuration` → `FECParameters@maximumDelay`
 
-### 11.4. Multicast Endpoint Catalog Extension
+### 12.4. Multicast Endpoint Catalog Extension
 
 The multicast catalog extension — including simple and extended
 formats and format detection rules — is defined in
 [I-D.ramadan-moq-multicast] Section 7.
 
-When converting S-TSID to MoQ catalog (Section 11.2), the `multicast`
+When converting S-TSID to MoQ catalog (Section 12.2), the `multicast`
 field in the output catalog MUST conform to the extended format
 defined in [I-D.ramadan-moq-multicast] Section 7.2, using the
 `endpoints` array to represent per-TSI multicast groups.
 
-## 12. Security Considerations
+## 13. Security Considerations
 
 MMT content protection uses Common Encryption (CENC) which is
 preserved through MoQ transport.  The MMTP header is not encrypted,
 allowing relays to inspect packet type and sequence without
 accessing media content.
 
-### 12.1. Multicast Security
+### 13.1. Multicast Security
 
 Multicast-specific security considerations (source authentication,
 replay protection, AMT relay trust) are defined in
 [I-D.ramadan-moq-multicast] Section 8.
 
-## 13. IANA Considerations
+## 14. IANA Considerations
 
-This document requests registration of container format identifiers
-in the "MoQ Container Formats" registry:
+This document defines the catalog `packaging` value "mmtp"
+(Section 12.1) for use with [I-D.ietf-moq-catalogformat].  If the
+MoQ Streaming Format [I-D.ietf-moq-msf] or the catalog format
+establishes a registry of packaging values, this document requests
+registration of:
 
 | Value | Description | Reference |
 |-------|-------------|-----------|
-| "mmtp" | MMTP-encapsulated MPU (ISOBMFF) | This document |
-| "mfu" | MMTP MFU mode | This document |
+| "mmtp" | MMTP packets carrying MPU/MFU payloads | This document |
 
 This document also requests registration of MoQ message type
 (shared with [I-D.ramadan-moq-fec]):
@@ -916,7 +1085,7 @@ This document also requests registration of MoQ message type
 |------|------|-----------|
 | 0x50 | FEC_CONFIG | This document |
 
-## 14. References
+## 15. References
 
 [RFC2119]
     Bradner, S., "Key words for use in RFCs to Indicate
@@ -942,6 +1111,10 @@ This document also requests registration of MoQ message type
 [I-D.ietf-moq-catalogformat]
     Nandakumar, S., et al., "Common Catalog Format for MoQ",
     draft-ietf-moq-catalogformat (work in progress).
+
+[I-D.ietf-moq-msf]
+    "Media over QUIC Transport (MOQT) Streaming Format (MSF)",
+    draft-ietf-moq-msf (work in progress).
 
 [I-D.ramadan-moq-fec]
     Ramadan, O., "Forward Error Correction for Media over QUIC",
@@ -1081,13 +1254,18 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
   "tracks": [
     {
       "name": "video/1080p",
-      "container": "mmtp",
-      "codec": "avc1.64001f",
-      "width": 1920,
-      "height": 1080,
-      "framerate": 30,
-      "bitrate": 8000000,
-      "language": "en",
+      "packaging": "mmtp",
+      "mmtpMode": "mfu",
+      "timescale": 90000,
+      "groupDurationMs": 1000,
+      "selectionParams": {
+        "codec": "avc1.64001f",
+        "width": 1920,
+        "height": 1080,
+        "framerate": 30,
+        "bitrate": 8000000,
+        "lang": "en"
+      },
       "fec": {
         "algorithm": "raptorq",
         "sourceSymbols": 32,
@@ -1099,17 +1277,22 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
     },
     {
       "name": "video/1080p/repair",
-      "container": "fec-repair",
+      "packaging": "fec-repair",
       "priority": 7
     },
     {
       "name": "audio/stereo",
-      "container": "mmtp",
-      "codec": "mp4a.40.2",
-      "sampleRate": 48000,
-      "channelCount": 2,
-      "bitrate": 128000,
-      "language": "en"
+      "packaging": "mmtp",
+      "mmtpMode": "mfu",
+      "timescale": 48000,
+      "groupDurationMs": 1000,
+      "selectionParams": {
+        "codec": "mp4a.40.2",
+        "samplerate": 48000,
+        "channelConfig": "2",
+        "bitrate": 128000,
+        "lang": "en"
+      }
     }
   ],
   "multicast": {
