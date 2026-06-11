@@ -910,7 +910,7 @@ This document also requests registration of MoQ message type
     draft-ietf-moq-catalogformat (work in progress).
 
 [I-D.ietf-moq-msf]
-    "Media over QUIC Transport (MOQT) Streaming Format (MSF)",
+    Law, W. and S. Nandakumar, "MOQT Streaming Format",
     draft-ietf-moq-msf (work in progress).
 
 [I-D.ramadan-moq-fec]

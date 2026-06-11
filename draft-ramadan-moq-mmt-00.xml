@@ -1050,7 +1050,7 @@ registration of:</t>
     Nandakumar, S., et al., &quot;Common Catalog Format for MoQ&quot;,
     draft-ietf-moq-catalogformat (work in progress).</t>
 <t>[I-D.ietf-moq-msf]
-    &quot;Media over QUIC Transport (MOQT) Streaming Format (MSF)&quot;,
+    Law, W. and S. Nandakumar, &quot;MOQT Streaming Format&quot;,
     draft-ietf-moq-msf (work in progress).</t>
 <t><eref target="">I-D.ramadan-moq-fec</eref>
     Ramadan, O., &quot;Forward Error Correction for Media over QUIC&quot;,
