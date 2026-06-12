@@ -1,96 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-00" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
-<section anchor="forward-error-correction-for-media-over-quic"><name>Forward Error Correction for Media over QUIC</name>
+<front>
+<title abbrev="MoQ FEC">Forward Error Correction for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
+</postal><email>omar@blockcast.net</email>
+</address></author><date/>
+<area>wit</area>
+<workgroup>moq</workgroup>
+<keyword>FEC</keyword>
+<keyword>RaptorQ</keyword>
+<keyword>MoQ</keyword>
+<keyword>Reed-Solomon</keyword>
+<keyword>ATSC 3.0</keyword>
 
-<artwork><![CDATA[Internet-Draft                                              O. Ramadan
-Intended status: Standards Track                             Blockcast
-Expires: January 2027                                       July 2026
+<abstract>
+<t>This document specifies a mechanism for transmitting Forward Error
+Correction (FEC) repair data alongside source media in Media over
+QUIC (MoQ) sessions.  It defines signaling for FEC configuration
+via both control messages and catalog extensions, conventions for
+repair track naming, and the format of repair objects.  The mechanism
+supports RaptorQ (RFC 6330) and Reed-Solomon (RFC 5510),
+enabling receivers to recover from packet loss without
+retransmission latency.  This specification is designed for
+compatibility with ATSC 3.0 (A/331) and ARIB STD-B60 broadcast systems.</t>
+</abstract>
 
-        Forward Error Correction for Media over QUIC (MoQ)
-                      draft-ramadan-moq-fec-00
+</front>
 
-Abstract
+<middle>
 
-   This document specifies a mechanism for transmitting Forward Error
-   Correction (FEC) repair data alongside source media in Media over
-   QUIC (MoQ) sessions.  It defines signaling for FEC configuration
-   via both control messages and catalog extensions, conventions for
-   repair track naming, and the format of repair objects.  The mechanism
-   supports RaptorQ (RFC 6330) and Reed-Solomon (RFC 5510),
-   enabling receivers to recover from packet loss without
-   retransmission latency.  This specification is designed for
-   compatibility with ATSC 3.0 (A/331) and ARIB STD-B60 broadcast systems.
-
-Status of This Memo
-
-   This Internet-Draft is submitted in full conformance with the
-   provisions of BCP 78 and BCP 79.
-
-   Internet-Drafts are working documents of the Internet Engineering
-   Task Force (IETF).  Note that other groups may also distribute
-   working documents as Internet-Drafts.  The list of current
-   Internet-Drafts is at https://datatracker.ietf.org/drafts/current/.
-
-   Internet-Drafts are draft documents valid for a maximum of six
-   months and may be updated, replaced, or obsoleted by other documents
-   at any time.  It is inappropriate to use Internet-Drafts as
-   reference material or to cite them other than as "work in progress."
-
-Copyright Notice
-
-   Copyright (c) 2026 IETF Trust and the persons identified as the
-   document authors.  All rights reserved.
-
-Table of Contents
-
-   1.  Introduction
-   2.  Terminology
-   3.  Protocol Overview
-   4.  FEC Configuration
-       4.1.  FEC_CONFIG Message
-       4.2.  FEC_CONFIG Extension Header (Alternative)
-       4.3.  FEC Algorithms
-       4.4.  RaptorQ Object Transmission Information
-       4.5.  Reed-Solomon Parameters
-   5.  Catalog FEC Extension
-       5.1.  Catalog Fields
-       5.2.  Relationship to FEC_CONFIG
-   6.  Repair Track Convention
-       6.1.  Track Naming
-       6.2.  Subscription Model
-   7.  Repair Object Format
-       7.1.  Repair Object Header
-       7.2.  Repair Symbols
-   8.  Block and Group Alignment
-       8.1.  Single-Group Blocks
-       8.2.  Multi-Group Blocks
-       8.3.  Source Symbol ESI Derivation
-       8.4.  Encoder Constraints
-       8.5.  Source FEC Payload ID and ATSC 3.0 Signed Region
-   9.  Interleaving
-   10. Priority and Congestion
-   11. Hybrid Unicast and Multicast Delivery
-       11.1. Multicast and AMT Delivery
-   12. ATSC 3.0 Compatibility
-       12.1. Mapping to A/331 AL-FEC
-   13. Interaction with CMAF Packaging
-   14. Security Considerations
-       14.1. FEC Does Not Provide Confidentiality
-       14.2. Repair Symbol Manipulation
-       14.3. Amplification
-       14.4. Multicast FEC Security
-   15. IANA Considerations
-   16. References
-       16.1. Normative References
-       16.2. Informative References
-   Appendix A.  Example Message Flows
-   Appendix B.  Catalog Example
-   Authors' Addresses
-]]></artwork>
-
-<section anchor="1-introduction"><name>1. Introduction</name>
-<t>Media over QUIC (MoQ) [I-D.ietf-moq-transport] provides a
+<section anchor="introduction"><name>Introduction</name>
+<t>Media over QUIC (MoQ) <xref target="I-D.ietf-moq-transport"></xref> provides a
 publish/subscribe transport for real-time media.  While QUIC provides
 reliable delivery through retransmission, the latency incurred by
 retransmission can be unacceptable for ultra-low-latency (ULL)
@@ -109,18 +51,19 @@ MoQ transport extension mechanisms</li>
 <li>A naming convention for repair tracks</li>
 <li>The format of repair objects containing FEC symbols</li>
 <li>Interleaving strategies to protect against burst loss</li>
-<li>Compatibility mappings for ATSC 3.0 and ARIB STD-B60 broadcast systems</li>
+<li>Compatibility mappings for ATSC 3.0 and ARIB STD-B60 <xref target="ARIB-B60"></xref>
+broadcast systems</li>
 </ol>
 <t>The mechanism is designed to complement existing MoQ media packaging
-formats including CMAF [I-D.ietf-moq-cmsf], LOC [I-D.ietf-moq-loc], and
-MMT [I-D.ramadan-moq-mmt] by operating as a separate protection layer.</t>
+formats including CMAF <xref target="I-D.ietf-moq-cmsf"></xref>, LOC <xref target="I-D.ietf-moq-loc"></xref>, and
+MMT <xref target="MOQ-MMT"></xref> by operating as a separate protection layer.</t>
 </section>
 
-<section anchor="2-terminology"><name>2. Terminology</name>
+<section anchor="terminology"><name>Terminology</name>
 <t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;,
 &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and
 &quot;OPTIONAL&quot; in this document are to be interpreted as described in
-BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+BCP 14 <xref target="RFC2119"></xref> <xref target="RFC8174"></xref> when, and only when, they appear in all
 capitals, as shown here.</t>
 <t><strong>Source Track</strong>: A MoQ track carrying media data (e.g., video, audio).</t>
 <t><strong>Repair Track</strong>: A MoQ track carrying FEC repair symbols for a
@@ -137,12 +80,12 @@ symbols.</t>
 block.  The encoder computes the number of groups per block as
 D = ceil(interleaveDepth_ms / GOP_duration_ms).</t>
 <t><strong>Object Transmission Information (OTI)</strong>: Parameters required to
-configure a RaptorQ decoder, as defined in [RFC6330].</t>
+configure a RaptorQ decoder, as defined in <xref target="RFC6330"></xref>.</t>
 <t><strong>Source Block Number (SBN)</strong>: A zero-based index identifying a
 specific source block within a session.</t>
 </section>
 
-<section anchor="3-protocol-overview"><name>3. Protocol Overview</name>
+<section anchor="protocol-overview"><name>Protocol Overview</name>
 
 <artwork><![CDATA[Publisher                              Subscriber
     |                                       |
@@ -186,9 +129,9 @@ QUIC stream objects (reliable), QUIC retransmission handles loss and
 FEC is redundant — receivers MAY skip FEC decoding in this case.</t>
 </section>
 
-<section anchor="4-fec-configuration"><name>4. FEC Configuration</name>
+<section anchor="fec-configuration"><name>FEC Configuration</name>
 
-<section anchor="4-1-fec-config-message"><name>4.1. FEC_CONFIG Message</name>
+<section anchor="fec-config-message"><name>FEC_CONFIG Message</name>
 <t>The FEC_CONFIG message is sent by the publisher after SUBSCRIBE_OK to
 advertise FEC parameters.  Subscribers use this information to decide
 whether to subscribe to the repair track.</t>
@@ -224,12 +167,12 @@ protect against longer burst losses but increase latency.</t>
 <t><strong>Object Transmission Information</strong>: Algorithm-specific parameters.
 For RaptorQ, this is the concatenation of the 8-byte Common FEC OTI
 and the 4-byte Scheme-Specific FEC OTI (12 bytes total) as defined
-in [RFC6330] Sections 3.3.2 and 3.3.3.</t>
+in <xref target="RFC6330"></xref> Sections 3.3.2 and 3.3.3.</t>
 </section>
 
-<section anchor="4-2-fec-config-extension-header-provisional"><name>4.2. FEC_CONFIG Extension Header (Provisional)</name>
+<section anchor="fec-config-extension-header-provisional"><name>FEC_CONFIG Extension Header (Provisional)</name>
 <t>NOTE: This section is provisional and depends on a future extension
-to [I-D.ietf-moq-transport] that adds extension header support on
+to <xref target="I-D.ietf-moq-transport"></xref> that adds extension header support on
 control messages (e.g., SUBSCRIBE_OK).  As of moq-transport-15,
 extension headers are defined only for Object payloads, not control
 messages.  Implementations MUST use the FEC_CONFIG message
@@ -260,7 +203,7 @@ Publishers MUST NOT send both simultaneously for the same
 subscription.</t>
 </section>
 
-<section anchor="4-3-fec-algorithms"><name>4.3. FEC Algorithms</name>
+<section anchor="fec-algorithms"><name>FEC Algorithms</name>
 <table>
 <thead>
 <tr>
@@ -280,13 +223,13 @@ subscription.</t>
 <tr>
 <td>0x01</td>
 <td>RaptorQ</td>
-<td>[RFC6330]</td>
+<td><xref target="RFC6330"></xref></td>
 </tr>
 
 <tr>
 <td>0x02</td>
 <td>Reed-Solomon (GF2<sup>8)</sup></td>
-<td>[RFC5510]</td>
+<td><xref target="RFC5510"></xref></td>
 </tr>
 
 <tr>
@@ -295,20 +238,20 @@ subscription.</t>
 <td>IANA</td>
 </tr>
 </tbody>
-</table><t><strong>RaptorQ (0x01)</strong>: RaptorQ fountain code per [RFC6330].  Can recover
+</table><t><strong>RaptorQ (0x01)</strong>: RaptorQ fountain code per <xref target="RFC6330"></xref>.  Can recover
 from loss of any symbols as long as K symbols (source or repair) are
 received.  Recommended for most applications.</t>
 <t><strong>Reed-Solomon (0x02)</strong>: Reed-Solomon erasure code over GF(2^8) per
-[RFC5510].  Can recover up to P lost symbols.  Suitable for
+<xref target="RFC5510"></xref>.  Can recover up to P lost symbols.  Suitable for
 applications requiring exact recovery guarantees or interoperability
 with ATSC 3.0 systems using RS FEC.</t>
 </section>
 
-<section anchor="4-4-raptorq-object-transmission-information"><name>4.4. RaptorQ Object Transmission Information</name>
+<section anchor="raptorq-object-transmission-information"><name>RaptorQ Object Transmission Information</name>
 <t>When FEC Algorithm is RaptorQ (0x01), the OTI field contains the
 concatenation of the 8-byte Common FEC OTI (Section 3.3.2 of
-[RFC6330]) and the 4-byte Scheme-Specific FEC OTI (Section 3.3.3
-of [RFC6330]), totaling 12 bytes:</t>
+<xref target="RFC6330"></xref>) and the 4-byte Scheme-Specific FEC OTI (Section 3.3.3
+of <xref target="RFC6330"></xref>), totaling 12 bytes:</t>
 
 <artwork><![CDATA[RaptorQ OTI {
   Transfer Length (40),
@@ -323,7 +266,7 @@ of [RFC6330]), totaling 12 bytes:</t>
 block from the cumulative size of source objects in the block.</t>
 </section>
 
-<section anchor="4-5-reed-solomon-parameters"><name>4.5. Reed-Solomon Parameters</name>
+<section anchor="reed-solomon-parameters"><name>Reed-Solomon Parameters</name>
 <t>When FEC Algorithm is Reed-Solomon (0x02), the OTI field contains:</t>
 
 <artwork><![CDATA[Reed-Solomon OTI {
@@ -336,10 +279,10 @@ block from the cumulative size of source objects in the block.</t>
 </section>
 </section>
 
-<section anchor="5-catalog-fec-extension"><name>5. Catalog FEC Extension</name>
+<section anchor="catalog-fec-extension"><name>Catalog FEC Extension</name>
 
-<section anchor="5-1-catalog-fields"><name>5.1. Catalog Fields</name>
-<t>MoQ catalogs [I-D.ietf-moq-loc] MAY include FEC configuration at the
+<section anchor="catalog-fields"><name>Catalog Fields</name>
+<t>MoQ catalogs <xref target="I-D.ietf-moq-loc"></xref> MAY include FEC configuration at the
 track level:</t>
 
 <sourcecode type="json"><![CDATA[{
@@ -358,10 +301,13 @@ track level:</t>
 }
 ]]></sourcecode>
 <t>Field definitions:</t>
-<t><strong>algorithm</strong> (string, REQUIRED if fec present): FEC scheme identifier.
-  - &quot;none&quot;: No FEC (passthrough, optional jitter buffer)
-  - &quot;raptorq&quot;: RaptorQ per RFC 6330
-  - &quot;reed-solomon&quot;: Reed-Solomon GF(2^8) per RFC 5510</t>
+<t><strong>algorithm</strong> (string, REQUIRED if fec present): FEC scheme identifier.</t>
+
+<ul spacing="compact">
+<li>&quot;none&quot;: No FEC (passthrough, optional jitter buffer)</li>
+<li>&quot;raptorq&quot;: RaptorQ per RFC 6330</li>
+<li>&quot;reed-solomon&quot;: Reed-Solomon GF(2^8) per RFC 5510</li>
+</ul>
 <t><strong>sourceSymbols</strong> (integer, REQUIRED): K value - source symbols per
 FEC block.</t>
 <t><strong>repairSymbols</strong> (integer, REQUIRED): P value - repair symbols per
@@ -381,7 +327,7 @@ before forwarding to FEC-unaware HLS/DASH clients.</t>
 following the convention in Section 6.1.</t>
 </section>
 
-<section anchor="5-2-relationship-to-fec-config"><name>5.2. Relationship to FEC_CONFIG</name>
+<section anchor="relationship-to-fec-config"><name>Relationship to FEC_CONFIG</name>
 <t>The FEC_CONFIG message (Section 4.1) is the normative signaling
 mechanism.  The catalog FEC extension (Section 5.1) provides
 out-of-band discovery before subscription.</t>
@@ -408,9 +354,9 @@ favor of catalog or extension header signaling.</t>
 </section>
 </section>
 
-<section anchor="6-repair-track-convention"><name>6. Repair Track Convention</name>
+<section anchor="repair-track-convention"><name>Repair Track Convention</name>
 
-<section anchor="6-1-track-naming"><name>6.1. Track Naming</name>
+<section anchor="track-naming"><name>Track Naming</name>
 <t>For a source track with name components [namespace, track_name], the
 corresponding repair track MUST be named:</t>
 
@@ -448,7 +394,7 @@ form for URIs and logging (e.g., &quot;live/video&quot; and
 additional signaling.</t>
 </section>
 
-<section anchor="6-2-subscription-model"><name>6.2. Subscription Model</name>
+<section anchor="subscription-model"><name>Subscription Model</name>
 <t>Subscribers SHOULD subscribe to the source track first, then subscribe
 to the repair track if:</t>
 
@@ -465,9 +411,9 @@ FEC_CONFIG if they have out-of-band knowledge of FEC availability
 </section>
 </section>
 
-<section anchor="7-repair-object-format"><name>7. Repair Object Format</name>
+<section anchor="repair-object-format"><name>Repair Object Format</name>
 
-<section anchor="7-1-repair-object-header"><name>7.1. Repair Object Header</name>
+<section anchor="repair-object-header"><name>Repair Object Header</name>
 <t>Each object on a repair track contains repair symbols for one source
 block.  The object payload begins with a header:</t>
 
@@ -493,17 +439,17 @@ has small values.</t>
 Symbol Size bytes.</t>
 </section>
 
-<section anchor="7-2-repair-symbols"><name>7.2. Repair Symbols</name>
-<t>For RaptorQ, repair symbols are generated per [RFC6330] Section 5.3.
+<section anchor="repair-symbols"><name>Repair Symbols</name>
+<t>For RaptorQ, repair symbols are generated per <xref target="RFC6330"></xref> Section 5.3.
 The Encoding Symbol ID (ESI) for repair symbols starts at K (the
 number of source symbols).</t>
-<t>For Reed-Solomon, repair symbols are generated per [RFC5510] using
+<t>For Reed-Solomon, repair symbols are generated per <xref target="RFC5510"></xref> using
 the Vandermonde matrix construction.</t>
 </section>
 
-<section anchor="7-3-sub-blocks-and-ssbg-mode"><name>7.3. Sub-Blocks and ssbg_mode</name>
-<t>Per ISO 23008-1 Section C.5, the FEC block structure is described
-by the Source Symbol Block Group mode (ssbg_mode).</t>
+<section anchor="sub-blocks-and-ssbg-mode"><name>Sub-Blocks and ssbg_mode</name>
+<t>Per ISO 23008-1 <xref target="ISO.23008-1"></xref> Section C.5, the FEC block structure
+is described by the Source Symbol Block Group mode (ssbg_mode).</t>
 <t><strong>ssbg_mode0</strong> (RECOMMENDED for MMTP): One MMTP packet = one source
 symbol.  Each MoQ object or multicast UDP datagram carries exactly
 one FEC symbol of size T bytes.  SBN = floor(SS_ID / K), ESI =
@@ -541,25 +487,25 @@ acceptable limits.</t>
 </section>
 </section>
 
-<section anchor="8-block-and-group-alignment"><name>8. Block and Group Alignment</name>
+<section anchor="block-and-group-alignment"><name>Block and Group Alignment</name>
 
-<section anchor="8-1-single-group-blocks-interleave-depth-1"><name>8.1. Single-Group Blocks (Interleave Depth = 1)</name>
+<section anchor="single-group-blocks-interleave-depth-1"><name>Single-Group Blocks (Interleave Depth = 1)</name>
 <t>When Interleave Depth is 1, each FEC block corresponds to exactly
 one MoQ Group:</t>
 
-<artwork><![CDATA[Group 0:  [Obj 0] [Obj 1] ... [Obj K-1]  →  FEC Block 0
-Group 1:  [Obj 0] [Obj 1] ... [Obj K-1]  →  FEC Block 1
+<artwork><![CDATA[Group 0:  [Obj 0] [Obj 1] ... [Obj K-1]  ->  FEC Block 0
+Group 1:  [Obj 0] [Obj 1] ... [Obj K-1]  ->  FEC Block 1
 ...
 ]]></artwork>
 <t>The Source Block Number (SBN) in repair objects equals the Group ID.</t>
 </section>
 
-<section anchor="8-2-multi-group-blocks-interleave-depth-1"><name>8.2. Multi-Group Blocks (Interleave Depth &gt; 1)</name>
+<section anchor="multi-group-blocks-interleave-depth-1"><name>Multi-Group Blocks (Interleave Depth &gt; 1)</name>
 <t>When Interleave Depth is D &gt; 1, each FEC block spans D consecutive
 Groups:</t>
 
-<artwork><![CDATA[Groups 0-3 (D=4):  →  FEC Block 0, SBN = 0
-Groups 4-7 (D=4):  →  FEC Block 1, SBN = 1
+<artwork><![CDATA[Groups 0-3 (D=4):  ->  FEC Block 0, SBN = 0
+Groups 4-7 (D=4):  ->  FEC Block 1, SBN = 1
 ...
 ]]></artwork>
 <t>The SBN is computed as: <tt>SBN = floor(Group_ID / Interleave_Depth)</tt></t>
@@ -568,18 +514,18 @@ Groups 4-7 (D=4):  →  FEC Block 1, SBN = 1
 of Group <tt>(N+1) * D - 1</tt>.</t>
 </section>
 
-<section anchor="8-3-source-symbol-esi-derivation"><name>8.3. Source Symbol ESI Derivation</name>
+<section anchor="source-symbol-esi-derivation"><name>Source Symbol ESI Derivation</name>
 <t>Receivers MUST derive the Encoding Symbol ID (ESI) for each source
 object from MoQ transport identifiers.  The ESI identifies the
 symbol's position within its FEC block for RaptorQ or Reed-Solomon
 decoding.</t>
 <t>For a source object with MoQ Group_ID <tt>G</tt> and Object_ID <tt>O</tt>:</t>
 
-<artwork><![CDATA[D = ceil(interleaveDepth_ms / GOP_duration_ms)   # groups per block
-SBN = floor(G / D)                                # source block number
-first_group = SBN * D                             # first group in block
-symbols_per_group = ceil(K / D)                   # symbols from each group
-ESI = (G - first_group) * symbols_per_group + O   # encoding symbol ID
+<artwork><![CDATA[D = ceil(interleaveDepth_ms / GOP_duration_ms)  # groups per block
+SBN = floor(G / D)                              # source block number
+first_group = SBN * D                           # first group in block
+symbols_per_group = ceil(K / D)                 # symbols per group
+ESI = (G - first_group) * symbols_per_group + O # encoding symbol ID
 ]]></artwork>
 <t>The flat SS_ID (per ISO 23008-1 Section C.5.2) is reconstructed as:</t>
 
@@ -599,7 +545,7 @@ ESI = SS_ID % K
 <t>Both derivations produce the same (SBN, ESI) for the same packet.</t>
 </section>
 
-<section anchor="8-4-encoder-constraints"><name>8.4. Encoder Constraints</name>
+<section anchor="encoder-constraints"><name>Encoder Constraints</name>
 <t>For FEC block alignment to be deterministic, encoders MUST:</t>
 
 <ol>
@@ -623,7 +569,7 @@ block boundary.  This enables CDN relays to perform FEC recovery at
 the segment level before forwarding to FEC-unaware clients.</t>
 </section>
 
-<section anchor="8-5-source-fec-payload-id-and-atsc-3-0-signed-region"><name>8.5. Source FEC Payload ID and ATSC 3.0 Signed Region</name>
+<section anchor="source-fec-payload-id-and-atsc-3-0-signed-region"><name>Source FEC Payload ID and ATSC 3.0 Signed Region</name>
 <t>The 4-byte Source FEC Payload ID (SS_ID) is appended at the END of
 MMTP source packet payloads, outside the base MMTP header.  Per
 ATSC A/360 Section 5.2.2.5, the ATSC 3.0 Signed Application (A3SA)
@@ -654,7 +600,7 @@ transport encryption provides equivalent integrity protection.</t>
 </section>
 </section>
 
-<section anchor="9-interleaving"><name>9. Interleaving</name>
+<section anchor="interleaving"><name>Interleaving</name>
 <t>Interleaving spreads source symbols across time to protect against
 burst loss.  With interleave depth D, symbols from D consecutive
 media units are grouped into one source block:</t>
@@ -718,7 +664,7 @@ P &gt;= 2 repair symbols, Block 0 can still be recovered.</t>
 </tbody>
 </table></section>
 
-<section anchor="10-priority-and-congestion"><name>10. Priority and Congestion</name>
+<section anchor="priority-and-congestion"><name>Priority and Congestion</name>
 <t>Repair tracks SHOULD use lower priority than source tracks so that
 repair data is dropped first under congestion.</t>
 <t>Recommended priority assignment:</t>
@@ -761,27 +707,27 @@ MoQ-specific priority signaling.</t>
 </ol>
 </section>
 
-<section anchor="11-hybrid-unicast-and-multicast-delivery"><name>11. Hybrid Unicast and Multicast Delivery</name>
+<section anchor="hybrid-unicast-and-multicast-delivery"><name>Hybrid Unicast and Multicast Delivery</name>
 <t>This FEC mechanism is designed to support hybrid delivery architectures
 where the same media stream is delivered via multiple transport paths
 simultaneously.  Multicast delivery paths (Section 3), TreeDN
 integration (Section 5), and transport hierarchy (Section 6) are
-defined in [I-D.ramadan-moq-multicast]; this section covers
+defined in <xref target="MOQ-MULTICAST"></xref>; this section covers
 FEC-specific considerations for hybrid delivery.</t>
 
-<section anchor="11-1-multicast-and-amt-delivery"><name>11.1. Multicast and AMT Delivery</name>
-<t>IP multicast (including Source-Specific Multicast per [RFC4607]) and
-Automatic Multicast Tunneling (AMT per [RFC7450]) provide efficient
+<section anchor="multicast-and-amt-delivery"><name>Multicast and AMT Delivery</name>
+<t>IP multicast (including Source-Specific Multicast per <xref target="RFC4607"></xref>) and
+Automatic Multicast Tunneling (AMT per <xref target="RFC7450"></xref>) provide efficient
 one-to-many delivery but are inherently unreliable.  FEC enables receivers
 to recover from packet loss without retransmission:</t>
 
 <ul spacing="compact">
 <li><strong>Native SSM</strong>: Receivers join multicast group directly</li>
 <li><strong>AMT Tunneling</strong>: Receivers without native multicast connect via AMT
-relays discovered through DRIAD ([RFC8777])</li>
-<li><strong>TreeDN Distribution</strong>: Hierarchical multicast trees per [RFC9706]
+relays discovered through DRIAD (<xref target="RFC8777"></xref>)</li>
+<li><strong>TreeDN Distribution</strong>: Hierarchical multicast trees per <xref target="RFC9706"></xref>
 with FEC protection at each hop.  ISP edge routers with inline AMT
-relay capability [JUNIPER-TREEDN] can serve as TreeDN nodes,
+relay capability <xref target="JUNIPER-TREEDN"></xref> can serve as TreeDN nodes,
 replacing x86 CDN servers with in-router replication while
 preserving FEC repair across the delivery path</li>
 </ul>
@@ -814,11 +760,11 @@ Optional  Required            Required
 </section>
 </section>
 
-<section anchor="12-atsc-3-0-compatibility"><name>12. ATSC 3.0 Compatibility</name>
+<section anchor="atsc-3-0-compatibility"><name>ATSC 3.0 Compatibility</name>
 <t>This specification is designed for interoperability with ATSC A/331
-[ATSC-A331] Application-Layer FEC.</t>
+<xref target="ATSC-A331"></xref> Application-Layer FEC.</t>
 
-<section anchor="12-1-mapping-to-a-331-al-fec"><name>12.1. Mapping to A/331 AL-FEC</name>
+<section anchor="mapping-to-a-331-al-fec"><name>Mapping to A/331 AL-FEC</name>
 <table>
 <thead>
 <tr>
@@ -850,12 +796,12 @@ Optional  Required            Required
 
 <tr>
 <td><tt>maximumDelay</tt></td>
-<td>Derived from Interleave Depth × frame duration</td>
+<td>Derived from Interleave Depth x frame duration</td>
 </tr>
 
 <tr>
 <td><tt>overhead</tt></td>
-<td>Computed as (P / K) × 100</td>
+<td>Computed as (P / K) x 100</td>
 </tr>
 </tbody>
 </table><t>Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
@@ -863,60 +809,60 @@ FEC parameters and pass them through in FEC_CONFIG.</t>
 </section>
 </section>
 
-<section anchor="13-interaction-with-cmaf-packaging"><name>13. Interaction with CMAF Packaging</name>
+<section anchor="interaction-with-cmaf-packaging"><name>Interaction with CMAF Packaging</name>
 <t>This specification is designed to work alongside CMAF packaging for
-MoQ [I-D.ietf-moq-cmsf].  The relationship is:</t>
+MoQ <xref target="I-D.ietf-moq-cmsf"></xref>.  The relationship is:</t>
 
-<artwork><![CDATA[┌─────────────────────────────────────────────────┐
-│              MoQ Track Namespace                │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  Source Track (CMAF packaged)                   │
-│  ┌─────────────────────────────────────────┐   │
-│  │ Object 0: CMAF Header (ftyp, moov)      │   │
-│  │ Object 1: CMAF Chunk (moof + mdat)      │   │
-│  │ Object 2: CMAF Chunk (moof + mdat)      │   │
-│  │ ...                                      │   │
-│  └─────────────────────────────────────────┘   │
-│                                                 │
-│  Repair Track (this specification)              │
-│  ┌─────────────────────────────────────────┐   │
-│  │ Object 0: Repair for Block 0            │   │
-│  │ Object 1: Repair for Block 1            │   │
-│  │ ...                                      │   │
-│  └─────────────────────────────────────────┘   │
-│                                                 │
-└─────────────────────────────────────────────────┘
+<artwork><![CDATA[+-------------------------------------------------+
+|              MoQ Track Namespace                |
++-------------------------------------------------+
+|                                                 |
+|  Source Track (CMAF packaged)                   |
+|  +-----------------------------------------+    |
+|  | Object 0: CMAF Header (ftyp, moov)      |    |
+|  | Object 1: CMAF Chunk (moof + mdat)      |    |
+|  | Object 2: CMAF Chunk (moof + mdat)      |    |
+|  | ...                                     |    |
+|  +-----------------------------------------+    |
+|                                                 |
+|  Repair Track (this specification)              |
+|  +-----------------------------------------+    |
+|  | Object 0: Repair for Block 0            |    |
+|  | Object 1: Repair for Block 1            |    |
+|  | ...                                     |    |
+|  +-----------------------------------------+    |
+|                                                 |
++-------------------------------------------------+
 ]]></artwork>
 <t>FEC encoding is applied to CMAF chunk payloads, treating each chunk
 (or portion thereof) as source symbols.  The FEC layer is agnostic to
 the media container format.</t>
 </section>
 
-<section anchor="14-security-considerations"><name>14. Security Considerations</name>
+<section anchor="security-considerations"><name>Security Considerations</name>
 
-<section anchor="14-1-fec-does-not-provide-confidentiality"><name>14.1. FEC Does Not Provide Confidentiality</name>
+<section anchor="fec-does-not-provide-confidentiality"><name>FEC Does Not Provide Confidentiality</name>
 <t>FEC repair symbols are derived from source data.  If source data is
 encrypted, repair symbols will also be encrypted by virtue of
 operating on ciphertext.  However, FEC itself provides no
 confidentiality guarantees.</t>
 </section>
 
-<section anchor="14-2-repair-symbol-manipulation"><name>14.2. Repair Symbol Manipulation</name>
+<section anchor="repair-symbol-manipulation"><name>Repair Symbol Manipulation</name>
 <t>An attacker who can modify repair symbols could cause receivers to
 reconstruct incorrect source data.  Integrity protection of repair
 tracks is RECOMMENDED, using the same mechanisms as source tracks
 (e.g., QUIC packet protection).</t>
 </section>
 
-<section anchor="14-3-amplification"><name>14.3. Amplification</name>
+<section anchor="amplification"><name>Amplification</name>
 <t>FEC repair symbols represent additional bandwidth.  Publishers MUST
 NOT generate excessive repair symbols that could be used for bandwidth
 amplification attacks.  The repair overhead (P/K) SHOULD be limited
 to reasonable values (e.g., &lt;= 50%).</t>
 </section>
 
-<section anchor="14-4-multicast-fec-security"><name>14.4. Multicast FEC Security</name>
+<section anchor="multicast-fec-security"><name>Multicast FEC Security</name>
 <t>When FEC is used over multicast (SSM/AMT), additional considerations
 apply:</t>
 
@@ -942,7 +888,7 @@ unicast fallback.</t>
 </ol>
 </section>
 
-<section anchor="14-5-atsc-3-0-signed-region-a3sa-considerations"><name>14.5. ATSC 3.0 Signed Region (A3SA) Considerations</name>
+<section anchor="atsc-3-0-signed-region-a3sa-considerations"><name>ATSC 3.0 Signed Region (A3SA) Considerations</name>
 <t>When operating within the ATSC 3.0 ecosystem, content authenticity
 is enforced via the A3SA (ATSC 3.0 Signed Application) framework
 defined in ATSC A/360 Section 5.2.2.5.  The <tt>signed_mmt_message</tt>
@@ -971,9 +917,9 @@ Source FEC Payload ID without requiring A3SA.</t>
 </section>
 </section>
 
-<section anchor="15-iana-considerations"><name>15. IANA Considerations</name>
+<section anchor="iana-considerations"><name>IANA Considerations</name>
 
-<section anchor="15-1-moq-message-type"><name>15.1. MoQ Message Type</name>
+<section anchor="moq-message-type"><name>MoQ Message Type</name>
 <t>This document requests registration of a new MoQ message type in the
 &quot;MoQ Message Types&quot; registry:</t>
 <table>
@@ -996,11 +942,11 @@ Source FEC Payload ID without requiring A3SA.</t>
 the MOQ WG chairs to avoid collision with other allocations.
 Implementations SHOULD use a value in the experimental range
 (0xF000-0xFFFF) until IANA allocation is confirmed.  This
-registration is shared with [I-D.ramadan-moq-mmt], which references
+registration is shared with <xref target="MOQ-MMT"></xref>, which references
 this document for the normative FEC_CONFIG definition.</t>
 </section>
 
-<section anchor="15-2-moq-extension-header-type"><name>15.2. MoQ Extension Header Type</name>
+<section anchor="moq-extension-header-type"><name>MoQ Extension Header Type</name>
 <t>This document requests registration of a new MoQ extension header
 type in a separate &quot;MoQ Extension Header Types&quot; registry (note: this
 is a different IANA registry than the message type registry in 15.1,
@@ -1022,11 +968,11 @@ so reuse of the value 0x50 does not create a collision):</t>
 </tr>
 </tbody>
 </table><t>Note: This registration is provisional pending adoption of control
-message extension headers in <eref target="see
-Section 4.2">I-D.ietf-moq-transport</eref>.</t>
+message extension headers in <xref target="I-D.ietf-moq-transport"></xref> (see
+Section 4.2).</t>
 </section>
 
-<section anchor="15-3-fec-algorithm-registry"><name>15.3. FEC Algorithm Registry</name>
+<section anchor="fec-algorithm-registry"><name>FEC Algorithm Registry</name>
 <t>This document requests creation of a &quot;MoQ FEC Algorithms&quot; registry
 with the following initial values:</t>
 <table>
@@ -1048,13 +994,13 @@ with the following initial values:</t>
 <tr>
 <td>0x01</td>
 <td>RaptorQ</td>
-<td>[RFC6330]</td>
+<td><xref target="RFC6330"></xref></td>
 </tr>
 
 <tr>
 <td>0x02</td>
 <td>Reed-Solomon</td>
-<td>[RFC5510]</td>
+<td><xref target="RFC5510"></xref></td>
 </tr>
 
 <tr>
@@ -1067,73 +1013,89 @@ with the following initial values:</t>
 </section>
 </section>
 
-<section anchor="16-references"><name>16. References</name>
+</middle>
 
-<section anchor="16-1-normative-references"><name>16.1. Normative References</name>
-<t>[RFC2119]  Bradner, S., &quot;Key words for use in RFCs to Indicate
-           Requirement Levels&quot;, BCP 14, RFC 2119,
-           DOI 10.17487/RFC2119, March 1997.</t>
-<t>[RFC5510]  Lacan, J., Roca, V., Peltotalo, J., and S. Peltotalo,
-           &quot;Reed-Solomon Forward Error Correction (FEC) Schemes&quot;,
-           RFC 5510, DOI 10.17487/RFC5510, April 2009.</t>
-<t>[RFC6330]  Luby, M., Shokrollahi, A., Watson, M., Stockhammer, T.,
-           and L. Minder, &quot;RaptorQ Forward Error Correction Scheme
-           for Object Delivery&quot;, RFC 6330, DOI 10.17487/RFC6330,
-           August 2011.</t>
-<t>[RFC8174]  Leiba, B., &quot;Ambiguity of Uppercase vs Lowercase in RFC
-           2119 Key Words&quot;, BCP 14, RFC 8174, DOI 10.17487/RFC8174,
-           May 2017.</t>
-<t>[I-D.ietf-moq-transport]
-           Curley, L., Pugin, K., Nandakumar, S., Vasiliev, V., and
-           I. Swett, &quot;Media over QUIC Transport&quot;,
-           draft-ietf-moq-transport (work in progress).</t>
-</section>
+<back>
+<references><name>References</name>
+<references><name>Normative References</name>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
+</references>
+<references><name>Informative References</name>
+<reference anchor="ARIB-B60" target="">
+  <front>
+    <title>MMT-Based Media Transport Scheme in Digital Broadcasting Systems</title>
+    <author>
+      <organization>ARIB</organization>
+    </author>
+    <date></date>
+  </front>
+  <seriesInfo name="ARIB STD-B60" value="Version 1.14"></seriesInfo>
+</reference>
+<reference anchor="ATSC-A331" target="https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/">
+  <front>
+    <title>Signaling, Delivery, Synchronization, and Error Protection</title>
+    <author>
+      <organization>ATSC</organization>
+    </author>
+    <date year="2025" month="February"></date>
+  </front>
+  <seriesInfo name="ATSC" value="A/331:2025"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-transport.xml"/>
+<reference anchor="ISO.23008-1" target="">
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 1: MPEG media transport (MMT)</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year="2023"></date>
+  </front>
+  <seriesInfo name="ISO/IEC" value="23008-1:2023"></seriesInfo>
+</reference>
+<reference anchor="JUNIPER-TREEDN" target="https://community.juniper.net/blogs/lenny/2025/08/21/introduction-to-TreeDN">
+  <front>
+    <title>TreeDN - The Fix for Catastrophically Successful Live Streaming Events</title>
+    <author fullname="Lenny Giuliano" initials="L." surname="Giuliano">
+      <organization>Juniper Networks</organization>
+    </author>
+    <date year="2025" month="August"></date>
+  </front>
+</reference>
+<reference anchor="MOQ-MMT" target="">
+  <front>
+    <title>MPEG Media Transport (MMT) Packaging for Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-00"></seriesInfo>
+</reference>
+<reference anchor="MOQ-MULTICAST" target="">
+  <front>
+    <title>Multicast Delivery and Endpoint Discovery for Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-00"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.4607.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.5510.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.6330.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.7450.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8777.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.9706.xml"/>
+</references>
+</references>
 
-<section anchor="16-2-informative-references"><name>16.2. Informative References</name>
-<t>[I-D.ietf-moq-loc]
-           Zanaty, M., et al., &quot;Low Overhead Media Container&quot;,
-           draft-ietf-moq-loc (work in progress).</t>
-<t>[I-D.ietf-moq-cmsf]
-           Law, W., &quot;CMSF: A CMAF Compliant Implementation of
-           MOQT Streaming Format&quot;, draft-ietf-moq-cmsf
-           (work in progress).</t>
-<t>[I-D.ramadan-moq-mmt]
-           Ramadan, O., &quot;MPEG Media Transport (MMT) Packaging for
-           Media over QUIC&quot;, draft-ramadan-moq-mmt (work in progress).</t>
-<t>[I-D.ramadan-moq-multicast]
-           Ramadan, O., &quot;Multicast Delivery and Endpoint Discovery
-           for Media over QUIC&quot;, draft-ramadan-moq-multicast
-           (work in progress).</t>
-<t>[RFC4607]  Holbrook, H. and B. Cain, &quot;Source-Specific Multicast for IP&quot;,
-           RFC 4607, DOI 10.17487/RFC4607, August 2006.</t>
-<t>[RFC7450]  Bumgardner, G., &quot;Automatic Multicast Tunneling&quot;, RFC 7450,
-           DOI 10.17487/RFC7450, February 2015.</t>
-<t>[RFC8777]  Holland, J., &quot;DNS Reverse IP Automatic Multicast Tunneling
-           (AMT) Discovery&quot;, RFC 8777, DOI 10.17487/RFC8777, April 2020.</t>
-<t>[RFC9706]  Holland, J., et al., &quot;TreeDN: Tree-Based Content Delivery
-           Network (CDN) for Live Streaming to Mass Audiences&quot;,
-           RFC 9706, December 2024.</t>
-<t>[ATSC-A331]
-           ATSC, &quot;Signaling, Delivery, Synchronization, and Error
-           Protection&quot;, A/331:2025, February 2025.</t>
-<t>[ARIB-B60]
-           ARIB, &quot;MMT-Based Media Transport Scheme in Digital
-           Broadcasting Systems&quot;, ARIB STD-B60, Version 1.14.</t>
-<t>[ISO.23008-1]
-           ISO, &quot;Information technology - High efficiency coding and
-           media delivery in heterogeneous environments - Part 1:
-           MPEG media transport (MMT)&quot;, ISO/IEC 23008-1:2023.</t>
-<t>[JUNIPER-TREEDN]
-           Giuliano, L., &quot;TreeDN - The Fix for Catastrophically
-           Successful Live Streaming Events&quot;, Juniper TechPost,
-           August 2025, <eref target="https://community.juniper.net/blogs/lenny/">https://community.juniper.net/blogs/lenny/</eref>
-           2025/08/21/introduction-to-TreeDN</t>
-</section>
-</section>
+<section anchor="example-message-flows"><name>Example Message Flows</name>
 
-<section anchor="appendix-a-example-message-flows"><name>Appendix A. Example Message Flows</name>
-
-<section anchor="a-1-publisher-initiated-fec"><name>A.1. Publisher-Initiated FEC</name>
+<section anchor="publisher-initiated-fec"><name>Publisher-Initiated FEC</name>
 
 <artwork><![CDATA[Publisher                              Subscriber
     |                                       |
@@ -1146,10 +1108,11 @@ with the following initial values:</t>
     |  FEC_CONFIG(sub_id=1,                 |
     |    algorithm=RaptorQ,                 |
     |    K=32, P=8, symbol_size=1312,       |
-    |    interleave=4000, oti=...)             |
+    |    interleave=4000, oti=...)          |
     |-------------------------------------->|
     |                                       |
-    |  SUBSCRIBE(sub_id=2, track=video/repair)
+    |  SUBSCRIBE(sub_id=2,                  |
+    |    track=video/repair)                |
     |<--------------------------------------|
     |                                       |
     |  SUBSCRIBE_OK(sub_id=2)               |
@@ -1164,18 +1127,21 @@ with the following initial values:</t>
 ]]></artwork>
 </section>
 
-<section anchor="a-2-recovery-example"><name>A.2. Recovery Example</name>
+<section anchor="recovery-example"><name>Recovery Example</name>
 <t>Subscriber receives source objects 0,1,3,4,5,6,7,8,9 (object 2 lost)
 and repair objects 0,1,2.</t>
-<t>With K=10, P=3, subscriber has:
-- 9 source symbols (ESI 0,1,3,4,5,6,7,8,9)
-- 3 repair symbols (ESI 10,11,12)
-- Total: 12 symbols &gt;= K=10</t>
+<t>With K=10, P=3, subscriber has:</t>
+
+<ul spacing="compact">
+<li>9 source symbols (ESI 0,1,3,4,5,6,7,8,9)</li>
+<li>3 repair symbols (ESI 10,11,12)</li>
+<li>Total: 12 symbols &gt;= K=10</li>
+</ul>
 <t>RaptorQ decoder can recover the missing source symbol (ESI 2).</t>
 </section>
 </section>
 
-<section anchor="appendix-b-catalog-example"><name>Appendix B. Catalog Example</name>
+<section anchor="catalog-example"><name>Catalog Example</name>
 <t>Complete catalog with FEC and multicast configuration:</t>
 
 <sourcecode type="json"><![CDATA[{
@@ -1229,15 +1195,11 @@ and repair objects 0,1,2.</t>
 }
 ]]></sourcecode>
 <t>The <tt>multicast</tt> field uses the simple format defined in
-[I-D.ramadan-moq-multicast] Section 7.1.  For multi-endpoint
-deployments, the extended format ([I-D.ramadan-moq-multicast] Section 7.2) with <tt>endpoints</tt>
-array is also available.</t>
+<xref target="MOQ-MULTICAST"></xref> Section 7.1.  For multi-endpoint
+deployments, the extended format (<xref target="MOQ-MULTICAST"></xref> Section 7.2)
+with <tt>endpoints</tt> array is also available.</t>
 </section>
 
-<section anchor="authors-addresses"><name>Authors' Addresses</name>
-<t>Omar Ramadan
-Blockcast
-Email: omar@blockcast.net</t>
-</section>
-</section>
+</back>
 
+</rfc>

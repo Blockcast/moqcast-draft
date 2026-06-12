@@ -1,74 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-multicast-00" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
-<section anchor="multicast-delivery-and-endpoint-discovery-for-media-over-quic"><name>Multicast Delivery and Endpoint Discovery for Media over QUIC</name>
+<front>
+<title abbrev="MoQ Multicast">Multicast Delivery and Endpoint Discovery for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-multicast-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
+</postal><email>omar@blockcast.net</email>
+</address></author><date/>
+<area>wit</area>
+<workgroup>moq</workgroup>
+<keyword>multicast</keyword>
+<keyword>MoQ</keyword>
+<keyword>AMT</keyword>
+<keyword>SSM</keyword>
+<keyword>TreeDN</keyword>
 
-<artwork><![CDATA[Internet-Draft                                              O. Ramadan
-Intended status: Standards Track                             Blockcast
-Expires: October 2026                                      April 2026
+<abstract>
+<t>This document specifies multicast delivery mechanisms and catalog-based
+endpoint discovery for Media over QUIC (MoQ).  It defines how MoQ
+sessions integrate with IP multicast (SSM, ASM), Automatic Multicast
+Tunneling (AMT), and TreeDN for scalable live streaming.  The
+specification includes a multicast catalog extension for endpoint
+discovery and multi-path delivery across TV, mobile, and browser
+platforms.  All multicast delivery uses MMTP packets — the same packet
+format used on MoQ QUIC streams and datagrams — providing track
+routing, timestamps, sequencing, FEC metadata, and authentication
+natively.</t>
+</abstract>
 
-     Multicast Delivery and Endpoint Discovery for Media over QUIC
-                    draft-ramadan-moq-multicast-00
+</front>
 
-Abstract
+<middle>
 
-   This document specifies multicast delivery mechanisms and catalog-
-   based endpoint discovery for Media over QUIC (MoQ).  It defines how
-   MoQ sessions integrate with IP multicast (SSM, ASM), Automatic
-   Multicast Tunneling (AMT), and TreeDN for scalable live streaming.
-   The specification includes a multicast catalog extension for endpoint
-   discovery and multi-path delivery across TV, mobile, and browser
-   platforms.  All multicast delivery uses MMTP packets — the same
-   packet format used on MoQ QUIC streams and datagrams — providing
-   track routing, timestamps, sequencing, FEC metadata, and
-   authentication natively.
-
-Status of This Memo
-
-   This Internet-Draft is submitted in full conformance with the
-   provisions of BCP 78 and BCP 79.
-
-   Internet-Drafts are working documents of the Internet Engineering
-   Task Force (IETF).  Note that other groups may also distribute
-   working documents as Internet-Drafts.  The list of current
-   Internet-Drafts is at https://datatracker.ietf.org/drafts/current/.
-
-   Internet-Drafts are draft documents valid for a maximum of six
-   months and may be updated, replaced, or obsoleted by other documents
-   at any time.  It is inappropriate to use Internet-Drafts as
-   reference material or to cite them other than as "work in progress."
-
-Copyright Notice
-
-   Copyright (c) 2026 IETF Trust and the persons identified as the
-   document authors.  All rights reserved.
-
-Table of Contents
-
-   1.  Introduction
-       1.1.  Multicast as Supplement to MoQ Unicast
-   2.  Terminology
-   3.  Delivery Paths
-   4.  Multicast Catalog Extension
-       4.1.  Multicast Endpoint Format
-       4.2.  Network Source Types
-             4.2.1.  AMT (Automatic Multicast Tunneling)
-             4.2.2.  ATSC 3.0 (Broadcast Television)
-             4.2.3.  Multiple Network Sources
-   5.  Multicast Packet Format
-   6.  Multi-Path Delivery
-       6.1.  Packaging Negotiation
-   7.  Security Considerations
-       7.1.  Multicast Security
-       7.2.  Content Authentication
-   8.  IANA Considerations
-   9.  References
-       9.1.  Normative References
-       9.2.  Informative References
-   Authors' Addresses
-]]></artwork>
-
-<section anchor="1-introduction"><name>1. Introduction</name>
+<section anchor="introduction"><name>Introduction</name>
 <t>Live streaming audiences routinely reach tens of millions of
 concurrent viewers.  Traditional HTTP-based CDN architectures
 replicate streams at x86 server farms close to viewers, but this
@@ -77,7 +41,7 @@ bitrates.</t>
 <t>IP multicast provides an alternative where a single stream is
 replicated at the network layer, but lacks the economic incentives
 for widespread ISP deployment.  Media over QUIC (MoQ)
-[I-D.ietf-moq-transport] provides a modern transport for real-time
+<xref target="I-D.ietf-moq-transport"></xref> provides a modern transport for real-time
 media, but its unicast model faces the same scaling limitations as
 HTTP CDNs for mass-audience events.</t>
 <t>This document specifies how MoQ integrates with IP multicast to
@@ -88,7 +52,7 @@ signaling of QUIC:</t>
 <li><strong>Delivery paths</strong>: Platform-specific multicast reception for
 TV, mobile, and browser clients</li>
 <li><strong>Catalog extension</strong>: A container-agnostic multicast endpoint
-discovery mechanism for MoQ catalogs [I-D.ietf-moq-catalogformat]</li>
+discovery mechanism for MoQ catalogs <xref target="I-D.ietf-moq-catalogformat"></xref></li>
 <li><strong>MMTP wire format</strong>: All multicast delivery uses MMTP packets —
 the same packet format used on MoQ QUIC streams and datagrams.
 MMTP provides track routing (packet_id), timestamps, sequencing
@@ -97,17 +61,17 @@ MMTP provides track routing (packet_id), timestamps, sequencing
 <li><strong>Multi-path delivery</strong>: Combining MoQ unicast and multicast for
 seamless failover and FEC symbol deduplication</li>
 </ol>
-<t>MoQ relays MAY operate as TreeDN [RFC9706] nodes for hierarchical
+<t>MoQ relays MAY operate as TreeDN <xref target="RFC9706"></xref> nodes for hierarchical
 distribution.</t>
 
-<section anchor="1-1-multicast-as-supplement-to-moq-unicast"><name>1.1. Multicast as Supplement to MoQ Unicast</name>
+<section anchor="multicast-as-supplement-to-moq-unicast"><name>Multicast as Supplement to MoQ Unicast</name>
 <t>Multicast delivery as defined in this document is a supplement to
 MoQ/QUIC unicast.  Subscribers MUST establish a MoQ session first
 to receive the catalog, negotiate parameters, and receive initial
 media.  Multicast MAY then be used as an optimized delivery path
 for ongoing media data.  This ensures that codec configuration is
 available before multicast reception begins.</t>
-<t>Exception: MMTP-packaged streams [I-D.ramadan-moq-mmt] delivered
+<t>Exception: MMTP-packaged streams <xref target="MOQ-MMT"></xref> delivered
 via ATSC 3.0 broadcast or native SSM are self-describing and MAY
 operate as unidirectional data streams without a MoQ session.  MMTP
 carries per-packet routing (packet_id), timing (timestamp),
@@ -118,24 +82,25 @@ path.</t>
 </section>
 </section>
 
-<section anchor="2-terminology"><name>2. Terminology</name>
+<section anchor="terminology"><name>Terminology</name>
 <t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;,
 &quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;,
 and &quot;OPTIONAL&quot; in this document are to be interpreted as described
-in BCP 14 [RFC2119] [RFC8174].</t>
-<t><strong>SSM</strong>: Source-Specific Multicast [RFC4607]</t>
-<t><strong>AMT</strong>: Automatic Multicast Tunneling [RFC7450]</t>
-<t><strong>DRIAD</strong>: DNS Reverse IP AMT Discovery [RFC8777]</t>
-<t><strong>TreeDN</strong>: Tree-based Content Delivery Network [RFC9706]</t>
+in BCP 14 <xref target="RFC2119"></xref> <xref target="RFC8174"></xref> when, and only when, they appear
+in all capitals, as shown here.</t>
+<t><strong>SSM</strong>: Source-Specific Multicast <xref target="RFC4607"></xref></t>
+<t><strong>AMT</strong>: Automatic Multicast Tunneling <xref target="RFC7450"></xref></t>
+<t><strong>DRIAD</strong>: DNS Reverse IP AMT Discovery <xref target="RFC8777"></xref></t>
+<t><strong>TreeDN</strong>: Tree-based Content Delivery Network <xref target="RFC9706"></xref></t>
 <t><strong>IWA</strong>: Isolated Web App — a Chrome packaging format that grants
 DirectSocket API access</t>
 <t><strong>MMTP</strong>: MMT Protocol — the packet layer of MPEG Media Transport
-([I-D.bouazizi-mmtp] Section 3).  Each MMTP packet is
+(<xref target="I-D.bouazizi-mmtp"></xref> Section 3).  Each MMTP packet is
 self-describing, carrying track routing, timestamps, sequencing,
 and FEC metadata natively.</t>
 </section>
 
-<section anchor="3-delivery-paths"><name>3. Delivery Paths</name>
+<section anchor="delivery-paths"><name>Delivery Paths</name>
 <t>MoQ content can reach receivers via multiple delivery paths depending
 on platform capabilities:</t>
 <table>
@@ -154,12 +119,12 @@ on platform capabilities:</t>
 
 <tr>
 <td>Native (no multicast)</td>
-<td>AMT tunneling over UDP [RFC7450]</td>
+<td>AMT tunneling over UDP <xref target="RFC7450"></xref></td>
 </tr>
 
 <tr>
 <td>Browser (IWA)</td>
-<td>SSM/AMT via DirectSocket [WICG-DirectSockets]</td>
+<td>SSM/AMT via DirectSocket <xref target="WICG-DirectSockets"></xref></td>
 </tr>
 
 <tr>
@@ -172,8 +137,8 @@ MoQ/WebTransport is the universal fallback and requires no
 special platform capabilities.</t>
 <t>Broadcast receivers (ATSC 3.0, ARIB STD-B60) consume MMTP streams
 natively over RF tuner hardware.  MoQ integration occurs at the
-gateway/head-end level via TreeDN [RFC9706] and AMT [RFC7450] /
-DRIAD [RFC8777].</t>
+gateway/head-end level via TreeDN <xref target="RFC9706"></xref> and AMT <xref target="RFC7450"></xref> /
+DRIAD <xref target="RFC8777"></xref>.</t>
 <t>Multiple transports MAY be available for a given stream.  Applications
 select transports based on availability and local policy.</t>
 <t>For broadcast deployments with Single Frequency Network (SFN)
@@ -182,24 +147,24 @@ reception, single transmitter, native SSM, AMT tunneling, MoQ/QUIC
 unicast.</t>
 </section>
 
-<section anchor="4-multicast-catalog-extension"><name>4. Multicast Catalog Extension</name>
+<section anchor="multicast-catalog-extension"><name>Multicast Catalog Extension</name>
 <t>For tracks available via multicast, the MoQ catalog includes a
 top-level <tt>multicast</tt> field containing an <tt>endpoints</tt> array for
 endpoint discovery.</t>
 <t>The catalog is itself delivered as a MoQ track.  Per
-[I-D.ietf-moq-msf] Section 5.2, the catalog track MUST have the
+<xref target="I-D.ietf-moq-msf"></xref> Section 5.2, the catalog track MUST have the
 case-sensitive Track Name <tt>catalog</tt>, and publishers conforming to this
 document MUST publish the catalog under that name.  Some WARP-lineage
 deployments instead use the legacy name <tt>.catalog</tt>; the leading dot
 prefix is reserved at the Track Namespace level by
-[I-D.ietf-moq-transport] Section 3.2.1 and SHOULD NOT be used as a
+<xref target="I-D.ietf-moq-transport"></xref> Section 3.2.1 and SHOULD NOT be used as a
 catalog Track Name.  A publisher MAY additionally publish the catalog
 under <tt>.catalog</tt> as a transitional compatibility alias for non-MSF
 consumers.</t>
 
-<section anchor="4-1-multicast-endpoint-format"><name>4.1. Multicast Endpoint Format</name>
+<section anchor="multicast-endpoint-format"><name>Multicast Endpoint Format</name>
 <t>The <tt>multicast</tt> field is a catalog extension per
-[I-D.ietf-moq-catalogformat] Section 3.1.  Parsers that do not
+<xref target="I-D.ietf-moq-catalogformat"></xref> Section 3.1.  Parsers that do not
 support multicast MUST ignore it.</t>
 <t>The <tt>multicast</tt> field contains an <tt>endpoints</tt> array listing one or
 more multicast groups.  A single-endpoint deployment uses a
@@ -208,7 +173,7 @@ one-element array:</t>
 <sourcecode type="json"><![CDATA[{
   "multicast": {
     "endpoints": [{
-      "sourceAddress": "69.25.95.10",
+      "sourceAddress": "198.51.100.10",
       "groupAddress": "232.0.10.1",
       "port": 8000,
       "tracks": [
@@ -255,16 +220,22 @@ audio/video groups) use multiple elements:</t>
 }
 ]]></sourcecode>
 <t>Endpoint field definitions:</t>
-<t><strong>protocol</strong> (string, OPTIONAL): Transport protocol.
-  - &quot;ssm&quot;: Source-Specific Multicast (RFC 4607).  This is the default
-    when <tt>sourceAddress</tt> is present.
-  - &quot;asm&quot;: Any-Source Multicast.</t>
+<t><strong>protocol</strong> (string, OPTIONAL): Transport protocol.</t>
+
+<ul spacing="compact">
+<li>&quot;ssm&quot;: Source-Specific Multicast (RFC 4607).  This is the default
+when <tt>sourceAddress</tt> is present.</li>
+<li>&quot;asm&quot;: Any-Source Multicast.</li>
+</ul>
 <t><strong>sourceAddress</strong> (string, OPTIONAL): SSM source IP address per
-  [RFC4607].  Required for Source-Specific Multicast.  If omitted,
+  <xref target="RFC4607"></xref>.  Required for Source-Specific Multicast.  If omitted,
   implies ASM.</t>
-<t><strong>groupAddress</strong> (string, REQUIRED): Multicast group address.
-  - SSM range: 232.0.0.0/8 (IPv4), ff3x::/32 (IPv6)
-  - ASM range: 224.0.0.0/4 (IPv4), ff0x::/16 (IPv6)</t>
+<t><strong>groupAddress</strong> (string, REQUIRED): Multicast group address.</t>
+
+<ul spacing="compact">
+<li>SSM range: 232.0.0.0/8 (IPv4), ff3x::/32 (IPv6)</li>
+<li>ASM range: 224.0.0.0/4 (IPv4), ff0x::/16 (IPv6)</li>
+</ul>
 <t><strong>port</strong> (integer, REQUIRED): UDP port number.</t>
 <t><strong>tracks</strong> (array, REQUIRED): Tracks available on this endpoint.
   Each element is an object with the following fields:</t>
@@ -275,7 +246,7 @@ track identifier used in the MoQ catalog.</li>
 <li><strong>packetId</strong> (integer, REQUIRED): MMTP packet_id used for
 packet-level track routing on multicast.  Maps directly to the
 Packet ID field in the MMTP header (Section 3.1 of
-[I-D.ramadan-moq-mmt]).  Values MUST be unique within an
+<xref target="MOQ-MMT"></xref>).  Values MUST be unique within an
 (sourceAddress, groupAddress, port) tuple.</li>
 </ul>
 <t><strong>bandwidth</strong> (integer, RECOMMENDED): Aggregate bandwidth of this
@@ -317,7 +288,7 @@ Specific thresholds are implementation-defined and SHOULD be
 tunable.</t>
 </section>
 
-<section anchor="4-2-network-source-types"><name>4.2. Network Source Types</name>
+<section anchor="network-source-types"><name>Network Source Types</name>
 <t>The <tt>networkSource</tt> field describes how subscribers can reach the
 multicast stream when native IP multicast routing is not available.
 It appears at the <tt>multicast</tt> level (applying to all endpoints) or
@@ -325,28 +296,34 @@ on individual endpoints.</t>
 <t><strong>type</strong> (string, REQUIRED): Delivery technology identifier.</t>
 <t>Defined types:</t>
 
-<section anchor="4-2-1-amt-automatic-multicast-tunneling"><name>4.2.1. AMT (Automatic Multicast Tunneling)</name>
+<section anchor="amt-automatic-multicast-tunneling"><name>AMT (Automatic Multicast Tunneling)</name>
 
 <sourcecode type="json"><![CDATA[{
   "networkSource": {
     "type": "amt",
-    "relay": "69.25.95.1",
+    "relay": "198.51.100.1",
     "discovery": "driad"
   }
 }
 ]]></sourcecode>
 <t><strong>relay</strong> (string, OPTIONAL): AMT relay address (IP or hostname).
   When present, subscribers SHOULD connect directly to this relay.</t>
-<t><strong>discovery</strong> (string, OPTIONAL): AMT relay discovery method.
-  - &quot;driad&quot;: DNS Reverse IP AMT Discovery per [RFC8777].
-    Subscribers query the source IP's reverse DNS for AMT relay
-    records.  This is the RECOMMENDED discovery method.
-  - &quot;manual&quot;: Relay address is provided in the <tt>relay</tt> field.</t>
-<t>Subscribers SHOULD attempt relay discovery in this order:
-1. Use <tt>relay</tt> directly if provided
-2. Use DRIAD discovery on the SSM source IP if <tt>discovery</tt> is
-   &quot;driad&quot; or omitted
-3. Fall back to MoQ/QUIC unicast</t>
+<t><strong>discovery</strong> (string, OPTIONAL): AMT relay discovery method.</t>
+
+<ul spacing="compact">
+<li>&quot;driad&quot;: DNS Reverse IP AMT Discovery per <xref target="RFC8777"></xref>.
+Subscribers query the source IP's reverse DNS for AMT relay
+records.  This is the RECOMMENDED discovery method.</li>
+<li>&quot;manual&quot;: Relay address is provided in the <tt>relay</tt> field.</li>
+</ul>
+<t>Subscribers SHOULD attempt relay discovery in this order:</t>
+
+<ol spacing="compact">
+<li>Use <tt>relay</tt> directly if provided</li>
+<li>Use DRIAD discovery on the SSM source IP if <tt>discovery</tt> is
+&quot;driad&quot; or omitted</li>
+<li>Fall back to MoQ/QUIC unicast</li>
+</ol>
 <t>Note: DRIAD requires TYPE260 reverse DNS records on the source IP.
 DRIAD relay addresses are typically anycast — subscribers connect
 to the topologically nearest relay without additional configuration.
@@ -354,7 +331,7 @@ Publishers without reverse DNS control SHOULD provide the <tt>relay</tt>
 field directly.</t>
 </section>
 
-<section anchor="4-2-2-atsc-3-0-broadcast-television"><name>4.2.2. ATSC 3.0 (Broadcast Television)</name>
+<section anchor="atsc-3-0-broadcast-television"><name>ATSC 3.0 (Broadcast Television)</name>
 
 <sourcecode type="json"><![CDATA[{
   "networkSource": {
@@ -379,13 +356,13 @@ directly over RF.  MoQ subscribers without tuner hardware ignore
 this networkSource type.</t>
 </section>
 
-<section anchor="4-2-3-multiple-network-sources"><name>4.2.3. Multiple Network Sources</name>
+<section anchor="multiple-network-sources"><name>Multiple Network Sources</name>
 <t>When a stream is available via multiple delivery technologies,
 <tt>networkSource</tt> MAY be an array:</t>
 
 <sourcecode type="json"><![CDATA[{
   "networkSource": [
-    { "type": "amt", "relay": "69.25.95.1", "discovery": "driad" },
+    { "type": "amt", "relay": "198.51.100.1", "discovery": "driad" },
     { "type": "atsc3", "frequency": 533000, "plpId": 0 }
   ]
 }
@@ -396,26 +373,26 @@ transport hierarchy defined in Section 3.</t>
 </section>
 </section>
 
-<section anchor="5-multicast-packet-format"><name>5. Multicast Packet Format</name>
+<section anchor="multicast-packet-format"><name>Multicast Packet Format</name>
 <t>All multicast delivery uses MMTP packets.  Each UDP datagram carries
 one MMTP packet — the same packet format used on MoQ QUIC streams
 and datagrams.  MMTP provides track routing (packet_id), timestamps,
 sequencing (Packet Sequence Number), FEC metadata (FEC Type, Source/
 Repair FEC Payload ID, per-packet OTI), random access signaling
 (RAP flag), and fragmentation (C flag) natively.</t>
-<t>LOC video objects [I-D.ietf-moq-loc] and CMAF chunks
-[I-D.ietf-moq-cmsf] are frame-sized (10-100KB+) and exceed the
-UDP datagram MTU (~1300 bytes).  Per [I-D.ietf-moq-loc] Section
+<t>LOC video objects <xref target="I-D.ietf-moq-loc"></xref> and CMAF chunks
+<xref target="I-D.ietf-moq-cmsf"></xref> are frame-sized (10-100KB+) and exceed the
+UDP datagram MTU (~1300 bytes).  Per <xref target="I-D.ietf-moq-loc"></xref> Section
 4.1: &quot;When mapped to QUIC datagrams, each object must fit entirely
 within a QUIC datagram.&quot;  The same constraint applies to multicast
-UDP datagrams.  MMTP [I-D.bouazizi-mmtp] fragments media into
+UDP datagrams.  MMTP <xref target="I-D.bouazizi-mmtp"></xref> fragments media into
 MTU-sized packets natively per Section 4.1.1.  This is not a design
 choice — it is a physical constraint of datagram-based delivery.
 For CMAF sources, this fragmentation realizes the Chunk-to-Object
-mapping of [I-D.wilaw-moq-cmafpackaging].</t>
+mapping of <xref target="I-D.wilaw-moq-cmafpackaging"></xref>.</t>
 <t>No additional multicast framing, encapsulation, or header format is
-needed.  The MMTP packet format is defined in [I-D.ramadan-moq-mmt]
-Section 3.1 and [I-D.bouazizi-mmtp] Section 3.</t>
+needed.  The MMTP packet format is defined in <xref target="MOQ-MMT"></xref>
+Section 3.1 and <xref target="I-D.bouazizi-mmtp"></xref> Section 3.</t>
 <t>This design means the same MMTP packet can be delivered via three
 transports without modification:</t>
 <table>
@@ -452,12 +429,12 @@ relays at network edges bridge the same MMTP packets between
 multicast and QUIC transports.</t>
 </section>
 
-<section anchor="6-multi-path-delivery"><name>6. Multi-Path Delivery</name>
+<section anchor="multi-path-delivery"><name>Multi-Path Delivery</name>
 <t>The same media content (source and repair) can be transmitted over
 both MoQ unicast (QUIC/WebTransport) and multicast (UDP/SSM/AMT)
 paths simultaneously.  Because the same MMTP packets are used on all
 transports, receivers can combine symbols from any path for FEC
-recovery.</t>
+recovery <xref target="MOQ-FEC"></xref>.</t>
 <t>When symbols arrive from multiple paths simultaneously, receivers:</t>
 
 <ol spacing="compact">
@@ -469,11 +446,11 @@ symbols arrive reliably</li>
 </ol>
 <t>Multicast-to-unicast failover: if multicast reception fails,
 subscribers fall back to MoQ/QUIC unicast by subscribing with
-filter LatestGroup or NextGroup per [I-D.ietf-moq-transport].
+filter LatestGroup or NextGroup per <xref target="I-D.ietf-moq-transport"></xref>.
 No coordinate mapping between multicast SBN and MoQ group_id is
 needed — the relay provides the current position.</t>
 
-<section anchor="6-1-packaging-negotiation"><name>6.1. Packaging Negotiation</name>
+<section anchor="packaging-negotiation"><name>Packaging Negotiation</name>
 <t>Packaging negotiation is implicit in MoQ: subscribers subscribe to
 tracks by name, and the catalog advertises packaging per track.  A
 subscriber that only supports LOC subscribes to the LOC track; a
@@ -484,18 +461,18 @@ No explicit packaging capability negotiation is needed.</t>
 </section>
 </section>
 
-<section anchor="7-security-considerations"><name>7. Security Considerations</name>
+<section anchor="security-considerations"><name>Security Considerations</name>
 
-<section anchor="7-1-multicast-security"><name>7.1. Multicast Security</name>
+<section anchor="multicast-security"><name>Multicast Security</name>
 <t>SSM inherently limits traffic to authorized sources via (S,G)
 filtering.  Sequence numbers enable replay detection.  For AMT,
-trust is delegated to the relay per [RFC7450].</t>
+trust is delegated to the relay per <xref target="RFC7450"></xref>.</t>
 </section>
 
-<section anchor="7-2-content-authentication"><name>7.2. Content Authentication</name>
+<section anchor="content-authentication"><name>Content Authentication</name>
 <t>Multicast UDP lacks QUIC's integrity guarantees.  For MMTP-packaged
 multicast delivery, content authentication uses the MMTP
-signed_mmt_message mechanism per [I-D.bouazizi-mmtp] Section 3.1
+signed_mmt_message mechanism per <xref target="I-D.bouazizi-mmtp"></xref> Section 3.1
 (header extension format).  This provides per-packet authentication
 using digital signatures carried in MMTP header extensions.</t>
 <t>Key distribution for multicast authentication uses one of two
@@ -530,26 +507,29 @@ of the multicast configuration:</t>
 }
 ]]></sourcecode>
 <t><strong>scheme</strong> (string, REQUIRED if auth present): Authentication
-  mechanism identifier.  Defined values:
-  - &quot;signed_mmt_message&quot;: MMTP-native per-packet authentication
-    per [I-D.bouazizi-mmtp] Section 3.1
-  - &quot;alta&quot;: ALTA per [I-D.krose-mboned-alta] — lightweight
-    asymmetric loss-tolerant authentication</t>
+  mechanism identifier.  Defined values:</t>
 
-<section anchor="7-2-1-authentication-carrier-by-wire-layer-alta"><name>7.2.1. Authentication Carrier by Wire Layer (ALTA)</name>
+<ul spacing="compact">
+<li>&quot;signed_mmt_message&quot;: MMTP-native per-packet authentication
+per <xref target="I-D.bouazizi-mmtp"></xref> Section 3.1</li>
+<li>&quot;alta&quot;: ALTA per <xref target="I-D.krose-mboned-alta"></xref> — lightweight
+asymmetric loss-tolerant authentication</li>
+</ul>
+
+<section anchor="authentication-carrier-by-wire-layer-alta"><name>Authentication Carrier by Wire Layer (ALTA)</name>
 <t>ATSC 3.0 defines two independent multicast transports with
 independent authentication envelopes, and deployments MAY use
 either or both:</t>
 
 <ul spacing="compact">
 <li><strong>ROUTE</strong> (ALC over LCT) carries auth in an LCT <tt>EXT_AUTH</tt> header
-extension per [RFC5775] Section 5.2, demultiplexed by ASID.  ATSC
-3.0 assigns ASID = 0 to TESLA-style authentication (A/331 §7.1).
-ALTA on the ROUTE/ALC path SHOULD register a distinct ASID (this
-document suggests 10) so that both schemes can coexist in the
-EXT_AUTH registry slot without mutual clobbering.</li>
+extension per <xref target="RFC5775"></xref> Section 5.2, demultiplexed by ASID.  ATSC
+3.0 assigns ASID = 0 to TESLA-style authentication (A/331 Section
+7.1) <xref target="ATSC-A331"></xref>.  ALTA on the ROUTE/ALC path SHOULD register a
+distinct ASID (this document suggests 10) so that both schemes can
+coexist in the EXT_AUTH registry slot without mutual clobbering.</li>
 <li><strong>MMTP</strong> carries auth in an MMTP header extension per
-[I-D.bouazizi-mmtp] Section 3.1.  ATSC A/360 Section 5.2.2.5
+<xref target="I-D.bouazizi-mmtp"></xref> Section 3.1.  ATSC A/360 Section 5.2.2.5
 defines <tt>signed_mmt_message</tt> (A/331 Table 7.41) for MMTP
 signaling and MA3 messages (packet type 0x2).  ALTA on the MMTP
 path SHOULD use an MMTP header-extension <tt>ext_type</tt> (value from
@@ -573,91 +553,82 @@ placement of the authenticator bytes on the wire differs.</t>
 by Secure Objects which provides object-level encryption and
 authentication independent of multicast.</t>
 <t>Content authentication for multicast is an active area of work.
-Deployments SHOULD track developments in [I-D.krose-mboned-alta]
+Deployments SHOULD track developments in <xref target="I-D.krose-mboned-alta"></xref>
 and related specifications.</t>
 </section>
 </section>
 </section>
 
-<section anchor="8-iana-considerations"><name>8. IANA Considerations</name>
+<section anchor="iana-considerations"><name>IANA Considerations</name>
 <t>This document has no IANA actions.  The multicast catalog extension
 (Section 4) is defined by this document and does not require IANA
 registration.</t>
 </section>
 
-<section anchor="9-references"><name>9. References</name>
+</middle>
 
-<section anchor="9-1-normative-references"><name>9.1. Normative References</name>
-<t>[RFC2119]  Bradner, S., &quot;Key words for use in RFCs to Indicate
-           Requirement Levels&quot;, BCP 14, RFC 2119,
-           DOI 10.17487/RFC2119, March 1997.</t>
-<t>[RFC8174]  Leiba, B., &quot;Ambiguity of Uppercase vs Lowercase in RFC
-           2119 Key Words&quot;, BCP 14, RFC 8174, DOI 10.17487/RFC8174,
-           May 2017.</t>
-<t>[RFC4607]  Holbrook, H. and B. Cain, &quot;Source-Specific Multicast for IP&quot;,
-           RFC 4607, DOI 10.17487/RFC4607, August 2006.</t>
-<t>[RFC7450]  Bumgardner, G., &quot;Automatic Multicast Tunneling&quot;, RFC 7450,
-           DOI 10.17487/RFC7450, February 2015.</t>
-<t>[RFC8777]  Holland, J., &quot;DNS Reverse IP Automatic Multicast Tunneling
-           (AMT) Discovery&quot;, RFC 8777, DOI 10.17487/RFC8777, April 2020.</t>
-<t>[RFC9706]  Holland, J., et al., &quot;TreeDN: Tree-Based Content Delivery
-           Network (CDN) for Live Streaming to Mass Audiences&quot;,
-           RFC 9706, December 2024.</t>
-<t>[I-D.ietf-moq-transport]
-           Curley, L., Pugin, K., Nandakumar, S., Vasiliev, V., and
-           I. Swett, &quot;Media over QUIC Transport&quot;,
-           draft-ietf-moq-transport (work in progress).</t>
-<t>[I-D.ietf-moq-msf]
-           Law, W., et al., &quot;MOQT Streaming Format&quot;,
-           draft-ietf-moq-msf (work in progress).</t>
-<t>[I-D.bouazizi-mmtp]
-           Bouazizi, I., &quot;MMT Protocol (MMTP)&quot;,
-           draft-bouazizi-mmtp-01 (work in progress).</t>
-</section>
+<back>
+<references><name>References</name>
+<references><name>Normative References</name>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
+</references>
+<references><name>Informative References</name>
+<reference anchor="ATSC-A331" target="https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/">
+  <front>
+    <title>Signaling, Delivery, Synchronization, and Error Protection</title>
+    <author>
+      <organization>ATSC</organization>
+    </author>
+    <date year="2025" month="February"></date>
+  </front>
+  <seriesInfo name="ATSC" value="A/331:2025"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.bouazizi-mmtp.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-catalogformat.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-msf.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-transport.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.krose-mboned-alta.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.wilaw-moq-cmafpackaging.xml"/>
+<reference anchor="MOQ-FEC" target="">
+  <front>
+    <title>Forward Error Correction for Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-00"></seriesInfo>
+</reference>
+<reference anchor="MOQ-MMT" target="">
+  <front>
+    <title>MPEG Media Transport (MMT) Packaging for Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-00"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.4607.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.5775.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.7450.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8777.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.9706.xml"/>
+<reference anchor="WICG-DirectSockets" target="https://wicg.github.io/direct-sockets/">
+  <front>
+    <title>Direct Sockets API</title>
+    <author fullname="Andrew Rayskiy" initials="A." surname="Rayskiy">
+      <organization>W3C Community Group Draft Report</organization>
+    </author>
+    <date year="2026"></date>
+  </front>
+</reference>
+</references>
+</references>
 
-<section anchor="9-2-informative-references"><name>9.2. Informative References</name>
-<t>[I-D.ramadan-moq-mmt]
-           Ramadan, O., &quot;MPEG Media Transport (MMT) Packaging for
-           Media over QUIC&quot;, draft-ramadan-moq-mmt (work in progress).</t>
-<t>[I-D.ramadan-moq-fec]
-           Ramadan, O., &quot;Forward Error Correction for Media over QUIC&quot;,
-           draft-ramadan-moq-fec (work in progress).</t>
-<t>[I-D.ietf-moq-catalogformat]
-           Nandakumar, S., et al., &quot;Common Catalog Format for
-           MoQ&quot;, draft-ietf-moq-catalogformat (work in progress).</t>
-<t>[I-D.krose-mboned-alta]
-           Krose, B., &quot;Asymmetric Loss-Tolerant Authentication&quot;,
-           draft-krose-mboned-alta (work in progress).</t>
-<t>[I-D.ietf-moq-loc]
-           Zanaty, M., et al., &quot;Low Overhead Media Container&quot;,
-           draft-ietf-moq-loc (work in progress).</t>
-<t>[I-D.ietf-moq-cmsf]
-           Law, W., &quot;CMSF: A CMAF Compliant Implementation of
-           MOQT Streaming Format&quot;, draft-ietf-moq-cmsf
-           (work in progress).</t>
-<t>[I-D.wilaw-moq-cmafpackaging]
-           Law, W., &quot;CMAF Packaging for Media over QUIC&quot;,
-           draft-wilaw-moq-cmafpackaging-01 (work in progress),
-           April 2026.</t>
-<t>[ISO.23008-1]
-           ISO, &quot;Information technology - High efficiency coding and
-           media delivery in heterogeneous environments - Part 1:
-           MPEG media transport (MMT)&quot;, ISO/IEC 23008-1:2023.
-           (Informative.  A freely available description of the MMTP
-           wire format is provided by [I-D.bouazizi-mmtp].)</t>
-<t>[ATSC-A331]
-           ATSC, &quot;Signaling, Delivery, Synchronization, and Error
-           Protection&quot;, A/331:2025, February 2025.</t>
-<t>[WICG-DirectSockets]
-           Rayskiy, A., &quot;Direct Sockets API&quot;, W3C Community Group
-           Draft Report, <eref target="https://wicg.github.io/direct-sockets/">https://wicg.github.io/direct-sockets/</eref></t>
-</section>
-</section>
+</back>
 
-<section anchor="authors-addresses"><name>Authors' Addresses</name>
-<t>Omar Ramadan
-Blockcast
-Email: omar@blockcast.net</t>
-</section>
-</section>
-
+</rfc>
