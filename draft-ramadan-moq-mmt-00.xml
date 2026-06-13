@@ -923,10 +923,10 @@ Appendix A.</t>
 defined in <xref target="MOQ-MULTICAST"></xref> Section 4.1.  Conversion rules:</t>
 
 <ul spacing="compact">
-<li><tt>RS@sIpAddr</tt> -&gt; <tt>multicast.endpoints[].source</tt></li>
-<li><tt>RS@dIpAddr</tt> -&gt; <tt>multicast.endpoints[].group</tt></li>
+<li><tt>RS@sIpAddr</tt> -&gt; <tt>multicast.endpoints[].sourceAddress</tt></li>
+<li><tt>RS@dIpAddr</tt> -&gt; <tt>multicast.endpoints[].groupAddress</tt></li>
 <li><tt>RS@dPort</tt> -&gt; <tt>multicast.endpoints[].port</tt></li>
-<li><tt>LS@tsi</tt> -&gt; <tt>multicast.endpoints[].tsi</tt></li>
+<li><tt>LS@tsi</tt> -&gt; <tt>multicast.endpoints[].tracks[].packetId</tt></li>
 <li><tt>LS@bw</tt> -&gt; <tt>selectionParams.bitrate</tt></li>
 <li><tt>FECParameters@overhead</tt> -&gt; <tt>fec.p</tt> (computed as K x overhead / 100)</li>
 <li><tt>fecOTI</tt> K,T,Z -&gt; <tt>fec.k</tt>, <tt>fec.symbolSize</tt>, <tt>fec.interleaveDepth</tt></li>
@@ -943,7 +943,7 @@ fields (Section 12.1).</t>
 S-TSID by inverting the mapping of Section 12.2.  Conversion rules:</t>
 
 <ul spacing="compact">
-<li><tt>multicast.endpoints[].source</tt> -&gt; <tt>RS@sIpAddr</tt></li>
+<li><tt>multicast.endpoints[].sourceAddress</tt> -&gt; <tt>RS@sIpAddr</tt></li>
 <li><tt>fec.p / fec.k x 100</tt> -&gt; <tt>FECParameters@overhead</tt></li>
 <li><tt>fec.interleaveDepth x frameDuration</tt> -&gt; <tt>FECParameters@maximumDelay</tt></li>
 </ul>

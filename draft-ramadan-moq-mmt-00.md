@@ -804,10 +804,10 @@ Appendix A.
 The `multicast` field in the output uses the multicast endpoint format
 defined in [@MOQ-MULTICAST] Section 4.1.  Conversion rules:
 
-- `RS@sIpAddr` -> `multicast.endpoints[].source`
-- `RS@dIpAddr` -> `multicast.endpoints[].group`
+- `RS@sIpAddr` -> `multicast.endpoints[].sourceAddress`
+- `RS@dIpAddr` -> `multicast.endpoints[].groupAddress`
 - `RS@dPort` -> `multicast.endpoints[].port`
-- `LS@tsi` -> `multicast.endpoints[].tsi`
+- `LS@tsi` -> `multicast.endpoints[].tracks[].packetId`
 - `LS@bw` -> `selectionParams.bitrate`
 - `FECParameters@overhead` -> `fec.p` (computed as K x overhead / 100)
 - `fecOTI` K,T,Z -> `fec.k`, `fec.symbolSize`, `fec.interleaveDepth`
@@ -823,7 +823,7 @@ fields (Section 12.1).
 When generating ATSC-compatible output, convert the MoQ catalog to
 S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 
-- `multicast.endpoints[].source` -> `RS@sIpAddr`
+- `multicast.endpoints[].sourceAddress` -> `RS@sIpAddr`
 - `fec.p / fec.k x 100` -> `FECParameters@overhead`
 - `fec.interleaveDepth x frameDuration` -> `FECParameters@maximumDelay`
 
