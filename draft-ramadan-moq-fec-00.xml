@@ -1185,19 +1185,34 @@ and repair objects 0,1,2.</t>
         "interleaveDepth": 4000,
         "repairTrack": "audio/repair"
       }
+    },
+    {
+      "name": "audio/repair",
+      "packaging": "fec-repair",
+      "priority": 7
     }
   ],
   "multicast": {
-    "group": "232.1.1.50",
-    "port": 5000,
-    "source": "192.168.1.100"
+    "endpoints": [{
+      "sourceAddress": "198.51.100.100",
+      "groupAddress": "232.1.1.50",
+      "port": 5000,
+      "tracks": [
+        { "name": "video",        "packetId": 1 },
+        { "name": "video/repair", "packetId": 2 },
+        { "name": "audio",        "packetId": 3 },
+        { "name": "audio/repair", "packetId": 4 }
+      ]
+    }]
   }
 }
 ]]></sourcecode>
-<t>The <tt>multicast</tt> field uses the simple format defined in
-<xref target="MOQ-MULTICAST"></xref> Section 7.1.  For multi-endpoint
-deployments, the extended format (<xref target="MOQ-MULTICAST"></xref> Section 7.2)
-with <tt>endpoints</tt> array is also available.</t>
+<t>The <tt>multicast</tt> field uses the multicast endpoint format defined in
+<xref target="MOQ-MULTICAST"></xref> Section 4.1: a one-element <tt>endpoints</tt> array.  Per
+<xref target="MOQ-MULTICAST"></xref> Section 5, all multicast delivery uses MMTP packets
+regardless of a track's unicast packaging, so each track listed on
+the endpoint carries a <tt>packetId</tt> that routes its MMTP packets on the
+multicast UDP path.</t>
 </section>
 
 </back>

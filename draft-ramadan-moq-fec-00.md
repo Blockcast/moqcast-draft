@@ -1054,17 +1054,32 @@ Complete catalog with FEC and multicast configuration:
         "interleaveDepth": 4000,
         "repairTrack": "audio/repair"
       }
+    },
+    {
+      "name": "audio/repair",
+      "packaging": "fec-repair",
+      "priority": 7
     }
   ],
   "multicast": {
-    "group": "232.1.1.50",
-    "port": 5000,
-    "source": "192.168.1.100"
+    "endpoints": [{
+      "sourceAddress": "198.51.100.100",
+      "groupAddress": "232.1.1.50",
+      "port": 5000,
+      "tracks": [
+        { "name": "video",        "packetId": 1 },
+        { "name": "video/repair", "packetId": 2 },
+        { "name": "audio",        "packetId": 3 },
+        { "name": "audio/repair", "packetId": 4 }
+      ]
+    }]
   }
 }
 ~~~
 
-The `multicast` field uses the simple format defined in
-[@MOQ-MULTICAST] Section 7.1.  For multi-endpoint
-deployments, the extended format ([@MOQ-MULTICAST] Section 7.2)
-with `endpoints` array is also available.
+The `multicast` field uses the multicast endpoint format defined in
+[@MOQ-MULTICAST] Section 4.1: a one-element `endpoints` array.  Per
+[@MOQ-MULTICAST] Section 5, all multicast delivery uses MMTP packets
+regardless of a track's unicast packaging, so each track listed on
+the endpoint carries a `packetId` that routes its MMTP packets on the
+multicast UDP path.
