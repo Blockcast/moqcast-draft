@@ -801,8 +801,8 @@ content, equivalent parameters are obtained from MMTP signaling
 messages (MPT/MPI).  A complete worked example is given in
 Appendix A.
 
-The `multicast` field in the output uses the extended format defined
-in [@MOQ-MULTICAST] Section 7.2.  Conversion rules:
+The `multicast` field in the output uses the multicast endpoint format
+defined in [@MOQ-MULTICAST] Section 4.1.  Conversion rules:
 
 - `RS@sIpAddr` -> `multicast.endpoints[].source`
 - `RS@dIpAddr` -> `multicast.endpoints[].group`
@@ -829,13 +829,12 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 
 ## Multicast Endpoint Catalog Extension
 
-The multicast catalog extension — including simple and extended
-formats and format detection rules — is defined in
-[@MOQ-MULTICAST] Section 7.
+The multicast catalog extension is defined in
+[@MOQ-MULTICAST] Section 4.
 
 When converting S-TSID to MoQ catalog (Section 12.2), the `multicast`
-field in the output catalog MUST conform to the extended format
-defined in [@MOQ-MULTICAST] Section 7.2, using the
+field in the output catalog MUST conform to the multicast endpoint format
+defined in [@MOQ-MULTICAST] Section 4.1, using the
 `endpoints` array to represent per-TSI multicast groups.
 
 # Security Considerations
