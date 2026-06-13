@@ -785,7 +785,7 @@ UTC send time of the packet, which maps to MoQ object timestamps.</t>
 <section anchor="transport-hierarchy"><name>Transport Hierarchy</name>
 <t>Clients SHOULD attempt transports in preference order.  The transport
 hierarchy for native clients (TV, mobile) and browser clients is
-defined in <xref target="MOQ-MULTICAST"></xref> Section 6.</t>
+defined in <xref target="MOQ-MULTICAST"></xref> Section 3.</t>
 <t>For MMT-specific deployments, AL-FEC (Section 7) is essential on
 SSM/AMT paths since there is no retransmission.  On MoQ/QUIC paths,
 FEC reduces retransmission latency but QUIC provides a reliable
@@ -968,7 +968,7 @@ accessing media content.</t>
 <section anchor="multicast-security"><name>Multicast Security</name>
 <t>Multicast-specific security considerations (source authentication,
 replay protection, AMT relay trust) are defined in
-<xref target="MOQ-MULTICAST"></xref> Section 8.</t>
+<xref target="MOQ-MULTICAST"></xref> Section 7.</t>
 </section>
 </section>
 

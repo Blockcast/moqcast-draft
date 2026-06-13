@@ -719,7 +719,7 @@ Note: This differs from MPEG-2 TS, which uses a 90kHz PTS/DTS clock.
 
 Clients SHOULD attempt transports in preference order.  The transport
 hierarchy for native clients (TV, mobile) and browser clients is
-defined in [@MOQ-MULTICAST] Section 6.
+defined in [@MOQ-MULTICAST] Section 3.
 
 For MMT-specific deployments, AL-FEC (Section 7) is essential on
 SSM/AMT paths since there is no retransmission.  On MoQ/QUIC paths,
@@ -848,7 +848,7 @@ accessing media content.
 
 Multicast-specific security considerations (source authentication,
 replay protection, AMT relay trust) are defined in
-[@MOQ-MULTICAST] Section 8.
+[@MOQ-MULTICAST] Section 7.
 
 # IANA Considerations
 
