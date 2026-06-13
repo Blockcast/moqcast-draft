@@ -926,11 +926,24 @@ defined in <xref target="MOQ-MULTICAST"></xref> Section 4.1.  Conversion rules:<
 <li><tt>RS@sIpAddr</tt> -&gt; <tt>multicast.endpoints[].sourceAddress</tt></li>
 <li><tt>RS@dIpAddr</tt> -&gt; <tt>multicast.endpoints[].groupAddress</tt></li>
 <li><tt>RS@dPort</tt> -&gt; <tt>multicast.endpoints[].port</tt></li>
-<li><tt>LS@tsi</tt> -&gt; <tt>multicast.endpoints[].tracks[].packetId</tt></li>
+<li>each <tt>LS</tt> SrcFlow and RepairFlow -&gt; a distinct
+<tt>multicast.endpoints[].tracks[]</tt> entry, with <tt>packetId</tt> assigned per
+the rule below</li>
 <li><tt>LS@bw</tt> -&gt; <tt>selectionParams.bitrate</tt></li>
 <li><tt>FECParameters@overhead</tt> -&gt; <tt>fec.p</tt> (computed as K x overhead / 100)</li>
 <li><tt>fecOTI</tt> K,T,Z -&gt; <tt>fec.k</tt>, <tt>fec.symbolSize</tt>, <tt>fec.interleaveDepth</tt></li>
 </ul>
+<t><tt>packetId</tt> is assigned per flow, not per <tt>tsi</tt>.  An <tt>LS</tt> (ROUTE
+transport session) carrying both a SrcFlow and its RepairFlow yields
+two <tt>tracks[]</tt> entries, and <tt>packetId</tt> MUST be unique within the
+(sourceAddress, groupAddress, port) tuple (Section 4.1 of
+<xref target="MOQ-MULTICAST"></xref>); reusing <tt>tsi</tt> directly would collide for a repair
+flow that shares its source's <tt>tsi</tt>.  The converter assigns <tt>packetId</tt>
+sequentially in <tt>tsi</tt> order, emitting each source flow immediately
+before its repair flow (so <tt>tsi</tt> 1 source -&gt; packetId 1, its repair -&gt;
+packetId 2, <tt>tsi</tt> 2 source -&gt; packetId 3).  Flows sharing one
+(sourceAddress, groupAddress, port) tuple collapse into a single
+endpoint whose <tt>tracks[]</tt> array lists them all.</t>
 <t><tt>timescale</tt>, <tt>groupDurationMs</tt>, and <tt>mmtpMode</tt> are not carried in
 S-TSID; the converter obtains them from MMTP signaling (asset
 descriptors and MPU presentation duration in the MPT/MPI tables) and
@@ -1180,25 +1193,19 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
     }
   ],
   "multicast": {
-    "endpoints": [
-      {
-        "protocol": "ssm",
-        "source": "10.0.0.1",
-        "group": "232.1.1.10",
-        "port": 5000,
-        "tsi": 1,
-        "tracks": ["video/1080p", "video/1080p/repair"]
-      },
-      {
-        "protocol": "ssm",
-        "source": "10.0.0.1",
-        "group": "232.1.1.10",
-        "port": 5000,
-        "tsi": 2,
-        "tracks": ["audio/stereo"]
-      }
-    ],
-    "amtFallback": {
+    "endpoints": [{
+      "protocol": "ssm",
+      "sourceAddress": "10.0.0.1",
+      "groupAddress": "232.1.1.10",
+      "port": 5000,
+      "tracks": [
+        { "name": "video/1080p",        "packetId": 1 },
+        { "name": "video/1080p/repair", "packetId": 2 },
+        { "name": "audio/stereo",        "packetId": 3 }
+      ]
+    }],
+    "networkSource": {
+      "type": "amt",
       "discovery": "driad"
     }
   }
