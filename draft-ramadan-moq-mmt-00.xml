@@ -446,7 +446,11 @@ directly in the catalog via the per-track field:</t>
 <t><tt>initData</tt> is the base64 encoding of an ISOBMFF initialization
 segment (<tt>ftyp</tt> + <tt>moov</tt>) sufficient to initialize the decoder for
 the track (including the codec configuration record, e.g. avcC or
-hvcC).  It lets a subscriber initialize its decoder at catalog load,
+hvcC).  This is the same track-level field, carrying the same base64
+<tt>ftyp</tt>+<tt>moov</tt> value, as defined by <xref target="I-D.ietf-moq-catalogformat"></xref> and
+<xref target="I-D.ietf-moq-cmsf"></xref> Section 3.1; this document applies it to
+mmtp-packaged tracks.  It lets a subscriber initialize its decoder at
+catalog load,
 before the first MPU metadata object or init-track object arrives,
 removing one delivery round trip from the join path (Section 6.1).</t>
 <t><tt>initData</tt> is a join optimization, not a replacement for in-band
@@ -1062,6 +1066,7 @@ registration of:</t>
   <seriesInfo name="ATSC" value="A/331:2025"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-catalogformat.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-msf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-transport.xml"/>
