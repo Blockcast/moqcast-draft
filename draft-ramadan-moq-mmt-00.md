@@ -378,7 +378,11 @@ initData (OPTIONAL, string)
 `initData` is the base64 encoding of an ISOBMFF initialization
 segment (`ftyp` + `moov`) sufficient to initialize the decoder for
 the track (including the codec configuration record, e.g. avcC or
-hvcC).  It lets a subscriber initialize its decoder at catalog load,
+hvcC).  This is the same track-level field, carrying the same base64
+`ftyp`+`moov` value, as defined by [@?I-D.ietf-moq-catalogformat] and
+[@?I-D.ietf-moq-cmsf] Section 3.1; this document applies it to
+mmtp-packaged tracks.  It lets a subscriber initialize its decoder at
+catalog load,
 before the first MPU metadata object or init-track object arrives,
 removing one delivery round trip from the join path (Section 6.1).
 
