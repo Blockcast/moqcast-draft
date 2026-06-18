@@ -413,19 +413,28 @@ No additional multicast framing, encapsulation, or header format is
 needed.  The MMTP packet format is defined in [@MOQ-MMT]
 Section 3.1 and [@I-D.bouazizi-mmtp] Section 3.
 
-This design means the same MMTP packet can be delivered via three
+This design means the same MMTP packet can be delivered via four
 transports without modification:
 
 | Transport | Encapsulation |
 |-----------|---------------|
 | Reliable QUIC stream | MMTP packet as MoQ stream object |
 | QUIC datagram | MMTP packet as MoQ datagram object |
+| Multicast QUIC | MMTP packet as multicast QUIC DATAGRAM object |
 | Multicast UDP | MMTP packet as UDP datagram |
 
 Receivers on multicast demultiplex packets using the MMTP packet_id
 field, which maps to the `packetId` assigned in the multicast
 catalog endpoint (Section 4.1).  FEC source and repair packets are
 distinguished by the MMTP FEC Type field (1=source, 2=repair).
+
+The Multicast QUIC row corresponds to [@?QUIC-MULTICAST], which carries
+QUIC packets (and thus QUIC DATAGRAM frames) over a multicast channel.
+Encapsulating one MMTP packet per QUIC DATAGRAM keeps the packet format
+unchanged while adding QUIC's per-packet AEAD and integrity; because that
+extension defines no FEC of its own, application-layer FEC [@?MOQ-FEC] is
+the RECOMMENDED loss-recovery layer on this binding, replacing its unicast
+repair for broadcast-scale audiences.
 
 For ATSC 3.0 and ARIB STD-B60 broadcast receivers, MMTP over SSM
 is the native delivery path.  No format conversion is needed — MoQ
@@ -591,6 +600,24 @@ registration.
     <date year='2026'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-00'/>
+</reference>
+
+<reference anchor='QUIC-MULTICAST' target='https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/'>
+  <front>
+    <title>Multicast Extension for QUIC</title>
+    <author initials='J.' surname='Holland' fullname='Jake Holland'>
+      <organization>Akamai Technologies, Inc.</organization>
+    </author>
+    <author initials='L.' surname='Pardue' fullname='Lucas Pardue'/>
+    <author initials='M.' surname='Franke' fullname='Max Franke'>
+      <organization>TU Berlin</organization>
+    </author>
+    <author initials='K.' surname='Rose' fullname='Kyle Rose'>
+      <organization>Akamai Technologies, Inc.</organization>
+    </author>
+    <date year='2026' month='January' day='2'/>
+  </front>
+  <seriesInfo name='Internet-Draft' value='draft-jholland-quic-multicast-08'/>
 </reference>
 
 <reference anchor='ATSC-A331' target='https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/'>
