@@ -255,7 +255,7 @@ group number for a given media time within a switching set is
 computed as:
 
 ~~~
-group_number = base + floor(ticks / group_duration_ticks)
+group_number = base + floor(ticks / groupDurationTicks)
 ~~~
 
 where:
@@ -264,7 +264,7 @@ where:
   media `timescale` (Hz), as a signed integer.  Values less than or
   equal to zero (which can occur during encoder start-up, on B-frame
   reorder, or after an epoch reseed) MUST clamp to `base`.
-- `group_duration_ticks` is the per-track group duration expressed
+- `groupDurationTicks` is the per-track group duration expressed
   in the same `timescale`, as a positive integer.  The catalog
   signals it via Section 4.4.2; conversion from the integer-millisecond
   form is exact by construction (the catalog publisher rejects
@@ -279,7 +279,7 @@ round(seconds * timescale)`); a float-domain `floor` is RECOMMENDED
 to apply a tolerance (e.g. `1e-9` seconds) to prevent ULP-class
 boundary mis-bucketing.
 
-The same `(ticks, timescale, group_duration_ticks)` triple, fed
+The same `(ticks, timescale, groupDurationTicks)` triple, fed
 through this formula, MUST produce the same group number in every
 implementation that participates in the switching set.
 
@@ -327,7 +327,7 @@ the track's container kind:
 | `loc`     | Per-track `Timescale` property, per [@?I-D.ietf-moq-loc]; defaults to 1 000 000 (microseconds) only when the property is absent. |
 | `legacy`  | 1 000 000 (microseconds).  This is the encoding convention applied by current moq-transport implementations to opaque object payloads; it is fixed by this document and does NOT derive from [@I-D.ietf-moq-transport]. |
 
-Conversion is `group_duration_ticks = groupDurationMs * timescale / 1000`.
+Conversion is `groupDurationTicks = groupDurationMs * timescale / 1000`.
 The catalog publisher MUST choose a `groupDurationMs` such that the
 resulting tick count is exact (i.e. `(groupDurationMs * timescale) %
 1000 == 0`).  If this cannot be satisfied, the catalog MUST publish
@@ -350,7 +350,7 @@ include:
   publisher selecting a 333 ms audio group MUST publish ticks.
 
 Switching-set agreement: every track in the same switching set MUST
-publish the same effective `group_duration_ticks` (after timescale
+publish the same effective `groupDurationTicks` (after timescale
 conversion).  Subscribers SHOULD validate this at catalog load and,
 on disagreement, SHOULD reject the catalog and signal a
 catalog-validation error to the application.  Subscribers that
@@ -401,7 +401,7 @@ keyframeIntervalTicks (OPTIONAL, unsigned integer)
 expressed in the same timescale as `groupDurationTicks` (Section 4.4.2,
 selected by the track's container kind).  If both
 `keyframeIntervalMs` and `keyframeIntervalTicks` are present,
-`keyframeIntervalTicks` wins.  Unlike `group_duration_ticks`, this
+`keyframeIntervalTicks` wins.  Unlike `groupDurationTicks`, this
 document places NO switching-set agreement requirement on the keyframe
 interval: it is a per-track advisory hint, and tracks in a switching
 set MAY carry different keyframe cadences.
