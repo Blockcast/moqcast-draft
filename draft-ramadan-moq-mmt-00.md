@@ -255,7 +255,7 @@ group number for a given media time within a switching set is
 computed as:
 
 ~~~
-group_number = base + floor(ticks / group_duration_ticks)
+group_number = base + floor(ticks / groupDurationTicks)
 ~~~
 
 where:
@@ -264,7 +264,7 @@ where:
   media `timescale` (Hz), as a signed integer.  Values less than or
   equal to zero (which can occur during encoder start-up, on B-frame
   reorder, or after an epoch reseed) MUST clamp to `base`.
-- `group_duration_ticks` is the per-track group duration expressed
+- `groupDurationTicks` is the per-track group duration expressed
   in the same `timescale`, as a positive integer.  The catalog
   signals it via Section 4.4.2; conversion from the integer-millisecond
   form is exact by construction (the catalog publisher rejects
@@ -279,7 +279,7 @@ round(seconds * timescale)`); a float-domain `floor` is RECOMMENDED
 to apply a tolerance (e.g. `1e-9` seconds) to prevent ULP-class
 boundary mis-bucketing.
 
-The same `(ticks, timescale, group_duration_ticks)` triple, fed
+The same `(ticks, timescale, groupDurationTicks)` triple, fed
 through this formula, MUST produce the same group number in every
 implementation that participates in the switching set.
 
@@ -327,7 +327,7 @@ the track's container kind:
 | `loc`     | Per-track `Timescale` property, per [@?I-D.ietf-moq-loc]; defaults to 1 000 000 (microseconds) only when the property is absent. |
 | `legacy`  | 1 000 000 (microseconds).  This is the encoding convention applied by current moq-transport implementations to opaque object payloads; it is fixed by this document and does NOT derive from [@I-D.ietf-moq-transport]. |
 
-Conversion is `group_duration_ticks = groupDurationMs * timescale / 1000`.
+Conversion is `groupDurationTicks = groupDurationMs * timescale / 1000`.
 The catalog publisher MUST choose a `groupDurationMs` such that the
 resulting tick count is exact (i.e. `(groupDurationMs * timescale) %
 1000 == 0`).  If this cannot be satisfied, the catalog MUST publish
@@ -350,13 +350,61 @@ include:
   publisher selecting a 333 ms audio group MUST publish ticks.
 
 Switching-set agreement: every track in the same switching set MUST
-publish the same effective `group_duration_ticks` (after timescale
+publish the same effective `groupDurationTicks` (after timescale
 conversion).  Subscribers SHOULD validate this at catalog load and,
 on disagreement, SHOULD reject the catalog and signal a
 catalog-validation error to the application.  Subscribers that
 proceed despite disagreement are non-conformant for switching across
 the affected tracks; ABR transitions on such tracks will produce
 group-boundary discontinuities.
+
+### Catalog Signaling of Keyframe Interval
+
+The group duration above describes the cadence of MMTP media groups
+(one frame per group in the frame-grouped mode of Section 4.3).  It
+does NOT describe how often the stream carries a keyframe (a random
+access point).  A subscriber recovering from loss needs the latter to
+bound how long it must wait for the next decodable refresh point
+before it can, for example, arm a keyframe-loss repair timer or decide
+to request a fresh init.  This document defines an OPTIONAL per-track
+field for the keyframe (GOP) cadence:
+
+~~~
+keyframeIntervalMs (OPTIONAL, unsigned integer, milliseconds)
+~~~
+
+`keyframeIntervalMs` is the interval between consecutive video
+keyframes, in integer milliseconds.  It is ADVISORY and semantically
+DISTINCT from `groupDurationMs`: `groupDurationMs` is the per-frame
+MMTP media-group duration, whereas `keyframeIntervalMs` is the
+keyframe/GOP repair cadence (typically many groups long — e.g. a
+1000 ms keyframe interval over a 33 ms per-frame group duration).  The
+field applies to video tracks only; a publisher that cannot determine
+the cadence simply omits it.
+
+Because the field is advisory, its absence is not a catalog error:
+subscribers that rely on it (for keyframe-loss repair or refresh
+scheduling) simply leave that behavior disabled when it is absent, and
+MUST NOT reject a catalog solely because it is missing.  When present,
+`keyframeIntervalMs` MUST be a positive integer; a zero value is a
+catalog error (it would drive a receiver's derived repair timeout to
+zero).
+
+As with the group duration, the integer-millisecond form cannot
+express a keyframe cadence whose tick count is non-integer on the
+track's timescale.  A publisher MAY publish an exact override:
+
+~~~
+keyframeIntervalTicks (OPTIONAL, unsigned integer)
+~~~
+
+expressed in the same timescale as `groupDurationTicks` (Section 4.4.2,
+selected by the track's container kind).  If both
+`keyframeIntervalMs` and `keyframeIntervalTicks` are present,
+`keyframeIntervalTicks` wins.  Unlike `groupDurationTicks`, this
+document places NO switching-set agreement requirement on the keyframe
+interval: it is a per-track advisory hint, and tracks in a switching
+set MAY carry different keyframe cadences.
 
 ## Init Segment Signaling
 
@@ -767,6 +815,8 @@ Per-track catalog fields for mmtp packaging:
 | `timescale` | REQUIRED | Number | Media timescale in Hz (Section 4.4.2) |
 | `groupDurationMs` | REQUIRED | Number | Group duration, integer ms (Section 4.4.2) |
 | `groupDurationTicks` | OPTIONAL | Number | Integer-tick override (Section 4.4.2) |
+| `keyframeIntervalMs` | OPTIONAL | Number | Keyframe/GOP cadence, integer ms; advisory, video only (Section 4.4.3) |
+| `keyframeIntervalTicks` | OPTIONAL | Number | Integer-tick override for the keyframe interval (Section 4.4.3) |
 | `initMode` | OPTIONAL | String | "inline" (default) or "track" (Section 4.5) |
 | `initData` | OPTIONAL | String | Base64 ftyp+moov init segment (Section 4.5) |
 | `fec` | OPTIONAL | Object | AL-FEC parameters (Section 8.3) |
