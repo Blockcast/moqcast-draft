@@ -358,6 +358,54 @@ proceed despite disagreement are non-conformant for switching across
 the affected tracks; ABR transitions on such tracks will produce
 group-boundary discontinuities.
 
+### Catalog Signaling of Keyframe Interval
+
+The group duration above describes the cadence of MMTP media groups
+(one frame per group in the frame-grouped mode of Section 4.3).  It
+does NOT describe how often the stream carries a keyframe (a random
+access point).  A subscriber recovering from loss needs the latter to
+bound how long it must wait for the next decodable refresh point
+before it can, for example, arm a keyframe-loss repair timer or decide
+to request a fresh init.  This document defines an OPTIONAL per-track
+field for the keyframe (GOP) cadence:
+
+~~~
+keyframeIntervalMs (OPTIONAL, unsigned integer, milliseconds)
+~~~
+
+`keyframeIntervalMs` is the interval between consecutive video
+keyframes, in integer milliseconds.  It is ADVISORY and semantically
+DISTINCT from `groupDurationMs`: `groupDurationMs` is the per-frame
+MMTP media-group duration, whereas `keyframeIntervalMs` is the
+keyframe/GOP repair cadence (typically many groups long — e.g. a
+1000 ms keyframe interval over a 33 ms per-frame group duration).  The
+field applies to video tracks only; a publisher that cannot determine
+the cadence simply omits it.
+
+Because the field is advisory, its absence is not a catalog error:
+subscribers that rely on it (for keyframe-loss repair or refresh
+scheduling) simply leave that behavior disabled when it is absent, and
+MUST NOT reject a catalog solely because it is missing.  When present,
+`keyframeIntervalMs` MUST be a positive integer; a zero value is a
+catalog error (it would drive a receiver's derived repair timeout to
+zero).
+
+As with the group duration, the integer-millisecond form cannot
+express a keyframe cadence whose tick count is non-integer on the
+track's timescale.  A publisher MAY publish an exact override:
+
+~~~
+keyframeIntervalTicks (OPTIONAL, unsigned integer)
+~~~
+
+expressed in the same timescale as `groupDurationTicks` (Section 4.4.2,
+selected by the track's container kind).  If both
+`keyframeIntervalMs` and `keyframeIntervalTicks` are present,
+`keyframeIntervalTicks` wins.  Unlike `group_duration_ticks`, this
+document places NO switching-set agreement requirement on the keyframe
+interval: it is a per-track advisory hint, and tracks in a switching
+set MAY carry different keyframe cadences.
+
 ## Init Segment Signaling
 
 Publishers MAY signal MPU metadata (mmpu/moov) either inline as the
@@ -767,6 +815,8 @@ Per-track catalog fields for mmtp packaging:
 | `timescale` | REQUIRED | Number | Media timescale in Hz (Section 4.4.2) |
 | `groupDurationMs` | REQUIRED | Number | Group duration, integer ms (Section 4.4.2) |
 | `groupDurationTicks` | OPTIONAL | Number | Integer-tick override (Section 4.4.2) |
+| `keyframeIntervalMs` | OPTIONAL | Number | Keyframe/GOP cadence, integer ms; advisory, video only (Section 4.4.3) |
+| `keyframeIntervalTicks` | OPTIONAL | Number | Integer-tick override for the keyframe interval (Section 4.4.3) |
 | `initMode` | OPTIONAL | String | "inline" (default) or "track" (Section 4.5) |
 | `initData` | OPTIONAL | String | Base64 ftyp+moov init segment (Section 4.5) |
 | `fec` | OPTIONAL | Object | AL-FEC parameters (Section 8.3) |
