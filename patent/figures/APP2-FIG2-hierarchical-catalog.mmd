@@ -1,0 +1,34 @@
+---
+title: "FIG. 2 — Hierarchical FEC Catalog Precedence"
+---
+graph TB
+    subgraph Level3["Level 3: In-Band FEC_CONFIG (203)<br/>HIGHEST PRIORITY"]
+        CONFIG["FEC_CONFIG Message<br/>(sent after SUBSCRIBE_OK)<br/>algorithm, K, P, T, depth, OTI"]
+    end
+
+    subgraph Level2["Level 2: Per-Track Catalog (202)"]
+        VID_FEC["video.fec:<br/>repairTrack: 'video/repair'"]
+        AUD_FEC["audio.fec:<br/>algorithm: 'none'<br/>jitterBufferMs: 50"]
+    end
+
+    subgraph Level1["Level 1: Top-Level Catalog (201)<br/>DEFAULTS"]
+        TOP_FEC["fec:<br/>algorithm: 'raptorq'<br/>sourceSymbols: 32<br/>repairSymbols: 8<br/>symbolSize: 1312<br/>interleaveDepth: 133"]
+    end
+
+    subgraph Result["Resolved Configuration"]
+        VID_RESULT["Video Track:<br/>algorithm: raptorq ← top-level<br/>sourceSymbols: 32 ← top-level<br/>repairSymbols: 8 ← top-level<br/>symbolSize: 1312 ← top-level<br/>interleaveDepth: 133 ← top-level<br/>repairTrack: video/repair ← per-track"]
+        AUD_RESULT["Audio Track:<br/>algorithm: none ← per-track OVERRIDE<br/>jitterBufferMs: 50 ← per-track<br/>(no sourceSymbols, repairSymbols,<br/>symbolSize, repairTrack needed)"]
+    end
+
+    CONFIG -->|"Overrides all<br/>(if sent)"| Result
+    VID_FEC -->|"Overrides top-level<br/>for video"| VID_RESULT
+    AUD_FEC -->|"Overrides top-level<br/>for audio"| AUD_RESULT
+    TOP_FEC -->|"Provides defaults<br/>for all tracks"| VID_RESULT
+    TOP_FEC -.->|"Overridden by<br/>per-track 'none'"| AUD_RESULT
+
+    subgraph Discovery["HTTP Pre-Discovery (204)"]
+        HTTP["GET /catalog.json<br/>Before QUIC connection<br/>Discover FEC availability"]
+    end
+
+    HTTP -->|"Fetch"| Level1
+    HTTP -->|"Fetch"| Level2

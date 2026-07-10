@@ -1,0 +1,40 @@
+@page {
+  size: 8.5in 11in !important;
+  margin: 1in;
+}
+* {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+body {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12pt;
+  line-height: 1.5;
+  max-width: 6.5in;
+  margin: 0 auto;
+  overflow-x: hidden;
+}
+h1, h2, h3 { font-family: "Times New Roman", Times, serif; }
+img {
+  max-width: 6in !important;
+  height: auto !important;
+  page-break-inside: avoid;
+  display: block;
+  margin: 1em auto;
+}
+pre, code {
+  font-size: 10pt;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-x: hidden;
+  max-width: 6in;
+}
+table {
+  font-size: 11pt;
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 6in;
+  table-layout: fixed;
+  word-wrap: break-word;
+}
+td, th { border: 1px solid #000; padding: 4px 8px; }

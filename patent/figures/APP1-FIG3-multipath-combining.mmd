@@ -1,0 +1,42 @@
+---
+title: "FIG. 3 — Multi-Path FEC Symbol Combining"
+---
+graph TB
+    subgraph PathA["Path A: Reliable QUIC"]
+        SRC_A["Source Symbols<br/>(G=10,O=0) (G=10,O=1) (G=10,O=3)"]
+        REP_A["Repair Symbols<br/>(G=10,O=repair_0)"]
+    end
+
+    subgraph PathB["Path B: Multicast UDP"]
+        SRC_B["Source Symbols<br/>SS_ID=80, 81, 82"]
+        NOTE_B["(SS_ID=83 LOST)"]
+    end
+
+    subgraph Derivation["Coordinate Derivation (Step 302)"]
+        DER_A["From MoQ (G,O):<br/>SBN=floor(G/D)<br/>ESI=(G-first)*spg+O"]
+        DER_B["From Multicast SS_ID:<br/>SBN=floor(SS_ID/K)<br/>ESI=SS_ID mod K"]
+    end
+
+    subgraph Dedup["Deduplication Table (Step 303)<br/>Key: (SBN, ESI)"]
+        T1["(2, 16) = src ✓"]
+        T2["(2, 17) = src ✓"]
+        T3["(2, 18) = src ✓"]
+        T4["(2, 19) = MISSING"]
+        T5["(2, 32) = repair ✓"]
+    end
+
+    subgraph Decoder["FEC Decoder (Step 305)"]
+        DEC["RaptorQ Decode<br/>3 source + 1 repair = 4 >= K=4<br/>RECOVERED ✓"]
+    end
+
+    OUTPUT["Recovered Block:<br/>All 4 source symbols<br/>including (2,19)"]
+
+    SRC_A --> DER_A
+    REP_A --> DER_A
+    SRC_B --> DER_B
+
+    DER_A --> Dedup
+    DER_B --> Dedup
+
+    Dedup --> Decoder
+    Decoder --> OUTPUT
