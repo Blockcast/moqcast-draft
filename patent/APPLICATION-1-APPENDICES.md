@@ -779,7 +779,12 @@ up-layer companion to `APPLICATION-1`'s `(SBN, ESI)` claims.
 Positioning: broader and more standards-essential than MMT-only, because the
 claimed step is the *intrinsic-over-extrinsic reconciliation across FEC/multi-path*,
 which MMT-over-broadcast never needed (no MoQ Object ID, no unicast/multicast FEC
-combining) and which ISO therefore does not anticipate.
+combining) and which ISO therefore does not anticipate. The nearest in-MoQ
+reference, **draft-ietf-moq-loc §4.5**, establishes a timestamp/`ObjectID`-offset
+*precedence pattern* but only for whole, in-order, single-path frames (no
+fragmentation, FEC, or multi-path); the claims extend that precedence to the
+fragmented + FEC-recovered + multi-path regime rather than reading on it (see
+§10.1).
 
 ## 10. Relationship to existing work
 
@@ -790,6 +795,38 @@ combining) and which ISO therefore does not anticipate.
   same idea one layer up.
 - **Distinct from** `APPLICATION-1` claims (FEC-*symbol* dedup); IFC is
   application-*object* reassembly over the FEC/MoQ transport → candidate continuation.
+
+### 10.1 Relationship to existing MoQ drafts (nearest prior art)
+
+The IFC precedence model (§7) is **not without precedent in MoQ** — and saying so
+sharpens, not weakens, the positioning. The nearest prior art is
+**draft-ietf-moq-loc §4.5**, which defines decode order as **timestamp primary**
+with **`ObjectID * multiplier + offset`** as the fallback ordering key. That is
+the *same precedence shape* as IFC: an intrinsic-ish ordering key the receiver
+uses instead of raw arrival order. The distinction is **regime, not shape**:
+
+- **draft-ietf-moq-loc §4.5** — the precedence pattern, but only for **whole
+  frames**. LOC objects are never fragmented; there is no FEC recovery, no
+  multi-path combining, and no relay re-sequencing in its scope. So LOC
+  establishes the timestamp/ObjectID precedence for in-order, single-path,
+  whole-frame delivery. **IFC generalizes that precedence to the fragmented +
+  FEC-recovered + multi-path regime**: (a) sub-frame MFUs/DUs rather than whole
+  frames; (b) FEC-recovered fragments, which carry no transport sequence yet must
+  slot into the right intrinsic position; (c) multi-path / relay-re-sequenced
+  delivery, where the extrinsic Object ID is unreliable. The intrinsic byte-offset
+  (or sample/DU) coordinate is what survives all three — exactly where LOC's
+  `ObjectID`-derived fallback cannot reach.
+- **draft-ietf-moq-msf §6.1** — *adjacent but not reassembly*. MSF §6.1 merely
+  **signals group gaps** to the application; it does not reconstruct anything. IFC
+  is gap *closure* (FEC + offset reassembly) rather than gap *awareness*.
+- **MoQ/QUIC FEC** (draft-michel-quic-fec, draft-zheng-quic-fec) and **RFC 6363
+  FECFRAME** operate at the **QUIC/symbol layer only**. None define object
+  reassembly by an intrinsic content coordinate; IFC sits one layer above them
+  (§4), consuming recovered source bytes.
+
+In short: IFC = the LOC §4.5 timestamp/ObjectID precedence pattern **extended** to
+fragmented, recovered, and multi-path objects — not a wholly novel idea with no
+precedent.
 
 ---
 
@@ -812,6 +849,25 @@ publish/subscribe plus multicast transport. Broadcast MMT has no MoQ Object IDs 
 no unicast/multicast FEC combining, so ISO does not anticipate this step. The claim
 set is the application-object-layer companion to APPLICATION-1's FEC-symbol-layer
 `(SBN, ESI)` claims.
+
+**Distinction over the nearest MoQ prior art (draft-ietf-moq-loc §4.5).** The
+closest reference within MoQ is draft-ietf-moq-loc §4.5, which defines decode order
+as timestamp-primary with `ObjectID * multiplier + offset` as the fallback ordering
+key — i.e., the same *precedence shape* the claims rely on (an intrinsic-ish
+ordering key used in place of raw arrival order). The claims are framed as
+**extending**, not contradicting, that pattern. LOC §4.5 applies only to **whole,
+in-order, single-path frames**: LOC objects are never fragmented, and LOC defines
+no FEC recovery, no multi-path combining, and no relay re-sequencing. The claimed
+method operates precisely in the regime LOC does not reach — **fragmented**
+(sub-frame) objects, **FEC-recovered** fragments that carry no transport-assigned
+identifier (step (b)/(c)), and **multi-path-combined** fragments where the
+`ObjectID`-derived key is path-relative and unreliable (Claim 6). In all three the
+intrinsic byte offset is the only key that survives, so LOC's whole-frame
+`ObjectID`-offset fallback does not anticipate step (c). draft-ietf-moq-msf §6.1 is
+adjacent only — it signals group gaps to the application but performs no
+reassembly. None of draft-michel-quic-fec, draft-zheng-quic-fec, or RFC 6363
+FECFRAME define object reassembly by an intrinsic content coordinate; they protect
+the QUIC/symbol layer beneath this method.
 
 ---
 
@@ -931,8 +987,16 @@ of any of Claims 1 to 11.
 
 - Claim 1 step (c) "in precedence over the transport-assigned delivery identifier"
   is the crux distinguishing over ISO/IEC 23008-1 (which has no competing transport
-  identifier) and over plain MoQ (which orders by Object ID). Keep it in the
-  independent claim.
+  identifier) and over plain MoQ (which orders by Object ID). It is also the step
+  that distinguishes over the nearest MoQ reference, **draft-ietf-moq-loc §4.5**:
+  LOC §4.5 already pairs a primary ordering key with an `ObjectID`-derived fallback,
+  but only for whole, in-order, single-path frames. The distinguishing limitations
+  are therefore the *fragmented + FEC-recovered + multi-path* context — step (b)
+  (recovered fragment lacking a delivery identifier) and Claim 6 (multi-path
+  combining) — which place the method outside LOC's regime. Keep step (c) in the
+  independent claim and lean on (b)/Claim 6 when arguing non-anticipation over LOC.
+  The prose "Distinction over the nearest MoQ prior art" block above is intended to
+  carry this argument without rewording the claim limitations.
 - Claims 2–5 enumerate the descriptor encodings (MMT timed / non-timed / GFD /
   generic extension header). 2–4 are ISO-sourced encodings; 5 is the generalization
   that extends reach to JSON/file/arbitrary objects — likely the most commercially
@@ -1044,3 +1108,33 @@ fragmented application object whose fragments carry an object identity and a byt
 offset, whether sourced from an MMT DU header, an MMT Generic File Delivery
 payload header, or a transport object extension header defined for a non-MMT
 payload.
+
+## Relationship to draft-ietf-moq-loc
+
+The precedence rule defined here — an intrinsic, content-derived key taken in
+precedence over the transport Object ID — is not new to MoQ. {{?I-D.ietf-moq-loc}}
+Section 4.5 already defines decode order as timestamp-primary, with the quantity
+ObjectID * multiplier + offset as the fallback ordering key. That is the same
+precedence shape this section uses: a content-derived ordering key applied in
+place of raw arrival order.
+
+This section extends that pattern to a regime draft-ietf-moq-loc does not address.
+A draft-ietf-moq-loc object is a whole frame; it is never fragmented, and that
+draft defines no FEC recovery, no multi-path combining, and no relay
+re-sequencing. Its ObjectID-derived fallback is therefore sufficient for whole,
+in-order, single-path delivery. The procedure in this section instead orders and
+de-duplicates the **fragments** of an object — including fragments recovered by
+FEC, which carry no Object ID ({{fec-integration}}), and fragments combined from
+more than one path, where the Object ID is path-relative — by the intrinsic byte
+offset. The intrinsic byte offset is invariant to all three conditions, where the
+Object-ID-derived key of draft-ietf-moq-loc Section 4.5 is not. The two are
+consistent: where an object is whole and single-path, the receiver behaviour here
+reduces to Object-ID order, the universal fallback above.
+
+{{?I-D.ietf-moq-msf}} Section 6.1 is related but distinct: it signals group gaps
+to the application; it does not reconstruct the missing content. The receiver
+behaviour here closes such gaps by FEC and offset reassembly rather than only
+reporting them. FEC mechanisms defined at the QUIC or symbol layer (for example
+{{?I-D.michel-quic-fec}} or FECFRAME {{?RFC6363}}) protect the bytes consumed by
+{{fec-integration}}; they do not reassemble application objects by an intrinsic
+content coordinate, which is the function this section adds above them.
