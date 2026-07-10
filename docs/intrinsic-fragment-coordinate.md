@@ -154,7 +154,7 @@ Positioning: broader and more standards-essential than MMT-only, because the
 claimed step is the *intrinsic-over-extrinsic reconciliation across FEC/multi-path*,
 which MMT-over-broadcast never needed (no MoQ Object ID, no unicast/multicast FEC
 combining) and which ISO therefore does not anticipate. The nearest in-MoQ
-reference, **draft-ietf-moq-loc §4.5**, establishes a timestamp/`ObjectID`-offset
+reference, **draft-ietf-moq-loc-03 §4.5**, establishes a timestamp-primary/`ObjectID`-derived-fallback (layer-interleave constants, not byte offsets)
 *precedence pattern* but only for whole, in-order, single-path frames (no
 fragmentation, FEC, or multi-path); the claims extend that precedence to the
 fragmented + FEC-recovered + multi-path regime rather than reading on it (see
@@ -174,12 +174,12 @@ fragmented + FEC-recovered + multi-path regime rather than reading on it (see
 
 The IFC precedence model (§7) is **not without precedent in MoQ** — and saying so
 sharpens, not weakens, the positioning. The nearest prior art is
-**draft-ietf-moq-loc §4.5**, which defines decode order as **timestamp primary**
+**draft-ietf-moq-loc-03 §4.5**, whose worked example (non-normative, dyadic-framerate layered tracks) orders decode as **timestamp primary**
 with **`ObjectID * multiplier + offset`** as the fallback ordering key. That is
 the *same precedence shape* as IFC: an intrinsic-ish ordering key the receiver
 uses instead of raw arrival order. The distinction is **regime, not shape**:
 
-- **draft-ietf-moq-loc §4.5** — the precedence pattern, but only for **whole
+- **draft-ietf-moq-loc-03 §4.5** — the precedence pattern, but only for **whole
   frames**. LOC objects are never fragmented; there is no FEC recovery, no
   multi-path combining, and no relay re-sequencing in its scope. So LOC
   establishes the timestamp/ObjectID precedence for in-order, single-path,
@@ -190,10 +190,12 @@ uses instead of raw arrival order. The distinction is **regime, not shape**:
   delivery, where the extrinsic Object ID is unreliable. The intrinsic byte-offset
   (or sample/DU) coordinate is what survives all three — exactly where LOC's
   `ObjectID`-derived fallback cannot reach.
-- **draft-ietf-moq-msf §6.1** — *adjacent but not reassembly*. MSF §6.1 merely
-  **signals group gaps** to the application; it does not reconstruct anything. IFC
-  is gap *closure* (FEC + offset reassembly) rather than gap *awareness*.
-- **MoQ/QUIC FEC** (draft-michel-quic-fec, draft-zheng-quic-fec) and **RFC 6363
+- **draft-ietf-moq-msf §6.1** — *adjacent but not reassembly*. MSF §6.1's Prior Group ID
+  Gap Extension marks **intentional numbering discontinuities** (publisher
+  restart — nothing was transmitted, so there is nothing to recover); IFC
+  addresses **loss-induced** gaps and closes them (FEC + offset reassembly)
+  rather than only marking them.
+- **MoQ/QUIC FEC** (draft-michel-quic-fec, draft-zheng-quic-fec-extension) and **RFC 6363
   FECFRAME** operate at the **QUIC/symbol layer only**. None define object
   reassembly by an intrinsic content coordinate; IFC sits one layer above them
   (§4), consuming recovered source bytes.
