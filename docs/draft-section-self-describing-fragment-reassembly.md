@@ -26,7 +26,7 @@ exists to serve:
   re-sequence on egress ({{object-identifier-reconstruction}}); end to end the
   Object ID is then not a stable content identifier.
 
-MMT data units already carry an intrinsic, content-derived coordinate that is
+MMT data units already carry an intrinsic, content-carried coordinate that is
 invariant to all of the above. A receiver that treats that coordinate as the
 reassembly authority — falling back to Object ID order only when it is absent —
 reassembles deterministically irrespective of arrival order, delivery path, or
@@ -95,3 +95,34 @@ fragmented application object whose fragments carry an object identity and a byt
 offset, whether sourced from an MMT DU header, an MMT Generic File Delivery
 payload header, or a transport object extension header defined for a non-MMT
 payload.
+
+## Relationship to draft-ietf-moq-loc
+
+The precedence rule defined here — an intrinsic, content-carried key taken in
+precedence over the transport Object ID — is not new to MoQ. {{?I-D.ietf-moq-loc}}
+the worked example in Section 4.5 of draft-ietf-moq-loc-03 (non-normative, dyadic-framerate layered tracks) already orders decode as timestamp-primary, with the quantity
+ObjectID * multiplier + offset as the fallback ordering key. That is the same
+precedence shape this section uses: a content-carried ordering key applied in
+place of raw arrival order.
+
+This section extends that pattern to a regime draft-ietf-moq-loc does not address.
+A draft-ietf-moq-loc object is a whole frame; it is never fragmented, and that
+draft defines no FEC recovery, no multi-path combining, and no relay
+re-sequencing. Its ObjectID-derived fallback is therefore sufficient for whole,
+in-order, single-path delivery. The procedure in this section instead orders and
+de-duplicates the **fragments** of an object — including fragments recovered by
+FEC, which carry no Object ID ({{fec-integration}}), and fragments combined from
+more than one path, where the Object ID is path-relative — by the intrinsic byte
+offset. The intrinsic byte offset is invariant to all three conditions, where the
+Object-ID-derived key of draft-ietf-moq-loc-03 Section 4.5 is not. The two are
+consistent: where an object is whole and single-path, the receiver behaviour here
+reduces to Object-ID order, the universal fallback above.
+
+{{?I-D.ietf-moq-msf}} Section 6.1 is related but distinct: its Prior Group ID Gap Extension marks
+intentional publisher-side numbering discontinuities (e.g. publisher restart),
+where nothing was transmitted and no recovery applies. The receiver behaviour
+here addresses loss-induced gaps instead, closing them by FEC and offset reassembly rather than only
+reporting them. FEC mechanisms defined at the QUIC or symbol layer (for example
+{{?I-D.michel-quic-fec}} or FECFRAME {{?RFC6363}}) protect the bytes consumed by
+{{fec-integration}}; they do not reassemble application objects by an intrinsic
+content coordinate, which is the function this section adds above them.

@@ -721,6 +721,103 @@ FEC:      FEC:                FEC:
 Optional  Required            Required
 ~~~
 
+## Deployment Applicability
+
+The repair overhead this mechanism adds is justified only where the
+delivery path actually loses packets, and multicast loss characteristics
+differ by orders of magnitude across access technologies.  The "Required"
+annotation in the figure above is the common lossy-multicast case, not a
+universal rule: FEC strength (the repair count P and the Interleave Depth)
+is a per-path deployment parameter carried at the track level in the
+catalog `fec` field, selected per path by which tracks a given endpoint
+carries, NOT a protocol constant.
+
+- **Engineered low-loss segments.**  On managed PON or DOCSIS delivered
+  over a provisioned VLAN, steady-state loss is typically far below
+  10^-6.  Disabling FEC for such a path is signaled through the catalog
+  alone, by omitting the repair track from the tracks that path's
+  endpoints carry; the requirement in Section 4.1 that P MUST be >= 1
+  applies only when a repair track is published.  Adding repair symbols
+  on such a path spends bandwidth to recover losses that do not occur.
+
+- **FEC-capable broadcast PHYs.**  ATSC 3.0, DVB-S2/S2X, and 5G broadcast
+  already apply bit-error correction on their own radio link (e.g.,
+  LDPC/BCH in ATSC 3.0 and DVB-S2/S2X).
+  Application-layer FEC is NOT a duplicate of that correction: it recovers
+  *packet erasures* the PHY cannot address -- bursts when reception falls
+  below the PHY threshold (rain fade, mobility, indoor reception), and
+  losses on upstream aggregation or backbone hops that the last-hop PHY
+  never sees.  Its value on these paths comes primarily from Interleave
+  Depth spreading a burst across the time domain, not from the code rate.
+  On a one-way broadcast downlink with no return path, application-layer
+  FEC is the only available erasure-recovery mechanism -- which is why
+  ATSC 3.0 (see Section 12) specifies it above the PHY.
+
+- **Public Internet and AMT tunnels.**  Loss is real and bursty; a
+  non-trivial repair count with interleaving is RECOMMENDED.
+
+Because source and repair symbols can be deduplicated across paths by
+their Source Block Number and Encoding Symbol ID (Section 8.3), a
+receiver served by a low-loss path is enabled to skip the repair-track
+subscription, while a receiver on a lossy path consumes it: the same
+stream pays repair overhead only where the loss is.
+
+## Interaction with Multicast QUIC
+
+[@?QUIC-MULTICAST] defines a one-way QUIC transport in which a multicast
+channel carries QUIC packets bearing STREAM or DATAGRAM frames, recovering
+loss via unicast repair (the MC_CHANNEL_ACK mechanism) and defining no
+Forward Error Correction of its own.  This FEC scheme MAY be used as the
+recovery layer on such a channel, and is RECOMMENDED over unicast repair
+for broadcast-scale audiences, where per-receiver retransmission does not
+scale.
+
+When this scheme is carried over a multicast QUIC channel:
+
+1. **Symbol-to-datagram mapping.**  Each source or repair symbol (one MMTP
+   packet, per [@?MOQ-MMT]) SHOULD be carried in exactly one QUIC DATAGRAM
+   frame.  This aligns the erasure unit (a lost QUIC packet) with the FEC
+   symbol, so one lost packet erases exactly one source symbol.  STREAM
+   framing SHOULD NOT be used for FEC-protected media on a multicast
+   channel: a lost packet then spans a byte range crossing symbol
+   boundaries, defeating symbol-aligned recovery.
+
+2. **Crypto boundary.**  FEC encoding operates on application-layer
+   objects, ABOVE the QUIC packet protection of [@?QUIC-MULTICAST].
+   Unlike bare multicast UDP -- which lacks QUIC's integrity guarantees
+   (see Section 14.4) -- the multicast QUIC binding applies a shared-key
+   AEAD per packet.  A sender computes source and repair symbols over the
+   unencrypted objects; the channel then applies its AEAD; a receiver
+   decrypts each surviving packet and recovers erased objects from the
+   decrypted source and repair symbols.  A lost packet cannot be
+   decrypted, but its object is reconstructed from other verified symbols,
+   so recovery does not depend on possessing it.
+
+3. **Integrity of recovered objects.**  The integrity frames of
+   [@?QUIC-MULTICAST] authenticate the bytes of each delivered packet.  A
+   FEC-reconstructed object was never carried in a single packet and is
+   therefore NOT individually covered by a packet hash; it inherits trust
+   transitively from the verified surviving symbols used to reconstruct
+   it.  Deployments requiring per-object authentication of recovered data
+   SHOULD additionally apply an object-level scheme (for example the
+   signed_mmt_message structure; see Section 14.5) computed below the FEC
+   layer, which survives reconstruction.
+
+4. **Repair channel versus unicast repair.**  A publisher using this
+   scheme broadcasts repair symbols on the multicast channel (the repair
+   track) rather than relying on unicast retransmission.  Receivers
+   covered by the repair flow SHOULD NOT drive unicast repair for losses
+   the FEC recovers, preserving the O(1) sender cost that motivates
+   broadcast FEC.  Unicast repair MAY be retained as a last resort for
+   losses exceeding the repair budget.
+
+Symbols delivered over a multicast QUIC channel are deduplicated by
+their Source Block Number and Encoding Symbol ID; [@?QUIC-MULTICAST]
+normatively requires only this deduplication.  Because the (SBN, ESI)
+derivation in Section 8.3 of this document gives each symbol a
+path-independent identity, receivers MAY additionally combine such
+symbols with symbols received from other paths.
+
 # ATSC 3.0 Compatibility
 
 This specification is designed for interoperability with ATSC A/331
@@ -916,6 +1013,24 @@ New registrations require Specification Required policy.
     <date year='2026'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-00'/>
+</reference>
+
+<reference anchor='QUIC-MULTICAST' target='https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/'>
+  <front>
+    <title>Multicast Extension for QUIC</title>
+    <author initials='J.' surname='Holland' fullname='Jake Holland'>
+      <organization>Akamai Technologies, Inc.</organization>
+    </author>
+    <author initials='L.' surname='Pardue' fullname='Lucas Pardue'/>
+    <author initials='M.' surname='Franke' fullname='Max Franke'>
+      <organization>TU Berlin</organization>
+    </author>
+    <author initials='K.' surname='Rose' fullname='Kyle Rose'>
+      <organization>Akamai Technologies, Inc.</organization>
+    </author>
+    <date year='2026' month='January' day='2'/>
+  </front>
+  <seriesInfo name='Internet-Draft' value='draft-jholland-quic-multicast-08'/>
 </reference>
 
 <reference anchor='ISO.23008-1'>
