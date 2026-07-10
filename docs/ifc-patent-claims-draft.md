@@ -16,8 +16,8 @@ no unicast/multicast FEC combining, so ISO does not anticipate this step. The cl
 set is the application-object-layer companion to APPLICATION-1's FEC-symbol-layer
 `(SBN, ESI)` claims.
 
-**Distinction over the nearest MoQ prior art (draft-ietf-moq-loc §4.5).** The
-closest reference within MoQ is draft-ietf-moq-loc §4.5, which defines decode order
+**Distinction over the nearest MoQ prior art (draft-ietf-moq-loc-03 §4.5).** The
+closest reference within MoQ is draft-ietf-moq-loc-03 §4.5, whose worked example (non-normative, dyadic-framerate layered tracks) orders decode
 as timestamp-primary with `ObjectID * multiplier + offset` as the fallback ordering
 key — i.e., the same *precedence shape* the claims rely on (an intrinsic-ish
 ordering key used in place of raw arrival order). The claims are framed as
@@ -30,8 +30,8 @@ identifier (step (b)/(c)), and **multi-path-combined** fragments where the
 `ObjectID`-derived key is path-relative and unreliable (Claim 6). In all three the
 intrinsic byte offset is the only key that survives, so LOC's whole-frame
 `ObjectID`-offset fallback does not anticipate step (c). draft-ietf-moq-msf §6.1 is
-adjacent only — it signals group gaps to the application but performs no
-reassembly. None of draft-michel-quic-fec, draft-zheng-quic-fec, or RFC 6363
+adjacent only — it marks intentional publisher-restart numbering discontinuities (loss-independent, nothing to recover) but performs no
+reassembly. None of draft-michel-quic-fec, draft-zheng-quic-fec-extension, or RFC 6363
 FECFRAME define object reassembly by an intrinsic content coordinate; they protect
 the QUIC/symbol layer beneath this method.
 
@@ -153,8 +153,8 @@ of any of Claims 1 to 11.
 
 - Claim 1 step (c) "in precedence over the transport-assigned delivery identifier"
   is the crux distinguishing over ISO/IEC 23008-1 (which has no competing transport
-  identifier) and over plain MoQ (which orders by Object ID). It is also the step
-  that distinguishes over the nearest MoQ reference, **draft-ietf-moq-loc §4.5**:
+  identifier) and over plain MoQ (which orders by Object ID). Step (c) alone does not distinguish over the nearest
+  MoQ reference, **draft-ietf-moq-loc-03 §4.5**:
   LOC §4.5 already pairs a primary ordering key with an `ObjectID`-derived fallback,
   but only for whole, in-order, single-path frames. The distinguishing limitations
   are therefore the *fragmented + FEC-recovered + multi-path* context — step (b)
