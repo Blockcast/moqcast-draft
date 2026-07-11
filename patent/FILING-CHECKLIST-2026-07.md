@@ -67,3 +67,22 @@ available once H1 lands and spec fields settle.
 Patent-safe spec changes already vetted (no claim recites them): dropping
 FEC_CONFIG control message (Claim F is catalog-based — strengthened), and moving
 the repair header to the ISO 23008-1 §C.5.3 payload-ID form.
+
+## APPLICATION 3 (added 2026-07-11): Wallet-Rooted Device Certificate Issuance
+
+Status: PREPARED, NOT FILED. Separate invention family (device identity/PKI),
+NOT covered by 64/109,453 / 64/109,460. Core method (offline wallet-claim-token
+issuance, wallet-slug SAN, device-key subject) is IN PRODUCTION (magma certifier
++ NOP, BLO-9074/9105/9106 — private repos, no publication bar; but the service is
+node-operator-facing → file promptly).
+
+- File: `APPLICATION-3-WALLET-CERT.pdf` (Specification; no drawings — flows are
+  fully described textually; formal figures at conversion)
+- Title: "Wallet-Rooted Device Certificate Issuance with Offline Claim
+  Verification and Threshold-Signature Custody"
+- Same Web ADS flow as Apps 1-2: inventor-applicant Omar Ramadan (Individual),
+  assignee Blockcast Inc., Small entity, 0 drawing sheets, sign /Omar Ramadan/,
+  fee 2005 ≈ $130.
+- After filing: comment app number on the tracking issue; non-provisional
+  deadline = filing + 12 months (fold claims sketch appendix into counsel draft;
+  browser-mTLS §4 gains enablement when IWA Phase 0 lands).
