@@ -1,0 +1,27 @@
+---
+title: "FIG. 3 — S-TSID to MoQ Catalog Field Mapping"
+---
+graph LR
+    subgraph STSID["S-TSID (XML)"]
+        LS["LS (Logical Stream)<br/>tsi, mime_type"]
+        FP["FECParameters<br/>fecSchemeID<br/>symbolSize<br/>maxSourceBlockLength<br/>maxNumberEncSymbols<br/>maximumDelay<br/>overhead"]
+        RF["RepairFlow<br/>tsi"]
+        RS["RS (Receiving Station)<br/>source_address<br/>group_address<br/>port"]
+    end
+
+    subgraph Catalog["MoQ Catalog (JSON)"]
+        TRK["tracks[]<br/>name, packaging,<br/>codec, width, height"]
+        FEC["tracks[].fec<br/>algorithm<br/>symbolSize<br/>sourceSymbols<br/>repairSymbols<br/>interleaveDepth<br/>repairTrack"]
+        MC["multicast.endpoints[]<br/>sourceAddress<br/>groupAddress<br/>port<br/>tracks[]"]
+    end
+
+    LS -->|"tsi → name"| TRK
+    FP -->|"fecSchemeID → algorithm<br/>(scheme 6 → 'raptorq')"| FEC
+    FP -->|"symbolSize → symbolSize"| FEC
+    FP -->|"maxSourceBlockLength → sourceSymbols"| FEC
+    FP -->|"maxNumberEncSymbols -<br/>maxSourceBlockLength → repairSymbols"| FEC
+    FP -->|"maximumDelay → interleaveDepth<br/>(convert to ms)"| FEC
+    RF -->|"tsi → repairTrack<br/>(gateway assigns name)"| FEC
+    RS -->|"source_address →<br/>sourceAddress"| MC
+    RS -->|"group_address →<br/>groupAddress"| MC
+    RS -->|"port → port"| MC

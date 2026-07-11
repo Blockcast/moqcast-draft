@@ -1,0 +1,27 @@
+---
+title: "FIG. 2 — ESI Derivation Flowchart"
+---
+flowchart TD
+    INPUT["Input:<br/>G = group_id<br/>O = object_id<br/>K = source symbols per block<br/>interleaveDepth_ms<br/>GOP_duration_ms"]
+
+    STEP1["Step 201:<br/>Obtain interleaveDepth_ms<br/>from catalog or FEC_CONFIG"]
+
+    STEP2["Step 202: Compute D<br/>D = ceil(interleaveDepth_ms / GOP_duration_ms)"]
+
+    STEP3["Step 203: Derive SBN<br/>SBN = floor(G / D)"]
+
+    STEP4["Step 204: Derive ESI<br/>first_group = SBN * D<br/>symbols_per_group = ceil(K / D)<br/>ESI = (G - first_group) * symbols_per_group + O"]
+
+    STEP5["Step 205: Recover SS_ID<br/>SS_ID = SBN * K + ESI"]
+
+    OUTPUT["Output:<br/>(SBN, ESI) for FEC block placement<br/>SS_ID identical to MMTP multicast FEC Payload ID"]
+
+    EXAMPLE["Example: 30fps, K=32, D=4<br/>G=10, O=3<br/>SBN = floor(10/4) = 2<br/>ESI = (10-8) * 8 + 3 = 19<br/>SS_ID = 2*32 + 19 = 83"]
+
+    INPUT --> STEP1
+    STEP1 --> STEP2
+    STEP2 --> STEP3
+    STEP3 --> STEP4
+    STEP4 --> STEP5
+    STEP5 --> OUTPUT
+    OUTPUT -.- EXAMPLE
