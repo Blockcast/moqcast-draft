@@ -404,7 +404,7 @@ LOC video objects [@?I-D.ietf-moq-loc] and CMAF chunks
 UDP datagram MTU (~1300 bytes).  Per [@I-D.ietf-moq-loc] Section
 4.1: "When mapped to QUIC datagrams, each object must fit entirely
 within a QUIC datagram."  The same constraint applies to multicast
-UDP datagrams.  MMTP [@I-D.bouazizi-mmtp] fragments media into
+UDP datagrams.  MMTP [@?I-D.bouazizi-mmtp] fragments media into
 MTU-sized packets natively per Section 4.1.1.  This is not a design
 choice — it is a physical constraint of datagram-based delivery.
 For CMAF sources, this fragmentation realizes the Chunk-to-Object
@@ -412,7 +412,7 @@ mapping of [@?I-D.wilaw-moq-cmafpackaging].
 
 No additional multicast framing, encapsulation, or header format is
 needed.  The MMTP packet format is defined in [@MOQ-MMT]
-Section 3.1 and [@I-D.bouazizi-mmtp] Section 3.
+Section 3.1 and [@?I-D.bouazizi-mmtp] Section 3.
 
 This design means the same MMTP packet can be delivered via four
 transports without modification:
@@ -487,7 +487,7 @@ trust is delegated to the relay per [@RFC7450].
 
 Multicast UDP lacks QUIC's integrity guarantees.  For MMTP-packaged
 multicast delivery, content authentication uses the MMTP
-signed_mmt_message mechanism per [@I-D.bouazizi-mmtp] Section 3.1
+signed_mmt_message mechanism per [@?I-D.bouazizi-mmtp] Section 3.1
 (header extension format).  This provides per-packet authentication
 using digital signatures carried in MMTP header extensions.
 
@@ -527,7 +527,7 @@ of the multicast configuration:
   mechanism identifier.  Defined values:
 
   - "signed_mmt_message": MMTP-native per-packet authentication
-    per [@I-D.bouazizi-mmtp] Section 3.1
+    per [@?I-D.bouazizi-mmtp] Section 3.1
   - "alta": ALTA per [@?I-D.krose-mboned-alta] — lightweight
     asymmetric loss-tolerant authentication
 
@@ -544,7 +544,7 @@ either or both:
   distinct ASID (this document suggests 10) so that both schemes can
   coexist in the EXT_AUTH registry slot without mutual clobbering.
 - **MMTP** carries auth in an MMTP header extension per
-  [@I-D.bouazizi-mmtp] Section 3.1.  ATSC A/360 Section 5.2.2.5
+  [@?I-D.bouazizi-mmtp] Section 3.1.  ATSC A/360 Section 5.2.2.5
   defines `signed_mmt_message` (A/331 Table 7.41) for MMTP
   signaling and MA3 messages (packet type 0x2).  ALTA on the MMTP
   path SHOULD use an MMTP header-extension `ext_type` (value from
@@ -572,7 +572,7 @@ authentication independent of multicast.
 
 Content authentication for multicast is an active area of work.
 Related prior work includes [@?I-D.krose-mboned-alta] (expired);
-deployments SHOULD track the IETF MBONED working group for
+deployments should track the IETF MBONED working group for
 successors.
 
 # IANA Considerations
@@ -629,7 +629,7 @@ registration.
     <author initials='K.' surname='Rose' fullname='Kyle Rose'>
       <organization>Akamai Technologies, Inc.</organization>
     </author>
-    <date year='2026' month='January' day='2'/>
+    <date year='2026' month='July' day='6'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-jholland-quic-multicast-09'/>
 </reference>

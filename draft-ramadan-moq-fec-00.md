@@ -331,7 +331,7 @@ as D = ceil(interleaveDepth / GOP_duration_ms).  Using milliseconds
 rather than frame/group counts decouples FEC from frame rate —
 30fps video and 46.875fps audio can share the same interleaveDepth
 value.  Default is 0 (single-group blocks, D=1).  For mmtp-packaged
-tracks, GOP_duration_ms equals the track's `groupDurationMs`
+tracks, GOP_duration_ms equals the track's `groupDurationMs` (the MoQ group duration -- one group per frame on the MMT path -- not the keyframe/GOP cadence)
 signaled per [@?MOQ-MMT] Section 12.1.
 
 When CMAF packaging is used, the CMAF segment duration SHOULD equal
@@ -1050,7 +1050,7 @@ registration of:
     <author initials='K.' surname='Rose' fullname='Kyle Rose'>
       <organization>Akamai Technologies, Inc.</organization>
     </author>
-    <date year='2026' month='January' day='2'/>
+    <date year='2026' month='July' day='6'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-jholland-quic-multicast-09'/>
 </reference>
