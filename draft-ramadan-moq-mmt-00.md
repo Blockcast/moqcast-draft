@@ -310,7 +310,7 @@ Rationale for the chosen unit:
   MoQ deployments routinely need.
 
 A track's container kind is carried in the catalog `packaging` field
-([@!I-D.ietf-moq-catalogformat]), NOT a `container` field: the spec
+([@!I-D.ietf-moq-msf]), NOT a `container` field: the spec
 defines values `cmaf` and `loc`, and this document defines the value
 `mmtp`.  ("container kind" is used informally below as a synonym for
 the `packaging` value.)  Per-track codec is carried in
@@ -426,10 +426,10 @@ initData (OPTIONAL, string)
 `initData` is the base64 encoding of an ISOBMFF initialization
 segment (`ftyp` + `moov`) sufficient to initialize the decoder for
 the track (including the codec configuration record, e.g. avcC or
-hvcC).  This is the same track-level field, carrying the same base64
-`ftyp`+`moov` value, as defined by [@?I-D.ietf-moq-catalogformat] and
-[@?I-D.ietf-moq-cmsf] Section 3.1; this document applies it to
-mmtp-packaged tracks.  It lets a subscriber initialize its decoder at
+hvcC).  `initData` is defined by this document as a flat base64
+string carried on mmtp-packaged tracks; it is analogous in purpose
+to the `initDataList`/`initRef` mechanism of [@?I-D.ietf-moq-cmsf],
+but is not identical to it.  It lets a subscriber initialize its decoder at
 catalog load,
 before the first MPU metadata object or init-track object arrives,
 removing one delivery round trip from the join path (Section 6.1).
@@ -724,7 +724,7 @@ not available, FEC_CONFIG parameters are conveyed via:
       "algorithm": "raptorq",
       "sourceSymbols": 32,
       "repairSymbols": 8,
-      "interleaveDepth": 30,
+      "interleaveDepth": 1000,
       "symbolSize": 1312,
       "repairTrack": "video/repair"
     }
@@ -820,7 +820,7 @@ Per-track catalog fields for mmtp packaging:
 | `initMode` | OPTIONAL | String | "inline" (default) or "track" (Section 4.5) |
 | `initData` | OPTIONAL | String | Base64 ftyp+moov init segment (Section 4.5) |
 | `fec` | OPTIONAL | Object | AL-FEC parameters (Section 8.3) |
-| `selectionParams` | REQUIRED | Object | Codec and rendition parameters per [@I-D.ietf-moq-catalogformat] |
+| `selectionParams` | REQUIRED | Object | Codec and rendition parameters per [@I-D.ietf-moq-msf] |
 
 `mmtpMode` selects the object layout: "mpu" delivers each whole MPU
 as a single object; "mfu" delivers one subgroup per MFU as defined
@@ -869,8 +869,10 @@ defined in [@MOQ-MULTICAST] Section 4.1.  Conversion rules:
   `multicast.endpoints[].tracks[]` entry, with `packetId` assigned per
   the rule below
 - `LS@bw` -> `selectionParams.bitrate`
-- `FECParameters@overhead` -> `fec.p` (computed as K x overhead / 100)
-- `fecOTI` K,T,Z -> `fec.k`, `fec.symbolSize`, `fec.interleaveDepth`
+- `FECParameters@overhead` -> `fec.repairSymbols` (computed as
+  K x overhead / 100)
+- `fecOTI` K,T,Z -> `fec.sourceSymbols`, `fec.symbolSize`,
+  `fec.interleaveDepth`
 
 `packetId` is assigned per flow, not per `tsi`.  An `LS` (ROUTE
 transport session) carrying both a SrcFlow and its RepairFlow yields
@@ -896,7 +898,7 @@ When generating ATSC-compatible output, convert the MoQ catalog to
 S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 
 - `multicast.endpoints[].sourceAddress` -> `RS@sIpAddr`
-- `fec.p / fec.k x 100` -> `FECParameters@overhead`
+- `fec.repairSymbols / fec.sourceSymbols x 100` -> `FECParameters@overhead`
 - `fec.interleaveDepth x frameDuration` -> `FECParameters@maximumDelay`
 
 ## Multicast Endpoint Catalog Extension
@@ -1072,7 +1074,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
         "sourceSymbols": 32,
         "repairSymbols": 8,
         "symbolSize": 1312,
-        "interleaveDepth": 30,
+        "interleaveDepth": 1000,
         "repairTrack": "video/1080p/repair"
       }
     },
