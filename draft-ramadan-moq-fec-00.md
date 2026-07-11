@@ -330,7 +330,9 @@ milliseconds.  The encoder computes the number of groups per block
 as D = ceil(interleaveDepth / GOP_duration_ms).  Using milliseconds
 rather than frame/group counts decouples FEC from frame rate —
 30fps video and 46.875fps audio can share the same interleaveDepth
-value.  Default is 0 (single-group blocks, D=1).
+value.  Default is 0 (single-group blocks, D=1).  For mmtp-packaged
+tracks, GOP_duration_ms equals the track's `groupDurationMs`
+signaled per [@?MOQ-MMT] Section 12.1.
 
 When CMAF packaging is used, the CMAF segment duration SHOULD equal
 interleaveDepth so that each segment contains exactly one FEC
@@ -339,6 +341,14 @@ before forwarding to FEC-unaware HLS/DASH clients.
 
 **repairTrack** (string, REQUIRED): Track name for repair symbols,
 following the convention in Section 6.1.
+
+Repair tracks themselves are identified in the catalog by the
+`packaging` value `"fec-repair"`: a track with
+`"packaging": "fec-repair"` carries repair objects (Section 7) for
+the source track whose `fec.repairTrack` field names it, and
+carries no directly renderable media.  Receivers that do not
+implement this specification do not recognize the value and ignore
+such tracks.
 
 ## Relationship to FEC_CONFIG
 
@@ -467,14 +477,16 @@ needed at the FEC layer.
 of source symbols, the FEC encoder MAY divide the block into Z
 sub-blocks per the RFC 6330 Z parameter.  Sub-block boundaries are
 signaled in the AL-FEC signaling message OTI (Section 5.1).  The
-SSB_length field in the Repair FEC Payload ID (Section 7.1) carries
-the number of source symbols per sub-block (K_sub <= K).
+number of source symbols per sub-block (K_sub <= K) is derived from
+the signaled parameters: K_sub = ceil(K / Z), where K is the source
+symbol count (catalog `sourceSymbols`) and Z is the Number of
+Sub-Blocks field of the FEC OTI (Section 4.4).
 
 When sub-blocks are used:
 
-1. The block recovery timeout MAY be computed per sub-block:
-   `timeout = K_sub * interleaveDepth_ms * safetyFactor` instead
-   of the full-block timeout `K * interleaveDepth_ms * safetyFactor`.
+1. The block recovery timeout MAY be computed per sub-block as the
+   sub-block span `timeout = (K_sub - 1) * interleaveDepth_ms`
+   instead of the full-block span `(K - 1) * interleaveDepth_ms`.
    This enables faster partial recovery at the cost of higher repair
    overhead (P repair symbols per sub-block instead of per block).
 
@@ -482,9 +494,8 @@ When sub-blocks are used:
    by SBN + sub-block index) and can emit recovered data as soon as
    each sub-block completes, without waiting for the full block.
 
-3. SSB_length in the repair object header (Section 7.1) indicates
-   the sub-block size.  Receivers MUST use SSB_length (not K from
-   the catalog) for per-sub-block recovery when SSB_length < K.
+3. Receivers MUST use the derived sub-block length K_sub (not K
+   from the catalog) for per-sub-block recovery when K_sub < K.
 
 Publishers using MMTP packaging SHOULD use ssbg_mode0 without
 sub-blocks.  Sub-blocks are primarily useful for large-K
@@ -550,8 +561,8 @@ SS_ID = SBN * K + ESI
 This enables multi-path FEC combining: a receiver that obtains the
 same MMTP packet via MoQ unicast (using Group_ID/Object_ID) and
 multicast UDP (using SS_ID from the FEC Payload ID) derives
-identical (SBN, ESI) coordinates, allowing symbols from any
-transport path to contribute to the same FEC block recovery.
+identical (SBN, ESI) coordinates; receivers MAY combine symbols
+from any transport path toward the same FEC block recovery.
 
 For MMTP over multicast UDP where the Source FEC Payload ID carries
 SS_ID directly:
@@ -991,6 +1002,17 @@ with the following initial values:
 
 New registrations require Specification Required policy.
 
+## Catalog Packaging Value
+
+This document defines the catalog `packaging` value "fec-repair"
+(Section 5.1) for repair tracks.  If a registry of catalog
+packaging values is established, this document requests
+registration of:
+
+| Value | Description | Reference |
+|-------|-------------|-----------|
+| "fec-repair" | Repair objects protecting a source track | This document |
+
 {backmatter}
 
 <reference anchor='MOQ-MMT'>
@@ -1030,7 +1052,7 @@ New registrations require Specification Required policy.
     </author>
     <date year='2026' month='January' day='2'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-jholland-quic-multicast-08'/>
+  <seriesInfo name='Internet-Draft' value='draft-jholland-quic-multicast-09'/>
 </reference>
 
 <reference anchor='ISO.23008-1'>

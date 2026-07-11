@@ -109,7 +109,8 @@ in all capitals, as shown here.
 DirectSocket API access
 
 **MMTP**: MMT Protocol — the packet layer of MPEG Media Transport
-([@!I-D.bouazizi-mmtp] Section 3).  Each MMTP packet is
+([@!ISO.23008-1] Clause 8; see also [@?I-D.bouazizi-mmtp]
+Section 3).  Each MMTP packet is
 self-describing, carrying track routing, timestamps, sequencing,
 and FEC metadata natively.
 
@@ -469,8 +470,9 @@ Packaging negotiation is implicit in MoQ: subscribers subscribe to
 tracks by name, and the catalog advertises packaging per track.  A
 subscriber that only supports LOC subscribes to the LOC track; a
 subscriber that supports MMTP subscribes to the MMTP track.  The
-`altGroup` catalog field enables publishers to offer the same
-content in multiple packaging formats.
+`altGroup` catalog field (see the switching-set machinery of the
+referenced catalog format, [@?I-D.ietf-moq-msf]) enables publishers
+to offer the same content in multiple packaging formats.
 No explicit packaging capability negotiation is needed.
 
 # Security Considerations
@@ -569,8 +571,9 @@ by Secure Objects which provides object-level encryption and
 authentication independent of multicast.
 
 Content authentication for multicast is an active area of work.
-Deployments SHOULD track developments in [@I-D.krose-mboned-alta]
-and related specifications.
+Related prior work includes [@?I-D.krose-mboned-alta] (expired);
+deployments SHOULD track the IETF MBONED working group for
+successors.
 
 # IANA Considerations
 
@@ -579,6 +582,17 @@ This document has no IANA actions.  The multicast catalog extension
 registration.
 
 {backmatter}
+
+<reference anchor='ISO.23008-1'>
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 1: MPEG media transport (MMT)</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year='2023'/>
+  </front>
+  <seriesInfo name='ISO/IEC' value='23008-1:2023'/>
+</reference>
 
 <reference anchor='MOQ-MMT'>
   <front>
@@ -617,7 +631,7 @@ registration.
     </author>
     <date year='2026' month='January' day='2'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-jholland-quic-multicast-08'/>
+  <seriesInfo name='Internet-Draft' value='draft-jholland-quic-multicast-09'/>
 </reference>
 
 <reference anchor='ATSC-A331' target='https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/'>
