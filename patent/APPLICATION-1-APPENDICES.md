@@ -433,7 +433,7 @@ streaming system, comprising:
 (a) a catalog document in JSON format containing:
     - a top-level FEC configuration object specifying default FEC
       parameters including algorithm, sourceSymbols, repairSymbols,
-      symbolSize, and interleaveDepth;
+      symbolSize, and interleaveDepthMs;
     - zero or more per-track FEC configuration objects that override
       specific fields from the top-level defaults, wherein unspecified
       fields inherit the top-level values;

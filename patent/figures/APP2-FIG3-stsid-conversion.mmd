@@ -11,7 +11,7 @@ graph LR
 
     subgraph Catalog["MoQ Catalog (JSON)"]
         TRK["tracks[]<br/>name, packaging,<br/>codec, width, height"]
-        FEC["tracks[].fec<br/>algorithm<br/>symbolSize<br/>sourceSymbols<br/>repairSymbols<br/>interleaveDepth<br/>repairTrack"]
+        FEC["tracks[].fec<br/>algorithm<br/>symbolSize<br/>sourceSymbols<br/>repairSymbols<br/>interleaveDepthMs<br/>repairTrack"]
         MC["multicast.endpoints[]<br/>sourceAddress<br/>groupAddress<br/>port<br/>tracks[]"]
     end
 
@@ -20,7 +20,7 @@ graph LR
     FP -->|"symbolSize → symbolSize"| FEC
     FP -->|"maxSourceBlockLength → sourceSymbols"| FEC
     FP -->|"maxNumberEncSymbols -<br/>maxSourceBlockLength → repairSymbols"| FEC
-    FP -->|"maximumDelay → interleaveDepth<br/>(convert to ms)"| FEC
+    FP -->|"maximumDelay → interleaveDepthMs<br/>(convert to ms)"| FEC
     RF -->|"tsi → repairTrack<br/>(gateway assigns name)"| FEC
     RS -->|"source_address →<br/>sourceAddress"| MC
     RS -->|"group_address →<br/>groupAddress"| MC

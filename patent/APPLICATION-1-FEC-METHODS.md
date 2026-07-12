@@ -149,12 +149,12 @@ and object identifier O:
 
 **Step 201:** The receiver obtains the interleave depth parameter from
 the catalog or FEC configuration, expressed in milliseconds
-(interleaveDepth_ms).
+(interleaveDepthMs).
 
 **Step 202:** The receiver computes the interleave depth in media
 units (groups):
 
-    D = ceil(interleaveDepth_ms / GOP_duration_ms)
+    D = ceil(interleaveDepthMs / GOP_duration_ms)
 
 where GOP_duration_ms is the duration of one media group (e.g.,
 33.3ms for 30fps video, 21.3ms for 46.875fps audio). By expressing
@@ -187,7 +187,7 @@ from the FEC Payload ID) derives identical (SBN, ESI) coordinates
 using the respective derivation. This property enables multi-path FEC
 combining (Second Embodiment).
 
-**Example:** For a 30fps video stream with K=32, D=4 (interleaveDepth
+**Example:** For a 30fps video stream with K=32, D=4 (interleaveDepthMs
 = 133ms), a packet in Group 10, Object 3:
 
     SBN = floor(10 / 4) = 2
@@ -593,7 +593,7 @@ dual coordinate spaces (MoQ and FEC).
 
 ![FIG. 1 — System Architecture](figures/APP1-FIG1-system-architecture.png)
 
-**FIG. 2:** ESI derivation flowchart: input (G, O, interleaveDepth_ms,
+**FIG. 2:** ESI derivation flowchart: input (G, O, interleaveDepthMs,
 K, GOP_duration_ms) through computation steps producing (SBN, ESI,
 SS_ID).
 

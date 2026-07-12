@@ -15,12 +15,12 @@ sequenceDiagram
 
     FFmpeg->>Catalog: set_video_fec_config("raptorq", 32, 8, 1312, 133)
     Catalog->>Pending: MERGE algorithm, K, P, T, depth<br/>(preserves existing repair_track)
-    Note over Pending: {algorithm: "raptorq",<br/>sourceSymbols: 32,<br/>repairSymbols: 8,<br/>symbolSize: 1312,<br/>interleaveDepth: 133,<br/>repair_track: "video/repair"} ✓
+    Note over Pending: {algorithm: "raptorq",<br/>sourceSymbols: 32,<br/>repairSymbols: 8,<br/>symbolSize: 1312,<br/>interleaveDepthMs: 133,<br/>repair_track: "video/repair"} ✓
 
     FFmpeg->>Catalog: set_video_codec("video", "avc1.42c01e")
     Catalog->>Rendition: ensure_video("video") creates rendition
     Catalog->>Pending: Clone pending to rendition.fec
-    Note over Rendition: video.fec = {algorithm: "raptorq",<br/>sourceSymbols: 32, repairSymbols: 8,<br/>symbolSize: 1312, interleaveDepth: 133,<br/>repair_track: "video/repair"} ✓
+    Note over Rendition: video.fec = {algorithm: "raptorq",<br/>sourceSymbols: 32, repairSymbols: 8,<br/>symbolSize: 1312, interleaveDepthMs: 133,<br/>repair_track: "video/repair"} ✓
 
     Note over Catalog: Subsequent renditions also<br/>get pending FEC (clone, not take)
 

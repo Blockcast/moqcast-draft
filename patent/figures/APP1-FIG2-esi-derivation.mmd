@@ -2,11 +2,11 @@
 title: "FIG. 2 — ESI Derivation Flowchart"
 ---
 flowchart TD
-    INPUT["Input:<br/>G = group_id<br/>O = object_id<br/>K = source symbols per block<br/>interleaveDepth_ms<br/>GOP_duration_ms"]
+    INPUT["Input:<br/>G = group_id<br/>O = object_id<br/>K = source symbols per block<br/>interleaveDepthMs<br/>GOP_duration_ms"]
 
-    STEP1["Step 201:<br/>Obtain interleaveDepth_ms<br/>from catalog or FEC_CONFIG"]
+    STEP1["Step 201:<br/>Obtain interleaveDepthMs<br/>from catalog or FEC_CONFIG"]
 
-    STEP2["Step 202: Compute D<br/>D = ceil(interleaveDepth_ms / GOP_duration_ms)"]
+    STEP2["Step 202: Compute D<br/>D = ceil(interleaveDepthMs / GOP_duration_ms)"]
 
     STEP3["Step 203: Derive SBN<br/>SBN = floor(G / D)"]
 

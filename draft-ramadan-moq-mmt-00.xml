@@ -361,7 +361,7 @@ expressed in integer milliseconds at all and which low-latency
 MoQ deployments routinely need.</li>
 </ul>
 <t>A track's container kind is carried in the catalog <tt>packaging</tt> field
-(<xref target="I-D.ietf-moq-catalogformat"></xref>), NOT a <tt>container</tt> field: the spec
+(<xref target="I-D.ietf-moq-msf"></xref>), NOT a <tt>container</tt> field: the spec
 defines values <tt>cmaf</tt> and <tt>loc</tt>, and this document defines the value
 <tt>mmtp</tt>.  (&quot;container kind&quot; is used informally below as a synonym for
 the <tt>packaging</tt> value.)  Per-track codec is carried in
@@ -443,9 +443,9 @@ field for the keyframe (GOP) cadence:</t>
 ]]></artwork>
 <t><tt>keyframeIntervalMs</tt> is the interval between consecutive video
 keyframes, in integer milliseconds.  It is ADVISORY and semantically
-DISTINCT from <tt>groupDurationMs</tt>: <tt>groupDurationMs</tt> is the
-per-frame MMTP media-group duration, whereas <tt>keyframeIntervalMs</tt> is
-the keyframe/GOP repair cadence (typically many groups long — e.g. a
+DISTINCT from <tt>groupDurationMs</tt>: <tt>groupDurationMs</tt> is the per-frame
+MMTP media-group duration, whereas <tt>keyframeIntervalMs</tt> is the
+keyframe/GOP repair cadence (typically many groups long — e.g. a
 1000 ms keyframe interval over a 33 ms per-frame group duration).  The
 field applies to video tracks only; a publisher that cannot determine
 the cadence simply omits it.</t>
@@ -462,13 +462,13 @@ track's timescale.  A publisher MAY publish an exact override:</t>
 
 <artwork><![CDATA[keyframeIntervalTicks (OPTIONAL, unsigned integer)
 ]]></artwork>
-<t>expressed in the same timescale as <tt>groupDurationTicks</tt>
-(Section 4.4.2, selected by the track's container kind).  If both
+<t>expressed in the same timescale as <tt>groupDurationTicks</tt> (Section 4.4.2,
+selected by the track's container kind).  If both
 <tt>keyframeIntervalMs</tt> and <tt>keyframeIntervalTicks</tt> are present,
-<tt>keyframeIntervalTicks</tt> wins.  Unlike <tt>groupDurationTicks</tt>,
-this document places NO switching-set agreement requirement on the
-keyframe interval: it is a per-track advisory hint, and tracks in a
-switching set MAY carry different keyframe cadences.</t>
+<tt>keyframeIntervalTicks</tt> wins.  Unlike <tt>groupDurationTicks</tt>, this
+document places NO switching-set agreement requirement on the keyframe
+interval: it is a per-track advisory hint, and tracks in a switching
+set MAY carry different keyframe cadences.</t>
 </section>
 </section>
 
@@ -488,10 +488,10 @@ directly in the catalog via the per-track field:</t>
 <t><tt>initData</tt> is the base64 encoding of an ISOBMFF initialization
 segment (<tt>ftyp</tt> + <tt>moov</tt>) sufficient to initialize the decoder for
 the track (including the codec configuration record, e.g. avcC or
-hvcC).  This is the same track-level field, carrying the same base64
-<tt>ftyp</tt>+<tt>moov</tt> value, as defined by <xref target="I-D.ietf-moq-catalogformat"></xref> and
-<xref target="I-D.ietf-moq-cmsf"></xref> Section 3.1; this document applies it to
-mmtp-packaged tracks.  It lets a subscriber initialize its decoder at
+hvcC).  <tt>initData</tt> is defined by this document as a flat base64
+string carried on mmtp-packaged tracks; it is analogous in purpose
+to the <tt>initDataList</tt>/<tt>initRef</tt> mechanism of <xref target="I-D.ietf-moq-cmsf"></xref>,
+but is not identical to it.  It lets a subscriber initialize its decoder at
 catalog load,
 before the first MPU metadata object or init-track object arrives,
 removing one delivery round trip from the join path (Section 6.1).</t>
@@ -788,7 +788,7 @@ per ISO/IEC 23008-1:2023 Amendment 1:2025</t>
       "algorithm": "raptorq",
       "sourceSymbols": 32,
       "repairSymbols": 8,
-      "interleaveDepth": 30,
+      "interleaveDepthMs": 1000,
       "symbolSize": 1312,
       "repairTrack": "video/repair"
     }
@@ -946,7 +946,7 @@ by the <tt>mmtpMode</tt> field below.</t>
 <td><tt>selectionParams</tt></td>
 <td>REQUIRED</td>
 <td>Object</td>
-<td>Codec and rendition parameters per <xref target="I-D.ietf-moq-catalogformat"></xref></td>
+<td>Codec and rendition parameters per <xref target="I-D.ietf-moq-msf"></xref></td>
 </tr>
 </tbody>
 </table><t><tt>mmtpMode</tt> selects the object layout: &quot;mpu&quot; delivers each whole MPU
@@ -994,8 +994,10 @@ defined in <xref target="MOQ-MULTICAST"></xref> Section 4.1.  Conversion rules:<
 <tt>multicast.endpoints[].tracks[]</tt> entry, with <tt>packetId</tt> assigned per
 the rule below</li>
 <li><tt>LS@bw</tt> -&gt; <tt>selectionParams.bitrate</tt></li>
-<li><tt>FECParameters@overhead</tt> -&gt; <tt>fec.p</tt> (computed as K x overhead / 100)</li>
-<li><tt>fecOTI</tt> K,T,Z -&gt; <tt>fec.k</tt>, <tt>fec.symbolSize</tt>, <tt>fec.interleaveDepth</tt></li>
+<li><tt>FECParameters@overhead</tt> -&gt; <tt>fec.repairSymbols</tt> (computed as
+K x overhead / 100)</li>
+<li><tt>fecOTI</tt> K,T -&gt; <tt>fec.sourceSymbols</tt>, <tt>fec.symbolSize</tt></li>
+<li><tt>fecOTI</tt> Z (source blocks) x GOP duration -&gt; <tt>fec.interleaveDepthMs</tt></li>
 </ul>
 <t><tt>packetId</tt> is assigned per flow, not per <tt>tsi</tt>.  An <tt>LS</tt> (ROUTE
 transport session) carrying both a SrcFlow and its RepairFlow yields
@@ -1021,8 +1023,8 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:</t>
 
 <ul spacing="compact">
 <li><tt>multicast.endpoints[].sourceAddress</tt> -&gt; <tt>RS@sIpAddr</tt></li>
-<li><tt>fec.p / fec.k x 100</tt> -&gt; <tt>FECParameters@overhead</tt></li>
-<li><tt>fec.interleaveDepth x frameDuration</tt> -&gt; <tt>FECParameters@maximumDelay</tt></li>
+<li><tt>fec.repairSymbols / fec.sourceSymbols x 100</tt> -&gt; <tt>FECParameters@overhead</tt></li>
+<li><tt>fec.interleaveDepthMs</tt> -&gt; <tt>FECParameters@maximumDelay</tt></li>
 </ul>
 </section>
 
@@ -1233,7 +1235,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
         "sourceSymbols": 32,
         "repairSymbols": 8,
         "symbolSize": 1312,
-        "interleaveDepth": 30,
+        "interleaveDepthMs": 1000,
         "repairTrack": "video/1080p/repair"
       }
     },

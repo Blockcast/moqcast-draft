@@ -485,8 +485,9 @@ Sub-Blocks field of the FEC OTI (Section 4.4).
 When sub-blocks are used:
 
 1. The block recovery timeout MAY be computed per sub-block as the
-   sub-block span `timeout = (K_sub - 1) * interleaveDepthMs`
-   instead of the full-block span `(K - 1) * interleaveDepthMs`.
+   sub-block's share of the block span,
+   `timeout = interleaveDepthMs * K_sub / K`, instead of the
+   full-block span `timeout = interleaveDepthMs`.
    This enables faster partial recovery at the cost of higher repair
    overhead (P repair symbols per sub-block instead of per block).
 

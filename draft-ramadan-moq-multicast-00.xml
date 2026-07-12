@@ -95,7 +95,8 @@ in all capitals, as shown here.</t>
 <t><strong>IWA</strong>: Isolated Web App — a Chrome packaging format that grants
 DirectSocket API access</t>
 <t><strong>MMTP</strong>: MMT Protocol — the packet layer of MPEG Media Transport
-(<xref target="I-D.bouazizi-mmtp"></xref> Section 3).  Each MMTP packet is
+(<xref target="ISO.23008-1"></xref> Clause 8; see also <xref target="I-D.bouazizi-mmtp"></xref>
+Section 3).  Each MMTP packet is
 self-describing, carrying track routing, timestamps, sequencing,
 and FEC metadata natively.</t>
 </section>
@@ -393,7 +394,7 @@ mapping of <xref target="I-D.wilaw-moq-cmafpackaging"></xref>.</t>
 <t>No additional multicast framing, encapsulation, or header format is
 needed.  The MMTP packet format is defined in <xref target="MOQ-MMT"></xref>
 Section 3.1 and <xref target="I-D.bouazizi-mmtp"></xref> Section 3.</t>
-<t>This design means the same MMTP packet can be delivered via three
+<t>This design means the same MMTP packet can be delivered via four
 transports without modification:</t>
 <table>
 <thead>
@@ -415,6 +416,11 @@ transports without modification:</t>
 </tr>
 
 <tr>
+<td>Multicast QUIC</td>
+<td>MMTP packet as multicast QUIC DATAGRAM object</td>
+</tr>
+
+<tr>
 <td>Multicast UDP</td>
 <td>MMTP packet as UDP datagram</td>
 </tr>
@@ -423,6 +429,13 @@ transports without modification:</t>
 field, which maps to the <tt>packetId</tt> assigned in the multicast
 catalog endpoint (Section 4.1).  FEC source and repair packets are
 distinguished by the MMTP FEC Type field (1=source, 2=repair).</t>
+<t>The Multicast QUIC row corresponds to <xref target="QUIC-MULTICAST"></xref>, which carries
+QUIC packets (and thus QUIC DATAGRAM frames) over a multicast channel.
+Encapsulating one MMTP packet per QUIC DATAGRAM keeps the packet format
+unchanged while adding QUIC's per-packet AEAD and integrity; because that
+extension defines no FEC of its own, application-layer FEC <xref target="MOQ-FEC"></xref> is
+the RECOMMENDED loss-recovery layer on this binding, replacing its unicast
+repair for broadcast-scale audiences.</t>
 <t>For ATSC 3.0 and ARIB STD-B60 broadcast receivers, MMTP over SSM
 is the native delivery path.  No format conversion is needed — MoQ
 relays at network edges bridge the same MMTP packets between
@@ -455,8 +468,9 @@ needed — the relay provides the current position.</t>
 tracks by name, and the catalog advertises packaging per track.  A
 subscriber that only supports LOC subscribes to the LOC track; a
 subscriber that supports MMTP subscribes to the MMTP track.  The
-<tt>altGroup</tt> catalog field enables publishers to offer the same
-content in multiple packaging formats.
+<tt>altGroup</tt> catalog field (see the switching-set machinery of the
+referenced catalog format, <xref target="I-D.ietf-moq-msf"></xref>) enables publishers
+to offer the same content in multiple packaging formats.
 No explicit packaging capability negotiation is needed.</t>
 </section>
 </section>
@@ -553,8 +567,9 @@ placement of the authenticator bytes on the wire differs.</t>
 by Secure Objects which provides object-level encryption and
 authentication independent of multicast.</t>
 <t>Content authentication for multicast is an active area of work.
-Deployments SHOULD track developments in <xref target="I-D.krose-mboned-alta"></xref>
-and related specifications.</t>
+Related prior work includes <xref target="I-D.krose-mboned-alta"></xref> (expired);
+deployments should track the IETF MBONED working group for
+successors.</t>
 </section>
 </section>
 </section>
@@ -570,6 +585,16 @@ registration.</t>
 <back>
 <references><name>References</name>
 <references><name>Normative References</name>
+<reference anchor="ISO.23008-1" target="">
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 1: MPEG media transport (MMT)</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year="2023"></date>
+  </front>
+  <seriesInfo name="ISO/IEC" value="23008-1:2023"></seriesInfo>
+</reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
 </references>
@@ -611,6 +636,23 @@ registration.</t>
     <date year="2026"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-00"></seriesInfo>
+</reference>
+<reference anchor="QUIC-MULTICAST" target="https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/">
+  <front>
+    <title>Multicast Extension for QUIC</title>
+    <author fullname="Jake Holland" initials="J." surname="Holland">
+      <organization>Akamai Technologies, Inc.</organization>
+    </author>
+    <author fullname="Lucas Pardue" initials="L." surname="Pardue"></author>
+    <author fullname="Max Franke" initials="M." surname="Franke">
+      <organization>TU Berlin</organization>
+    </author>
+    <author fullname="Kyle Rose" initials="K." surname="Rose">
+      <organization>Akamai Technologies, Inc.</organization>
+    </author>
+    <date year="2026" month="July" day="6"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-jholland-quic-multicast-09"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.4607.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.5775.xml"/>

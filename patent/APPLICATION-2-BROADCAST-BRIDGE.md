@@ -152,7 +152,7 @@ mapping:
 | FECParameters.maxSourceBlockLength | `tracks[].fec.sourceSymbols` |
 | FECParameters.maxNumberEncSymbols - maxSourceBlockLength | `tracks[].fec.repairSymbols` |
 | RepairFlow.tsi | `tracks[].fec.repairTrack` (gateway assigns track name) |
-| FECParameters.maximumDelay | `tracks[].fec.interleaveDepth` (converted to ms) |
+| FECParameters.maximumDelay | `tracks[].fec.interleaveDepthMs` (converted to ms) |
 | RS.source_address | `multicast.endpoints[].sourceAddress` |
 | RS.group_address | `multicast.endpoints[].groupAddress` |
 | RS.port | `multicast.endpoints[].port` |
@@ -197,7 +197,7 @@ contains a top-level `fec` object specifying default FEC parameters:
     "sourceSymbols": 32,
     "repairSymbols": 8,
     "symbolSize": 1312,
-    "interleaveDepth": 133
+    "interleaveDepthMs": 133
   },
   "tracks": [ ... ]
 }

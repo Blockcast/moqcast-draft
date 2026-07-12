@@ -12,11 +12,11 @@ graph TB
     end
 
     subgraph Level1["Level 1: Top-Level Catalog (201)<br/>DEFAULTS"]
-        TOP_FEC["fec:<br/>algorithm: 'raptorq'<br/>sourceSymbols: 32<br/>repairSymbols: 8<br/>symbolSize: 1312<br/>interleaveDepth: 133"]
+        TOP_FEC["fec:<br/>algorithm: 'raptorq'<br/>sourceSymbols: 32<br/>repairSymbols: 8<br/>symbolSize: 1312<br/>interleaveDepthMs: 133"]
     end
 
     subgraph Result["Resolved Configuration"]
-        VID_RESULT["Video Track:<br/>algorithm: raptorq ← top-level<br/>sourceSymbols: 32 ← top-level<br/>repairSymbols: 8 ← top-level<br/>symbolSize: 1312 ← top-level<br/>interleaveDepth: 133 ← top-level<br/>repairTrack: video/repair ← per-track"]
+        VID_RESULT["Video Track:<br/>algorithm: raptorq ← top-level<br/>sourceSymbols: 32 ← top-level<br/>repairSymbols: 8 ← top-level<br/>symbolSize: 1312 ← top-level<br/>interleaveDepthMs: 133 ← top-level<br/>repairTrack: video/repair ← per-track"]
         AUD_RESULT["Audio Track:<br/>algorithm: none ← per-track OVERRIDE<br/>jitterBufferMs: 50 ← per-track<br/>(no sourceSymbols, repairSymbols,<br/>symbolSize, repairTrack needed)"]
     end
 
