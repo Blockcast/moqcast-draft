@@ -54,7 +54,7 @@ explicitly via a new `fecEpoch` field in the catalog FEC configuration:
   "fec": {
     "sourceSymbols": 32,
     "repairSymbols": 8,
-    "interleaveDepth": 4000,
+    "interleaveDepthMs": 4000,
     "fecEpoch": 1713052800000
   }
 }
@@ -165,7 +165,7 @@ Encoders SHOULD choose K and D such that:
    expected for the configured resolution and codec.
 2. The combined constraint `K * D * frameDuration_ms` (block span)
    does not exceed the target latency budget.
-3. For CMAF compatibility: `interleaveDepth_ms` equals the target
+3. For CMAF compatibility: `interleaveDepthMs` equals the target
    CMAF segment duration so each segment is FEC-coherent.
 
 When `D=1` and `K >= N_max`: all keyframe fragments are in a single

@@ -92,7 +92,7 @@ symbols.
 
 **Interleave Depth**: The time span in milliseconds of a single source
 block.  The encoder computes the number of groups per block as
-D = ceil(interleaveDepth_ms / GOP_duration_ms).
+D = ceil(interleaveDepthMs / GOP_duration_ms).
 
 **Object Transmission Information (OTI)**: Parameters required to
 configure a RaptorQ decoder, as defined in [@!RFC6330].
@@ -186,7 +186,7 @@ the Symbol Alignment parameter (typically 8 bytes per RFC 6330).
 
 **Interleave Depth**: FEC block span in milliseconds.  The encoder
 computes the number of groups per block as
-D = ceil(interleaveDepth_ms / GOP_duration_ms).  Higher values
+D = ceil(interleaveDepthMs / GOP_duration_ms).  Higher values
 protect against longer burst losses but increase latency.
 
 **OTI Length**: Length of the OTI field in bytes.  0 if not applicable.
@@ -302,7 +302,7 @@ track level:
       "sourceSymbols": 32,
       "repairSymbols": 8,
       "symbolSize": 1312,
-      "interleaveDepth": 4000,
+      "interleaveDepthMs": 4000,
       "repairTrack": "video/repair"
     }
   }]
@@ -325,17 +325,17 @@ FEC block.
 
 **symbolSize** (integer, REQUIRED): T value - bytes per symbol.
 
-**interleaveDepth** (integer, OPTIONAL): FEC block span in
+**interleaveDepthMs** (integer, OPTIONAL): FEC block span in
 milliseconds.  The encoder computes the number of groups per block
-as D = ceil(interleaveDepth / GOP_duration_ms).  Using milliseconds
+as D = ceil(interleaveDepthMs / GOP_duration_ms).  Using milliseconds
 rather than frame/group counts decouples FEC from frame rate —
-30fps video and 46.875fps audio can share the same interleaveDepth
+30fps video and 46.875fps audio can share the same interleaveDepthMs
 value.  Default is 0 (single-group blocks, D=1).  For mmtp-packaged
 tracks, GOP_duration_ms equals the track's `groupDurationMs` (the MoQ group duration -- one group per frame on the MMT path -- not the keyframe/GOP cadence)
 signaled per [@?MOQ-MMT] Section 12.1.
 
 When CMAF packaging is used, the CMAF segment duration SHOULD equal
-interleaveDepth so that each segment contains exactly one FEC
+interleaveDepthMs so that each segment contains exactly one FEC
 block's worth of source symbols, enabling CDN-side FEC repair
 before forwarding to FEC-unaware HLS/DASH clients.
 
@@ -485,8 +485,8 @@ Sub-Blocks field of the FEC OTI (Section 4.4).
 When sub-blocks are used:
 
 1. The block recovery timeout MAY be computed per sub-block as the
-   sub-block span `timeout = (K_sub - 1) * interleaveDepth_ms`
-   instead of the full-block span `(K - 1) * interleaveDepth_ms`.
+   sub-block span `timeout = (K_sub - 1) * interleaveDepthMs`
+   instead of the full-block span `(K - 1) * interleaveDepthMs`.
    This enables faster partial recovery at the cost of higher repair
    overhead (P repair symbols per sub-block instead of per block).
 
@@ -545,7 +545,7 @@ decoding.
 For a source object with MoQ Group_ID `G` and Object_ID `O`:
 
 ~~~
-D = ceil(interleaveDepth_ms / GOP_duration_ms)  # groups per block
+D = ceil(interleaveDepthMs / GOP_duration_ms)  # groups per block
 SBN = floor(G / D)                              # source block number
 first_group = SBN * D                           # first group in block
 symbols_per_group = ceil(K / D)                 # symbols per group
@@ -590,7 +590,7 @@ For FEC block alignment to be deterministic, encoders MUST:
    catalog and signal a manifest discontinuity for DASH/HLS.
 
 When CMAF packaging is used, the CMAF segment duration MUST equal
-interleaveDepth_ms so that each segment boundary aligns with a FEC
+interleaveDepthMs so that each segment boundary aligns with a FEC
 block boundary.  This enables CDN relays to perform FEC recovery at
 the segment level before forwarding to FEC-unaware clients.
 
@@ -650,7 +650,7 @@ Publishers SHOULD choose interleave depth based on:
 
 Typical values:
 
-| Application | interleaveDepth (ms) | Groups at 30fps/1s GOP | Recovery Latency |
+| Application | interleaveDepthMs | Groups at 30fps/1s GOP | Recovery Latency |
 |-------------|---------------------|------------------------|------------------|
 | Interactive (gaming, WebRTC) | 33-133 | 1 | 33-133ms |
 | Low-latency live | 1000-2000 | 1-2 | 1-2s |
@@ -1167,7 +1167,7 @@ Complete catalog with FEC and multicast configuration:
         "sourceSymbols": 32,
         "repairSymbols": 8,
         "symbolSize": 1312,
-        "interleaveDepth": 4000,
+        "interleaveDepthMs": 4000,
         "repairTrack": "video/repair"
       }
     },
@@ -1188,7 +1188,7 @@ Complete catalog with FEC and multicast configuration:
         "sourceSymbols": 10,
         "repairSymbols": 2,
         "symbolSize": 512,
-        "interleaveDepth": 4000,
+        "interleaveDepthMs": 4000,
         "repairTrack": "audio/repair"
       }
     },

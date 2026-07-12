@@ -149,18 +149,20 @@ MoQ Catalog Output:
       "sourceSymbols": 32,
       "repairSymbols": 8,
       "symbolSize": 1312,
-      "interleaveDepth": 4,
+      "interleaveDepthMs": 4000,
       "repairTrack": "video/repair"
     }
   }],
   "multicast": {
     "endpoints": [{
       "protocol": "ssm",
-      "source": "192.168.1.100",
-      "group": "232.1.1.50",
+      "sourceAddress": "192.168.1.100",
+      "groupAddress": "232.1.1.50",
       "port": 5000,
-      "tsi": 1,
-      "tracks": ["video", "video/repair"]
+      "tracks": [
+        { "name": "video",        "packetId": 1 },
+        { "name": "video/repair", "packetId": 2 }
+      ]
     }]
   }
 }
@@ -186,16 +188,19 @@ MoQ Catalog Input:
       "sourceSymbols": 32,
       "repairSymbols": 8,
       "symbolSize": 1312,
-      "interleaveDepth": 4,
+      "interleaveDepthMs": 4000,
       "repairTrack": "video/repair"
     }
   }],
   "multicast": {
     "endpoints": [{
-      "source": "192.168.1.100",
-      "group": "232.1.1.50",
+      "sourceAddress": "192.168.1.100",
+      "groupAddress": "232.1.1.50",
       "port": 5000,
-      "tsi": 1
+      "tracks": [
+        { "name": "video",        "packetId": 1 },
+        { "name": "video/repair", "packetId": 2 }
+      ]
     }]
   }
 }

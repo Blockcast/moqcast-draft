@@ -724,7 +724,7 @@ not available, FEC_CONFIG parameters are conveyed via:
       "algorithm": "raptorq",
       "sourceSymbols": 32,
       "repairSymbols": 8,
-      "interleaveDepth": 1000,
+      "interleaveDepthMs": 1000,
       "symbolSize": 1312,
       "repairTrack": "video/repair"
     }
@@ -871,8 +871,8 @@ defined in [@MOQ-MULTICAST] Section 4.1.  Conversion rules:
 - `LS@bw` -> `selectionParams.bitrate`
 - `FECParameters@overhead` -> `fec.repairSymbols` (computed as
   K x overhead / 100)
-- `fecOTI` K,T,Z -> `fec.sourceSymbols`, `fec.symbolSize`,
-  `fec.interleaveDepth`
+- `fecOTI` K,T -> `fec.sourceSymbols`, `fec.symbolSize`
+- `fecOTI` Z (source blocks) x GOP duration -> `fec.interleaveDepthMs`
 
 `packetId` is assigned per flow, not per `tsi`.  An `LS` (ROUTE
 transport session) carrying both a SrcFlow and its RepairFlow yields
@@ -899,7 +899,7 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 
 - `multicast.endpoints[].sourceAddress` -> `RS@sIpAddr`
 - `fec.repairSymbols / fec.sourceSymbols x 100` -> `FECParameters@overhead`
-- `fec.interleaveDepth x frameDuration` -> `FECParameters@maximumDelay`
+- `fec.interleaveDepthMs` -> `FECParameters@maximumDelay`
 
 ## Multicast Endpoint Catalog Extension
 
@@ -1074,7 +1074,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
         "sourceSymbols": 32,
         "repairSymbols": 8,
         "symbolSize": 1312,
-        "interleaveDepth": 1000,
+        "interleaveDepthMs": 1000,
         "repairTrack": "video/1080p/repair"
       }
     },
