@@ -95,7 +95,8 @@ in all capitals, as shown here.</t>
 <t><strong>IWA</strong>: Isolated Web App — a Chrome packaging format that grants
 DirectSocket API access</t>
 <t><strong>MMTP</strong>: MMT Protocol — the packet layer of MPEG Media Transport
-(<xref target="I-D.bouazizi-mmtp"></xref> Section 3).  Each MMTP packet is
+(<xref target="ISO.23008-1"></xref> Clause 8; see also <xref target="I-D.bouazizi-mmtp"></xref>
+Section 3).  Each MMTP packet is
 self-describing, carrying track routing, timestamps, sequencing,
 and FEC metadata natively.</t>
 </section>
@@ -139,12 +140,15 @@ special platform capabilities.</t>
 natively over RF tuner hardware.  MoQ integration occurs at the
 gateway/head-end level via TreeDN <xref target="RFC9706"></xref> and AMT <xref target="RFC7450"></xref> /
 DRIAD <xref target="RFC8777"></xref>.</t>
-<t>Multiple transports MAY be available for a given stream.  Applications
-select transports based on availability and local policy.</t>
+<t>Multiple transports MAY be available for a given stream.  When more
+than one delivery path is available, receivers SHOULD prefer, in
+order: tuner-based broadcast reception (where tuner hardware exists),
+native SSM, AMT tunneling, and finally MoQ/QUIC unicast.  Local
+policy MAY override this order.</t>
 <t>For broadcast deployments with Single Frequency Network (SFN)
-diversity, the receiver transport preference order is: SFN diversity
-reception, single transmitter, native SSM, AMT tunneling, MoQ/QUIC
-unicast.</t>
+diversity, the tuner-based case is further refined: receivers SHOULD
+prefer SFN diversity reception over single-transmitter reception,
+ahead of native SSM, AMT tunneling, and MoQ/QUIC unicast.</t>
 </section>
 
 <section anchor="multicast-catalog-extension"><name>Multicast Catalog Extension</name>
@@ -152,13 +156,12 @@ unicast.</t>
 top-level <tt>multicast</tt> field containing an <tt>endpoints</tt> array for
 endpoint discovery.</t>
 <t>The catalog is itself delivered as a MoQ track.  Per
-<xref target="I-D.ietf-moq-msf"></xref> Section 5.2, the catalog track MUST have the
+<xref target="I-D.ietf-moq-msf"></xref> Section 5, the catalog track MUST have the
 case-sensitive Track Name <tt>catalog</tt>, and publishers conforming to this
 document MUST publish the catalog under that name.  Some WARP-lineage
-deployments instead use the legacy name <tt>.catalog</tt>; the leading dot
-prefix is reserved at the Track Namespace level by
-<xref target="I-D.ietf-moq-transport"></xref> Section 3.2.1 and SHOULD NOT be used as a
-catalog Track Name.  A publisher MAY additionally publish the catalog
+deployments instead use the legacy name <tt>.catalog</tt>; that name does not
+conform to <xref target="I-D.ietf-moq-msf"></xref> and SHOULD NOT be used as a catalog
+Track Name.  A publisher MAY additionally publish the catalog
 under <tt>.catalog</tt> as a transitional compatibility alias for non-MSF
 consumers.</t>
 
@@ -211,14 +214,21 @@ audio/video groups) use multiple elements:</t>
         ]
       }
     ],
-    "networkSource": {
+    "networkSource": [{
       "type": "amt",
       "discovery": "driad",
       "relay": "amt.example.com"
-    }
+    }]
   }
 }
 ]]></sourcecode>
+<t>The <tt>multicast</tt> object contains the following members:</t>
+<t><strong>endpoints</strong> (array of objects, REQUIRED): One or more multicast
+  endpoint objects as defined below.  The array MUST NOT be empty.</t>
+<t><strong>networkSource</strong> (array of objects, OPTIONAL): Network delivery
+  configuration applying to all endpoints; see Section 4.2.</t>
+<t><strong>auth</strong> (object, OPTIONAL): Content authentication configuration;
+  see Section 7.2.</t>
 <t>Endpoint field definitions:</t>
 <t><strong>protocol</strong> (string, OPTIONAL): Transport protocol.</t>
 
@@ -250,19 +260,28 @@ Packet ID field in the MMTP header (Section 3.1 of
 (sourceAddress, groupAddress, port) tuple.</li>
 </ul>
 <t><strong>bandwidth</strong> (integer, RECOMMENDED): Aggregate bandwidth of this
-  endpoint in bits per second.  Publishers SHOULD include bandwidth
-  to enable capacity-aware join decisions.  Subscribers SHOULD check
-  available network capacity before joining high-bandwidth groups.</t>
-<t><strong>networkSource</strong> (object or array, OPTIONAL): Network delivery
+  endpoint in bits per second, defined as the sum of the UDP payload
+  bitrates of all tracks carried on the endpoint, including repair
+  tracks; IP/UDP header overhead is excluded.  Publishers SHOULD
+  include bandwidth to enable capacity-aware join decisions.
+  Subscribers SHOULD check available network capacity before joining
+  high-bandwidth groups.</t>
+<t><strong>networkSource</strong> (array of objects, OPTIONAL): Network delivery
   configuration describing how subscribers can reach the multicast
-  stream when native IP multicast routing is not available.  May
-  appear on individual endpoints or at the top-level <tt>multicast</tt>
-  object to apply to all endpoints.  See Section 4.2.</t>
+  stream when native IP multicast routing is not available.  Each
+  element is a network-source object as defined in Section 4.2; a
+  single source is expressed as a one-element array.  MAY appear on
+  individual endpoints or at the top-level <tt>multicast</tt> object to
+  apply to all endpoints.</t>
 <t>Each (sourceAddress, groupAddress, port) multicast tuple MUST be
 associated with at most one MoQ namespace.  Publishers requiring
 multiple independent streams MUST use distinct multicast groups or
 ports.  This constraint ensures that MMTP packet_id values are
 unambiguous within a multicast group.</t>
+<t>Receivers MUST ignore endpoints whose fields are mutually
+inconsistent — for example, a <tt>protocol</tt> of &quot;ssm&quot; with
+<tt>sourceAddress</tt> omitted, a <tt>sourceAddress</tt> present with <tt>protocol</tt>
+of &quot;asm&quot;, or a <tt>groupAddress</tt> outside the multicast address space.</t>
 <t>Subscribers receiving a catalog with multicast endpoints MAY
 auto-connect to the multicast group when multicast APIs are
 available and multicast delivery is preferred (IWA DirectSocket,
@@ -272,14 +291,25 @@ join when multicast provides a concrete benefit over unicast.
 This enables a seamless upgrade path: subscribers first connect via
 MoQ/QUIC to receive the catalog and media, then optionally switch
 to multicast for lower-latency, FEC-protected delivery.</t>
+<t>Joining an SSM endpoint requires source-specific group membership
+signaling: receivers MUST use IGMPv3 <xref target="RFC3376"></xref> (IPv4) or MLDv2
+<xref target="RFC3810"></xref> (IPv6) to convey (S,G) joins.  Earlier protocol
+versions (IGMPv2/MLDv1) cannot express source-specific joins; if
+the receiver's network segment operates at an earlier version (for
+example, due to an IGMPv2 querier or snooping switch on the
+segment), SSM joins fail silently.  Receivers SHOULD detect the
+absence of multicast data following a join and fall back to
+MoQ/QUIC unicast as described below.</t>
 <t>During multicast join (which may take 1-3 seconds for IGMP/MLD),
 subscribers SHOULD continue receiving via MoQ/QUIC.  Once multicast
 data arrives, subscribers switch to the multicast path.  This
 dual-path startup avoids join latency gaps.</t>
 <t>If multicast reception fails or degrades, subscribers fall back
-to MoQ/QUIC unicast by subscribing with filter LatestGroup or
-NextGroup.  No multicast-to-MoQ coordinate mapping is needed —
-the relay provides the current group position.</t>
+to MoQ/QUIC unicast by subscribing with the Largest Object filter
+(to resume immediately at the live edge) or the Next Group Start
+filter (to resume at the next group boundary) per
+<xref target="I-D.ietf-moq-transport"></xref>.  No multicast-to-MoQ coordinate mapping
+is needed — the relay provides the current position.</t>
 <t>Receivers SHOULD implement hysteresis to prevent flapping between
 multicast and unicast paths.  Switch away from multicast after
 sustained loss or consecutive FEC block failures; switch back only
@@ -289,21 +319,23 @@ tunable.</t>
 </section>
 
 <section anchor="network-source-types"><name>Network Source Types</name>
-<t>The <tt>networkSource</tt> field describes how subscribers can reach the
-multicast stream when native IP multicast routing is not available.
-It appears at the <tt>multicast</tt> level (applying to all endpoints) or
-on individual endpoints.</t>
+<t>The <tt>networkSource</tt> field is an array of network-source objects
+describing how subscribers can reach the multicast stream when
+native IP multicast routing is not available.  It appears at the
+<tt>multicast</tt> level (applying to all endpoints) or on individual
+endpoints.  A single source is expressed as a one-element array.</t>
+<t>Each network-source object contains:</t>
 <t><strong>type</strong> (string, REQUIRED): Delivery technology identifier.</t>
 <t>Defined types:</t>
 
 <section anchor="amt-automatic-multicast-tunneling"><name>AMT (Automatic Multicast Tunneling)</name>
 
 <sourcecode type="json"><![CDATA[{
-  "networkSource": {
+  "networkSource": [{
     "type": "amt",
     "relay": "198.51.100.1",
     "discovery": "driad"
-  }
+  }]
 }
 ]]></sourcecode>
 <t><strong>relay</strong> (string, OPTIONAL): AMT relay address (IP or hostname).
@@ -334,13 +366,13 @@ field directly.</t>
 <section anchor="atsc-3-0-broadcast-television"><name>ATSC 3.0 (Broadcast Television)</name>
 
 <sourcecode type="json"><![CDATA[{
-  "networkSource": {
+  "networkSource": [{
     "type": "atsc3",
     "frequency": 533000,
     "plpId": 0,
     "serviceId": 1,
     "slsUri": "https://example.com/atsc3/sls/service1.xml"
-  }
+  }]
 }
 ]]></sourcecode>
 <t><strong>frequency</strong> (integer, REQUIRED): RF center frequency in kHz.</t>
@@ -357,8 +389,8 @@ this networkSource type.</t>
 </section>
 
 <section anchor="multiple-network-sources"><name>Multiple Network Sources</name>
-<t>When a stream is available via multiple delivery technologies,
-<tt>networkSource</tt> MAY be an array:</t>
+<t>When a stream is available via multiple delivery technologies, the
+<tt>networkSource</tt> array lists one element per technology:</t>
 
 <sourcecode type="json"><![CDATA[{
   "networkSource": [
@@ -393,7 +425,7 @@ mapping of <xref target="I-D.wilaw-moq-cmafpackaging"></xref>.</t>
 <t>No additional multicast framing, encapsulation, or header format is
 needed.  The MMTP packet format is defined in <xref target="MOQ-MMT"></xref>
 Section 3.1 and <xref target="I-D.bouazizi-mmtp"></xref> Section 3.</t>
-<t>This design means the same MMTP packet can be delivered via three
+<t>This design means the same MMTP packet can be delivered via four
 transports without modification:</t>
 <table>
 <thead>
@@ -415,6 +447,11 @@ transports without modification:</t>
 </tr>
 
 <tr>
+<td>Multicast QUIC</td>
+<td>MMTP packet as multicast QUIC DATAGRAM object</td>
+</tr>
+
+<tr>
 <td>Multicast UDP</td>
 <td>MMTP packet as UDP datagram</td>
 </tr>
@@ -422,7 +459,17 @@ transports without modification:</t>
 </table><t>Receivers on multicast demultiplex packets using the MMTP packet_id
 field, which maps to the <tt>packetId</tt> assigned in the multicast
 catalog endpoint (Section 4.1).  FEC source and repair packets are
-distinguished by the MMTP FEC Type field (1=source, 2=repair).</t>
+distinguished by the MMTP FEC Type field per <xref target="MOQ-MMT"></xref>
+Section 3.1: values 0 and 1 both indicate source packets (0 = not
+FEC-protected, 1 = AL-FEC source packet), 2 indicates a repair
+packet, and 3 is reserved.</t>
+<t>The Multicast QUIC row corresponds to <xref target="QUIC-MULTICAST"></xref>, which carries
+QUIC packets (and thus QUIC DATAGRAM frames) over a multicast channel.
+Encapsulating one MMTP packet per QUIC DATAGRAM keeps the packet format
+unchanged while adding QUIC's per-packet AEAD and integrity; because that
+extension defines no FEC of its own, application-layer FEC <xref target="MOQ-FEC"></xref> is
+the RECOMMENDED loss-recovery layer on this binding, replacing its unicast
+repair for broadcast-scale audiences.</t>
 <t>For ATSC 3.0 and ARIB STD-B60 broadcast receivers, MMTP over SSM
 is the native delivery path.  No format conversion is needed — MoQ
 relays at network edges bridge the same MMTP packets between
@@ -439,14 +486,18 @@ recovery <xref target="MOQ-FEC"></xref>.</t>
 
 <ol spacing="compact">
 <li>MUST deduplicate symbols using SBN+ESI as the unique key
-within a single (namespace, track_name) tuple</li>
-<li>MAY combine source symbols from reliable MoQ/QUIC with repair
-symbols from lossy multicast — skipping FEC when all source
-symbols arrive reliably</li>
+within a single FEC block — that is, within the scope of a
+source track and its associated repair track <xref target="MOQ-FEC"></xref></li>
+<li>MAY combine source and repair symbols received on different
+paths in either direction: source symbols via multicast with
+repair symbols via MoQ/QUIC, or source symbols via reliable
+MoQ/QUIC with repair symbols via lossy multicast — skipping
+FEC decoding when all source symbols arrive reliably</li>
 </ol>
 <t>Multicast-to-unicast failover: if multicast reception fails,
-subscribers fall back to MoQ/QUIC unicast by subscribing with
-filter LatestGroup or NextGroup per <xref target="I-D.ietf-moq-transport"></xref>.
+subscribers fall back to MoQ/QUIC unicast by subscribing with the
+Largest Object or Next Group Start filter per
+<xref target="I-D.ietf-moq-transport"></xref>.
 No coordinate mapping between multicast SBN and MoQ group_id is
 needed — the relay provides the current position.</t>
 
@@ -455,8 +506,9 @@ needed — the relay provides the current position.</t>
 tracks by name, and the catalog advertises packaging per track.  A
 subscriber that only supports LOC subscribes to the LOC track; a
 subscriber that supports MMTP subscribes to the MMTP track.  The
-<tt>altGroup</tt> catalog field enables publishers to offer the same
-content in multiple packaging formats.
+<tt>altGroup</tt> catalog field (see the switching-set machinery of the
+referenced catalog format, <xref target="I-D.ietf-moq-msf"></xref>) enables publishers
+to offer the same content in multiple packaging formats.
 No explicit packaging capability negotiation is needed.</t>
 </section>
 </section>
@@ -465,8 +517,10 @@ No explicit packaging capability negotiation is needed.</t>
 
 <section anchor="multicast-security"><name>Multicast Security</name>
 <t>SSM inherently limits traffic to authorized sources via (S,G)
-filtering.  Sequence numbers enable replay detection.  For AMT,
-trust is delegated to the relay per <xref target="RFC7450"></xref>.</t>
+filtering.  Receivers MAY detect replayed packets by tracking the
+MMTP Packet Sequence Number per packet_id and discarding duplicates
+and packets outside a bounded reordering window.  For AMT, trust is
+delegated to the relay per <xref target="RFC7450"></xref>.</t>
 </section>
 
 <section anchor="content-authentication"><name>Content Authentication</name>
@@ -553,9 +607,40 @@ placement of the authenticator bytes on the wire differs.</t>
 by Secure Objects which provides object-level encryption and
 authentication independent of multicast.</t>
 <t>Content authentication for multicast is an active area of work.
-Deployments SHOULD track developments in <xref target="I-D.krose-mboned-alta"></xref>
-and related specifications.</t>
+Related prior work includes <xref target="I-D.krose-mboned-alta"></xref> (expired);
+deployments should track the IETF MBONED working group for
+successors.</t>
 </section>
+</section>
+
+<section anchor="catalog-as-attack-surface"><name>Catalog as Attack Surface</name>
+<t>The multicast catalog extension directs receivers to join multicast
+groups and to dial network sources.  A hostile or compromised
+catalog is therefore an attack vector:</t>
+
+<ul>
+<li><t><strong>Join amplification</strong>: Catalog-directed joins create IGMP/MLD
+and multicast routing state on intermediate routers
+(Section 4.1).  A catalog listing many endpoints, or rapidly
+changing endpoints, can exhaust router state or subscribe
+receivers to unwanted high-bandwidth traffic.  Receivers MUST
+validate that each <tt>groupAddress</tt> falls within the multicast
+address ranges given in Section 4.1 before joining, and SHOULD
+bound the number of concurrent joins performed on behalf of a
+single catalog.</t>
+</li>
+<li><t><strong>Attacker-chosen dial-out</strong>: The <tt>relay</tt> field of an AMT network
+source is an address the receiver dials over UDP.  A hostile
+catalog can direct traffic at arbitrary targets (traffic
+reflection) or at internal infrastructure (address-space
+probing).  Receivers and relays MUST treat catalog-supplied
+endpoint and relay addresses as untrusted input and validate them
+against local policy (such as an allowlist of permitted relays or
+networks) before dialing, and SHOULD reject loopback, link-local,
+and otherwise non-routable relay addresses unless explicitly
+configured.</t>
+</li>
+</ul>
 </section>
 </section>
 
@@ -570,28 +655,18 @@ registration.</t>
 <back>
 <references><name>References</name>
 <references><name>Normative References</name>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
-</references>
-<references><name>Informative References</name>
-<reference anchor="ATSC-A331" target="https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/">
-  <front>
-    <title>Signaling, Delivery, Synchronization, and Error Protection</title>
-    <author>
-      <organization>ATSC</organization>
-    </author>
-    <date year="2025" month="February"></date>
-  </front>
-  <seriesInfo name="ATSC" value="A/331:2025"></seriesInfo>
-</reference>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.bouazizi-mmtp.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-catalogformat.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-msf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-transport.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.krose-mboned-alta.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.wilaw-moq-cmafpackaging.xml"/>
+<reference anchor="ISO.23008-1" target="">
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 1: MPEG media transport (MMT)</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year="2023"></date>
+  </front>
+  <seriesInfo name="ISO/IEC" value="23008-1:2023"></seriesInfo>
+</reference>
 <reference anchor="MOQ-FEC" target="">
   <front>
     <title>Forward Error Correction for Media over QUIC</title>
@@ -612,11 +687,50 @@ registration.</t>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-00"></seriesInfo>
 </reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.3376.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.3810.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.4607.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.5775.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.7450.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8777.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.9706.xml"/>
+</references>
+<references><name>Informative References</name>
+<reference anchor="ATSC-A331" target="https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/">
+  <front>
+    <title>Signaling, Delivery, Synchronization, and Error Protection</title>
+    <author>
+      <organization>ATSC</organization>
+    </author>
+    <date year="2025" month="February"></date>
+  </front>
+  <seriesInfo name="ATSC" value="A/331:2025"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.bouazizi-mmtp.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-msf.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.krose-mboned-alta.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.wilaw-moq-cmafpackaging.xml"/>
+<reference anchor="QUIC-MULTICAST" target="https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/">
+  <front>
+    <title>Multicast Extension for QUIC</title>
+    <author fullname="Jake Holland" initials="J." surname="Holland">
+      <organization>Akamai Technologies, Inc.</organization>
+    </author>
+    <author fullname="Lucas Pardue" initials="L." surname="Pardue"></author>
+    <author fullname="Max Franke" initials="M." surname="Franke">
+      <organization>TU Berlin</organization>
+    </author>
+    <author fullname="Kyle Rose" initials="K." surname="Rose">
+      <organization>Akamai Technologies, Inc.</organization>
+    </author>
+    <date year="2026" month="July" day="6"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-jholland-quic-multicast-09"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.5775.xml"/>
 <reference anchor="WICG-DirectSockets" target="https://wicg.github.io/direct-sockets/">
   <front>
     <title>Direct Sockets API</title>
