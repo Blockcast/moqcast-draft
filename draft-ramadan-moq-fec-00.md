@@ -26,8 +26,9 @@ organization = "Blockcast"
 
 This document specifies a mechanism for transmitting Forward Error
 Correction (FEC) repair data alongside source media in Media over
-QUIC (MoQ) sessions.  It defines signaling for FEC configuration
-via both control messages and catalog extensions, conventions for
+QUIC (MoQ) sessions.  It defines catalog-based signaling of FEC
+configuration — including a derived RaptorQ Object Transmission
+Information that requires no in-session messages — conventions for
 repair track naming, and the format of repair objects.  The mechanism
 supports RaptorQ (RFC 6330) and Reed-Solomon (RFC 5510),
 enabling receivers to recover from packet loss without
@@ -51,15 +52,21 @@ environments where burst packet loss is common.
 
 This document defines:
 
-1. A FEC_CONFIG message for signaling FEC parameters per subscription
-2. An alternative FEC_CONFIG extension header for alignment with
-   MoQ transport extension mechanisms
-3. A catalog extension for out-of-band FEC signaling
-4. A naming convention for repair tracks
-5. The format of repair objects containing FEC symbols
-6. Interleaving strategies to protect against burst loss
+1. A catalog extension carrying the complete FEC configuration —
+   the sole normative FEC signaling mechanism
+2. A normative derivation of the RaptorQ Object Transmission
+   Information (OTI) from the catalog fields, so that catalog-only
+   receivers (including multicast and sessionless receivers) can
+   fully configure their decoders
+3. A naming convention for repair tracks
+4. The format of repair objects containing FEC symbols
+5. Interleaving strategies to protect against burst loss
+6. Relay tolerance requirements that keep FEC signaling extensible
 7. Compatibility mappings for ATSC 3.0 and ARIB STD-B60 [@?ARIB-B60]
    broadcast systems
+
+A legacy in-session signaling mechanism (the FEC_CONFIG control
+message) is preserved non-normatively in Appendix C.
 
 The mechanism is designed to complement existing MoQ media packaging
 formats including CMAF [@?I-D.ietf-moq-cmsf], LOC [@?I-D.ietf-moq-loc], and
@@ -107,16 +114,16 @@ specific source block within a session.
 ~~~
 Publisher                              Subscriber
     |                                       |
+    |  (catalog obtained; track's fec       |
+    |   field read, Section 5)              |
+    |                                       |
     |  SUBSCRIBE (source track)             |
     |<--------------------------------------|
     |                                       |
     |  SUBSCRIBE_OK                         |
     |-------------------------------------->|
     |                                       |
-    |  FEC_CONFIG (optional)                |
-    |-------------------------------------->|
-    |                                       |
-    |  SUBSCRIBE (repair track)             |
+    |  SUBSCRIBE (repair track, optional)   |
     |<--------------------------------------|
     |                                       |
     |  SUBSCRIBE_OK                         |
@@ -132,15 +139,21 @@ Publisher                              Subscriber
 
 The protocol operates as follows:
 
-1. Subscriber sends SUBSCRIBE for source track
-2. Publisher responds with SUBSCRIBE_OK
-3. Publisher MAY send FEC_CONFIG to indicate FEC availability
-4. Subscriber sends SUBSCRIBE for repair track if FEC desired
-5. Publisher sends source objects followed by repair objects
-6. Subscriber uses repair symbols to recover any lost source symbols
+1. Subscriber obtains the catalog and reads the track's `fec`
+   object (Section 5), which carries the complete FEC configuration
+2. Subscriber sends SUBSCRIBE for source track
+3. Publisher responds with SUBSCRIBE_OK
+4. Subscriber sends SUBSCRIBE for the repair track if FEC
+   protection is desired (Section 6.2)
+5. Publisher sends source objects and repair objects
+6. Subscriber configures its decoder from the catalog fields
+   (Section 4.2) and uses repair symbols to recover any lost source
+   symbols
 
-Alternatively, FEC parameters MAY be discovered via catalog (Section 5)
-before subscribing.
+The catalog is the sole normative FEC signaling mechanism
+(Section 5.2); no in-session message is required, which makes the
+same signaling path work for interactive QUIC sessions and for
+sessionless multicast receivers alike.
 
 When source objects are delivered as QUIC datagrams (unreliable), FEC
 recovery is the primary loss mitigation mechanism.  When delivered as
@@ -149,93 +162,12 @@ FEC is redundant — receivers MAY skip FEC decoding in this case.
 
 # FEC Configuration
 
-## FEC_CONFIG Message
-
-The FEC_CONFIG message is sent by the publisher after SUBSCRIBE_OK to
-advertise FEC parameters.  Subscribers use this information to decide
-whether to subscribe to the repair track.
-
-~~~
-FEC_CONFIG Message {
-  Message Type (i) = 0x50,
-  Subscribe ID (i),
-  FEC Enabled (1),
-  FEC Algorithm (8),
-  Source Symbols Per Block (i),
-  Repair Symbols Per Block (i),
-  Symbol Size (i),
-  Interleave Depth (i),
-  OTI Length (i),
-  Object Transmission Information (..),
-}
-~~~
-
-**Subscribe ID**: The subscription this FEC configuration applies to.
-
-**FEC Enabled**: 1 if FEC is available for this track, 0 otherwise.
-
-**FEC Algorithm**: The FEC algorithm identifier (see Section 4.3).
-
-**Source Symbols Per Block (K)**: Number of source symbols per FEC
-block.  MUST be >= 1.
-
-**Repair Symbols Per Block (P)**: Number of repair symbols generated
-per block.  MUST be >= 1.
-
-**Symbol Size**: Size of each symbol in bytes.  All symbols in a
-block MUST have the same size.  For RaptorQ, MUST be a multiple of
-the Symbol Alignment parameter (typically 8 bytes per RFC 6330).
-
-**Interleave Depth**: FEC block span in milliseconds.  The encoder
-computes the number of groups per block as
-D = ceil(interleaveDepth_ms / GOP_duration_ms).  Higher values
-protect against longer burst losses but increase latency.  A value
-of 0 means no interleaving: D = 1 and each Group forms its own
-source block.
-
-**OTI Length**: Length of the OTI field in bytes.  0 if not applicable.
-
-**Object Transmission Information**: Algorithm-specific parameters.
-For RaptorQ, this is the concatenation of the 8-byte Common FEC OTI
-and the 4-byte Scheme-Specific FEC OTI (12 bytes total) as defined
-in [@RFC6330] Sections 3.3.2 and 3.3.3.
-
-## FEC_CONFIG Extension Header (Provisional)
-
-NOTE: This section is provisional and depends on a future extension
-to [@I-D.ietf-moq-transport] that adds extension header support on
-control messages (e.g., SUBSCRIBE_OK).  As of moq-transport-15,
-extension headers are defined only for Object payloads, not control
-messages.  Implementations MUST use the FEC_CONFIG message
-(Section 4.1) as the normative signaling mechanism until such an
-extension is adopted.
-
-For implementations where MoQ transport supports control message
-extensions, FEC parameters MAY alternatively be conveyed as an
-extension header in SUBSCRIBE_OK:
-
-~~~
-FEC_CONFIG Extension Header {
-  Extension Type (i) = 0x50,
-  Length (i),
-  FEC Enabled (1),
-  FEC Algorithm (8),
-  Source Symbols Per Block (i),
-  Repair Symbols Per Block (i),
-  Symbol Size (i),
-  Interleave Depth (i),
-  OTI Length (i),
-  Object Transmission Information (..),
-}
-~~~
-
-Relays MUST cache and forward this extension header without
-modification.
-
-The FEC_CONFIG message (Section 4.1) is the normative mechanism.
-The extension header is informational and provided for convenience.
-Publishers MUST NOT send both simultaneously for the same
-subscription.
+This section defines the FEC algorithm identifiers and the decoder
+parameters that constitute a track's FEC configuration.  The
+configuration is signaled exclusively in the catalog (Section 5);
+for RaptorQ, the full RFC 6330 Object Transmission Information is
+derived from the catalog fields (Section 4.2) rather than carried
+on the wire.
 
 ## FEC Algorithms
 
@@ -255,10 +187,14 @@ received.  Recommended for most applications.
 applications requiring exact recovery guarantees or interoperability
 with ATSC 3.0 systems using RS FEC.
 
+The numeric values identify algorithms in registries and in the
+legacy wire format of Appendix C; the catalog (Section 5.1) carries
+the corresponding string identifiers.
+
 ## RaptorQ Object Transmission Information
 
-When FEC Algorithm is RaptorQ (0x01), the OTI field contains the
-concatenation of the 8-byte Common FEC OTI (Section 3.3.2 of
+An RFC 6330 decoder is configured by the Object Transmission
+Information (OTI): the 8-byte Common FEC OTI (Section 3.3.2 of
 [@RFC6330]) and the 4-byte Scheme-Specific FEC OTI (Section 3.3.3
 of [@RFC6330]), totaling 12 bytes:
 
@@ -273,28 +209,50 @@ RaptorQ OTI {
 }
 ~~~
 
-Note: For MoQ usage, Transfer Length is typically computed per source
-block from the cumulative size of source objects in the block.
+This specification does not carry the OTI on the wire.  When a
+track's catalog `fec.algorithm` is "raptorq", receivers MUST
+construct the OTI from the catalog fields (Section 5.1) under the
+fixed-T symbol construction of Section 7.3, as follows:
+
+- **Transfer Length**: F = K x T, where K is `sourceSymbols` and T
+  is `symbolSize`.  Under the fixed-T construction every source
+  block carries exactly K symbols of exactly T bytes (short symbols
+  are zero-padded to T, Section 7.3), so the transfer length is
+  exact by construction.  It is never computed from the cumulative
+  size of source objects, which a receiver that has lost objects
+  could not know.
+- **Symbol Size**: T = `symbolSize`.
+- **Number of Source Blocks**: Z = 1.  Each FEC block of this
+  specification is decoded as an independent RFC 6330 object
+  containing a single source block.  Blocks are sequenced by the
+  Source Block Number (Section 8) carried in repair objects and
+  derived for source symbols — not by the RFC 6330 Z partitioning.
+- **Number of Sub-Blocks**: N = 1.  Catalog-signaled sessions do
+  not use sub-blocking (Section 7.3).
+- **Symbol Alignment**: Al = 8.  `symbolSize` MUST be a multiple
+  of 8.
+
+This derivation is normative and complete: a receiver that has a
+track's catalog `fec` object requires no additional signaling to
+configure its decoder.  This is what allows catalog-only receivers
+— including multicast and sessionless receivers, which no control
+message can reach — to decode (Section 5.2).
 
 ## Reed-Solomon Parameters
 
-When FEC Algorithm is Reed-Solomon (0x02), the OTI field contains:
-
-~~~
-Reed-Solomon OTI {
-  Field Size (8),          // Always 8 for GF(2^8)
-  Max Source Symbols (16), // Maximum K value
-  Max Repair Symbols (16), // Maximum P value
-  Reserved (24),
-}
-~~~
+When a track's catalog `fec.algorithm` is "reed-solomon", the code
+operates over GF(2^8) per [@RFC5510] and its parameters are likewise
+fully determined by the catalog fields: K = `sourceSymbols`,
+P = `repairSymbols`, T = `symbolSize`.  No additional
+scheme-specific parameters are defined or signaled.
 
 # Catalog FEC Extension
 
 ## Catalog Fields
 
-MoQ catalogs [@I-D.ietf-moq-loc] MAY include FEC configuration at the
-track level:
+The catalog is the sole normative FEC signaling mechanism
+(Section 5.2).  MoQ catalogs [@I-D.ietf-moq-loc] carry the FEC
+configuration at the track level:
 
 ~~~ json
 {
@@ -327,15 +285,17 @@ Field definitions:
   - "reed-solomon": Reed-Solomon GF(2^8) per RFC 5510
 
 **sourceSymbols** (integer, REQUIRED): K value - source symbols per
-FEC block.
+FEC block.  MUST be >= 1.
 
 **repairSymbols** (integer, REQUIRED): P value - repair symbols per
-FEC block.
+FEC block.  MUST be >= 1 when a repair track is published.
 
-**symbolSize** (integer, REQUIRED): T value - bytes per symbol.  The
-byte layout of each source symbol is fixed by the ssbg_mode0 source
-symbol construction rules (Section 7); it is not carried in the catalog
-and MUST NOT be renegotiated per stream.
+**symbolSize** (integer, REQUIRED): T value - bytes per symbol.  All
+symbols in a block have the same size; the byte layout of each source
+symbol is fixed by the ssbg_mode0 source symbol construction rules
+(Section 7.3) — it is not carried in the catalog and MUST NOT be
+renegotiated per stream.  For "raptorq", T MUST be a multiple of 8,
+the fixed Symbol Alignment of the derived OTI (Section 4.2).
 
 **interleaveDepth** (integer, OPTIONAL): FEC block span in
 milliseconds.  The encoder computes the number of groups per block
@@ -366,32 +326,47 @@ carries no directly renderable media.  Receivers that do not
 implement this specification do not recognize the value and ignore
 such tracks.
 
-## Relationship to FEC_CONFIG
+## Signaling Model
 
-The FEC_CONFIG message (Section 4.1) is the normative signaling
-mechanism.  The catalog FEC extension (Section 5.1) provides
-out-of-band discovery before subscription.
+The catalog `fec` object (Section 5.1) is the sole normative FEC
+signaling mechanism.  A receiver that has a track's catalog entry
+has everything needed to discover and subscribe to the repair track
+(Section 6) and to configure its decoder via the derived OTI
+(Section 4.2); no in-session signaling is defined or required.
 
-Precedence rules when multiple signaling sources are present:
+This holds uniformly across delivery paths.  In particular, control
+messages cannot reach multicast or sessionless receivers at all
+(Section 11), so no control-message mechanism could serve as the
+common signaling path; the catalog can, because it is delivered as
+track data or out of band.
 
-1. **FEC_CONFIG message** is authoritative.  If present, it defines
-   the FEC parameters for the subscription.
-2. **Catalog FEC fields** are informational for discovery purposes.
-   Subscribers use catalog data to decide whether to subscribe to
-   repair tracks before receiving FEC_CONFIG.
-3. If FEC_CONFIG parameters differ from catalog values, subscribers
-   MUST use FEC_CONFIG parameters for decoding.
-4. Subscribers SHOULD log a warning if FEC_CONFIG differs from
-   catalog, as this may indicate a configuration error.
-5. The provisional extension header (Section 4.2) is informational
-   only and MUST NOT be used as the sole FEC signaling mechanism.
+An earlier revision of this specification defined an in-session
+FEC_CONFIG control message as the authoritative signaling mechanism,
+with the catalog as informational discovery data.  That mechanism
+was never implemented and is preserved non-normatively in
+Appendix C; the catalog values are authoritative.
 
-For multicast delivery where FEC_CONFIG cannot be sent (no back
-channel), catalog-based signaling is REQUIRED.
+## Relay Extensibility Requirements
 
-Relay behavior: Relays MUST forward FEC_CONFIG messages unmodified
-to downstream subscribers.  Relays MUST NOT strip FEC_CONFIG in
-favor of catalog or extension header signaling.
+The retirement of in-session FEC signaling (Appendix C) was forced
+in part by relays that treat control messages of unknown types as
+session errors, which makes any new in-session mechanism
+undeployable across an existing relay mesh.  To keep FEC signaling
+— and MoQ extensions generally — evolvable, relays conforming to
+this specification are subject to the following requirements:
+
+1. A relay MUST NOT terminate, reset, or otherwise fail a session
+   in response to a control message whose type it does not
+   recognize.  Such messages MUST be ignored.
+
+2. A relay MUST NOT terminate, reset, or otherwise fail a session
+   in response to an object extension header whose type it does not
+   recognize.  Such extension headers MUST be forwarded unmodified
+   to downstream subscribers; a relay MUST NOT strip them.
+
+These requirements are prerequisites for any future in-session FEC
+signaling mechanism (including a revival of Appendix C) to be
+deployable.
 
 # Repair Track Convention
 
@@ -421,19 +396,28 @@ additional signaling.
 
 ## Subscription Model
 
-Subscribers SHOULD subscribe to the source track first, then subscribe
-to the repair track if:
+Subscribers SHOULD subscribe to the source track first, then
+subscribe to the repair track if:
 
-1. The FEC_CONFIG message indicates FEC is available, AND
+1. The track's catalog entry signals FEC (a `fec` object naming a
+   `repairTrack`, Section 5.1), AND
 2. The subscriber desires FEC protection
 
-Publishers MUST NOT require subscription to repair tracks.  Repair
-tracks are optional and subscribers MAY choose to rely solely on
-QUIC retransmission.
+Repair-track subscription is selective and per-need: a subscriber
+chooses whether to consume repair data based on its own path
+conditions, and MAY start or stop its repair-track subscription at
+any time during the session — for example, subscribing only after
+observing loss, or not subscribing at all on a reliable path.
 
-Subscribers MAY subscribe to repair tracks without first receiving
-FEC_CONFIG if they have out-of-band knowledge of FEC availability
-(e.g., from catalog).
+Publishers and relays MUST NOT require subscription to repair
+tracks and MUST NOT condition delivery of a source track on a
+repair-track subscription.  Repair tracks are optional; subscribers
+MAY choose to rely solely on QUIC retransmission or to accept
+unrecovered loss.
+
+This section is the normative statement of the repair-subscription
+model; companion documents in this suite reference it rather than
+restating it.
 
 # Repair Object Format
 
@@ -487,7 +471,10 @@ symbol.  Each MoQ object or multicast UDP datagram carries exactly
 one FEC symbol of size T bytes.  SBN = floor(SS_ID / K), ESI =
 SS_ID % K.  This is the natural model for MMTP because packets are
 sized to fit in UDP datagrams and no fragmentation or reassembly is
-needed at the FEC layer.
+needed at the FEC layer.  This is a fixed-T construction: under the
+source symbol construction below, every source symbol is exactly T
+bytes and each source block is exactly K x T bytes — the property
+the derived Transfer Length of Section 4.2 relies on.
 
 **Source symbol construction**: The T-byte source symbol protected by
 RaptorQ is the complete MMTP source packet -- MMTP packet header
@@ -519,13 +506,19 @@ per-stream layout discriminator is out of scope for this specification
 and MUST NOT be required for interoperation.
 
 **Sub-blocks**: When a single source block produces a large number
-of source symbols, the FEC encoder MAY divide the block into Z
-sub-blocks per the RFC 6330 Z parameter.  Sub-block boundaries are
-signaled in the AL-FEC signaling message OTI (Section 5.1).  The
+of source symbols, RFC 6330 permits dividing each block into N
+sub-blocks (the Number of Sub-Blocks field of the OTI; the RFC 6330
+Z parameter is the number of source blocks and is fixed at 1 by
+this specification, Section 4.2).  The derived OTI of this
+specification fixes N = 1: catalog-signaled sessions do not use
+sub-blocks, and catalog-only receivers MUST assume N = 1.
+Sub-block operation remains available to broadcast deployments that
+carry an explicit OTI in ISO 23008-1 AL-FEC signaling; the
+remainder of this subsection applies only to such deployments.  The
 number of source symbols per sub-block (K_sub <= K) is derived from
-the signaled parameters: K_sub = ceil(K / Z), where K is the source
-symbol count (catalog `sourceSymbols`) and Z is the Number of
-Sub-Blocks field of the FEC OTI (Section 4.4).
+the signaled parameters: K_sub = ceil(K / N), where K is the source
+symbol count (catalog `sourceSymbols`) and N is the Number of
+Sub-Blocks field of the explicitly signaled OTI.
 
 When sub-blocks are used:
 
@@ -562,7 +555,7 @@ D = ceil(interleaveDepth_ms / GOP_duration_ms)
 ~~~
 
 D is never signaled directly; only the window (Interleave Depth, in
-milliseconds) is carried in FEC_CONFIG and the catalog.
+milliseconds) is carried in the catalog.
 
 ## Single-Group Blocks (D = 1)
 
@@ -661,7 +654,8 @@ For FEC block alignment to be deterministic, encoders MUST:
 
 2. Signal the actual GOP duration and frame rate in both:
    - ISO 23008-1 AL-FEC signaling (for broadcast receivers)
-   - MoQ catalog FEC_CONFIG (for MoQ receivers)
+   - The MoQ catalog (for MoQ receivers; for mmtp-packaged tracks
+     this is the `groupDurationMs` field referenced in Section 5.1)
 
 3. If frame rate or GOP size changes mid-session, update the MoQ
    catalog and signal a manifest discontinuity for DASH/HLS.
@@ -843,7 +837,7 @@ carries, NOT a protocol constant.
   over a provisioned VLAN, steady-state loss is typically far below
   10^-6.  Disabling FEC for such a path is signaled through the catalog
   alone, by omitting the repair track from the tracks that path's
-  endpoints carry; the requirement in Section 4.1 that P MUST be >= 1
+  endpoints carry; the requirement in Section 5.1 that P MUST be >= 1
   applies only when a repair track is published.  Adding repair symbols
   on such a path spends bandwidth to recover losses that do not occur.
 
@@ -934,15 +928,15 @@ This specification is designed for interoperability with ATSC A/331
 
 | ATSC A/331 Concept | MoQ FEC Equivalent |
 |--------------------|--------------------|
-| `<FECParameters>` | FEC_CONFIG message or catalog `fec` field |
+| `<FECParameters>` | Catalog `fec` field |
 | `<RepairFlow>` | Repair track subscription |
-| `fecOTI` (in S-TSID) | OTI field in FEC_CONFIG |
+| `fecOTI` (in S-TSID) | Derived OTI (Section 4.2) |
 | Source TOI range | Group ID range per Section 8 |
 | `maximumDelay` | Equal to Interleave Depth (both are durations in milliseconds) |
 | `overhead` | Computed as (P / K) x 100 |
 
 Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
-FEC parameters and pass them through in FEC_CONFIG.
+FEC parameters and pass them through in the catalog `fec` field.
 
 # Interaction with CMAF Packaging
 
@@ -1053,36 +1047,15 @@ Source FEC Payload ID without requiring A3SA.
 
 # IANA Considerations
 
-## MoQ Message Type
+## No Control Message or Extension Header Registrations
 
-This document requests registration of a new MoQ message type in the
-"MoQ Message Types" registry:
-
-| Type | Name | Reference |
-|------|------|-----------|
-| 0x50 | FEC_CONFIG | This document |
-
-Note: The value 0x50 is tentative and subject to coordination with
-the MOQ WG chairs to avoid collision with other allocations.
-Implementations SHOULD use a value in the experimental range
-(0xF000-0xFFFF) until IANA allocation is confirmed.  This
-registration is shared with [@?MOQ-MMT], which references
-this document for the normative FEC_CONFIG definition.
-
-## MoQ Extension Header Type
-
-This document requests registration of a new MoQ extension header
-type in a separate "MoQ Extension Header Types" registry (note: this
-is a different IANA registry than the message type registry in 15.1,
-so reuse of the value 0x50 does not create a collision):
-
-| Type | Name | Reference |
-|------|------|-----------|
-| 0x50 | FEC_CONFIG | This document |
-
-Note: This registration is provisional pending adoption of control
-message extension headers in [@I-D.ietf-moq-transport] (see
-Section 4.2).
+This document requests no registrations in any MoQ message type or
+extension header registry.  The legacy in-session signaling
+mechanism preserved in Appendix C is non-normative and experimental;
+any experiment with it uses codepoints from the applicable MoQ
+experimental range and claims no allocation.  No document in this
+suite requests a control-message codepoint, and no document other
+than this one describes the legacy mechanism's wire format.
 
 ## FEC Algorithm Registry
 
@@ -1196,21 +1169,31 @@ registration of:
 
 # Example Message Flows
 
-## Publisher-Initiated FEC
+## Catalog-Driven FEC
+
+The subscriber learns the complete FEC configuration from the
+track's catalog entry before subscribing:
+
+~~~ json
+"fec": {
+  "algorithm": "raptorq",
+  "sourceSymbols": 32,
+  "repairSymbols": 8,
+  "symbolSize": 1312,
+  "interleaveDepth": 1000,
+  "repairTrack": "video/repair"
+}
+~~~
 
 ~~~
 Publisher                              Subscriber
+    |                                       |
+    |  (catalog obtained; fec field read)   |
     |                                       |
     |  SUBSCRIBE(sub_id=1, track=video)     |
     |<--------------------------------------|
     |                                       |
     |  SUBSCRIBE_OK(sub_id=1)               |
-    |-------------------------------------->|
-    |                                       |
-    |  FEC_CONFIG(sub_id=1,                 |
-    |    algorithm=RaptorQ,                 |
-    |    K=32, P=8, symbol_size=1312,       |
-    |    interleave=1000, oti=...)          |
     |-------------------------------------->|
     |                                       |
     |  SUBSCRIBE(sub_id=2,                  |
@@ -1231,7 +1214,11 @@ Publisher                              Subscriber
 In this flow the track uses 1-second CMAF segments (one MoQ Group
 per segment), so the 1000 ms interleave window derives
 D = ceil(1000 / 1000) = 1: each Group is one FEC block carrying all
-K = 32 source objects, followed by P = 8 repair objects.
+K = 32 source objects, followed by P = 8 repair objects.  The
+subscriber's decoder configuration is derived entirely from the
+catalog fields (Section 4.2): Transfer Length
+F = K x T = 32 x 1312 = 41,984 bytes, Symbol Size T = 1312,
+Z = 1, N = 1, Al = 8.  No in-session message is exchanged.
 
 ## Recovery Example
 
@@ -1333,3 +1320,103 @@ The `multicast` field uses the multicast endpoint format defined in
 regardless of a track's unicast packaging, so each track listed on
 the endpoint carries a `packetId` that routes its MMTP packets on the
 multicast UDP path.
+
+# Legacy In-Session FEC Signaling (Non-Normative)
+
+This appendix preserves, for archival and experimentation purposes,
+an in-session FEC signaling mechanism — the FEC_CONFIG control
+message and a companion extension-header variant — that an earlier
+revision of this specification defined as the authoritative
+signaling path.  It is not part of this specification's normative
+requirements: the catalog `fec` object (Section 5) is the sole
+normative FEC signaling mechanism, and the derived OTI
+(Section 4.2) gives receivers the complete decoder configuration
+without any in-session message.  BCP 14 keywords appearing in this
+appendix are quoted from the historical text and carry no normative
+force.
+
+The mechanism was demoted for two reasons:
+
+1. Control messages cannot reach multicast or sessionless receivers
+   at all, so a control-message path can never serve as the common
+   signaling mechanism across the delivery paths this specification
+   targets (Section 11).
+
+2. Deployed relays predating the tolerance requirements of
+   Section 5.3 terminate sessions on control messages of unknown
+   type, so a new control message cannot traverse existing relay
+   meshes.  The requirements of Section 5.3 are a prerequisite for
+   this or any future in-session mechanism to become deployable.
+
+No codepoint is registered or claimed for this mechanism
+(Section 15.1).  An experiment that revives it uses a message type
+from the applicable MoQ experimental range.
+
+## FEC_CONFIG Message (Historical)
+
+The FEC_CONFIG message was sent by the publisher after SUBSCRIBE_OK
+to advertise FEC parameters; subscribers used it to decide whether
+to subscribe to the repair track.
+
+~~~
+FEC_CONFIG Message {
+  Message Type (i),
+  Subscribe ID (i),
+  FEC Enabled (1),
+  FEC Algorithm (8),
+  Source Symbols Per Block (i),
+  Repair Symbols Per Block (i),
+  Symbol Size (i),
+  Interleave Depth (i),
+  OTI Length (i),
+  Object Transmission Information (..),
+}
+~~~
+
+**Message Type**: The historical text used the tentative value 0x50;
+an experiment uses a value from the experimental range instead
+(Section 15.1).
+
+**Subscribe ID**: The subscription this FEC configuration applies to.
+
+**FEC Enabled**: 1 if FEC is available for this track, 0 otherwise.
+
+**FEC Algorithm**: The FEC algorithm identifier (Section 4.1).
+
+**Source Symbols Per Block (K)**, **Repair Symbols Per Block (P)**,
+**Symbol Size (T)**, **Interleave Depth**: As defined for the
+corresponding catalog fields in Section 5.1.
+
+**OTI Length**: Length of the OTI field in bytes.  0 if not
+applicable.
+
+**Object Transmission Information**: Algorithm-specific parameters.
+For RaptorQ, the 12-byte OTI of Section 4.2.  For Reed-Solomon, the
+historical text carried:
+
+~~~
+Reed-Solomon OTI {
+  Field Size (8),          // Always 8 for GF(2^8)
+  Max Source Symbols (16), // Maximum K value
+  Max Repair Symbols (16), // Maximum P value
+  Reserved (24),
+}
+~~~
+
+## Extension-Header Variant (Historical)
+
+The historical text also sketched carrying the same fields as an
+extension header on SUBSCRIBE_OK, contingent on a future
+moq-transport facility for extension headers on control messages.
+As of moq-transport-15 no such facility exists; the variant was
+never specified beyond the field list above and is not reproduced
+here.
+
+## Precedence (Historical)
+
+The historical precedence rules made FEC_CONFIG authoritative over
+the catalog.  Under this specification the relationship is
+inverted: the catalog is authoritative (Section 5.2), and an
+experimental in-session message whose parameters differ from the
+catalog indicates a configuration error; receivers use the catalog
+values.
