@@ -209,6 +209,10 @@ Section 4.3).
 
 ## Group Boundaries
 
+This section defines the object layout of mfu mode
+(`mmtpMode: "mfu"`, Section 12.1) — the only object layout this
+document fully specifies and the only one deployments to date use.
+
 Group boundaries align with MPU boundaries, and subgroup boundaries
 align with MFU boundaries:
 
@@ -482,13 +486,23 @@ set MAY carry different keyframe cadences.
 
 ## Init Segment Signaling
 
-Publishers MAY signal MPU metadata (mmpu/moov) either inline as the
-single object of Subgroup 0 of each group (the default form in
-Section 4.3), or as a separate init track per
-[@I-D.wilaw-moq-cmafpackaging] Section 4.2.  The catalog field
-`initMode` (values: "inline" | "track") selects between the two;
-subscribers determine the active mode from the catalog before issuing
-SUBSCRIBE.
+Publishers signal MPU metadata (mmpu/moov) inline, as the single
+object of Subgroup 0 of each group (the form defined in
+Section 4.3).  The catalog field `initMode` (values: "inline" |
+"track") records the signaling mode; subscribers determine the
+active mode from the catalog before issuing SUBSCRIBE.  "inline" is
+the default, the only mode deployments to date use, and the only
+mode subscribers are REQUIRED to implement.
+
+The value "track" — MPU metadata carried on a separate init track
+per [@I-D.wilaw-moq-cmafpackaging] Section 6.2 — is preserved as an
+optional extension point and is at risk of removal: this document
+does not specify how per-group MPU metadata (which changes with
+every group, since it carries the MPU sequence number) maps onto
+that document's single-object init track, nor whether Subgroup 0 is
+still present, so "track" mode cannot be used interoperably without
+a companion specification.  A subscriber MAY reject a track whose
+`initMode` names a mode it does not implement.
 
 In addition, publishers SHOULD carry decoder initialization data
 directly in the catalog via the per-track field:
@@ -539,7 +553,8 @@ For ultra-low-latency applications, MMT supports MFU mode where
 each video frame is delivered as a separate unit:
 
 ~~~
-Standard MPU Mode (whole MPU in one object):
+MPU Mode (optional extension point; informative sketch,
+Section 12.1):
   Group N / Subgroup 0 / Object 0:
     [MMTP][MPU: mmpu+moov+moof+mdat containing all frames]
 
@@ -696,11 +711,12 @@ boundary, which is the same behavior as a relay that retains nothing.
 # FEC Integration
 
 MMT's AL-FEC framework supports multiple FEC schemes including
-RaptorQ [@!RFC6330] and Reed-Solomon [@!RFC5510],
+RaptorQ [@!RFC6330] and Reed-Solomon [@?RFC5510],
 with parameters signaled via MMTP signaling messages or, in
 ATSC 3.0, via S-TSID (which is part of the ROUTE transport layer).
-For MoQ, FEC repair uses the model defined in
-[@MOQ-FEC]:
+For MoQ, RaptorQ is the mandatory-to-implement and only fully
+specified scheme ([@MOQ-FEC] Section 4.3), and FEC repair uses the
+model defined in [@MOQ-FEC]:
 
 ~~~
 Source Track: video
@@ -920,25 +936,33 @@ Per-track catalog fields for mmtp packaging:
 | Field | Status | Type | Description |
 |-------|--------|------|-------------|
 | `packaging` | REQUIRED | String | MUST be "mmtp" |
-| `mmtpMode` | REQUIRED | String | "mpu" or "mfu" (Section 5) |
+| `mmtpMode` | REQUIRED | String | "mfu" (required to implement) or "mpu" (optional, at risk; Section 5) |
 | `timescale` | REQUIRED | Number | Media timescale in Hz (Section 4.4.2) |
 | `groupDurationMs` | REQUIRED | Number | Group duration, integer ms (Section 4.4.2) |
 | `groupDurationTicks` | OPTIONAL | Number | Integer-tick override (Section 4.4.2) |
 | `altGroup` | OPTIONAL | Number | Switching-set membership key, unsigned integer (Section 4.4) |
 | `keyframeIntervalMs` | OPTIONAL | Number | Keyframe/GOP cadence, integer ms; advisory, video only (Section 4.4.3) |
 | `keyframeIntervalTicks` | OPTIONAL | Number | Integer-tick override for the keyframe interval (Section 4.4.3) |
-| `initMode` | OPTIONAL | String | "inline" (default) or "track" (Section 4.5) |
+| `initMode` | OPTIONAL | String | "inline" (default) or "track" (optional, at risk; Section 4.5) |
 | `initData` | OPTIONAL | String | Base64 ftyp+moov init segment (Section 4.5) |
 | `fec` | OPTIONAL | Object | AL-FEC parameters (Section 8.3) |
 | `selectionParams` | REQUIRED | Object | Codec and rendition parameters per [@I-D.ietf-moq-msf] |
 
-`mmtpMode` selects the object layout: "mpu" delivers each whole MPU
-as a single object; "mfu" delivers one subgroup per MFU as defined
-in Sections 4.3 and 5.  A subscriber MUST reject a track whose
-`mmtpMode` is absent or carries an unknown value — the object layout
-cannot be inferred safely from received objects.  Per
-[@I-D.ietf-moq-catalogformat], parsers MUST ignore unrecognized
-fields.
+`mmtpMode` selects the object layout.  "mfu" delivers one subgroup
+per MFU as defined in Sections 4.3 and 5; it is the only layout
+this document fully specifies, the only mode deployments to date
+use, and the only mode subscribers are REQUIRED to implement.
+"mpu" names a whole-MPU-per-object layout that is preserved as an
+optional extension point and is at risk of removal: this document
+does not further specify it (its group/subgroup layout, RAP
+signaling, and interaction with the retention rules of Section 6.2
+are undefined here, and the sketch in Section 5 is informative), so
+it cannot be used interoperably without a companion specification.
+A subscriber MUST reject a track whose `mmtpMode` is absent,
+carries an unknown value, or names a mode the subscriber does not
+implement — the object layout cannot be inferred safely from
+received objects.  Per [@I-D.ietf-moq-catalogformat], parsers MUST
+ignore unrecognized fields.
 
 Example:
 
@@ -961,6 +985,15 @@ Example:
 ~~~
 
 ## S-TSID to MoQ Catalog Conversion
+
+This section and its inverse (Section 12.3) are informative: they
+document a mapping for ingesting ATSC 3.0 broadcast signaling into
+MoQ catalogs and exporting it back, and impose no interoperability
+requirements on MoQ publishers or subscribers.  Deployments to date
+do not implement these conversions; the mapping is retained as
+ingest and export guidance.  A converter's output catalog is
+subject to the normative catalog requirements of Section 12.1 like
+any other catalog.
 
 When ingesting ATSC 3.0 content delivered via ROUTE, generate MoQ
 catalog from the S-TSID signaling table (defined in ATSC A/331
@@ -998,10 +1031,11 @@ ingested F by exactly the padding length.
 
 `packetId` is assigned per flow, not per `tsi`.  An `LS` (ROUTE
 transport session) carrying both a SrcFlow and its RepairFlow yields
-two `tracks[]` entries, and `packetId` MUST be unique within the
-(sourceAddress, groupAddress, port) tuple (Section 4.1 of
-[@MOQ-MULTICAST]); reusing `tsi` directly would collide for a repair
-flow that shares its source's `tsi`.  The converter assigns `packetId`
+two `tracks[]` entries, and `packetId` is required to be unique
+within the (sourceAddress, groupAddress, port) tuple by Section 4.1
+of [@MOQ-MULTICAST]; reusing `tsi` directly would collide for a
+repair flow that shares its source's `tsi`.  The converter assigns
+`packetId`
 sequentially in `tsi` order, emitting each source flow immediately
 before its repair flow (so `tsi` 1 source -> packetId 1, its repair ->
 packetId 2, `tsi` 2 source -> packetId 3).  Flows sharing one
@@ -1011,7 +1045,7 @@ endpoint whose `tracks[]` array lists them all.
 `timescale`, `groupDurationMs`, and `mmtpMode` are not carried in
 S-TSID; the converter obtains them from MMTP signaling (asset
 descriptors and MPU presentation duration in the MPT/MPI tables) and
-MUST populate them in the output catalog, since they are REQUIRED
+populates them in the output catalog, since they are REQUIRED
 fields (Section 12.1).
 
 ## MoQ Catalog to S-TSID Conversion
@@ -1033,7 +1067,7 @@ The multicast catalog extension is defined in
 [@MOQ-MULTICAST] Section 4.
 
 When converting S-TSID to MoQ catalog (Section 12.2), the `multicast`
-field in the output catalog MUST conform to the multicast endpoint format
+field in the output catalog conforms to the multicast endpoint format
 defined in [@MOQ-MULTICAST] Section 4.1, using the
 `endpoints` array to represent per-TSI multicast groups.
 
@@ -1126,6 +1160,9 @@ claimed by any document in this suite.
 </reference>
 
 # S-TSID Conversion Example
+
+This appendix is informative, like the conversion mapping it
+illustrates (Section 12.2).
 
 Complete example showing bidirectional conversion between
 ATSC S-TSID and MoQ catalog for a multi-track service.
