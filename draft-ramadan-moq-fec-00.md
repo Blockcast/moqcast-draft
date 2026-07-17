@@ -477,18 +477,24 @@ sized to fit in UDP datagrams and no fragmentation or reassembly is
 needed at the FEC layer.
 
 **Source symbol construction**: The T-byte source symbol protected by
-RaptorQ is the MMTP source packet payload with the trailing 4-byte
+RaptorQ is the complete MMTP source packet -- MMTP packet header
+included -- with the trailing 4-byte
 Source FEC Payload ID (SS_ID, Section 8) removed, right zero-padded to
 Symbol Size (T).  The SS_ID is excluded from the protected bytes
 because it is the symbol's own block coordinate (SBN*K + ESI) and is
 therefore both self-referential and recoverable without protection;
 including it would consume T-byte budget and force the decoder to
 reconstruct a locator it already used to place the symbol.  Publishers
-MUST NOT prepend a length field or otherwise reframe the payload
-before encoding, and MUST size packets so the payload (sans SS_ID) does
-not exceed T.  Because the recovered symbol retains the MMTP header,
-the packet's true length is intrinsic to the recovered bytes (the MMTP
-payload header's length fields); the receiver consumes the packet per
+MUST NOT prepend a length field or otherwise reframe the packet
+before encoding, and MUST size packets so the packet excluding its
+SS_ID does not exceed T.  A receiver that observes a source packet
+whose length excluding SS_ID exceeds T MUST NOT feed it to the
+decoder -- a truncated symbol would corrupt recovery for the entire
+block -- but MAY still deliver the packet as media.
+Because the recovered symbol retains the MMTP header,
+the packet's true length is intrinsic to the recovered bytes (the
+length fields of the MMTP payload header, ISO 23008-1
+[@?ISO.23008-1]); the receiver consumes the packet per
 those fields and discards the trailing zero padding, then delivers the
 recovered packet to the MMTP parser.  No separate length prefix is
 carried: retaining the header makes the packet self-delimiting, which
