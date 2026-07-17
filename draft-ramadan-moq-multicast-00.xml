@@ -52,7 +52,7 @@ signaling of QUIC:</t>
 <li><strong>Delivery paths</strong>: Platform-specific multicast reception for
 TV, mobile, and browser clients</li>
 <li><strong>Catalog extension</strong>: A container-agnostic multicast endpoint
-discovery mechanism for MoQ catalogs <xref target="I-D.ietf-moq-catalogformat"></xref></li>
+discovery mechanism for MoQ catalogs <xref target="I-D.ietf-moq-msf"></xref></li>
 <li><strong>MMTP wire format</strong>: All multicast delivery uses MMTP packets —
 the same packet format used on MoQ QUIC streams and datagrams.
 MMTP provides track routing (packet_id), timestamps, sequencing
@@ -166,9 +166,12 @@ under <tt>.catalog</tt> as a transitional compatibility alias for non-MSF
 consumers.</t>
 
 <section anchor="multicast-endpoint-format"><name>Multicast Endpoint Format</name>
-<t>The <tt>multicast</tt> field is a catalog extension per
-<xref target="I-D.ietf-moq-catalogformat"></xref> Section 3.1.  Parsers that do not
-support multicast MUST ignore it.</t>
+<t>The <tt>multicast</tt> field is a root-level extension member of the MSF
+catalog; the catalog envelope for this suite is described in
+<xref target="MOQ-MMT"></xref> Section 12.  <xref target="I-D.ietf-moq-msf"></xref> Section 5 permits
+producers to add fields and requires parsers to ignore fields they
+do not understand: parsers that do not support multicast MUST
+ignore it.</t>
 <t>The <tt>multicast</tt> field contains an <tt>endpoints</tt> array listing one or
 more multicast groups.  A single-endpoint deployment uses a
 one-element array:</t>
@@ -340,6 +343,9 @@ endpoints.  A single source is expressed as a one-element array.</t>
 ]]></sourcecode>
 <t><strong>relay</strong> (string, OPTIONAL): AMT relay address (IP or hostname).
   When present, subscribers SHOULD connect directly to this relay.</t>
+<t><strong>port</strong> (integer, OPTIONAL): UDP port on which the AMT relay
+  accepts requests.  When absent, the IANA-assigned AMT port (2268,
+  <xref target="RFC7450"></xref>) is used.</t>
 <t><strong>discovery</strong> (string, OPTIONAL): AMT relay discovery method.</t>
 
 <ul spacing="compact">
@@ -506,8 +512,9 @@ needed — the relay provides the current position.</t>
 tracks by name, and the catalog advertises packaging per track.  A
 subscriber that only supports LOC subscribes to the LOC track; a
 subscriber that supports MMTP subscribes to the MMTP track.  The
-<tt>altGroup</tt> catalog field (see the switching-set machinery of the
-referenced catalog format, <xref target="I-D.ietf-moq-msf"></xref>) enables publishers
+<tt>altGroup</tt> catalog field (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.12,
+profiled for this suite in <xref target="MOQ-MMT"></xref> Section 4.4) enables
+publishers
 to offer the same content in multiple packaging formats.
 No explicit packaging capability negotiation is needed.</t>
 </section>
@@ -655,7 +662,7 @@ registration.</t>
 <back>
 <references><name>References</name>
 <references><name>Normative References</name>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-catalogformat.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-msf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-transport.xml"/>
 <reference anchor="ISO.23008-1" target="">
   <front>
@@ -710,7 +717,6 @@ registration.</t>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.bouazizi-mmtp.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-msf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.krose-mboned-alta.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.wilaw-moq-cmafpackaging.xml"/>
 <reference anchor="QUIC-MULTICAST" target="https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/">
