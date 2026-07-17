@@ -100,7 +100,7 @@ symbols.
 
 **Interleave Depth**: The time span in milliseconds of a single source
 block (the interleave window).  The encoder computes the number of
-groups per block as D = ceil(interleaveDepth_ms / GOP_duration_ms).
+groups per block as D = ceil(interleaveDepthMs / GOP_duration_ms).
 An absent or zero Interleave Depth means no interleaving: D = 1 and
 each Group forms its own source block.
 
@@ -289,7 +289,7 @@ is carried at the track level:
       "sourceSymbols": 625,
       "repairSymbols": 125,
       "symbolSize": 1000,
-      "interleaveDepth": 1000,
+      "interleaveDepthMs": 1000,
       "repairTrack": "video/repair"
     }
   }]
@@ -327,21 +327,24 @@ symbol is fixed by the ssbg_mode0 source symbol construction rules
 renegotiated per stream.  For "raptorq", T MUST be a multiple of 8,
 the fixed Symbol Alignment of the derived OTI (Section 4.2).
 
-**interleaveDepth** (integer, OPTIONAL): FEC block span in
-milliseconds.  The encoder computes the number of groups per block
-as D = ceil(interleaveDepth / GOP_duration_ms).  Using milliseconds
+**interleaveDepthMs** (integer, OPTIONAL): FEC block span in
+milliseconds.  The unit suffix in the key name is deliberate: the
+value is a duration in milliseconds, never a count of MPU frames,
+media samples, or FEC symbols.
+The encoder computes the number of groups per block
+as D = ceil(interleaveDepthMs / GOP_duration_ms).  Using milliseconds
 rather than frame/group counts decouples FEC from frame rate —
-30fps video and 46.875fps audio can share the same interleaveDepth
+30fps video and 46.875fps audio can share the same interleaveDepthMs
 value.  When absent or 0, no interleaving is applied: D = 1 and
 each Group forms its own source block (equivalent to an
-interleaveDepth equal to the group duration).  The derivation
-formula applies only when interleaveDepth > 0; receivers MUST NOT
+interleaveDepthMs equal to the group duration).  The derivation
+formula applies only when interleaveDepthMs > 0; receivers MUST NOT
 substitute an absent or zero value into it.  For mmtp-packaged
 tracks, GOP_duration_ms equals the track's `groupDurationMs` (the MoQ group duration -- one group per frame on the MMT path -- not the keyframe/GOP cadence)
 signaled per [@!MOQ-MMT] Section 12.1.
 
 When CMAF packaging is used, aligning the CMAF segment duration
-with interleaveDepth lets each segment contain exactly one FEC
+with interleaveDepthMs lets each segment contain exactly one FEC
 block's worth of source symbols, enabling CDN-side FEC repair
 before forwarding to FEC-unaware HLS/DASH clients.  (CMAF-level
 FEC is described only informatively in this document; see
@@ -593,13 +596,13 @@ of Sub-Blocks field of the explicitly signaled OTI.
 
 When sub-blocks are used:
 
-1. The signaled Interleave Depth (interleaveDepth_ms) is the time
+1. The signaled Interleave Depth (interleaveDepthMs) is the time
    span of the FULL block; a complete block's symbols all arrive
    within approximately one interleave window.  When sub-blocks are
    used, the block recovery timeout can be computed per sub-block by
    scaling the full-block span by the sub-block fraction:
-   `timeout = interleaveDepth_ms * K_sub / K` instead of the
-   full-block span `interleaveDepth_ms`.
+   `timeout = interleaveDepthMs * K_sub / K` instead of the
+   full-block span `interleaveDepthMs`.
    This enables faster partial recovery at the cost of higher repair
    overhead (P repair symbols per sub-block instead of per block).
 
@@ -622,7 +625,7 @@ block, computed from the signaled interleave window and the group
 duration:
 
 ~~~
-D = ceil(interleaveDepth_ms / GOP_duration_ms)
+D = ceil(interleaveDepthMs / GOP_duration_ms)
 ~~~
 
 D is never signaled directly; only the window (Interleave Depth, in
@@ -630,7 +633,7 @@ milliseconds) is carried in the catalog.
 
 ## Single-Group Blocks (D = 1)
 
-When the derived group count D is 1 — because interleaveDepth is
+When the derived group count D is 1 — because interleaveDepthMs is
 absent, 0, or no greater than the group duration — each FEC block
 corresponds to exactly one MoQ Group:
 
@@ -670,7 +673,7 @@ symbol's position within its FEC block for FEC decoding.
 For a source object with MoQ Group_ID `G` and Object_ID `O`:
 
 ~~~
-D = ceil(interleaveDepth_ms / GOP_duration_ms)  # groups per block
+D = ceil(interleaveDepthMs / GOP_duration_ms)  # groups per block
 SBN = floor(G / D)                              # source block number
 first_group = SBN * D                           # first group in block
 symbols_per_group = ceil(K / D)                 # symbols per group
@@ -684,7 +687,7 @@ SS_ID = SBN * K + ESI
 ~~~
 
 Worked example (frame-grouped MMT delivery, one group per frame at
-30 fps): GOP_duration_ms = 1000/30 = 33.33, interleaveDepth = 133,
+30 fps): GOP_duration_ms = 1000/30 = 33.33, interleaveDepthMs = 133,
 K = 32.  Then D = ceil(133 / 33.33) = ceil(3.99) = 4 groups per
 block and symbols_per_group = 32 / 4 = 8.  For the source object
 with Group_ID G = 10, Object_ID O = 3:
@@ -738,9 +741,9 @@ For FEC block alignment to be deterministic, encoders MUST:
    in the final groups collide with the repair ESI range (ESI >= K).
 
 5. Signal an interleave window that derives the intended group
-   count: any interleaveDepth_ms in the interval
+   count: any interleaveDepthMs in the interval
    ((D - 1) * GOP_duration_ms, D * GOP_duration_ms] derives the same
-   D.  The convention is interleaveDepth_ms =
+   D.  The convention is interleaveDepthMs =
    floor(D * GOP_duration_ms), which keeps the signaled value an
    integer even when the group duration is not an integer number of
    milliseconds (e.g. D = 4 at 30 fps gives floor(4 * 33.33) = 133,
@@ -748,7 +751,7 @@ For FEC block alignment to be deterministic, encoders MUST:
 
 For CMAF packaging — an interaction this document describes only
 informatively (Section 13) — a segment boundary aligns with a FEC
-block boundary when the segment duration equals interleaveDepth_ms,
+block boundary when the segment duration equals interleaveDepthMs,
 which is what would let CDN relays perform FEC recovery at the
 segment level before forwarding to FEC-unaware clients.
 
@@ -788,7 +791,7 @@ Interleaving spreads source symbols across time to protect against
 burst loss.  The interleave window (Interleave Depth, in
 milliseconds) sets the time span of each source block; the number of
 consecutive media units grouped into one block follows as
-D = ceil(interleaveDepth_ms / GOP_duration_ms).  With D = 4, symbols
+D = ceil(interleaveDepthMs / GOP_duration_ms).  With D = 4, symbols
 from 4 consecutive media units are grouped into one source block:
 
 ~~~
@@ -813,7 +816,7 @@ Publishers SHOULD choose the interleave window based on:
 Typical values (the block span, and therefore the recovery latency,
 is the interleave window itself; D follows from the group duration):
 
-| Application | interleaveDepth (ms) | Group duration | D (groups per block) | Recovery Latency |
+| Application | interleaveDepthMs | Group duration | D (groups per block) | Recovery Latency |
 |-------------|---------------------|----------------|----------------------|------------------|
 | Interactive (gaming, WebRTC) | 33-133 | 33.33 ms (per-frame, 30fps) | 1-4 | 33-133ms |
 | Low-latency live | 1000-2000 | 1000 ms (1s GOP) | 1-2 | 1-2s |
@@ -1287,7 +1290,7 @@ track's catalog entry before subscribing:
   "sourceSymbols": 32,
   "repairSymbols": 8,
   "symbolSize": 1312,
-  "interleaveDepth": 1000,
+  "interleaveDepthMs": 1000,
   "repairTrack": "video/repair"
 }
 ~~~
@@ -1361,7 +1364,7 @@ Complete catalog with FEC and multicast configuration:
         "sourceSymbols": 625,
         "repairSymbols": 125,
         "symbolSize": 1000,
-        "interleaveDepth": 1000,
+        "interleaveDepthMs": 1000,
         "repairTrack": "video/repair"
       }
     },
@@ -1382,7 +1385,7 @@ Complete catalog with FEC and multicast configuration:
         "sourceSymbols": 32,
         "repairSymbols": 8,
         "symbolSize": 512,
-        "interleaveDepth": 1000,
+        "interleaveDepthMs": 1000,
         "repairTrack": "audio/repair"
       }
     },
