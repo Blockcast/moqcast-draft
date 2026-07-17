@@ -584,7 +584,9 @@ This makes receivers robust both to publishers that emit a constant
 zero delta (relying on a relay to re-sequence Object IDs on egress)
 and to direct publisher-to-subscriber topologies where no relay
 re-sequencing occurs.  Within an MFU subgroup the reconstructed Object
-IDs give the fragment order used for reassembly (Section 5.1).
+IDs give the fragment order used for reassembly (Section 5.1);
+Section 5.2 refines that order for fragments that carry an intrinsic
+coordinate.
 
 # Media Fragment Unit (MFU) Mode
 
@@ -637,14 +639,17 @@ publisher MUST NOT reassemble MFU fragments:
    carry the Fragmentation Indicator
    and MPU sequence number; the reconstructed MoQ Object ID
    (Section 4.6) gives the fragment order within the subgroup.
-2. The publisher MUST NOT interpret or act on the Fragmentation
-   Indicator.  It routes each packet to (track, group, subgroup) by
-   packet_id, MPU boundary, and MFU index only: a change of MPU
-   sequence number starts the next group (Section 4.3), whose number
-   comes from the formula in Section 4.4.1.
+2. The publisher MUST NOT reassemble or reorder fragments based on
+   the Fragmentation Indicator.  It routes each packet to (track,
+   group, subgroup) by packet_id, MPU boundary, and MFU identity
+   only: a change of MPU sequence number starts the next group
+   (Section 4.3), whose number comes from the formula in
+   Section 4.4.1, and each distinct MFU identity within the group
+   maps to its own subgroup, derived as defined in Section 5.2.2.
 3. The receiver MUST reassemble each MFU from the objects of its
    subgroup before media processing, ordering by reconstructed Object
-   ID:
+   ID (Section 5.2.3 refines this order when every fragment carries
+   an intrinsic byte offset):
    - A single object with FI=0 is a complete, unfragmented MFU.
    - Objects with FI=1 (first), FI=2 (zero or more middle), and FI=3
      (last) reassemble, in Object ID order, into one MFU by
@@ -679,6 +684,194 @@ publisher MUST NOT reassemble MFU fragments:
 For very large frames where FEC cannot recover the loss, receivers
 SHOULD support resolution-tier fallback (subscribe to a lower-resolution
 track of the switching set and upscale) rather than stalling.
+
+## Self-Describing Fragment Reassembly
+
+Section 5.1 reassembles the fragments of an MFU in reconstructed
+Object ID order (Section 4.6).  The Object ID is assigned by the
+transport.  It is authoritative on a reliable, in-order delivery
+path, but it is not authoritative on the paths this mapping exists
+to serve:
+
+- A fragment recovered by FEC (Section 7) is reconstructed below
+  the MoQ object layer and carries no transport-assigned Object ID;
+  its position in the object must be re-derived.
+- When the same content is combined from more than one path — for
+  example a reliable unicast subscription and a multicast group
+  (Section 9) — Object IDs are path-relative and cannot serve as a
+  common ordering or de-duplication key.
+- A publisher MAY emit a constant zero Object ID delta and rely on
+  a relay to re-sequence on egress (Section 4.6); end to end the
+  Object ID is then not a stable content identifier.
+
+MMT data units already carry an intrinsic, content-carried
+coordinate that is invariant to all of the above.  A receiver that
+treats that coordinate as the reassembly authority — falling back
+to Object ID order only when it is absent — reassembles
+deterministically irrespective of arrival order, delivery path, or
+FEC recovery.
+
+### Intrinsic Fragment Coordinate
+
+For each class of MMT object, [@!ISO.23008-1] defines an intrinsic
+coordinate comprising a transport-independent object identity and a
+byte offset.  No addition to the MoQ object encoding is required:
+the fields are already present in the DU header or the payload
+header, both of which Section 5.1 preserves in every object.
+
+| Object class          | Object identity                       | Byte offset       | [@!ISO.23008-1] |
+|-----------------------|---------------------------------------|-------------------|-----------------|
+| Timed-media MFU       | MPU_sequence_number, movie_fragment_sequence_number, sample_number | offset (within the referenced sample) | Section 9.3.2.3 |
+| Non-timed media MFU   | Item_ID                               | (item-scoped)     | Section 9.3.2.3 |
+| Generic File Delivery | packet_id, Transport Object Identifier (TOI) | start_offset | Section 9.3.3   |
+
+An object whose fragments carry such a coordinate is said to be
+self-describing.  In the mfu mode this document specifies
+(Section 4.3), the timed and non-timed MFU rows apply; the Generic
+File Delivery row is listed to show that the coordinate is not an
+invention of this mapping but the common shape of MMT's own
+per-class descriptors.
+
+The DU header, and with it the object-identity and byte-offset
+fields of a timed MFU, is present on FI=0 and FI=1 packets
+(Section 5.1).  A continuation fragment (FI=2 or FI=3) therefore
+carries no coordinate of its own: publishers attribute it to its
+MFU by adjacency (Section 5.2.2), and receivers by the subgroup it
+was published in.
+
+### MFU Identity and Subgroup Derivation
+
+Section 4.3 maps each MFU to its own subgroup but leaves the
+subgroup key implicit.  This section defines it.
+
+The MFU identity is the object-identity component of the intrinsic
+coordinate, scoped to the group: for timed media the pair
+(movie_fragment_sequence_number, sample_number) from the timed DU
+header, and for non-timed media the Item_ID.  The
+MPU_sequence_number component of the coordinate is the group
+boundary itself (Section 4.3) and does not vary within a group.
+
+The publisher derives the subgroup of each MMTP packet as follows:
+
+1. A packet that carries a DU header whose MFU identity has not yet
+   appeared in the current group starts a new MFU.  The publisher
+   MUST assign it the next unused subgroup ID of the group, starting
+   at 1 (Subgroup 0 carries the MPU metadata, Section 4.3).
+2. A packet that carries a DU header whose MFU identity equals that
+   of an MFU already open in the current group MUST be published in
+   that MFU's subgroup.
+3. A packet that carries no DU header (a continuation fragment)
+   MUST be published in the subgroup of the packet that immediately
+   precedes it on the same packet_id: an encoder emits the
+   fragments of one data unit contiguously ([@!ISO.23008-1]
+   Section 9.3.2.3), so upstream of any transport reordering the
+   preceding packet belongs to the same MFU.
+
+Subgroup IDs therefore follow the encoder's emission order of MFUs
+within the MPU, and every packet of one MFU shares one subgroup, as
+Section 4.3 requires.  The derivation reads the payload header only
+to locate the DU header; it does not relax the raw-passthrough
+rules of Section 5.1, which continue to forbid the publisher from
+reassembling or reordering fragments.
+
+### Receiver Behavior
+
+A receiver reassembling a fragmented MFU:
+
+1. If every fragment of the MFU carries an intrinsic byte offset,
+   the receiver SHOULD order the fragments by ascending byte
+   offset, and MUST treat that order as authoritative in precedence
+   over reconstructed Object ID order (Section 4.6).
+2. If the intrinsic byte offset is absent from any fragment, the
+   receiver MUST fall back to reconstructed Object ID order
+   (Section 5.1).
+3. The receiver MUST de-duplicate fragments by their coordinate —
+   the pair (MFU identity, byte offset) when the offset is present,
+   otherwise the fragment's position in the fallback order of
+   item 2 — retaining exactly one fragment per coordinate.  A
+   coordinate that has already been incorporated MUST NOT be
+   incorporated again, including a duplicate that arrives on a
+   different path or that is produced by FEC recovery (Section 7).
+4. The receiver MUST determine completion before emitting: the
+   ordered fragments MUST form a single FI=1 through FI=3 chain
+   (Section 5.1), and, when intrinsic byte offsets are present, the
+   fragments MUST cover the MFU contiguously — the first fragment
+   at offset zero and each subsequent fragment beginning where the
+   previous one ends.  The receiver MUST NOT emit a
+   partially-covered MFU to the container or application parser.
+5. The receiver MUST bound the memory used for in-flight
+   reassembly and MUST discard an MFU whose coverage does not
+   complete within a deadline derived from the FEC interleave
+   window (interleaveDepthMs, Section 8.1) or the frame duration,
+   rather than buffer without limit (consistent with Section 5.1).
+
+### Random Access and Priority
+
+An MPU begins at a Stream Access Point: the first access unit of an
+MPU is a random access point (RAP) ([@!ISO.23008-1] Section 6.4;
+Section 4.3).  Accordingly a receiver:
+
+- SHOULD gate the start of media decoding on the availability of a
+  complete RAP MFU, including a RAP MFU completed by FEC recovery;
+  and
+- SHOULD prioritize FEC recovery and retention of fragments whose
+  DU header carries a higher priority or dep_counter value
+  (Section 5.1; the subsample_priority and dependency_counter of
+  [@!ISO.23008-1] Section 9.3.2.3), since these are decode-order
+  roots upon which other access units depend.
+
+### Relationship to Object Identifier Reassembly
+
+This section refines Section 5.1.  Reconstructed Object ID order
+remains the mandatory reassembly order for objects that carry no
+intrinsic coordinate — for example opaque or unfragmented objects —
+and is the universal fallback.  Where an intrinsic coordinate is
+present it takes precedence, because it is invariant to the
+transport conditions (loss, multi-path combining, FEC recovery, and
+relay re-sequencing) under which Object ID order is not reliable.
+
+The mechanism is not specific to MMT: the same receiver procedure
+applies to any fragmented application object whose fragments carry
+an object identity and a byte offset, whether sourced from an MMT
+DU header, an MMT Generic File Delivery payload header, or a
+transport object extension header defined for a non-MMT payload.
+
+### Relationship to draft-ietf-moq-loc
+
+The precedence rule defined here — an intrinsic, content-carried
+key taken in precedence over the transport Object ID — is not new
+to MoQ.  The worked example in Section 4.5 of [@?I-D.ietf-moq-loc]
+(non-normative, dyadic-framerate layered tracks) already orders
+decode as timestamp-primary, with the quantity ObjectID x
+multiplier + offset as the fallback ordering key: a content-carried
+ordering key applied in place of raw arrival order.
+
+This section extends that pattern to a regime [@?I-D.ietf-moq-loc]
+does not address.  A LOC object is a whole frame; it is never
+fragmented, and that document defines no FEC recovery, no
+multi-path combining, and no relay re-sequencing.  Its
+ObjectID-derived fallback is therefore sufficient for whole,
+in-order, single-path delivery.  The procedure in this section
+instead orders and de-duplicates the fragments of an object —
+including fragments recovered by FEC, which carry no Object ID
+(Section 7), and fragments combined from more than one path, where
+the Object ID is path-relative — by the intrinsic byte offset,
+which is invariant to all three conditions.  The two are
+consistent: where an object is whole and single-path, the receiver
+behavior of this section reduces to Object ID order, the universal
+fallback above.
+
+[@!I-D.ietf-moq-msf] Section 6.1 is related but distinct: its Prior
+Group ID Gap Extension marks intentional publisher-side numbering
+discontinuities (for example a publisher restart), where nothing
+was transmitted and no recovery applies.  The receiver behavior
+here addresses loss-induced gaps instead, closing them by FEC and
+offset reassembly rather than only reporting them.  FEC mechanisms
+defined at the QUIC or symbol layer (for example
+[@?I-D.michel-quic-fec] or FECFRAME [@?RFC6363]) protect the bytes
+consumed by Section 7; they do not reassemble application objects
+by an intrinsic content coordinate, which is the function this
+section adds above them.
 
 # Subscriber Join and Relay Behavior
 
