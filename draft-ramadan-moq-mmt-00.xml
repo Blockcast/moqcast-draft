@@ -706,12 +706,14 @@ Repair Track: video/repair
 Block 0:    S0   S1   S2   S3   ----------------->  R0, R1
 Block 1:                        S4   S5   S6   S7 > R2, R3
 ]]></artwork>
-<t>Default interleave depth varies by application:</t>
+<t>Default interleave window (<tt>interleaveDepth</tt>, milliseconds) varies
+by application; the equivalent frame count D follows from the frame
+duration (<xref target="MOQ-FEC"></xref> Section 8.3):</t>
 
 <ul spacing="compact">
-<li>ATSC 3.0: 30-60 frames (~1-2 seconds at 30fps)</li>
-<li>ARIB STD-B60: 60 frames (~2 seconds at 30fps)</li>
-<li>Low-latency: 4-8 frames (~130-270ms at 30fps)</li>
+<li>ATSC 3.0: 1000-2000 ms (30-60 frames at 30fps)</li>
+<li>ARIB STD-B60: 2000 ms (60 frames at 30fps)</li>
+<li>Low-latency: 133-267 ms (4-8 frames at 30fps)</li>
 </ul>
 </section>
 
@@ -748,8 +750,13 @@ its use.</t>
 or as specified in MMTP AL-FEC signaling</li>
 <li><strong>Source Symbols Per Block</strong>: Corresponds to the number of MFUs
 (or MMTP packets) covered by one FEC block</li>
-<li><strong>Interleave Depth</strong>: Number of MPU frames spanned by each FEC
-block, matching the original broadcast FEC interleave depth</li>
+<li><strong>Interleave Depth</strong>: The FEC interleave window in milliseconds —
+the time span of each FEC block (<xref target="MOQ-FEC"></xref>
+Section 4.1).  The number of MPU frames per block is derived as
+D = ceil(interleaveDepth / groupDurationMs), using the
+<tt>groupDurationMs</tt> field of Section 12.1.  When ingesting broadcast
+content, set the window to the time span of the original broadcast
+FEC interleave (its frame count multiplied by the frame duration)</li>
 <li><strong>OTI</strong>: For RaptorQ, the 12-byte concatenation of Common FEC OTI
 and Scheme-Specific FEC OTI per <xref target="RFC6330"></xref></li>
 </ul>
@@ -788,13 +795,18 @@ per ISO/IEC 23008-1:2023 Amendment 1:2025</t>
       "algorithm": "raptorq",
       "sourceSymbols": 32,
       "repairSymbols": 8,
-      "interleaveDepthMs": 1000,
+      "interleaveDepth": 133,
       "symbolSize": 1312,
       "repairTrack": "video/repair"
     }
   }]
 }
 ]]></sourcecode>
+<t>With frame-grouped MMTP delivery at 30 fps (33.33 ms per group), the
+133 ms interleave window derives D = ceil(133 / 33.33) = 4 groups
+per block, each contributing K / D = 32 / 4 = 8 source symbols;
+block capacity is K x T = 32 x 1312 = 41,984 bytes per 133 ms
+(about 2.5 Mbit/s of source data).</t>
 </section>
 </section>
 
@@ -996,8 +1008,12 @@ the rule below</li>
 <li><tt>LS@bw</tt> -&gt; <tt>selectionParams.bitrate</tt></li>
 <li><tt>FECParameters@overhead</tt> -&gt; <tt>fec.repairSymbols</tt> (computed as
 K x overhead / 100)</li>
-<li><tt>fecOTI</tt> K,T -&gt; <tt>fec.sourceSymbols</tt>, <tt>fec.symbolSize</tt></li>
-<li><tt>fecOTI</tt> Z (source blocks) x GOP duration -&gt; <tt>fec.interleaveDepthMs</tt></li>
+<li><tt>fecOTI</tt> F,T -&gt; <tt>fec.sourceSymbols</tt> (K = ceil(F / T)),
+<tt>fec.symbolSize</tt> (T)</li>
+<li><tt>FECParameters@maximumDelay</tt> -&gt; <tt>fec.interleaveDepth</tt> (both are
+durations in integer milliseconds; the RFC 6330 Z parameter — the
+number of source blocks — is unrelated to interleaving and does
+not map to any catalog FEC field)</li>
 </ul>
 <t><tt>packetId</tt> is assigned per flow, not per <tt>tsi</tt>.  An <tt>LS</tt> (ROUTE
 transport session) carrying both a SrcFlow and its RepairFlow yields
@@ -1024,7 +1040,8 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:</t>
 <ul spacing="compact">
 <li><tt>multicast.endpoints[].sourceAddress</tt> -&gt; <tt>RS@sIpAddr</tt></li>
 <li><tt>fec.repairSymbols / fec.sourceSymbols x 100</tt> -&gt; <tt>FECParameters@overhead</tt></li>
-<li><tt>fec.interleaveDepthMs</tt> -&gt; <tt>FECParameters@maximumDelay</tt></li>
+<li><tt>fec.interleaveDepth</tt> -&gt; <tt>FECParameters@maximumDelay</tt> (both are
+durations in milliseconds; no scaling by frame duration)</li>
 </ul>
 </section>
 
@@ -1188,7 +1205,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
       </SrcFlow>
       <RepairFlow>
         <FECParameters maximumDelay="1000" overhead="25"
-                       fecOTI="F=32;T=1312;Z=30;N=1;Al=8">
+                       fecOTI="F=1000000;T=1000;Z=1;N=1;Al=8">
           <ProtectedObject tsi="1">
             <SourceTOI x="0" y="65535"/>
           </ProtectedObject>
@@ -1232,10 +1249,10 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
       },
       "fec": {
         "algorithm": "raptorq",
-        "sourceSymbols": 32,
-        "repairSymbols": 8,
-        "symbolSize": 1312,
-        "interleaveDepthMs": 1000,
+        "sourceSymbols": 1000,
+        "repairSymbols": 250,
+        "symbolSize": 1000,
+        "interleaveDepth": 1000,
         "repairTrack": "video/1080p/repair"
       }
     },
@@ -1278,6 +1295,20 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
   }
 }
 ]]></sourcecode>
+<t>The FEC fields recompute from the S-TSID as follows:</t>
+
+<ul spacing="compact">
+<li><tt>sourceSymbols</tt>: K = ceil(F / T) = ceil(1,000,000 / 1,000) = 1000</li>
+<li><tt>repairSymbols</tt>: K x overhead / 100 = 1000 x 25 / 100 = 250</li>
+<li><tt>interleaveDepth</tt>: <tt>maximumDelay</tt> = 1000 ms (both are durations)</li>
+</ul>
+<t>The converted parameters are internally consistent: with
+<tt>groupDurationMs</tt> of 1000, the 1000 ms interleave window derives
+D = ceil(1000 / 1000) = 1, so each MoQ Group is one FEC block and
+SBN = Group_ID (<xref target="MOQ-FEC"></xref> Section 8).  Block capacity
+K x T = 1000 x 1000 = 1,000,000 bytes exactly matches the source
+data per window, <tt>LS@bw</tt> x 1.0 s / 8 = 8,000,000 / 8 = 1,000,000
+bytes.</t>
 </section>
 </section>
 
