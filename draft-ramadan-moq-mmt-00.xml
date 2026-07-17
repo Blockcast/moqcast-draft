@@ -285,7 +285,7 @@ Section 4.3).</t>
 <section anchor="group-boundaries"><name>Group Boundaries</name>
 <t>This section defines the object layout of mfu mode
 (<tt>mmtpMode: &quot;mfu&quot;</tt>, Section 12.1) — the only object layout this
-document fully specifies and the only one deployments to date use.</t>
+document fully specifies.</t>
 <t>Group boundaries align with MPU boundaries, and subgroup boundaries
 align with MFU boundaries:</t>
 
@@ -311,10 +311,7 @@ MUST NOT derive media time or switching decisions from it.  (The MPU
 sequence number is a per-encoder counter with an arbitrary starting
 value; two independently started encoders of the same content disagree
 on it, so counter-based group numbering cannot satisfy the switching-set
-alignment requirements of Section 4.4.  Implementations that predate
-this document and number groups by such a counter interoperate only
-with themselves and only outside switching sets; this is legacy
-behavior, not a conforming mode.)</t>
+alignment requirements of Section 4.4.)</t>
 <t>This realizes the Chunk-to-Object mode of <xref target="I-D.wilaw-moq-cmafpackaging"></xref>
 when the source is CMAF: an MMT MPU corresponds to a CMAF Fragment and
 each MFU corresponds to a CMAF Chunk.  Because a CMAF Fragment generally
@@ -444,11 +441,9 @@ This document defines a single per-track field:</t>
 <li>Integer milliseconds is unambiguous across catalog encodings (JSON,
 CBOR) and avoids the float-vs-integer tension that motivated the
 integer-ticks form of the formula in the first place.</li>
-<li>Most segment-aligned ABR ladders deployed today pick group
-durations in whole-millisecond multiples (e.g. 100, 1000, 2000,
-4000), and the publisher-side configuration in current
-implementations already operates in milliseconds.  Catalog and
-encoder agree without conversion in the common case.</li>
+<li>Segment-aligned ABR ladders commonly use group durations in
+whole-millisecond multiples (e.g. 100, 1000, 2000, 4000), so
+catalog and encoder agree without conversion in the common case.</li>
 <li>The primary use case for the integer-tick override (below) is
 per-frame group durations at non-integer-millisecond cadences
 (e.g. 1/30 s = 33.333... ms, 1/60 s = 16.666... ms), which cannot be
@@ -497,7 +492,7 @@ kind:</t>
 
 <tr>
 <td>(absent or unrecognized <tt>packaging</tt>)</td>
-<td>1 000 000 (microseconds).  This row covers track entries from legacy publishers predating this document whose <tt>packaging</tt> value is missing or unrecognized; the convention is fixed by this document and does NOT derive from <xref target="I-D.ietf-moq-transport"></xref>.</td>
+<td>1 000 000 (microseconds).  This row covers track entries whose <tt>packaging</tt> value is missing or unrecognized; the convention is fixed by this document and does NOT derive from <xref target="I-D.ietf-moq-transport"></xref>.</td>
 </tr>
 </tbody>
 </table><t>Conversion is <tt>groupDurationTicks = groupDurationMs * timescale / 1000</tt>.
@@ -580,7 +575,7 @@ object of Subgroup 0 of each group (the form defined in
 Section 4.3).  The catalog field <tt>initMode</tt> (values: &quot;inline&quot; |
 &quot;track&quot;) records the signaling mode; subscribers determine the
 active mode from the catalog before issuing SUBSCRIBE.  &quot;inline&quot; is
-the default, the only mode deployments to date use, and the only
+the default and the only
 mode subscribers are REQUIRED to implement.</t>
 <t>The value &quot;track&quot; — MPU metadata carried on a separate init track
 per <xref target="I-D.wilaw-moq-cmafpackaging"></xref> Section 6.2 — is preserved as an
@@ -954,8 +949,8 @@ section adds above them.</t>
 <section anchor="subscriber-join-and-relay-behavior"><name>Subscriber Join and Relay Behavior</name>
 <t>This section defines the join procedure for subscribers and the
 retention behavior relays apply so that late joiners reach first
-frame without waiting for the next group boundary.  Both are derived
-from deployed implementations of this mapping; the retention rules in
+frame without waiting for the next group boundary.  The retention
+rules in
 Section 6.2 are purely positional (group, subgroup, and object
 identifiers plus the Subgroup 0 convention of Section 4.3), so relays
 remain container-blind and never parse MMTP.</t>
@@ -1111,8 +1106,7 @@ its conversion to catalog fields.</t>
 <t>FEC parameters for mmtp-packaged tracks are signaled in the catalog
 <tt>fec</tt> object, defined normatively in <xref target="MOQ-FEC"></xref> Section 5 — the
 sole normative FEC signaling mechanism.  There is no in-session FEC
-signaling; the legacy FEC_CONFIG control message is non-normative
-and preserved for archival purposes in Appendix C of <xref target="MOQ-FEC"></xref>.
+signaling.
 This document does not redefine the catalog fields but specifies
 MMT-specific considerations for their use.</t>
 
@@ -1259,8 +1253,8 @@ requirement that parsers ignore fields they do not understand, and
 the base per-track fields are those of <xref target="I-D.ietf-moq-msf"></xref>
 Section 5.  The catalog is delivered as a MoQ track whose
 case-sensitive Track Name is <tt>catalog</tt> (<xref target="I-D.ietf-moq-msf"></xref>
-Section 5); <xref target="MOQ-MULTICAST"></xref> Section 4 gives transitional-alias
-guidance for legacy deployments that used other names.  The
+Section 5); <xref target="MOQ-MULTICAST"></xref> Section 4 gives compatibility-alias
+guidance for the non-conforming <tt>.catalog</tt> name.  The
 documents of this suite extend the base in the same manner as
 <xref target="I-D.ietf-moq-cmsf"></xref> extends it: this document adds the packaging
 value <tt>mmtp</tt> and the mmtp track fields (Section 12.1), <xref target="MOQ-FEC"></xref>
@@ -1282,11 +1276,6 @@ allowed packaging values of that specification in the same manner
 as the <tt>cmaf</tt> value of <xref target="I-D.ietf-moq-cmsf"></xref> Section 3.5.1; see
 Section 14 for the registry request.  Object payloads of an
 mmtp-packaged track are whole MMTP packets per Section 4.2.</t>
-<t>Earlier mapping variants are expressed without additional packaging
-values: raw ISOBMFF delivery (formerly &quot;isobmff&quot;) is CMAF packaging
-per <xref target="I-D.wilaw-moq-cmafpackaging"></xref> (Section 4.2 of this document),
-and MFU mode (formerly &quot;mfu&quot;) is a mode of mmtp packaging signaled
-by the <tt>mmtpMode</tt> field below.</t>
 <t>Per-track catalog fields for mmtp packaging:</t>
 <table>
 <thead>
@@ -1381,16 +1370,11 @@ apply unchanged.  In particular <tt>name</tt> and the rendition
 parameters — <tt>codec</tt> (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.18; required
 for media tracks per that section), <tt>framerate</tt>, <tt>width</tt>, <tt>height</tt>,
 <tt>samplerate</tt>, <tt>channelConfig</tt>, <tt>bitrate</tt>, and <tt>lang</tt> — are flat,
-top-level fields of the track object.  An earlier revision of this
-suite nested the rendition parameters under a <tt>selectionParams</tt>
-object taken from an expired catalog proposal; that form was never
-emitted or parsed by any implementation and is removed.  Publishers
-MUST emit the flat fields, and receivers MUST NOT expect a
-<tt>selectionParams</tt> object.</t>
+top-level fields of the track object.</t>
 <t><tt>mmtpMode</tt> selects the object layout.  &quot;mfu&quot; delivers one subgroup
 per MFU as defined in Sections 4.3 and 5; it is the only layout
-this document fully specifies, the only mode deployments to date
-use, and the only mode subscribers are REQUIRED to implement.
+this document fully specifies and the only mode subscribers are
+REQUIRED to implement.
 &quot;mpu&quot; names a whole-MPU-per-object layout that is preserved as an
 optional extension point and is at risk of removal: this document
 does not further specify it (its group/subgroup layout, RAP
@@ -1424,9 +1408,8 @@ ignore fields they do not understand.</t>
 <t>This section and its inverse (Section 12.3) are informative: they
 document a mapping for ingesting ATSC 3.0 broadcast signaling into
 MoQ catalogs and exporting it back, and impose no interoperability
-requirements on MoQ publishers or subscribers.  Deployments to date
-do not implement these conversions; the mapping is retained as
-ingest and export guidance.  A converter's output catalog is
+requirements on MoQ publishers or subscribers.  A converter's
+output catalog is
 subject to the normative catalog requirements of Section 12.1 like
 any other catalog.</t>
 <t>When ingesting ATSC 3.0 content delivered via ROUTE, generate MoQ
@@ -1544,10 +1527,8 @@ registration of:</t>
 </tr>
 </tbody>
 </table><t>This document requests no MoQ message type registrations.  FEC
-signaling is catalog-only (<xref target="MOQ-FEC"></xref> Section 5); the legacy
-FEC_CONFIG control message is non-normative, is described only in
-Appendix C of <xref target="MOQ-FEC"></xref>, and has no codepoint registered or
-claimed by any document in this suite.</t>
+signaling is catalog-only (<xref target="MOQ-FEC"></xref> Section 5); no document in
+this suite requests a control-message codepoint.</t>
 </section>
 
 </middle>

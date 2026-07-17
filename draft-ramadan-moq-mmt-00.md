@@ -231,7 +231,7 @@ Section 4.3).
 
 This section defines the object layout of mfu mode
 (`mmtpMode: "mfu"`, Section 12.1) — the only object layout this
-document fully specifies and the only one deployments to date use.
+document fully specifies.
 
 Group boundaries align with MPU boundaries, and subgroup boundaries
 align with MFU boundaries:
@@ -257,10 +257,7 @@ MUST NOT derive media time or switching decisions from it.  (The MPU
 sequence number is a per-encoder counter with an arbitrary starting
 value; two independently started encoders of the same content disagree
 on it, so counter-based group numbering cannot satisfy the switching-set
-alignment requirements of Section 4.4.  Implementations that predate
-this document and number groups by such a counter interoperate only
-with themselves and only outside switching sets; this is legacy
-behavior, not a conforming mode.)
+alignment requirements of Section 4.4.)
 
 This realizes the Chunk-to-Object mode of [@!I-D.wilaw-moq-cmafpackaging]
 when the source is CMAF: an MMT MPU corresponds to a CMAF Fragment and
@@ -403,11 +400,9 @@ Rationale for the chosen unit:
 - Integer milliseconds is unambiguous across catalog encodings (JSON,
   CBOR) and avoids the float-vs-integer tension that motivated the
   integer-ticks form of the formula in the first place.
-- Most segment-aligned ABR ladders deployed today pick group
-  durations in whole-millisecond multiples (e.g. 100, 1000, 2000,
-  4000), and the publisher-side configuration in current
-  implementations already operates in milliseconds.  Catalog and
-  encoder agree without conversion in the common case.
+- Segment-aligned ABR ladders commonly use group durations in
+  whole-millisecond multiples (e.g. 100, 1000, 2000, 4000), so
+  catalog and encoder agree without conversion in the common case.
 - The primary use case for the integer-tick override (below) is
   per-frame group durations at non-integer-millisecond cadences
   (e.g. 1/30 s = 33.333... ms, 1/60 s = 16.666... ms), which cannot be
@@ -437,7 +432,7 @@ kind:
 | `mmtp`    | The `timescale` field, which this document profiles as REQUIRED for mmtp tracks (Section 12.1).  ISO 23008-1 Annex A.4 lists 90 000 Hz only as a video convention; the catalog does not infer audio timescales, so leaving the field unset is a catalog error. |
 | `cmaf`    | The `timescale` field.  [@?I-D.ietf-moq-cmsf] leaves it OPTIONAL, so this document makes it REQUIRED for any cmaf track to which this section applies (a member of a switching set governed by Section 4.4.1); leaving it unset on such a track is a catalog error. |
 | `loc`     | The `timescale` field; when absent, 1 000 000 — LOC timestamps are expressed in microseconds [@?I-D.ietf-moq-loc]. |
-| (absent or unrecognized `packaging`) | 1 000 000 (microseconds).  This row covers track entries from legacy publishers predating this document whose `packaging` value is missing or unrecognized; the convention is fixed by this document and does NOT derive from [@!I-D.ietf-moq-transport]. |
+| (absent or unrecognized `packaging`) | 1 000 000 (microseconds).  This row covers track entries whose `packaging` value is missing or unrecognized; the convention is fixed by this document and does NOT derive from [@!I-D.ietf-moq-transport]. |
 
 Conversion is `groupDurationTicks = groupDurationMs * timescale / 1000`.
 The catalog publisher MUST choose a `groupDurationMs` such that the
@@ -525,7 +520,7 @@ object of Subgroup 0 of each group (the form defined in
 Section 4.3).  The catalog field `initMode` (values: "inline" |
 "track") records the signaling mode; subscribers determine the
 active mode from the catalog before issuing SUBSCRIBE.  "inline" is
-the default, the only mode deployments to date use, and the only
+the default and the only
 mode subscribers are REQUIRED to implement.
 
 The value "track" — MPU metadata carried on a separate init track
@@ -877,8 +872,8 @@ section adds above them.
 
 This section defines the join procedure for subscribers and the
 retention behavior relays apply so that late joiners reach first
-frame without waiting for the next group boundary.  Both are derived
-from deployed implementations of this mapping; the retention rules in
+frame without waiting for the next group boundary.  The retention
+rules in
 Section 6.2 are purely positional (group, subgroup, and object
 identifiers plus the Subgroup 0 convention of Section 4.3), so relays
 remain container-blind and never parse MMTP.
@@ -1033,8 +1028,7 @@ its conversion to catalog fields.
 FEC parameters for mmtp-packaged tracks are signaled in the catalog
 `fec` object, defined normatively in [@!MOQ-FEC] Section 5 — the
 sole normative FEC signaling mechanism.  There is no in-session FEC
-signaling; the legacy FEC_CONFIG control message is non-normative
-and preserved for archival purposes in Appendix C of [@!MOQ-FEC].
+signaling.
 This document does not redefine the catalog fields but specifies
 MMT-specific considerations for their use.
 
@@ -1188,8 +1182,8 @@ requirement that parsers ignore fields they do not understand, and
 the base per-track fields are those of [@!I-D.ietf-moq-msf]
 Section 5.  The catalog is delivered as a MoQ track whose
 case-sensitive Track Name is `catalog` ([@!I-D.ietf-moq-msf]
-Section 5); [@!MOQ-MULTICAST] Section 4 gives transitional-alias
-guidance for legacy deployments that used other names.  The
+Section 5); [@!MOQ-MULTICAST] Section 4 gives compatibility-alias
+guidance for the non-conforming `.catalog` name.  The
 documents of this suite extend the base in the same manner as
 [@?I-D.ietf-moq-cmsf] extends it: this document adds the packaging
 value `mmtp` and the mmtp track fields (Section 12.1), [@!MOQ-FEC]
@@ -1215,12 +1209,6 @@ as the `cmaf` value of [@?I-D.ietf-moq-cmsf] Section 3.5.1; see
 Section 14 for the registry request.  Object payloads of an
 mmtp-packaged track are whole MMTP packets per Section 4.2.
 
-Earlier mapping variants are expressed without additional packaging
-values: raw ISOBMFF delivery (formerly "isobmff") is CMAF packaging
-per [@!I-D.wilaw-moq-cmafpackaging] (Section 4.2 of this document),
-and MFU mode (formerly "mfu") is a mode of mmtp packaging signaled
-by the `mmtpMode` field below.
-
 Per-track catalog fields for mmtp packaging:
 
 | Field | Status | Type | Description |
@@ -1242,17 +1230,12 @@ apply unchanged.  In particular `name` and the rendition
 parameters — `codec` ([@!I-D.ietf-moq-msf] Section 5.2.18; required
 for media tracks per that section), `framerate`, `width`, `height`,
 `samplerate`, `channelConfig`, `bitrate`, and `lang` — are flat,
-top-level fields of the track object.  An earlier revision of this
-suite nested the rendition parameters under a `selectionParams`
-object taken from an expired catalog proposal; that form was never
-emitted or parsed by any implementation and is removed.  Publishers
-MUST emit the flat fields, and receivers MUST NOT expect a
-`selectionParams` object.
+top-level fields of the track object.
 
 `mmtpMode` selects the object layout.  "mfu" delivers one subgroup
 per MFU as defined in Sections 4.3 and 5; it is the only layout
-this document fully specifies, the only mode deployments to date
-use, and the only mode subscribers are REQUIRED to implement.
+this document fully specifies and the only mode subscribers are
+REQUIRED to implement.
 "mpu" names a whole-MPU-per-object layout that is preserved as an
 optional extension point and is at risk of removal: this document
 does not further specify it (its group/subgroup layout, RAP
@@ -1288,9 +1271,8 @@ Example:
 This section and its inverse (Section 12.3) are informative: they
 document a mapping for ingesting ATSC 3.0 broadcast signaling into
 MoQ catalogs and exporting it back, and impose no interoperability
-requirements on MoQ publishers or subscribers.  Deployments to date
-do not implement these conversions; the mapping is retained as
-ingest and export guidance.  A converter's output catalog is
+requirements on MoQ publishers or subscribers.  A converter's
+output catalog is
 subject to the normative catalog requirements of Section 12.1 like
 any other catalog.
 
@@ -1398,10 +1380,8 @@ registration of:
 | "mmtp" | MMTP packets carrying MPU/MFU payloads | This document |
 
 This document requests no MoQ message type registrations.  FEC
-signaling is catalog-only ([@!MOQ-FEC] Section 5); the legacy
-FEC_CONFIG control message is non-normative, is described only in
-Appendix C of [@!MOQ-FEC], and has no codepoint registered or
-claimed by any document in this suite.
+signaling is catalog-only ([@!MOQ-FEC] Section 5); no document in
+this suite requests a control-message codepoint.
 
 {backmatter}
 
