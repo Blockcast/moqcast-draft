@@ -323,7 +323,10 @@ FEC block.
 **repairSymbols** (integer, REQUIRED): P value - repair symbols per
 FEC block.
 
-**symbolSize** (integer, REQUIRED): T value - bytes per symbol.
+**symbolSize** (integer, REQUIRED): T value - bytes per symbol.  The
+byte layout of each source symbol is fixed by the ssbg_mode0 source
+symbol construction rules (Section 7); it is not carried in the catalog
+and MUST NOT be renegotiated per stream.
 
 **interleaveDepth** (integer, OPTIONAL): FEC block span in
 milliseconds.  The encoder computes the number of groups per block
@@ -472,6 +475,29 @@ one FEC symbol of size T bytes.  SBN = floor(SS_ID / K), ESI =
 SS_ID % K.  This is the natural model for MMTP because packets are
 sized to fit in UDP datagrams and no fragmentation or reassembly is
 needed at the FEC layer.
+
+**Source symbol construction**: The T-byte source symbol protected by
+RaptorQ is the MMTP source packet payload with the trailing 4-byte
+Source FEC Payload ID (SS_ID, Section 8) removed, right zero-padded to
+Symbol Size (T).  The SS_ID is excluded from the protected bytes
+because it is the symbol's own block coordinate (SBN*K + ESI) and is
+therefore both self-referential and recoverable without protection;
+including it would consume T-byte budget and force the decoder to
+reconstruct a locator it already used to place the symbol.  Publishers
+MUST NOT prepend a length field or otherwise reframe the payload
+before encoding, and MUST size packets so the payload (sans SS_ID) does
+not exceed T.  Because the recovered symbol retains the MMTP header,
+the packet's true length is intrinsic to the recovered bytes (the MMTP
+payload header's length fields); the receiver consumes the packet per
+those fields and discards the trailing zero padding, then delivers the
+recovered packet to the MMTP parser.  No separate length prefix is
+carried: retaining the header makes the packet self-delimiting, which
+is the reason this layout is normative rather than a payload-only
+framing that must prepend its own length.  A single normative
+byte layout is defined here deliberately: a receiver cannot recover a
+block whose symbols were built under a different framing, so a
+per-stream layout discriminator is out of scope for this specification
+and MUST NOT be required for interoperation.
 
 **Sub-blocks**: When a single source block produces a large number
 of source symbols, the FEC encoder MAY divide the block into Z
