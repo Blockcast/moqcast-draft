@@ -59,7 +59,7 @@ signaling of QUIC:
 1. **Delivery paths**: Platform-specific multicast reception for
    TV, mobile, and browser clients
 2. **Catalog extension**: A container-agnostic multicast endpoint
-   discovery mechanism for MoQ catalogs [@?I-D.ietf-moq-catalogformat]
+   discovery mechanism for MoQ catalogs [@!I-D.ietf-moq-catalogformat]
 3. **MMTP wire format**: All multicast delivery uses MMTP packets —
    the same packet format used on MoQ QUIC streams and datagrams.
    MMTP provides track routing (packet_id), timestamps, sequencing
@@ -80,7 +80,7 @@ media.  Multicast MAY then be used as an optimized delivery path
 for ongoing media data.  This ensures that codec configuration is
 available before multicast reception begins.
 
-Exception: MMTP-packaged streams [@?MOQ-MMT] delivered
+Exception: MMTP-packaged streams [@!MOQ-MMT] delivered
 via ATSC 3.0 broadcast or native SSM are self-describing and MAY
 operate as unidirectional data streams without a MoQ session.  MMTP
 carries per-packet routing (packet_id), timing (timestamp),
@@ -103,7 +103,7 @@ in all capitals, as shown here.
 
 **DRIAD**: DNS Reverse IP AMT Discovery [@!RFC8777]
 
-**TreeDN**: Tree-based Content Delivery Network [@RFC9706]
+**TreeDN**: Tree-based Content Delivery Network [@!RFC9706]
 
 **IWA**: Isolated Web App — a Chrome packaging format that grants
 DirectSocket API access
@@ -122,7 +122,7 @@ on platform capabilities:
 | Client Type | Multicast Path |
 |-------------|----------------|
 | Native (TV, mobile) | SSM direct via OS multicast API |
-| Native (no multicast) | AMT tunneling over UDP [@RFC7450] |
+| Native (no multicast) | AMT tunneling over UDP [@!RFC7450] |
 | Browser (IWA) | SSM/AMT via DirectSocket [@?WICG-DirectSockets] |
 | Browser (standard) | MoQ/WebTransport (unicast) |
 
@@ -132,16 +132,19 @@ special platform capabilities.
 
 Broadcast receivers (ATSC 3.0, ARIB STD-B60) consume MMTP streams
 natively over RF tuner hardware.  MoQ integration occurs at the
-gateway/head-end level via TreeDN [@RFC9706] and AMT [@RFC7450] /
-DRIAD [@RFC8777].
+gateway/head-end level via TreeDN [@!RFC9706] and AMT [@!RFC7450] /
+DRIAD [@!RFC8777].
 
-Multiple transports MAY be available for a given stream.  Applications
-select transports based on availability and local policy.
+Multiple transports MAY be available for a given stream.  When more
+than one delivery path is available, receivers SHOULD prefer, in
+order: tuner-based broadcast reception (where tuner hardware exists),
+native SSM, AMT tunneling, and finally MoQ/QUIC unicast.  Local
+policy MAY override this order.
 
 For broadcast deployments with Single Frequency Network (SFN)
-diversity, the receiver transport preference order is: SFN diversity
-reception, single transmitter, native SSM, AMT tunneling, MoQ/QUIC
-unicast.
+diversity, the tuner-based case is further refined: receivers SHOULD
+prefer SFN diversity reception over single-transmitter reception,
+ahead of native SSM, AMT tunneling, and MoQ/QUIC unicast.
 
 # Multicast Catalog Extension
 
@@ -150,20 +153,19 @@ top-level `multicast` field containing an `endpoints` array for
 endpoint discovery.
 
 The catalog is itself delivered as a MoQ track.  Per
-[@?I-D.ietf-moq-msf] Section 5.2, the catalog track MUST have the
+[@?I-D.ietf-moq-msf] Section 5, the catalog track MUST have the
 case-sensitive Track Name `catalog`, and publishers conforming to this
 document MUST publish the catalog under that name.  Some WARP-lineage
-deployments instead use the legacy name `.catalog`; the leading dot
-prefix is reserved at the Track Namespace level by
-[@I-D.ietf-moq-transport] Section 3.2.1 and SHOULD NOT be used as a
-catalog Track Name.  A publisher MAY additionally publish the catalog
+deployments instead use the legacy name `.catalog`; that name does not
+conform to [@?I-D.ietf-moq-msf] and SHOULD NOT be used as a catalog
+Track Name.  A publisher MAY additionally publish the catalog
 under `.catalog` as a transitional compatibility alias for non-MSF
 consumers.
 
 ## Multicast Endpoint Format
 
 The `multicast` field is a catalog extension per
-[@I-D.ietf-moq-catalogformat] Section 3.1.  Parsers that do not
+[@!I-D.ietf-moq-catalogformat] Section 3.1.  Parsers that do not
 support multicast MUST ignore it.
 
 The `multicast` field contains an `endpoints` array listing one or
@@ -214,14 +216,25 @@ audio/video groups) use multiple elements:
         ]
       }
     ],
-    "networkSource": {
+    "networkSource": [{
       "type": "amt",
       "discovery": "driad",
       "relay": "amt.example.com"
-    }
+    }]
   }
 }
 ~~~
+
+The `multicast` object contains the following members:
+
+**endpoints** (array of objects, REQUIRED): One or more multicast
+  endpoint objects as defined below.  The array MUST NOT be empty.
+
+**networkSource** (array of objects, OPTIONAL): Network delivery
+  configuration applying to all endpoints; see Section 4.2.
+
+**auth** (object, OPTIONAL): Content authentication configuration;
+  see Section 7.2.
 
 Endpoint field definitions:
 
@@ -232,7 +245,7 @@ Endpoint field definitions:
   - "asm": Any-Source Multicast.
 
 **sourceAddress** (string, OPTIONAL): SSM source IP address per
-  [@RFC4607].  Required for Source-Specific Multicast.  If omitted,
+  [@!RFC4607].  Required for Source-Specific Multicast.  If omitted,
   implies ASM.
 
 **groupAddress** (string, REQUIRED): Multicast group address.
@@ -250,25 +263,35 @@ Endpoint field definitions:
   - **packetId** (integer, REQUIRED): MMTP packet_id used for
     packet-level track routing on multicast.  Maps directly to the
     Packet ID field in the MMTP header (Section 3.1 of
-    [@MOQ-MMT]).  Values MUST be unique within an
+    [@!MOQ-MMT]).  Values MUST be unique within an
     (sourceAddress, groupAddress, port) tuple.
 
 **bandwidth** (integer, RECOMMENDED): Aggregate bandwidth of this
-  endpoint in bits per second.  Publishers SHOULD include bandwidth
-  to enable capacity-aware join decisions.  Subscribers SHOULD check
-  available network capacity before joining high-bandwidth groups.
+  endpoint in bits per second, defined as the sum of the UDP payload
+  bitrates of all tracks carried on the endpoint, including repair
+  tracks; IP/UDP header overhead is excluded.  Publishers SHOULD
+  include bandwidth to enable capacity-aware join decisions.
+  Subscribers SHOULD check available network capacity before joining
+  high-bandwidth groups.
 
-**networkSource** (object or array, OPTIONAL): Network delivery
+**networkSource** (array of objects, OPTIONAL): Network delivery
   configuration describing how subscribers can reach the multicast
-  stream when native IP multicast routing is not available.  May
-  appear on individual endpoints or at the top-level `multicast`
-  object to apply to all endpoints.  See Section 4.2.
+  stream when native IP multicast routing is not available.  Each
+  element is a network-source object as defined in Section 4.2; a
+  single source is expressed as a one-element array.  MAY appear on
+  individual endpoints or at the top-level `multicast` object to
+  apply to all endpoints.
 
 Each (sourceAddress, groupAddress, port) multicast tuple MUST be
 associated with at most one MoQ namespace.  Publishers requiring
 multiple independent streams MUST use distinct multicast groups or
 ports.  This constraint ensures that MMTP packet_id values are
 unambiguous within a multicast group.
+
+Receivers MUST ignore endpoints whose fields are mutually
+inconsistent — for example, a `protocol` of "ssm" with
+`sourceAddress` omitted, a `sourceAddress` present with `protocol`
+of "asm", or a `groupAddress` outside the multicast address space.
 
 Subscribers receiving a catalog with multicast endpoints MAY
 auto-connect to the multicast group when multicast APIs are
@@ -280,15 +303,27 @@ This enables a seamless upgrade path: subscribers first connect via
 MoQ/QUIC to receive the catalog and media, then optionally switch
 to multicast for lower-latency, FEC-protected delivery.
 
+Joining an SSM endpoint requires source-specific group membership
+signaling: receivers MUST use IGMPv3 [@!RFC3376] (IPv4) or MLDv2
+[@!RFC3810] (IPv6) to convey (S,G) joins.  Earlier protocol
+versions (IGMPv2/MLDv1) cannot express source-specific joins; if
+the receiver's network segment operates at an earlier version (for
+example, due to an IGMPv2 querier or snooping switch on the
+segment), SSM joins fail silently.  Receivers SHOULD detect the
+absence of multicast data following a join and fall back to
+MoQ/QUIC unicast as described below.
+
 During multicast join (which may take 1-3 seconds for IGMP/MLD),
 subscribers SHOULD continue receiving via MoQ/QUIC.  Once multicast
 data arrives, subscribers switch to the multicast path.  This
 dual-path startup avoids join latency gaps.
 
 If multicast reception fails or degrades, subscribers fall back
-to MoQ/QUIC unicast by subscribing with filter LatestGroup or
-NextGroup.  No multicast-to-MoQ coordinate mapping is needed —
-the relay provides the current group position.
+to MoQ/QUIC unicast by subscribing with the Largest Object filter
+(to resume immediately at the live edge) or the Next Group Start
+filter (to resume at the next group boundary) per
+[@!I-D.ietf-moq-transport].  No multicast-to-MoQ coordinate mapping
+is needed — the relay provides the current position.
 
 Receivers SHOULD implement hysteresis to prevent flapping between
 multicast and unicast paths.  Switch away from multicast after
@@ -299,10 +334,13 @@ tunable.
 
 ## Network Source Types
 
-The `networkSource` field describes how subscribers can reach the
-multicast stream when native IP multicast routing is not available.
-It appears at the `multicast` level (applying to all endpoints) or
-on individual endpoints.
+The `networkSource` field is an array of network-source objects
+describing how subscribers can reach the multicast stream when
+native IP multicast routing is not available.  It appears at the
+`multicast` level (applying to all endpoints) or on individual
+endpoints.  A single source is expressed as a one-element array.
+
+Each network-source object contains:
 
 **type** (string, REQUIRED): Delivery technology identifier.
 
@@ -312,11 +350,11 @@ Defined types:
 
 ~~~ json
 {
-  "networkSource": {
+  "networkSource": [{
     "type": "amt",
     "relay": "198.51.100.1",
     "discovery": "driad"
-  }
+  }]
 }
 ~~~
 
@@ -325,7 +363,7 @@ Defined types:
 
 **discovery** (string, OPTIONAL): AMT relay discovery method.
 
-  - "driad": DNS Reverse IP AMT Discovery per [@RFC8777].
+  - "driad": DNS Reverse IP AMT Discovery per [@!RFC8777].
     Subscribers query the source IP's reverse DNS for AMT relay
     records.  This is the RECOMMENDED discovery method.
   - "manual": Relay address is provided in the `relay` field.
@@ -347,13 +385,13 @@ field directly.
 
 ~~~ json
 {
-  "networkSource": {
+  "networkSource": [{
     "type": "atsc3",
     "frequency": 533000,
     "plpId": 0,
     "serviceId": 1,
     "slsUri": "https://example.com/atsc3/sls/service1.xml"
-  }
+  }]
 }
 ~~~
 
@@ -375,8 +413,8 @@ this networkSource type.
 
 ### Multiple Network Sources
 
-When a stream is available via multiple delivery technologies,
-`networkSource` MAY be an array:
+When a stream is available via multiple delivery technologies, the
+`networkSource` array lists one element per technology:
 
 ~~~ json
 {
@@ -401,7 +439,7 @@ Repair FEC Payload ID, per-packet OTI), random access signaling
 
 LOC video objects [@?I-D.ietf-moq-loc] and CMAF chunks
 [@?I-D.ietf-moq-cmsf] are frame-sized (10-100KB+) and exceed the
-UDP datagram MTU (~1300 bytes).  Per [@I-D.ietf-moq-loc] Section
+UDP datagram MTU (~1300 bytes).  Per [@?I-D.ietf-moq-loc] Section
 4.1: "When mapped to QUIC datagrams, each object must fit entirely
 within a QUIC datagram."  The same constraint applies to multicast
 UDP datagrams.  MMTP [@?I-D.bouazizi-mmtp] fragments media into
@@ -411,7 +449,7 @@ For CMAF sources, this fragmentation realizes the Chunk-to-Object
 mapping of [@?I-D.wilaw-moq-cmafpackaging].
 
 No additional multicast framing, encapsulation, or header format is
-needed.  The MMTP packet format is defined in [@MOQ-MMT]
+needed.  The MMTP packet format is defined in [@!MOQ-MMT]
 Section 3.1 and [@?I-D.bouazizi-mmtp] Section 3.
 
 This design means the same MMTP packet can be delivered via four
@@ -427,13 +465,16 @@ transports without modification:
 Receivers on multicast demultiplex packets using the MMTP packet_id
 field, which maps to the `packetId` assigned in the multicast
 catalog endpoint (Section 4.1).  FEC source and repair packets are
-distinguished by the MMTP FEC Type field (1=source, 2=repair).
+distinguished by the MMTP FEC Type field per [@!MOQ-MMT]
+Section 3.1: values 0 and 1 both indicate source packets (0 = not
+FEC-protected, 1 = AL-FEC source packet), 2 indicates a repair
+packet, and 3 is reserved.
 
 The Multicast QUIC row corresponds to [@?QUIC-MULTICAST], which carries
 QUIC packets (and thus QUIC DATAGRAM frames) over a multicast channel.
 Encapsulating one MMTP packet per QUIC DATAGRAM keeps the packet format
 unchanged while adding QUIC's per-packet AEAD and integrity; because that
-extension defines no FEC of its own, application-layer FEC [@?MOQ-FEC] is
+extension defines no FEC of its own, application-layer FEC [@!MOQ-FEC] is
 the RECOMMENDED loss-recovery layer on this binding, replacing its unicast
 repair for broadcast-scale audiences.
 
@@ -448,19 +489,23 @@ The same media content (source and repair) can be transmitted over
 both MoQ unicast (QUIC/WebTransport) and multicast (UDP/SSM/AMT)
 paths simultaneously.  Because the same MMTP packets are used on all
 transports, receivers can combine symbols from any path for FEC
-recovery [@?MOQ-FEC].
+recovery [@!MOQ-FEC].
 
 When symbols arrive from multiple paths simultaneously, receivers:
 
 1. MUST deduplicate symbols using SBN+ESI as the unique key
-   within a single (namespace, track_name) tuple
-2. MAY combine source symbols from reliable MoQ/QUIC with repair
-   symbols from lossy multicast — skipping FEC when all source
-   symbols arrive reliably
+   within a single FEC block — that is, within the scope of a
+   source track and its associated repair track [@!MOQ-FEC]
+2. MAY combine source and repair symbols received on different
+   paths in either direction: source symbols via multicast with
+   repair symbols via MoQ/QUIC, or source symbols via reliable
+   MoQ/QUIC with repair symbols via lossy multicast — skipping
+   FEC decoding when all source symbols arrive reliably
 
 Multicast-to-unicast failover: if multicast reception fails,
-subscribers fall back to MoQ/QUIC unicast by subscribing with
-filter LatestGroup or NextGroup per [@I-D.ietf-moq-transport].
+subscribers fall back to MoQ/QUIC unicast by subscribing with the
+Largest Object or Next Group Start filter per
+[@!I-D.ietf-moq-transport].
 No coordinate mapping between multicast SBN and MoQ group_id is
 needed — the relay provides the current position.
 
@@ -480,8 +525,10 @@ No explicit packaging capability negotiation is needed.
 ## Multicast Security
 
 SSM inherently limits traffic to authorized sources via (S,G)
-filtering.  Sequence numbers enable replay detection.  For AMT,
-trust is delegated to the relay per [@RFC7450].
+filtering.  Receivers MAY detect replayed packets by tracking the
+MMTP Packet Sequence Number per packet_id and discarding duplicates
+and packets outside a bounded reordering window.  For AMT, trust is
+delegated to the relay per [@!RFC7450].
 
 ## Content Authentication
 
@@ -574,6 +621,33 @@ Content authentication for multicast is an active area of work.
 Related prior work includes [@?I-D.krose-mboned-alta] (expired);
 deployments should track the IETF MBONED working group for
 successors.
+
+## Catalog as Attack Surface
+
+The multicast catalog extension directs receivers to join multicast
+groups and to dial network sources.  A hostile or compromised
+catalog is therefore an attack vector:
+
+- **Join amplification**: Catalog-directed joins create IGMP/MLD
+  and multicast routing state on intermediate routers
+  (Section 4.1).  A catalog listing many endpoints, or rapidly
+  changing endpoints, can exhaust router state or subscribe
+  receivers to unwanted high-bandwidth traffic.  Receivers MUST
+  validate that each `groupAddress` falls within the multicast
+  address ranges given in Section 4.1 before joining, and SHOULD
+  bound the number of concurrent joins performed on behalf of a
+  single catalog.
+
+- **Attacker-chosen dial-out**: The `relay` field of an AMT network
+  source is an address the receiver dials over UDP.  A hostile
+  catalog can direct traffic at arbitrary targets (traffic
+  reflection) or at internal infrastructure (address-space
+  probing).  Receivers and relays MUST treat catalog-supplied
+  endpoint and relay addresses as untrusted input and validate them
+  against local policy (such as an allowlist of permitted relays or
+  networks) before dialing, and SHOULD reject loopback, link-local,
+  and otherwise non-routable relay addresses unless explicitly
+  configured.
 
 # IANA Considerations
 
