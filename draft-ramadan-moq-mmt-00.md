@@ -802,7 +802,7 @@ Block 0:    S0   S1   S2   S3   ----------------->  R0, R1
 Block 1:                        S4   S5   S6   S7 > R2, R3
 ~~~
 
-Default interleave window (`interleaveDepth`, milliseconds) varies
+Default interleave window (`interleaveDepthMs`, milliseconds) varies
 by application; the equivalent frame count D follows from the frame
 duration ([@!MOQ-FEC] Section 8.3):
 
@@ -855,10 +855,10 @@ follows:
 - **sourceSymbols**: The number of MMTP packets (source symbols)
   per FEC block; on the MMT path the canonical FEC source symbol is
   one whole MMTP packet ([@!MOQ-FEC] Section 7.3)
-- **interleaveDepth**: The FEC interleave window in milliseconds —
+- **interleaveDepthMs**: The FEC interleave window in milliseconds —
   the time span of each FEC block ([@!MOQ-FEC]
   Section 5.1).  The number of MPU frames per block is derived as
-  D = ceil(interleaveDepth / groupDurationMs), using the
+  D = ceil(interleaveDepthMs / groupDurationMs), using the
   `groupDurationMs` field of Section 12.1.  When ingesting broadcast
   content, set the window to the time span of the original broadcast
   FEC interleave (its frame count multiplied by the frame duration)
@@ -910,7 +910,7 @@ receivers via:
       "algorithm": "raptorq",
       "sourceSymbols": 32,
       "repairSymbols": 8,
-      "interleaveDepth": 133,
+      "interleaveDepthMs": 133,
       "symbolSize": 1312,
       "repairTrack": "video/repair"
     }
@@ -1122,7 +1122,7 @@ defined in [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   K x overhead / 100)
 - `fecOTI` F,T -> `fec.sourceSymbols` (K = ceil(F / T)),
   `fec.symbolSize` (T)
-- `FECParameters@maximumDelay` -> `fec.interleaveDepth` (both are
+- `FECParameters@maximumDelay` -> `fec.interleaveDepthMs` (both are
   durations in integer milliseconds; the RFC 6330 Z parameter — the
   number of source blocks — is unrelated to interleaving and does
   not map to any catalog FEC field)
@@ -1161,7 +1161,7 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 
 - `multicast.endpoints[].sourceAddress` -> `RS@sIpAddr`
 - `fec.repairSymbols / fec.sourceSymbols x 100` -> `FECParameters@overhead`
-- `fec.interleaveDepth` -> `FECParameters@maximumDelay` (both are
+- `fec.interleaveDepthMs` -> `FECParameters@maximumDelay` (both are
   durations in milliseconds; no scaling by frame duration)
 - `fec.sourceSymbols x fec.symbolSize` -> `fecOTI` F, with
   T = `fec.symbolSize`, Z = 1, N = 1, Al = 8 — the exported OTI is
@@ -1340,7 +1340,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
         "sourceSymbols": 1000,
         "repairSymbols": 250,
         "symbolSize": 1000,
-        "interleaveDepth": 1000,
+        "interleaveDepthMs": 1000,
         "repairTrack": "video/1080p/repair"
       }
     },
@@ -1395,7 +1395,7 @@ The FEC fields recompute from the S-TSID as follows:
 
 - `sourceSymbols`: K = ceil(F / T) = ceil(1,000,000 / 1,000) = 1000
 - `repairSymbols`: K x overhead / 100 = 1000 x 25 / 100 = 250
-- `interleaveDepth`: `maximumDelay` = 1000 ms (both are durations)
+- `interleaveDepthMs`: `maximumDelay` = 1000 ms (both are durations)
 - Derived MoQ OTI ([@!MOQ-FEC] Section 4.2):
   F = K x T = 1000 x 1000 = 1,000,000 bytes, Z = 1, N = 1, Al = 8 —
   identical to the ingested `fecOTI`, so the round trip is lossless
