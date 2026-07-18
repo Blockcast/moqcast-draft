@@ -840,8 +840,8 @@ Under congestion, this priority separation ensures:
 
 This FEC mechanism is designed to support hybrid delivery architectures
 where the same media stream is delivered via multiple transport paths
-simultaneously.  Multicast delivery paths (Section 3), TreeDN
-integration (Section 5), and transport hierarchy (Section 6) are
+simultaneously.  Multicast delivery paths, TreeDN
+integration, and the transport hierarchy (all Section 3) are
 defined in [@?MOQ-MULTICAST]; this section covers
 FEC-specific considerations for hybrid delivery.
 
