@@ -59,8 +59,6 @@ fully configure their decoders</li>
 <li>Compatibility mappings for ATSC 3.0 and ARIB STD-B60 <xref target="ARIB-B60"></xref>
 broadcast systems</li>
 </ol>
-<t>A legacy in-session signaling mechanism (the FEC_CONFIG control
-message) is preserved non-normatively in Appendix C.</t>
 <t>The mechanism is designed to complement existing MoQ media packaging
 formats including CMAF <xref target="I-D.ietf-moq-cmsf"></xref>, LOC <xref target="I-D.ietf-moq-loc"></xref>, and
 MMT <xref target="MOQ-MMT"></xref> by operating as a separate protection layer.</t>
@@ -190,15 +188,13 @@ on the wire.</t>
 </table><t><strong>RaptorQ (0x01)</strong>: RaptorQ fountain code per <xref target="RFC6330"></xref>.  Can recover
 from loss of any symbols as long as K symbols (source or repair) are
 received.  RaptorQ is the mandatory-to-implement scheme and the only
-algorithm this document fully specifies (Section 4.3); deployments to
-date use RaptorQ exclusively.</t>
+algorithm this document fully specifies (Section 4.3).</t>
 <t><strong>Reed-Solomon (0x02)</strong>: Reed-Solomon erasure code over GF(2^8) per
 <xref target="RFC5510"></xref>.  This identifier is an extension point: it is allocated
 in the registry but its use is not specified by this document
 (Section 4.3).</t>
-<t>The numeric values identify algorithms in registries and in the
-legacy wire format of Appendix C; the catalog (Section 5.1) carries
-the corresponding string identifiers.</t>
+<t>The numeric values identify algorithms in registries; the catalog
+(Section 5.1) carries the corresponding string identifiers.</t>
 </section>
 
 <section anchor="raptorq-object-transmission-information"><name>RaptorQ Object Transmission Information</name>
@@ -253,7 +249,7 @@ message can reach — to decode (Section 5.2).</t>
 <t>RaptorQ is the mandatory-to-implement FEC scheme: an implementation
 that performs FEC decoding under this specification MUST support
 &quot;raptorq&quot;.  It is also the only algorithm this document fully
-specifies; deployments to date use RaptorQ exclusively.</t>
+specifies.</t>
 <t>The algorithm registry (Section 15.2) provides an extension point
 for additional schemes.  In particular, &quot;reed-solomon&quot; (0x02) is
 allocated for a Reed-Solomon erasure code over GF(2^8) <xref target="RFC5510"></xref>,
@@ -370,19 +366,13 @@ messages cannot reach multicast or sessionless receivers at all
 (Section 11), so no control-message mechanism could serve as the
 common signaling path; the catalog can, because it is delivered as
 track data or out of band.</t>
-<t>An earlier revision of this specification defined an in-session
-FEC_CONFIG control message as the authoritative signaling mechanism,
-with the catalog as informational discovery data.  That mechanism
-was never implemented and is preserved non-normatively in
-Appendix C; the catalog values are authoritative.</t>
 </section>
 
 <section anchor="relay-extensibility-requirements"><name>Relay Extensibility Requirements</name>
-<t>The retirement of in-session FEC signaling (Appendix C) was forced
-in part by relays that treat control messages of unknown types as
-session errors, which makes any new in-session mechanism
-undeployable across an existing relay mesh.  To keep FEC signaling
-— and MoQ extensions generally — evolvable, relays conforming to
+<t>Relays that treat control messages of unknown types as session
+errors make any new in-session mechanism undeployable across an
+existing relay mesh.  To keep FEC signaling — and MoQ extensions
+generally — evolvable, relays conforming to
 this specification are subject to the following requirements:</t>
 
 <ol>
@@ -397,8 +387,7 @@ to downstream subscribers; a relay MUST NOT strip them.</t>
 </li>
 </ol>
 <t>These requirements are prerequisites for any future in-session FEC
-signaling mechanism (including a revival of Appendix C) to be
-deployable.</t>
+signaling mechanism to be deployable.</t>
 </section>
 </section>
 
@@ -514,11 +503,6 @@ the catalog <tt>sourceSymbols</tt> value instead.</t>
 (T) bytes, generated per Section 7.2.  Carrying one symbol per
 object aligns the loss unit with the FEC symbol (Section 11.3) and
 requires no symbol-count field.</t>
-<t>An earlier revision of this specification defined a MoQ-specific
-repair object header (a 32-bit SBN, a 32-bit first-repair-symbol
-ESI, and a variable-length symbol count) permitting multiple repair
-symbols per object.  That format was never deployed, contradicted
-the ISO form above, and is removed; receivers MUST NOT expect it.</t>
 </section>
 
 <section anchor="repair-symbols"><name>Repair Symbols</name>
@@ -580,12 +564,11 @@ Z parameter is the number of source blocks and is fixed at 1 by
 this specification, Section 4.2).  The derived OTI of this
 specification fixes N = 1: catalog-signaled sessions do not use
 sub-blocks, and catalog-only receivers MUST assume N = 1.
-Sub-block operation remains available to broadcast deployments that
+Sub-block operation remains available to broadcast systems that
 carry an explicit OTI in ISO 23008-1 AL-FEC signaling; the
-remainder of this subsection applies only to such deployments and
-is informative — no deployment of this specification uses
-sub-blocks, and the text is retained as broadcast-interoperability
-guidance, not as interoperability requirements of this document.
+remainder of this subsection applies only to such systems and is
+informative broadcast-interoperability guidance, not an
+interoperability requirement of this document.
 The number of source symbols per sub-block (K_sub &lt;= K) is derived
 from the signaled parameters: K_sub = ceil(K / N), where K is the
 source symbol count (catalog <tt>sourceSymbols</tt>) and N is the Number
@@ -882,13 +865,7 @@ track at the common default of 128):</t>
 <td>Dropped first</td>
 </tr>
 </tbody>
-</table><t>An earlier revision of this document expressed these priorities on
-an informal 0-7 scale (source 2-4, repair 7).  That scale ran in
-the same numeric direction (larger value = dropped sooner) but its
-values MUST NOT be fed directly into MoQ priority fields: on the
-0-255 scale a value of 7 has near-HIGHEST precedence, the exact
-inverse of the intent.  A legacy 0-7 value n corresponds
-approximately to n x 32 on the MoQ scale.  The <tt>priority</tt> value
+</table><t>The <tt>priority</tt> value
 carried on a repair track's catalog entry (Appendix B) is expressed
 in the MoQ 0-255 scale.</t>
 <t>Publishers and relays convey these priorities through the priority
@@ -1135,13 +1112,12 @@ in the same namespace:</t>
 ]]></artwork>
 <t>The symbol construction, however, is not container-agnostic: the
 only source-symbol construction this document specifies is the
-MMTP-packet construction of Section 7.3, and deployments to date
-apply FEC to mmtp-packaged tracks exclusively.  Applying FEC
+MMTP-packet construction of Section 7.3.  Applying FEC
 directly to CMAF chunk payloads (<xref target="I-D.ietf-moq-cmsf"></xref>) would
 require a companion specification defining the chunk-to-symbol
 segmentation, padding, length framing, and ESI mapping; none is
 defined here, and this section sketches the intended track
-relationship only.  A CMAF deployment wanting FEC protection today
+relationship only.  A CMAF deployment wanting FEC protection
 carries the media as mmtp-packaged tracks (an MPU corresponds to a
 CMAF Fragment; see <xref target="MOQ-MMT"></xref>).</t>
 </section>
@@ -1228,12 +1204,9 @@ Source FEC Payload ID without requiring A3SA.</t>
 
 <section anchor="no-control-message-or-extension-header-registrations"><name>No Control Message or Extension Header Registrations</name>
 <t>This document requests no registrations in any MoQ message type or
-extension header registry.  The legacy in-session signaling
-mechanism preserved in Appendix C is non-normative and experimental;
-any experiment with it uses codepoints from the applicable MoQ
-experimental range and claims no allocation.  No document in this
-suite requests a control-message codepoint, and no document other
-than this one describes the legacy mechanism's wire format.</t>
+extension header registry.  FEC signaling is catalog-only
+(Section 5); no document in this suite requests a control-message
+codepoint.</t>
 </section>
 
 <section anchor="fec-algorithm-registry"><name>FEC Algorithm Registry</name>
@@ -1556,98 +1529,6 @@ Section 5.2.2).  The <tt>multicast</tt> field uses the multicast endpoint format
 regardless of a track's unicast packaging, so each track listed on
 the endpoint carries a <tt>packetId</tt> that routes its MMTP packets on the
 multicast UDP path.</t>
-</section>
-
-<section anchor="legacy-in-session-fec-signaling-non-normative"><name>Legacy In-Session FEC Signaling (Non-Normative)</name>
-<t>This appendix preserves, for archival and experimentation purposes,
-an in-session FEC signaling mechanism — the FEC_CONFIG control
-message and a companion extension-header variant — that an earlier
-revision of this specification defined as the authoritative
-signaling path.  It is not part of this specification's normative
-requirements: the catalog <tt>fec</tt> object (Section 5) is the sole
-normative FEC signaling mechanism, and the derived OTI
-(Section 4.2) gives receivers the complete decoder configuration
-without any in-session message.  BCP 14 keywords appearing in this
-appendix are quoted from the historical text and carry no normative
-force.</t>
-<t>The mechanism was demoted for two reasons:</t>
-
-<ol>
-<li><t>Control messages cannot reach multicast or sessionless receivers
-at all, so a control-message path can never serve as the common
-signaling mechanism across the delivery paths this specification
-targets (Section 11).</t>
-</li>
-<li><t>Deployed relays predating the tolerance requirements of
-Section 5.3 terminate sessions on control messages of unknown
-type, so a new control message cannot traverse existing relay
-meshes.  The requirements of Section 5.3 are a prerequisite for
-this or any future in-session mechanism to become deployable.</t>
-</li>
-</ol>
-<t>No codepoint is registered or claimed for this mechanism
-(Section 15.1).  An experiment that revives it uses a message type
-from the applicable MoQ experimental range.</t>
-
-<section anchor="fec-config-message-historical"><name>FEC_CONFIG Message (Historical)</name>
-<t>The FEC_CONFIG message was sent by the publisher after SUBSCRIBE_OK
-to advertise FEC parameters; subscribers used it to decide whether
-to subscribe to the repair track.</t>
-
-<artwork><![CDATA[FEC_CONFIG Message {
-  Message Type (i),
-  Subscribe ID (i),
-  FEC Enabled (8),
-  FEC Algorithm (8),
-  Source Symbols Per Block (i),
-  Repair Symbols Per Block (i),
-  Symbol Size (i),
-  Interleave Depth (i),
-  OTI Length (i),
-  Object Transmission Information (..),
-}
-]]></artwork>
-<t><strong>Message Type</strong>: The historical text used the tentative value 0x50;
-an experiment uses a value from the experimental range instead
-(Section 15.1).</t>
-<t><strong>Subscribe ID</strong>: The subscription this FEC configuration applies to.</t>
-<t><strong>FEC Enabled</strong>: 1 if FEC is available for this track, 0 otherwise.</t>
-<t><strong>FEC Algorithm</strong>: The FEC algorithm identifier (Section 4.1).</t>
-<t><strong>Source Symbols Per Block (K)</strong>, <strong>Repair Symbols Per Block (P)</strong>,
-<strong>Symbol Size (T)</strong>, <strong>Interleave Depth</strong>: As defined for the
-corresponding catalog fields in Section 5.1.</t>
-<t><strong>OTI Length</strong>: Length of the OTI field in bytes.  0 if not
-applicable.</t>
-<t><strong>Object Transmission Information</strong>: Algorithm-specific parameters.
-For RaptorQ, the 12-byte OTI of Section 4.2.  For Reed-Solomon, the
-historical text carried:</t>
-
-<artwork><![CDATA[Reed-Solomon OTI {
-  Field Size (8),          // Always 8 for GF(2^8)
-  Max Source Symbols (16), // Maximum K value
-  Max Repair Symbols (16), // Maximum P value
-  Reserved (24),
-}
-]]></artwork>
-</section>
-
-<section anchor="extension-header-variant-historical"><name>Extension-Header Variant (Historical)</name>
-<t>The historical text also sketched carrying the same fields as an
-extension header on SUBSCRIBE_OK, contingent on a future
-moq-transport facility for extension headers on control messages.
-As of moq-transport-15 no such facility exists; the variant was
-never specified beyond the field list above and is not reproduced
-here.</t>
-</section>
-
-<section anchor="precedence-historical"><name>Precedence (Historical)</name>
-<t>The historical precedence rules made FEC_CONFIG authoritative over
-the catalog.  Under this specification the relationship is
-inverted: the catalog is authoritative (Section 5.2), and an
-experimental in-session message whose parameters differ from the
-catalog indicates a configuration error; receivers use the catalog
-values.</t>
-</section>
 </section>
 
 </back>
