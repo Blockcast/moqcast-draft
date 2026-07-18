@@ -170,8 +170,8 @@ ATSC 3.0 signaling table containing transport and FEC parameters</t>
   Reserved (1),
   Extension Flag (X) (1),
   RAP Flag (R) (1),
-  Packet Type (6),
   Reserved (2),
+  Packet Type (6),
   Packet ID (16),
   Timestamp (32),
   Packet Sequence Number (32),
@@ -181,9 +181,9 @@ ATSC 3.0 signaling table containing transport and FEC parameters</t>
 ]]></artwork>
 <t>The fixed fields sum to 96 bits (three 32-bit words).  Byte 0 is
 version(2) | packet_counter_flag(1) | FEC_type(2) | reserved(1) |
-extension_flag(1) | RAP_flag(1); byte 1 is packet_type(6) |
-reserved(2), i.e. the packet type occupies the HIGH six bits of the
-second byte (<xref target="ISO.23008-1"></xref> Clause 9.2).</t>
+extension_flag(1) | RAP_flag(1); byte 1 is reserved(2) |
+packet_type(6), i.e. the packet type occupies the LOW six bits of
+the second byte (<xref target="ISO.23008-1"></xref> Clause 9.2).</t>
 <t>Key fields for MoQ mapping:</t>
 
 <ul spacing="compact">
