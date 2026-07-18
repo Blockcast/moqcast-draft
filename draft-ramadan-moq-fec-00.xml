@@ -233,8 +233,10 @@ could not know.</li>
 <li><strong>Number of Source Blocks</strong>: Z = 1.  Each FEC block of this
 specification is decoded as an independent RFC 6330 object
 containing a single source block.  Blocks are sequenced by the
-Source Block Number (Section 8) carried in repair objects and
-derived for source symbols — not by the RFC 6330 Z partitioning.</li>
+Source Block Number (Section 8), derived from the Repair FEC
+Payload ID of repair objects (Section 7.1) and from transport
+identifiers for source symbols (Section 8.3) — not by the
+RFC 6330 Z partitioning.</li>
 <li><strong>Number of Sub-Blocks</strong>: N = 1.  Catalog-signaled sessions do
 not use sub-blocking (Section 7.3).</li>
 <li><strong>Symbol Alignment</strong>: Al = 8.  <tt>symbolSize</tt> MUST be a multiple
@@ -457,29 +459,55 @@ restating it.</t>
 <section anchor="repair-object-format"><name>Repair Object Format</name>
 
 <section anchor="repair-object-header"><name>Repair Object Header</name>
-<t>Each object on a repair track contains repair symbols for one source
-block.  The object payload begins with a header:</t>
+<t>Each object on a repair track is one complete MMTP repair packet
+(packet type 0x03, FEC Type 2) carrying exactly one repair symbol.
+Its layout is the ISO 23008-1 AL-FEC repair packet form —
+the MMTP packet header followed by the 13-byte Repair FEC Payload
+ID and the repair symbol data (<xref target="ISO.23008-1"></xref> Sections C.4.3 and
+C.5.3; ssbg_mode0, one-stage FEC) — so the same repair packet is
+valid on MoQ, multicast UDP, and native broadcast paths without
+translation, and matches the repair-object depiction of
+<xref target="MOQ-MMT"></xref> Section 7:</t>
 
 <artwork><![CDATA[Repair Object {
-  Source Block Number (32),
-  First Repair Symbol ESI (32),
-  Num Repair Symbols (i),
-  Repair Symbols (..),
+  MMTP Packet Header (96),      # packet type 0x03, FEC Type 2
+  Repair FEC Payload ID {
+    SS_start (32),
+    RSB_length (24),
+    RS_ID (24),
+    SSB_length (24),
+  },
+  Repair Symbol Data (..),      # exactly one symbol, T bytes
 }
 ]]></artwork>
-<t><strong>Source Block Number (SBN)</strong>: Identifies which source block these
-repair symbols protect.  See Section 8 for alignment with Group IDs.
-Fixed 32-bit width is used for alignment with RFC 6330 FEC Payload ID
-encoding, which uses 32-bit fields for SBN and ESI.</t>
-<t><strong>First Repair Symbol ESI</strong>: Encoding Symbol ID of the first repair
-symbol in this object.  For RaptorQ, repair symbols have ESI &gt;= K.
-Fixed 32-bit width matches RFC 6330 FEC Payload ID encoding.</t>
-<t><strong>Num Repair Symbols</strong>: Number of repair symbols in this object.
-Variable-length integer encoding is used here because this is a
-MoQ-specific field (not constrained by RFC 6330) and typically
-has small values.</t>
-<t><strong>Repair Symbols</strong>: Concatenated repair symbol data.  Each symbol is
-Symbol Size bytes.</t>
+<t><strong>MMTP Packet Header</strong>: The standard 12-byte MMTP packet header
+(<xref target="MOQ-MMT"></xref> Section 3.1) with packet type 0x03 (repair) and
+FEC Type 2; its <tt>packet_id</tt> routes the repair flow.  Repair packets
+MUST NOT carry the optional packet counter or header extension, so
+the Repair FEC Payload ID always begins at byte offset 12.</t>
+<t><strong>SS_start (32 bits)</strong>: The flat SS_ID (Section 8.3) of the FIRST
+source symbol of the protected source block: SS_start = SBN x K.
+Receivers derive the Source Block Number as
+SBN = floor(SS_start / K).</t>
+<t><strong>RSB_length (24 bits)</strong>: The number of repair symbols generated
+for the block — the P value (catalog <tt>repairSymbols</tt>).</t>
+<t><strong>RS_ID (24 bits)</strong>: The zero-based index of this repair symbol
+among the block's repair symbols.  The RFC 6330 Encoding Symbol ID
+is derived as ESI = K + RS_ID: repair ESIs follow the K source ESIs
+(Section 7.2).</t>
+<t><strong>SSB_length (24 bits)</strong>: The number of source symbols in the
+protected source block — the K value.  When nonzero it is
+authoritative for the block; a value of 0 means the receiver uses
+the catalog <tt>sourceSymbols</tt> value instead.</t>
+<t><strong>Repair Symbol Data</strong>: Exactly one repair symbol of Symbol Size
+(T) bytes, generated per Section 7.2.  Carrying one symbol per
+object aligns the loss unit with the FEC symbol (Section 11.3) and
+requires no symbol-count field.</t>
+<t>An earlier revision of this specification defined a MoQ-specific
+repair object header (a 32-bit SBN, a 32-bit first-repair-symbol
+ESI, and a variable-length symbol count) permitting multiple repair
+symbols per object.  That format was never deployed, contradicted
+the ISO form above, and is removed; receivers MUST NOT expect it.</t>
 </section>
 
 <section anchor="repair-symbols"><name>Repair Symbols</name>
@@ -495,7 +523,11 @@ not specified by this document.</t>
 is described by the Source Symbol Block Group mode (ssbg_mode).</t>
 <t><strong>ssbg_mode0</strong> (RECOMMENDED for MMTP): One MMTP packet = one source
 symbol.  Each MoQ object or multicast UDP datagram carries exactly
-one FEC symbol of size T bytes.  SBN = floor(SS_ID / K), ESI =
+one FEC symbol.  Repair symbols are exactly T bytes on the wire; a
+SOURCE packet MAY be shorter than T on the wire — the zero padding
+that extends it to Symbol Size (T) is applied by the encoder and
+decoder as part of the source symbol construction below and is NOT
+transmitted.  SBN = floor(SS_ID / K), ESI =
 SS_ID % K.  This is the natural model for MMTP because packets are
 sized to fit in UDP datagrams and no fragmentation or reassembly is
 needed at the FEC layer.  This is a fixed-T construction: under the
@@ -594,7 +626,8 @@ corresponds to exactly one MoQ Group:</t>
 Group 1:  [Obj 0] [Obj 1] ... [Obj K-1]  ->  FEC Block 1
 ...
 ]]></artwork>
-<t>The Source Block Number (SBN) in repair objects equals the Group ID.</t>
+<t>The Source Block Number (SBN) derived from repair objects
+(Section 7.1) equals the Group ID.</t>
 </section>
 
 <section anchor="multi-group-blocks-d-1"><name>Multi-Group Blocks (D &gt; 1)</name>
@@ -697,7 +730,8 @@ segment level before forwarding to FEC-unaware clients.</t>
 
 <section anchor="source-fec-payload-id-and-atsc-3-0-signed-region"><name>Source FEC Payload ID and ATSC 3.0 Signed Region</name>
 <t>The 4-byte Source FEC Payload ID (SS_ID) is appended at the END of
-MMTP source packet payloads, outside the base MMTP header.  Per
+each MMTP source packet — following the MMTP payload, outside the
+base MMTP packet header.  Per
 ATSC A/360 Section 5.2.2.5, the ATSC 3.0 Signed Application (A3SA)
 signing mechanism covers signaling messages and MA3 messages
 (packet type 0x2) but excludes asset packets (type 0x00 MPU and
@@ -800,39 +834,56 @@ is the interleave window itself; D follows from the group duration):</t>
 </table></section>
 
 <section anchor="priority-and-congestion"><name>Priority and Congestion</name>
-<t>Repair tracks SHOULD use lower priority than source tracks so that
-repair data is dropped first under congestion.</t>
-<t>Recommended priority assignment:</t>
+<t>Priorities in this document are expressed in the MoQ Transport
+priority scale <xref target="I-D.ietf-moq-transport"></xref>: an 8-bit value (0-255)
+in which a numerically LOWER value is delivered with HIGHER
+precedence.  Repair tracks SHOULD use a numerically greater
+(lower-precedence) priority than the source tracks they protect, so
+that repair data is dropped first under congestion.  The
+RECOMMENDED assignment places a repair track's priority value at
+least 64 above its source track's (e.g. repair 240 against a source
+track at the common default of 128):</t>
 <table>
 <thead>
 <tr>
 <th>Track Type</th>
-<th>Priority</th>
+<th>Priority (0-255, lower value = delivered first)</th>
 <th>Notes</th>
 </tr>
 </thead>
 
 <tbody>
 <tr>
-<td>Control/Signaling</td>
-<td>0-1</td>
-<td>Highest priority</td>
+<td>Control/Signaling (incl. catalog)</td>
+<td>0-63</td>
+<td>Delivered first</td>
 </tr>
 
 <tr>
 <td>Source Media</td>
-<td>2-4</td>
+<td>64-191 (e.g. 128)</td>
 <td>Protected</td>
 </tr>
 
 <tr>
 <td>Repair Symbols</td>
-<td>6-7</td>
+<td>192-255 (e.g. 240)</td>
 <td>Dropped first</td>
 </tr>
 </tbody>
-</table><t>Publishers set priority via the QUIC stream priority mechanism or
-MoQ-specific priority signaling.</t>
+</table><t>An earlier revision of this document expressed these priorities on
+an informal 0-7 scale (source 2-4, repair 7).  That scale ran in
+the same numeric direction (larger value = dropped sooner) but its
+values MUST NOT be fed directly into MoQ priority fields: on the
+0-255 scale a value of 7 has near-HIGHEST precedence, the exact
+inverse of the intent.  A legacy 0-7 value n corresponds
+approximately to n x 32 on the MoQ scale.  The <tt>priority</tt> value
+carried on a repair track's catalog entry (Appendix B) is expressed
+in the MoQ 0-255 scale.</t>
+<t>Publishers and relays convey these priorities through the priority
+fields and scheduling rules of <xref target="I-D.ietf-moq-transport"></xref>
+(subscriber and publisher priority); QUIC itself defines no
+wire-visible stream priority mechanism.</t>
 <t>Under congestion, this priority separation ensures:</t>
 
 <ol spacing="compact">
@@ -1430,7 +1481,7 @@ and repair objects 0,1,2.</t>
     {
       "name": "video/repair",
       "packaging": "fec-repair",
-      "priority": 7
+      "priority": 240
     },
     {
       "name": "audio",
@@ -1451,7 +1502,7 @@ and repair objects 0,1,2.</t>
     {
       "name": "audio/repair",
       "packaging": "fec-repair",
-      "priority": 7
+      "priority": 240
     }
   ],
   "multicast": {
@@ -1529,7 +1580,7 @@ to subscribe to the repair track.</t>
 <artwork><![CDATA[FEC_CONFIG Message {
   Message Type (i),
   Subscribe ID (i),
-  FEC Enabled (1),
+  FEC Enabled (8),
   FEC Algorithm (8),
   Source Symbols Per Block (i),
   Repair Symbols Per Block (i),

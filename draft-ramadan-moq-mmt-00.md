@@ -96,7 +96,7 @@ The key words "**MUST**", "**MUST NOT**", "**REQUIRED**", "**SHALL**",
 are to be interpreted as described in BCP 14 [@!RFC2119] [@!RFC8174] when,
 and only when, they appear in all capitals, as shown here.
 
-**MMTP**: MMT Protocol - the packet layer of MMT (ISO 23008-1 Clause 8)
+**MMTP**: MMT Protocol - the packet layer of MMT (ISO 23008-1 Clause 9)
 
 **MPU**: Media Processing Unit - a self-contained media segment in MMT,
 typically aligned with a Group of Pictures (GOP)
@@ -150,6 +150,7 @@ MMTP Header (12 bytes minimum) {
   Extension Flag (X) (1),
   RAP Flag (R) (1),
   Packet Type (6),
+  Reserved (2),
   Packet ID (16),
   Timestamp (32),
   Packet Sequence Number (32),
@@ -158,17 +159,29 @@ MMTP Header (12 bytes minimum) {
 }
 ~~~
 
+The fixed fields sum to 96 bits (three 32-bit words).  Byte 0 is
+version(2) | packet_counter_flag(1) | FEC_type(2) | reserved(1) |
+extension_flag(1) | RAP_flag(1); byte 1 is packet_type(6) |
+reserved(2), i.e. the packet type occupies the HIGH six bits of the
+second byte ([@ISO.23008-1] Clause 9.2).
+
 Key fields for MoQ mapping:
 
 - **Packet ID**: Maps to MoQ track within namespace
-- **Timestamp**: UTC wallclock time in NTP short format, maps to MoQ object timestamp
+- **Timestamp**: UTC wallclock send time in NTP short format,
+  carried inside the object payload.  MoQ Transport defines no
+  per-object timestamp field; receivers needing the send time read
+  it from the preserved MMTP packet header (see Section 10.1 for
+  the format and its wrap period)
 - **Packet Sequence Number**: per-`packet_id`, monotonic across the
   flow ([@ISO.23008-1] Clause 9.2.2); carried inside the object payload
   for MMTP-layer loss/ordering detection.  NOT the MoQ Object ID —
   Object IDs are the per-MFU fragment index within a subgroup
   (Section 4.1), which resets per subgroup.
-- **FEC Type**: 0=no AL-FEC, 1=AL-FEC source packet,
-  2=AL-FEC repair packet, 3=reserved
+- **FEC Type**: 0=no AL-FEC, 1=AL-FEC source packet (a 4-byte
+  Source FEC Payload ID trails the packet, [@MOQ-FEC] Section 8.5),
+  2=AL-FEC repair packet (ssbg_mode0), 3=AL-FEC repair packet
+  (mode 1; not used by this mapping)
 - **RAP Flag**: 1 indicates Random Access Point
 
 # MoQ Object Mapping
@@ -189,18 +202,25 @@ An MMT stream maps to MoQ tracks as follows:
 
 ## Object Payload
 
-Each MoQ object carries one MMTP packet:
+Each MoQ object carries one complete MMTP packet:
 
 ~~~
 MoQ Object Payload {
-  MMTP Header (12+ bytes),
-  MPU Fragment (MPU metadata or MFU payload),
+  MMTP Packet Header (12+ bytes),
+  MMTP Payload (MPU-mode payload header,
+                then MPU metadata or MFU fragment),
+  [Source FEC Payload ID (32)],   // trails FEC Type=1 packets
 }
 ~~~
 
-The MMTP header is always preserved: it carries the FEC Type, RAP
-Flag, Fragmentation Indicator, and timestamp metadata that receivers
-and the FEC layer depend on.  This document does not define a
+Throughout this document, "MMTP packet" means the header-included
+wire unit and "MMTP payload" means the bytes that follow the packet
+header, per [@ISO.23008-1].  Both MMTP header layers are always
+preserved: the packet header carries the FEC Type, RAP Flag, and
+timestamp, and the MPU-mode payload header (the first bytes of the
+MMTP payload) carries the Fragmentation Indicator and MPU sequence
+number that receivers and the FEC layer depend on.  This document
+does not define a
 header-stripped delivery mode.  A publisher that wishes to deliver
 raw ISOBMFF fragments without MMTP encapsulation publishes the track
 with CMAF packaging per [@!I-D.wilaw-moq-cmafpackaging] instead (an
@@ -556,18 +576,22 @@ each video frame is delivered as a separate unit:
 MPU Mode (optional extension point; informative sketch,
 Section 12.1):
   Group N / Subgroup 0 / Object 0:
-    [MMTP][MPU: mmpu+moov+moof+mdat containing all frames]
+    [MMTP][PH][MPU: mmpu+moov+moof+mdat containing all frames]
 
 MFU Mode (one subgroup per MFU):
-  Group N / Subgroup 0 / Object 0: [MMTP][MPU metadata: mmpu+moov]
-  Group N / Subgroup 1 / Object 0: [MMTP FI=0][MFU: IDR frame NALUs]
-  Group N / Subgroup 2 / Object 0: [MMTP FI=0][MFU: P frame NALUs]
+  Group N / Subgroup 0 / Object 0: [MMTP][PH][MPU meta: mmpu+moov]
+  Group N / Subgroup 1 / Object 0: [MMTP][PH FI=0][MFU: IDR NALUs]
+  Group N / Subgroup 2 / Object 0: [MMTP][PH FI=0][MFU: P NALUs]
   ...
 
 MFU Mode, IDR fragmented across packets (Section 5.1):
-  Group N / Subgroup 1 / Object 0: [MMTP FI=1][IDR fragment 1]
-  Group N / Subgroup 1 / Object 1: [MMTP FI=2][IDR fragment 2]
-  Group N / Subgroup 1 / Object 2: [MMTP FI=3][IDR fragment 3]
+  Group N / Subgroup 1 / Object 0: [MMTP][PH FI=1][IDR fragment 1]
+  Group N / Subgroup 1 / Object 1: [MMTP][PH FI=2][IDR fragment 2]
+  Group N / Subgroup 1 / Object 2: [MMTP][PH FI=3][IDR fragment 3]
+
+[MMTP] = 12-byte MMTP packet header (Section 3.1).
+[PH]   = MPU-mode payload header, which carries the Fragmentation
+         Indicator (FI); the FI is NOT in the MMTP packet header.
 ~~~
 
 MFU mode enables:
@@ -589,8 +613,9 @@ Therefore each MMTP packet maps to exactly one MoQ object, and the
 publisher MUST NOT reassemble MFU fragments:
 
 1. The publisher MUST publish each MMTP packet of an MFU as a separate
-   object within that MFU's subgroup (Section 4.3), preserving the MMTP
-   and MPU headers.  Those headers carry the Fragmentation Indicator
+   object within that MFU's subgroup (Section 4.3), preserving the
+   MMTP packet header and the MPU-mode payload header.  Those headers
+   carry the Fragmentation Indicator
    and MPU sequence number; the reconstructed MoQ Object ID
    (Section 4.6) gives the fragment order within the subgroup.
 2. The publisher MUST NOT interpret or act on the Fragmentation
@@ -604,9 +629,29 @@ publisher MUST NOT reassemble MFU fragments:
    - A single object with FI=0 is a complete, unfragmented MFU.
    - Objects with FI=1 (first), FI=2 (zero or more middle), and FI=3
      (last) reassemble, in Object ID order, into one MFU by
-     concatenating their payloads.
+     concatenating each fragment's media bytes, delimited as defined
+     below.
    - The reassembled MFU's RAP flag is taken from its FI=1 (or FI=0)
      object.
+
+   The bytes concatenated are each fragment's media (data unit)
+   bytes only — NOT everything after the MMTP packet header.  Every
+   fragment begins with the 12-byte MMTP packet header followed by
+   the 8-byte MPU-mode payload header (payload_length (16),
+   fragment_type (4), timed_flag (1), fragmentation_indicator (2),
+   aggregation_flag (1), fragment_counter (8),
+   MPU_sequence_number (32); [@ISO.23008-1]); both are stripped from
+   every fragment.  The MFU header (the DU header: 14 bytes for
+   timed media — movie_fragment_sequence_number (32),
+   sample_number (32), offset (32), priority (8),
+   dep_counter (8) — or 4 bytes for non-timed media) follows the
+   payload header on an FI=0 object and on the FI=1 first fragment;
+   it is likewise stripped rather than concatenated into the media
+   stream.  When the packet's FEC Type is 1, the trailing 4-byte
+   Source FEC Payload ID ([@MOQ-FEC] Section 8.5) is excluded as
+   well.  Concatenating the raw post-packet-header bytes of the
+   fragments would interleave per-fragment payload-header bytes
+   into the reassembled MFU and corrupt it.
 4. The receiver MUST bound the memory used for in-flight reassembly and
    MUST discard an MFU whose objects do not all arrive (for example
    under loss that FEC cannot repair), rather than buffer without
@@ -754,6 +799,7 @@ S-TSID {
   source_filter (S,G address),
   fec_oti {
     transfer_length (40 bits),
+    reserved (8 bits),
     symbol_size (16 bits),
     num_source_blocks (8 bits),
     num_sub_blocks (16 bits),
@@ -818,8 +864,13 @@ subscription model of [@MOQ-FEC] Section 6.2 (the normative
 statement of that model): a subscriber that wants FEC protection
 issues its own, separate subscription for the repair track, and
 subscribers are never required to subscribe to it.  The repair
-track uses lower priority (typically 7) so repair symbols are
-dropped first under congestion.
+track uses a lower-precedence priority than the source track it
+protects.  Priorities are expressed in the MoQ Transport scale —
+8-bit values 0-255 where a numerically LOWER value is delivered
+with HIGHER precedence — so lower precedence means a numerically
+GREATER value (e.g. 240 for the repair track against a source
+track at the default 128; [@MOQ-FEC] Section 10), and repair
+symbols are dropped first under congestion.
 
 ## FEC Signaling for Multicast Delivery
 
@@ -864,8 +915,8 @@ for scalable distribution.  Platform-specific delivery paths, the
 multicast endpoint catalog extension, and TreeDN/AMT integration are
 defined in [@MOQ-MULTICAST].
 
-When MMT is delivered over multicast, MMTP packets are transmitted
-as UDP datagrams with the standard MMTP header intact.  MoQ relays
+When MMT is delivered over multicast, each UDP datagram carries one
+complete MMTP packet, standard MMTP packet header included.  MoQ relays
 at network edges terminate the multicast path and bridge MMTP
 content into the MoQ application layer via QUIC/WebTransport.
 
@@ -884,15 +935,22 @@ deeper interleaving than ATSC 3.0 (Section 7).
 
 ARIB STD-B60 uses UTC wallclock timestamps in NTP short format,
 consistent with ISO 23008-1.  The MMTP Timestamp field carries the
-UTC send time of the packet, which maps to MoQ object timestamps.
+UTC send time of the packet.  MoQ Transport defines no per-object
+timestamp field; the send time remains available to receivers from
+the preserved MMTP packet header (Section 4.2).
 
 The MMTP Timestamp uses NTP short format (32-bit: 16-bit seconds +
-16-bit fractional seconds relative to NTP epoch):
+16-bit fractional seconds relative to the NTP epoch):
 
 ~~~
-MoQ Timestamp (seconds) = MMTP Timestamp upper 16 bits
-                          + (lower 16 bits / 65536)
+Send time (seconds) = Timestamp upper 16 bits
+                      + (lower 16 bits / 65536)
 ~~~
+
+Because the seconds part is 16 bits, the value wraps every 65 536
+seconds (about 18.2 hours): it identifies the send time modulo that
+period and MUST NOT be interpreted as an absolute wallclock time
+without an out-of-band era reference.
 
 Note: This differs from MPEG-2 TS, which uses a 90kHz PTS/DTS clock.
 
@@ -1074,9 +1132,10 @@ defined in [@MOQ-MULTICAST] Section 4.1, using the
 # Security Considerations
 
 MMT content protection uses Common Encryption (CENC) which is
-preserved through MoQ transport.  The MMTP header is not encrypted,
-allowing relays to inspect packet type and sequence without
-accessing media content.
+preserved through MoQ transport.  The MMTP packet and payload
+headers are not encrypted by CENC, allowing relays and receivers to
+inspect packet type, sequence, and fragmentation metadata without
+accessing media sample content.
 
 ## Multicast Security
 
@@ -1243,7 +1302,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
     {
       "name": "video/1080p/repair",
       "packaging": "fec-repair",
-      "priority": 7
+      "priority": 240
     },
     {
       "name": "audio/stereo",
