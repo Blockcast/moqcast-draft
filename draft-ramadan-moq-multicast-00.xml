@@ -664,16 +664,6 @@ registration.</t>
 <references><name>Normative References</name>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-msf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-transport.xml"/>
-<reference anchor="ISO.23008-1" target="">
-  <front>
-    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 1: MPEG media transport (MMT)</title>
-    <author>
-      <organization>ISO/IEC</organization>
-    </author>
-    <date year="2023"></date>
-  </front>
-  <seriesInfo name="ISO/IEC" value="23008-1:2023"></seriesInfo>
-</reference>
 <reference anchor="MOQ-FEC" target="">
   <front>
     <title>Forward Error Correction for Media over QUIC</title>
@@ -701,7 +691,6 @@ registration.</t>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.7450.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8777.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.9706.xml"/>
 </references>
 <references><name>Informative References</name>
 <reference anchor="ATSC-A331" target="https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/">
@@ -719,6 +708,16 @@ registration.</t>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.krose-mboned-alta.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.wilaw-moq-cmafpackaging.xml"/>
+<reference anchor="ISO.23008-1" target="">
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 1: MPEG media transport (MMT)</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year="2023"></date>
+  </front>
+  <seriesInfo name="ISO/IEC" value="23008-1:2023"></seriesInfo>
+</reference>
 <reference anchor="QUIC-MULTICAST" target="https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/">
   <front>
     <title>Multicast Extension for QUIC</title>
@@ -737,6 +736,7 @@ registration.</t>
   <seriesInfo name="Internet-Draft" value="draft-jholland-quic-multicast-09"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.5775.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.9706.xml"/>
 <reference anchor="WICG-DirectSockets" target="https://wicg.github.io/direct-sockets/">
   <front>
     <title>Direct Sockets API</title>

@@ -68,7 +68,7 @@ signaling of QUIC:
 4. **Multi-path delivery**: Combining MoQ unicast and multicast for
    seamless failover and FEC symbol deduplication
 
-MoQ relays MAY operate as TreeDN [@!RFC9706] nodes for hierarchical
+MoQ relays MAY operate as TreeDN [@?RFC9706] nodes for hierarchical
 distribution.
 
 ## Multicast as Supplement to MoQ Unicast
@@ -103,13 +103,13 @@ in all capitals, as shown here.
 
 **DRIAD**: DNS Reverse IP AMT Discovery [@!RFC8777]
 
-**TreeDN**: Tree-based Content Delivery Network [@!RFC9706]
+**TreeDN**: Tree-based Content Delivery Network [@?RFC9706]
 
 **IWA**: Isolated Web App — a Chrome packaging format that grants
 DirectSocket API access
 
 **MMTP**: MMT Protocol — the packet layer of MPEG Media Transport
-([@!ISO.23008-1] Clause 8; see also [@?I-D.bouazizi-mmtp]
+([@?ISO.23008-1] Clause 8; see also [@?I-D.bouazizi-mmtp]
 Section 3).  Each MMTP packet is
 self-describing, carrying track routing, timestamps, sequencing,
 and FEC metadata natively.
@@ -132,7 +132,7 @@ special platform capabilities.
 
 Broadcast receivers (ATSC 3.0, ARIB STD-B60) consume MMTP streams
 natively over RF tuner hardware.  MoQ integration occurs at the
-gateway/head-end level via TreeDN [@!RFC9706] and AMT [@!RFC7450] /
+gateway/head-end level via TreeDN [@?RFC9706] and AMT [@!RFC7450] /
 DRIAD [@!RFC8777].
 
 Multiple transports MAY be available for a given stream.  When more

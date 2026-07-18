@@ -958,7 +958,7 @@ stream pays repair overhead only where the loss is.
 
 ## Interaction with Multicast QUIC
 
-[@?QUIC-MULTICAST] defines a one-way QUIC transport in which a multicast
+[@!QUIC-MULTICAST] defines a one-way QUIC transport in which a multicast
 channel carries QUIC packets bearing STREAM or DATAGRAM frames, recovering
 loss via unicast repair (the MC_CHANNEL_ACK mechanism) and defining no
 Forward Error Correction of its own.  This FEC scheme MAY be used as the
@@ -977,7 +977,7 @@ When this scheme is carried over a multicast QUIC channel:
    boundaries, defeating symbol-aligned recovery.
 
 2. **Crypto boundary.**  FEC encoding operates on application-layer
-   objects, ABOVE the QUIC packet protection of [@?QUIC-MULTICAST].
+   objects, ABOVE the QUIC packet protection of [@!QUIC-MULTICAST].
    Unlike bare multicast UDP -- which lacks QUIC's integrity guarantees
    (see Section 14.4) -- the multicast QUIC binding applies a shared-key
    AEAD per packet.  A sender computes source and repair symbols over the
@@ -988,7 +988,7 @@ When this scheme is carried over a multicast QUIC channel:
    so recovery does not depend on possessing it.
 
 3. **Integrity of recovered objects.**  The integrity frames of
-   [@?QUIC-MULTICAST] authenticate the bytes of each delivered packet.  A
+   [@!QUIC-MULTICAST] authenticate the bytes of each delivered packet.  A
    FEC-reconstructed object was never carried in a single packet and is
    therefore NOT individually covered by a packet hash; it inherits trust
    transitively from the verified surviving symbols used to reconstruct
@@ -1006,7 +1006,7 @@ When this scheme is carried over a multicast QUIC channel:
    losses exceeding the repair budget.
 
 Symbols delivered over a multicast QUIC channel are deduplicated by
-their Source Block Number and Encoding Symbol ID; [@?QUIC-MULTICAST]
+their Source Block Number and Encoding Symbol ID; [@!QUIC-MULTICAST]
 normatively requires only this deduplication.  Because the (SBN, ESI)
 derivation in Section 8.3 of this document gives each symbol a
 path-independent identity, receivers MAY additionally combine such
