@@ -335,16 +335,23 @@ the loss.</t>
 
 <section anchor="switching-sets"><name>Switching Sets</name>
 <t>When multiple tracks represent alternative renditions of the same
-media (e.g., an ABR ladder), they form a switching set as defined
-in <xref target="I-D.wilaw-moq-cmafpackaging"></xref>.  MoQ Group numbers MUST be
-media-time-aligned across all tracks of a switching set so that
-subscribers can switch at group boundaries without discontinuity.</t>
-<t>Switching-set membership is declared in the catalog.  This document
-defines a per-track field:</t>
+media (e.g., an ABR ladder), they form a switching set: a set of
+alternate tracks that MUST be time-aligned per
+<xref target="I-D.ietf-moq-msf"></xref> Section 4.2 (the same construct that
+<xref target="I-D.ietf-moq-cmsf"></xref> Section 3.2 applies to CMAF tracks).  MoQ
+Group numbers MUST be media-time-aligned across all tracks of a
+switching set so that subscribers can switch at group boundaries
+without discontinuity.</t>
+<t>Switching-set membership is declared in the catalog via the
+per-track field:</t>
 
 <artwork><![CDATA[altGroup (OPTIONAL, unsigned integer)
 ]]></artwork>
-<t>Two tracks are members of the same switching set if and only if both
+<t>defined by <xref target="I-D.ietf-moq-msf"></xref> Section 5.2.12: an integer
+identifying a group of tracks that are alternate versions of one
+another.  This document does not redefine the field; it profiles
+membership exactly.
+Two tracks are members of the same switching set if and only if both
 carry the <tt>altGroup</tt> field and the values are equal.  A track that
 omits <tt>altGroup</tt> is a member of no switching set, and the
 switching-set requirements of this section do not bind it.  Every
@@ -449,14 +456,21 @@ expressed in integer milliseconds at all and which low-latency
 MoQ deployments routinely need.</li>
 </ul>
 <t>A track's container kind is carried in the catalog <tt>packaging</tt> field
-(<xref target="I-D.ietf-moq-msf"></xref>), NOT a <tt>container</tt> field: the spec
-defines values <tt>cmaf</tt> and <tt>loc</tt>, and this document defines the value
-<tt>mmtp</tt>.  (&quot;container kind&quot; is used informally below as a synonym for
-the <tt>packaging</tt> value.)  Per-track codec is carried in
-<tt>selectionParams.codec</tt> (a nested object), not a top-level <tt>codec</tt>
-field.</t>
-<t>The subscriber converts to ticks using the timescale appropriate to
-the track's container kind:</t>
+(<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.4, REQUIRED), NOT a <tt>container</tt>
+field.  The base specification defines the value <tt>loc</tt> (among
+others); <xref target="I-D.ietf-moq-cmsf"></xref> Section 3.5.1 extends the allowed
+values with <tt>cmaf</tt>; and this document adds <tt>mmtp</tt> in the same
+manner (Section 12.1).  (&quot;container kind&quot; is used informally below
+as a synonym for the <tt>packaging</tt> value.)  Per-track codec is
+carried in the flat, top-level <tt>codec</tt> field
+(<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.18), as are the other rendition
+parameters (Section 12.1); there is no nested parameter object.</t>
+<t>The timescale is carried in the per-track <tt>timescale</tt> field —
+defined by <xref target="I-D.ietf-moq-msf"></xref> Section 5.2.21 (&quot;the number of time
+units that pass per second&quot;) and OPTIONAL there — for every
+container kind; no container kind uses a differently named or
+nested field.  The subscriber resolves it per the track's container
+kind:</t>
 <table>
 <thead>
 <tr>
@@ -467,23 +481,23 @@ the track's container kind:</t>
 
 <tbody>
 <tr>
-<td><tt>cmaf</tt></td>
-<td><tt>container.timescale</tt> (per-track field, REQUIRED).</td>
+<td><tt>mmtp</tt></td>
+<td>The <tt>timescale</tt> field, which this document profiles as REQUIRED for mmtp tracks (Section 12.1).  ISO 23008-1 Annex A.4 lists 90 000 Hz only as a video convention; the catalog does not infer audio timescales, so leaving the field unset is a catalog error.</td>
 </tr>
 
 <tr>
-<td><tt>mmtp</tt></td>
-<td>Per-track field; mmtp tracks MUST publish an explicit timescale.  ISO 23008-1 Annex A.4 lists 90 000 Hz only as a video convention; the catalog does not infer audio timescales, so leaving the field unset is a catalog error.</td>
+<td><tt>cmaf</tt></td>
+<td>The <tt>timescale</tt> field.  <xref target="I-D.ietf-moq-cmsf"></xref> leaves it OPTIONAL, so this document makes it REQUIRED for any cmaf track to which this section applies (a member of a switching set governed by Section 4.4.1); leaving it unset on such a track is a catalog error.</td>
 </tr>
 
 <tr>
 <td><tt>loc</tt></td>
-<td>Per-track <tt>Timescale</tt> property, per <xref target="I-D.ietf-moq-loc"></xref>; defaults to 1 000 000 (microseconds) only when the property is absent.</td>
+<td>The <tt>timescale</tt> field; when absent, 1 000 000 — LOC timestamps are expressed in microseconds <xref target="I-D.ietf-moq-loc"></xref>.</td>
 </tr>
 
 <tr>
-<td><tt>legacy</tt></td>
-<td>1 000 000 (microseconds).  This is the encoding convention applied by current moq-transport implementations to opaque object payloads; it is fixed by this document and does NOT derive from <xref target="I-D.ietf-moq-transport"></xref>.</td>
+<td>(absent or unrecognized <tt>packaging</tt>)</td>
+<td>1 000 000 (microseconds).  This row covers track entries from legacy publishers predating this document whose <tt>packaging</tt> value is missing or unrecognized; the convention is fixed by this document and does NOT derive from <xref target="I-D.ietf-moq-transport"></xref>.</td>
 </tr>
 </tbody>
 </table><t>Conversion is <tt>groupDurationTicks = groupDurationMs * timescale / 1000</tt>.
@@ -585,10 +599,15 @@ directly in the catalog via the per-track field:</t>
 <t><tt>initData</tt> is the base64 encoding of an ISOBMFF initialization
 segment (<tt>ftyp</tt> + <tt>moov</tt>) sufficient to initialize the decoder for
 the track (including the codec configuration record, e.g. avcC or
-hvcC).  <tt>initData</tt> is defined by this document as a flat base64
-string carried on mmtp-packaged tracks; it is analogous in purpose
-to the <tt>initDataList</tt>/<tt>initRef</tt> mechanism of <xref target="I-D.ietf-moq-cmsf"></xref>,
-but is not identical to it.  It lets a subscriber initialize its decoder at
+hvcC).  The field name and carriage — a base64 string in the
+track's catalog entry — are those of the <tt>initData</tt> field defined
+by <xref target="I-D.ietf-moq-cmsf"></xref> Section 3.1 for CMAF headers; this
+document applies the same field to mmtp-packaged tracks and
+constrains its decoded content as below.  (The base catalog
+<xref target="I-D.ietf-moq-msf"></xref> Sections 5.1.7 and 5.2.13 additionally define
+an indirected <tt>initDataList</tt>/<tt>initRef</tt> mechanism; this document
+does not use the indirection — mmtp tracks carry <tt>initData</tt>
+inline.)  It lets a subscriber initialize its decoder at
 catalog load,
 before the first MPU metadata object or init-track object arrives,
 removing one delivery round trip from the join path (Section 6.1).</t>
@@ -727,7 +746,8 @@ remain container-blind and never parse MMTP.</t>
 <t>A subscriber joins a live mmtp-packaged track as follows:</t>
 
 <ol>
-<li><t><strong>Catalog.</strong> Fetch and validate the catalog.  Validation includes
+<li><t><strong>Catalog.</strong> Fetch and validate the catalog (the track named
+<tt>catalog</tt>, Section 12).  Validation includes
 the per-track REQUIRED fields of Section 12.1 and the
 switching-set agreement check of Section 4.4.2.  A subscriber
 MUST NOT issue SUBSCRIBE for a track whose catalog entry fails
@@ -1015,6 +1035,23 @@ fallback.</t>
 
 <section anchor="catalog-signaling"><name>Catalog Signaling</name>
 <t>The MoQ catalog indicates MMT packaging and multicast endpoints.</t>
+<t>The catalog of this suite is an MSF catalog: the root object and
+its fields (<tt>version</tt>, <tt>generatedAt</tt>, <tt>tracks</tt>, ...), the
+requirement that parsers ignore fields they do not understand, and
+the base per-track fields are those of <xref target="I-D.ietf-moq-msf"></xref>
+Section 5.  The catalog is delivered as a MoQ track whose
+case-sensitive Track Name is <tt>catalog</tt> (<xref target="I-D.ietf-moq-msf"></xref>
+Section 5); <xref target="MOQ-MULTICAST"></xref> Section 4 gives transitional-alias
+guidance for legacy deployments that used other names.  The
+documents of this suite extend the base in the same manner as
+<xref target="I-D.ietf-moq-cmsf"></xref> extends it: this document adds the packaging
+value <tt>mmtp</tt> and the mmtp track fields (Section 12.1), <xref target="MOQ-FEC"></xref>
+adds the per-track <tt>fec</tt> object and the <tt>fec-repair</tt> packaging
+value, and <xref target="MOQ-MULTICAST"></xref> adds the root-level <tt>multicast</tt>
+member.  Every catalog field this suite uses is defined either by
+<xref target="I-D.ietf-moq-msf"></xref> or locally by a document of this suite (with
+<tt>cmaf</tt> tracks and <tt>initData</tt> per <xref target="I-D.ietf-moq-cmsf"></xref>); no field
+is defined by any other catalog specification.</t>
 
 <section anchor="packaging-value-and-track-fields"><name>Packaging Value and Track Fields</name>
 <t>This document defines a single packaging value:</t>
@@ -1022,9 +1059,10 @@ fallback.</t>
 <artwork><![CDATA[packaging: "mmtp"
 ]]></artwork>
 <t>carried in the per-track <tt>packaging</tt> field of the catalog
-<xref target="I-D.ietf-moq-catalogformat"></xref>.  The same value is intended for any
-packaging registry established by the MoQ Streaming Format
-<xref target="I-D.ietf-moq-msf"></xref>; see Section 14.  Object payloads of an
+(<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.4).  The value extends the
+allowed packaging values of that specification in the same manner
+as the <tt>cmaf</tt> value of <xref target="I-D.ietf-moq-cmsf"></xref> Section 3.5.1; see
+Section 14 for the registry request.  Object payloads of an
 mmtp-packaged track are whole MMTP packets per Section 4.2.</t>
 <t>Earlier mapping variants are expressed without additional packaging
 values: raw ISOBMFF delivery (formerly &quot;isobmff&quot;) is CMAF packaging
@@ -1054,80 +1092,84 @@ by the <tt>mmtpMode</tt> field below.</t>
 <td><tt>mmtpMode</tt></td>
 <td>REQUIRED</td>
 <td>String</td>
-<td>&quot;mfu&quot; (required to implement) or &quot;mpu&quot; (optional, at risk; Section 5)</td>
+<td>&quot;mfu&quot; (required to implement) or &quot;mpu&quot; (optional, at risk; Section 5); defined by this document</td>
 </tr>
 
 <tr>
 <td><tt>timescale</tt></td>
 <td>REQUIRED</td>
 <td>Number</td>
-<td>Media timescale in Hz (Section 4.4.2)</td>
+<td>Media timescale in Hz (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.21, profiled REQUIRED here; Section 4.4.2)</td>
 </tr>
 
 <tr>
 <td><tt>groupDurationMs</tt></td>
 <td>REQUIRED</td>
 <td>Number</td>
-<td>Group duration, integer ms (Section 4.4.2)</td>
+<td>Group duration, integer ms (Section 4.4.2); defined by this document</td>
 </tr>
 
 <tr>
 <td><tt>groupDurationTicks</tt></td>
 <td>OPTIONAL</td>
 <td>Number</td>
-<td>Integer-tick override (Section 4.4.2)</td>
+<td>Integer-tick override (Section 4.4.2); defined by this document</td>
 </tr>
 
 <tr>
 <td><tt>altGroup</tt></td>
 <td>OPTIONAL</td>
 <td>Number</td>
-<td>Switching-set membership key, unsigned integer (Section 4.4)</td>
+<td>Switching-set membership key (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.12, profiled in Section 4.4)</td>
 </tr>
 
 <tr>
 <td><tt>keyframeIntervalMs</tt></td>
 <td>OPTIONAL</td>
 <td>Number</td>
-<td>Keyframe/GOP cadence, integer ms; advisory, video only (Section 4.4.3)</td>
+<td>Keyframe/GOP cadence, integer ms; advisory, video only (Section 4.4.3); defined by this document</td>
 </tr>
 
 <tr>
 <td><tt>keyframeIntervalTicks</tt></td>
 <td>OPTIONAL</td>
 <td>Number</td>
-<td>Integer-tick override for the keyframe interval (Section 4.4.3)</td>
+<td>Integer-tick override for the keyframe interval (Section 4.4.3); defined by this document</td>
 </tr>
 
 <tr>
 <td><tt>initMode</tt></td>
 <td>OPTIONAL</td>
 <td>String</td>
-<td>&quot;inline&quot; (default) or &quot;track&quot; (optional, at risk; Section 4.5)</td>
+<td>&quot;inline&quot; (default) or &quot;track&quot; (optional, at risk; Section 4.5); defined by this document</td>
 </tr>
 
 <tr>
 <td><tt>initData</tt></td>
 <td>OPTIONAL</td>
 <td>String</td>
-<td>Base64 ftyp+moov init segment (Section 4.5)</td>
+<td>Base64 ftyp+moov init segment (<xref target="I-D.ietf-moq-cmsf"></xref> Section 3.1, profiled in Section 4.5)</td>
 </tr>
 
 <tr>
 <td><tt>fec</tt></td>
 <td>OPTIONAL</td>
 <td>Object</td>
-<td>AL-FEC parameters (Section 8.3)</td>
-</tr>
-
-<tr>
-<td><tt>selectionParams</tt></td>
-<td>REQUIRED</td>
-<td>Object</td>
-<td>Codec and rendition parameters per <xref target="I-D.ietf-moq-msf"></xref></td>
+<td>AL-FEC parameters, defined in <xref target="MOQ-FEC"></xref> Section 5 (Section 8)</td>
 </tr>
 </tbody>
-</table><t><tt>mmtpMode</tt> selects the object layout.  &quot;mfu&quot; delivers one subgroup
+</table><t>All other base track fields of <xref target="I-D.ietf-moq-msf"></xref> Section 5.2
+apply unchanged.  In particular <tt>name</tt> and the rendition
+parameters — <tt>codec</tt> (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.18; required
+for media tracks per that section), <tt>framerate</tt>, <tt>width</tt>, <tt>height</tt>,
+<tt>samplerate</tt>, <tt>channelConfig</tt>, <tt>bitrate</tt>, and <tt>lang</tt> — are flat,
+top-level fields of the track object.  An earlier revision of this
+suite nested the rendition parameters under a <tt>selectionParams</tt>
+object taken from an expired catalog proposal; that form was never
+emitted or parsed by any implementation and is removed.  Publishers
+MUST emit the flat fields, and receivers MUST NOT expect a
+<tt>selectionParams</tt> object.</t>
+<t><tt>mmtpMode</tt> selects the object layout.  &quot;mfu&quot; delivers one subgroup
 per MFU as defined in Sections 4.3 and 5; it is the only layout
 this document fully specifies, the only mode deployments to date
 use, and the only mode subscribers are REQUIRED to implement.
@@ -1140,8 +1182,8 @@ it cannot be used interoperably without a companion specification.
 A subscriber MUST reject a track whose <tt>mmtpMode</tt> is absent,
 carries an unknown value, or names a mode the subscriber does not
 implement — the object layout cannot be inferred safely from
-received objects.  Per <xref target="I-D.ietf-moq-catalogformat"></xref>, parsers MUST
-ignore unrecognized fields.</t>
+received objects.  Per <xref target="I-D.ietf-moq-msf"></xref> Section 5, parsers MUST
+ignore fields they do not understand.</t>
 <t>Example:</t>
 
 <sourcecode type="json"><![CDATA[{
@@ -1151,12 +1193,10 @@ ignore unrecognized fields.</t>
     "mmtpMode": "mfu",
     "timescale": 90000,
     "groupDurationMs": 1000,
-    "selectionParams": {
-      "codec": "avc1.64001f",
-      "width": 1920,
-      "height": 1080,
-      "framerate": 30
-    }
+    "codec": "avc1.64001f",
+    "width": 1920,
+    "height": 1080,
+    "framerate": 30
   }]
 }
 ]]></sourcecode>
@@ -1187,7 +1227,7 @@ defined in <xref target="MOQ-MULTICAST"></xref> Section 4.1.  Conversion rules:<
 <li>each <tt>LS</tt> SrcFlow and RepairFlow -&gt; a distinct
 <tt>multicast.endpoints[].tracks[]</tt> entry, with <tt>packetId</tt> assigned per
 the rule below</li>
-<li><tt>LS@bw</tt> -&gt; <tt>selectionParams.bitrate</tt></li>
+<li><tt>LS@bw</tt> -&gt; <tt>bitrate</tt> (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.22)</li>
 <li><tt>FECParameters@overhead</tt> -&gt; <tt>fec.repairSymbols</tt> (computed as
 K x overhead / 100)</li>
 <li><tt>fecOTI</tt> F,T -&gt; <tt>fec.sourceSymbols</tt> (K = ceil(F / T)),
@@ -1264,9 +1304,10 @@ replay protection, AMT relay trust) are defined in
 
 <section anchor="iana-considerations"><name>IANA Considerations</name>
 <t>This document defines the catalog <tt>packaging</tt> value &quot;mmtp&quot;
-(Section 12.1) for use with <xref target="I-D.ietf-moq-catalogformat"></xref>.  If the
-MoQ Streaming Format <xref target="I-D.ietf-moq-msf"></xref> or the catalog format
-establishes a registry of packaging values, this document requests
+(Section 12.1), extending the allowed packaging values of the MoQ
+Streaming Format <xref target="I-D.ietf-moq-msf"></xref> Section 5.2.4 in the same
+manner as <xref target="I-D.ietf-moq-cmsf"></xref>.  If a registry of packaging
+values is established for that format, this document requests
 registration of:</t>
 <table>
 <thead>
@@ -1296,34 +1337,6 @@ claimed by any document in this suite.</t>
 <back>
 <references><name>References</name>
 <references><name>Normative References</name>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.6330.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
-</references>
-<references><name>Informative References</name>
-<reference anchor="ARIB-B60" target="">
-  <front>
-    <title>MMT-Based Media Transport Scheme in Digital Broadcasting Systems</title>
-    <author>
-      <organization>ARIB</organization>
-    </author>
-    <date></date>
-  </front>
-  <seriesInfo name="ARIB STD-B60" value="Version 1.14"></seriesInfo>
-</reference>
-<reference anchor="ATSC-A331" target="https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/">
-  <front>
-    <title>Signaling, Delivery, Synchronization, and Error Protection</title>
-    <author>
-      <organization>ATSC</organization>
-    </author>
-    <date year="2025" month="February"></date>
-  </front>
-  <seriesInfo name="ATSC" value="A/331:2025"></seriesInfo>
-</reference>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-catalogformat.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
-<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-msf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-transport.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.wilaw-moq-cmafpackaging.xml"/>
@@ -1357,6 +1370,33 @@ claimed by any document in this suite.</t>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-00"></seriesInfo>
 </reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.6330.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
+</references>
+<references><name>Informative References</name>
+<reference anchor="ARIB-B60" target="">
+  <front>
+    <title>MMT-Based Media Transport Scheme in Digital Broadcasting Systems</title>
+    <author>
+      <organization>ARIB</organization>
+    </author>
+    <date></date>
+  </front>
+  <seriesInfo name="ARIB STD-B60" value="Version 1.14"></seriesInfo>
+</reference>
+<reference anchor="ATSC-A331" target="https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/">
+  <front>
+    <title>Signaling, Delivery, Synchronization, and Error Protection</title>
+    <author>
+      <organization>ATSC</organization>
+    </author>
+    <date year="2025" month="February"></date>
+  </front>
+  <seriesInfo name="ATSC" value="A/331:2025"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.5510.xml"/>
 </references>
 </references>
@@ -1412,9 +1452,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
 <section anchor="converted-moq-catalog"><name>Converted MoQ Catalog</name>
 
 <sourcecode type="json"><![CDATA[{
-  "version": 1,
-  "namespace": "atsc/service_broadcast",
-  "generatedAt": "2026-07-15T10:30:00Z",
+  "version": "draft-01",
   "tracks": [
     {
       "name": "video/1080p",
@@ -1422,14 +1460,12 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
       "mmtpMode": "mfu",
       "timescale": 90000,
       "groupDurationMs": 1000,
-      "selectionParams": {
-        "codec": "avc1.64001f",
-        "width": 1920,
-        "height": 1080,
-        "framerate": 30,
-        "bitrate": 8000000,
-        "lang": "en"
-      },
+      "codec": "avc1.64001f",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 30,
+      "bitrate": 8000000,
+      "lang": "en",
       "fec": {
         "algorithm": "raptorq",
         "sourceSymbols": 1000,
@@ -1450,13 +1486,11 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
       "mmtpMode": "mfu",
       "timescale": 48000,
       "groupDurationMs": 1000,
-      "selectionParams": {
-        "codec": "mp4a.40.2",
-        "samplerate": 48000,
-        "channelConfig": "2",
-        "bitrate": 128000,
-        "lang": "en"
-      }
+      "codec": "mp4a.40.2",
+      "samplerate": 48000,
+      "channelConfig": "2",
+      "bitrate": 128000,
+      "lang": "en"
     }
   ],
   "multicast": {
@@ -1471,13 +1505,21 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
         { "name": "audio/stereo",        "packetId": 3 }
       ]
     }],
-    "networkSource": {
+    "networkSource": [{
       "type": "amt",
       "discovery": "driad"
-    }
+    }]
   }
 }
 ]]></sourcecode>
+<t>The catalog envelope is the MSF root (<xref target="I-D.ietf-moq-msf"></xref>
+Section 5.1); the <tt>version</tt> value names the MSF revision the
+catalog conforms to.  The converter publishes the catalog under the
+namespace derived from the ingested service, and the track entries
+inherit that namespace from the catalog track
+(<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.2).  Rendition parameters
+(<tt>codec</tt>, <tt>width</tt>, <tt>bitrate</tt>, <tt>lang</tt>, ...) are the flat base track
+fields of <xref target="I-D.ietf-moq-msf"></xref> Section 5.2 (Section 12.1).</t>
 <t>The FEC fields recompute from the S-TSID as follows:</t>
 
 <ul spacing="compact">
