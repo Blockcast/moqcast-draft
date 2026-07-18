@@ -561,10 +561,12 @@ A subscriber joins a live mmtp-packaged track as follows:
    boundary gives immediate decodability; otherwise the subscriber
    waits for the next group boundary.
 
-4. **Repair track.** If the catalog signals FEC for the track, the
-   subscriber SHOULD subscribe to the repair track (Section 8.2) at
-   the same time as the source track, so that the first FEC block
-   spanning the join point is repairable.
+4. **Repair track.** If the subscriber wants FEC protection and the
+   catalog signals FEC for the track, it SHOULD subscribe to the
+   repair track (Section 8.2) at the same time as the source track,
+   so that the first FEC block spanning the join point is
+   repairable.  Repair-track subscription is selective and optional
+   ([@MOQ-FEC] Section 6.2).
 
 5. **Presentation gate.** A subscriber MUST NOT submit media to the
    decoder until it has (a) decoder initialization data (step 2) and
@@ -668,36 +670,46 @@ S-TSID {
 }
 ~~~
 
-For MoQ, OTI is signaled via FEC_CONFIG message per
-[@MOQ-FEC] Section 4.
+For MoQ, no OTI is carried in-session: receivers derive the
+complete RaptorQ OTI from the catalog `fec` fields per
+[@MOQ-FEC] Section 4.2 (Transfer Length F = K x T, Symbol Size T,
+Z = 1 source block, N = 1 sub-block, Al = 8).  The S-TSID
+`fec_oti` above is an ingest-side input only; Section 12.2 defines
+its conversion to catalog fields.
 
-# FEC_CONFIG Message
+# FEC Parameter Signaling
 
-The FEC_CONFIG message and its wire format are defined normatively
-in [@MOQ-FEC] Section 4.1.  This document does not
-redefine FEC_CONFIG but specifies MMT-specific considerations for
-its use.
+FEC parameters for mmtp-packaged tracks are signaled in the catalog
+`fec` object, defined normatively in [@MOQ-FEC] Section 5 — the
+sole normative FEC signaling mechanism.  There is no in-session FEC
+signaling; the legacy FEC_CONFIG control message is non-normative
+and preserved for archival purposes in Appendix C of [@MOQ-FEC].
+This document does not redefine the catalog fields but specifies
+MMT-specific considerations for their use.
 
-## MMT-Specific FEC_CONFIG Usage
+## MMT-Specific FEC Parameters
 
-When used with MMT packaging, the FEC_CONFIG fields map as follows:
+When used with MMT packaging, the catalog `fec` fields map as
+follows:
 
-- **FEC Algorithm**: Typically 0x01 (RaptorQ) for ATSC 3.0 ingest,
+- **algorithm**: Typically "raptorq" for ATSC 3.0 ingest,
   or as specified in MMTP AL-FEC signaling
-- **Source Symbols Per Block**: Corresponds to the number of MFUs
-  (or MMTP packets) covered by one FEC block
-- **Interleave Depth**: The FEC interleave window in milliseconds —
+- **sourceSymbols**: The number of MMTP packets (source symbols)
+  per FEC block; on the MMT path the canonical FEC source symbol is
+  one whole MMTP packet ([@MOQ-FEC] Section 7.3)
+- **interleaveDepth**: The FEC interleave window in milliseconds —
   the time span of each FEC block ([@MOQ-FEC]
-  Section 4.1).  The number of MPU frames per block is derived as
+  Section 5.1).  The number of MPU frames per block is derived as
   D = ceil(interleaveDepth / groupDurationMs), using the
   `groupDurationMs` field of Section 12.1.  When ingesting broadcast
   content, set the window to the time span of the original broadcast
   FEC interleave (its frame count multiplied by the frame duration)
-- **OTI**: For RaptorQ, the 12-byte concatenation of Common FEC OTI
-  and Scheme-Specific FEC OTI per [@RFC6330]
+- **OTI**: Not signaled.  Receivers derive the RaptorQ OTI
+  (F = K x T, Z = 1, N = 1, Al = 8) from the catalog fields per
+  [@MOQ-FEC] Section 4.2
 
-See [@MOQ-FEC] for the complete message format, field
-definitions, algorithm registry, and precedence rules.
+See [@MOQ-FEC] for the complete catalog field definitions, the
+algorithm registry, and the OTI derivation.
 
 ## Repair Track Discovery
 
@@ -709,19 +721,23 @@ Source Track:  [namespace, track_name]
 Repair Track:  [namespace, track_name, "repair"]
 ~~~
 
-The subscriber MUST subscribe to the repair track separately.
-The repair track uses lower priority (typically 7) so repair
-symbols are dropped first under congestion.
+Subscription to the repair track is selective and optional, per the
+subscription model of [@MOQ-FEC] Section 6.2 (the normative
+statement of that model): a subscriber that wants FEC protection
+issues its own, separate subscription for the repair track, and
+subscribers are never required to subscribe to it.  The repair
+track uses lower priority (typically 7) so repair symbols are
+dropped first under congestion.
 
-## Multicast Delivery of FEC_CONFIG
+## FEC Signaling for Multicast Delivery
 
-For multicast (SSM/ASM) delivery where bidirectional signaling is
-not available, FEC_CONFIG parameters are conveyed via:
+For multicast (SSM/ASM) delivery there is no bidirectional
+signaling channel; this is one of the reasons the catalog is the
+sole normative signaling mechanism.  FEC parameters reach multicast
+receivers via:
 
-1. **MMTP AL-FEC Signaling (message_id=0x0203)**: In-band delivery
-   per ISO/IEC 23008-1:2023 Amendment 1:2025
-
-2. **MoQ Catalog Extension**: Out-of-band delivery via catalog JSON:
+1. **MoQ Catalog Extension** (normative for MoQ receivers):
+   out-of-band delivery via catalog JSON:
 
 ~~~ json
 {
@@ -738,6 +754,10 @@ not available, FEC_CONFIG parameters are conveyed via:
   }]
 }
 ~~~
+
+2. **MMTP AL-FEC Signaling (message_id=0x0203)**: in-band delivery
+   per ISO/IEC 23008-1:2023 Amendment 1:2025, for native broadcast
+   (ATSC 3.0, ARIB STD-B60) receivers
 
 With frame-grouped MMTP delivery at 30 fps (33.33 ms per group), the
 133 ms interleave window derives D = ceil(133 / 33.33) = 4 groups
@@ -891,6 +911,14 @@ defined in [@MOQ-MULTICAST] Section 4.1.  Conversion rules:
   number of source blocks — is unrelated to interleaving and does
   not map to any catalog FEC field)
 
+No OTI is carried in the output catalog.  The MoQ-side decoder
+configuration is re-derived from the catalog fields as
+F = K x T, Z = 1, N = 1, Al = 8 ([@MOQ-FEC] Section 4.2).  When the
+ingested F is not a multiple of T, the final source symbol is
+zero-padded to T under the fixed-T construction ([@MOQ-FEC]
+Section 7.3), and the re-derived transfer length K x T exceeds the
+ingested F by exactly the padding length.
+
 `packetId` is assigned per flow, not per `tsi`.  An `LS` (ROUTE
 transport session) carrying both a SrcFlow and its RepairFlow yields
 two `tracks[]` entries, and `packetId` MUST be unique within the
@@ -918,6 +946,9 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 - `fec.repairSymbols / fec.sourceSymbols x 100` -> `FECParameters@overhead`
 - `fec.interleaveDepth` -> `FECParameters@maximumDelay` (both are
   durations in milliseconds; no scaling by frame duration)
+- `fec.sourceSymbols x fec.symbolSize` -> `fecOTI` F, with
+  T = `fec.symbolSize`, Z = 1, N = 1, Al = 8 — the exported OTI is
+  exactly the derived OTI of [@MOQ-FEC] Section 4.2
 
 ## Multicast Endpoint Catalog Extension
 
@@ -954,12 +985,11 @@ registration of:
 |-------|-------------|-----------|
 | "mmtp" | MMTP packets carrying MPU/MFU payloads | This document |
 
-This document also requests registration of MoQ message type
-(shared with [@MOQ-FEC]):
-
-| Type | Name | Reference |
-|------|------|-----------|
-| 0x50 | FEC_CONFIG | This document |
+This document requests no MoQ message type registrations.  FEC
+signaling is catalog-only ([@MOQ-FEC] Section 5); the legacy
+FEC_CONFIG control message is non-normative, is described only in
+Appendix C of [@MOQ-FEC], and has no codepoint registered or
+claimed by any document in this suite.
 
 {backmatter}
 
@@ -1141,6 +1171,9 @@ The FEC fields recompute from the S-TSID as follows:
 - `sourceSymbols`: K = ceil(F / T) = ceil(1,000,000 / 1,000) = 1000
 - `repairSymbols`: K x overhead / 100 = 1000 x 25 / 100 = 250
 - `interleaveDepth`: `maximumDelay` = 1000 ms (both are durations)
+- Derived MoQ OTI ([@MOQ-FEC] Section 4.2):
+  F = K x T = 1000 x 1000 = 1,000,000 bytes, Z = 1, N = 1, Al = 8 —
+  identical to the ingested `fecOTI`, so the round trip is lossless
 
 The converted parameters are internally consistent: with
 `groupDurationMs` of 1000, the 1000 ms interleave window derives
