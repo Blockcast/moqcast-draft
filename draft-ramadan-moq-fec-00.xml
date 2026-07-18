@@ -21,10 +21,11 @@ Correction (FEC) repair data alongside source media in Media over
 QUIC (MoQ) sessions.  It defines catalog-based signaling of FEC
 configuration — including a derived RaptorQ Object Transmission
 Information that requires no in-session messages — conventions for
-repair track naming, and the format of repair objects.  The mechanism
-supports RaptorQ (RFC 6330) and Reed-Solomon (RFC 5510),
-enabling receivers to recover from packet loss without
-retransmission latency.  This specification is designed for
+repair track naming, and the format of repair objects.  RaptorQ
+(RFC 6330) is the mandatory-to-implement and only fully specified
+FEC scheme; an algorithm registry provides extension points for
+additional schemes.  FEC enables receivers to recover from packet
+loss without retransmission latency.  This specification is designed for
 compatibility with ATSC 3.0 (A/331) and ARIB STD-B60 broadcast systems.</t>
 </abstract>
 
@@ -188,11 +189,13 @@ on the wire.</t>
 </tbody>
 </table><t><strong>RaptorQ (0x01)</strong>: RaptorQ fountain code per <xref target="RFC6330"></xref>.  Can recover
 from loss of any symbols as long as K symbols (source or repair) are
-received.  Recommended for most applications.</t>
+received.  RaptorQ is the mandatory-to-implement scheme and the only
+algorithm this document fully specifies (Section 4.3); deployments to
+date use RaptorQ exclusively.</t>
 <t><strong>Reed-Solomon (0x02)</strong>: Reed-Solomon erasure code over GF(2^8) per
-<xref target="RFC5510"></xref>.  Can recover up to P lost symbols.  Suitable for
-applications requiring exact recovery guarantees or interoperability
-with ATSC 3.0 systems using RS FEC.</t>
+<xref target="RFC5510"></xref>.  This identifier is an extension point: it is allocated
+in the registry but its use is not specified by this document
+(Section 4.3).</t>
 <t>The numeric values identify algorithms in registries and in the
 legacy wire format of Appendix C; the catalog (Section 5.1) carries
 the corresponding string identifiers.</t>
@@ -244,12 +247,25 @@ configure its decoder.  This is what allows catalog-only receivers
 message can reach — to decode (Section 5.2).</t>
 </section>
 
-<section anchor="reed-solomon-parameters"><name>Reed-Solomon Parameters</name>
-<t>When a track's catalog <tt>fec.algorithm</tt> is &quot;reed-solomon&quot;, the code
-operates over GF(2^8) per <xref target="RFC5510"></xref> and its parameters are likewise
-fully determined by the catalog fields: K = <tt>sourceSymbols</tt>,
-P = <tt>repairSymbols</tt>, T = <tt>symbolSize</tt>.  No additional
-scheme-specific parameters are defined or signaled.</t>
+<section anchor="other-fec-algorithms"><name>Other FEC Algorithms</name>
+<t>RaptorQ is the mandatory-to-implement FEC scheme: an implementation
+that performs FEC decoding under this specification MUST support
+&quot;raptorq&quot;.  It is also the only algorithm this document fully
+specifies; deployments to date use RaptorQ exclusively.</t>
+<t>The algorithm registry (Section 15.2) provides an extension point
+for additional schemes.  In particular, &quot;reed-solomon&quot; (0x02) is
+allocated for a Reed-Solomon erasure code over GF(2^8) <xref target="RFC5510"></xref>,
+but its symbol construction, parameter derivation, and repair
+object semantics are not specified by this document; a future
+companion specification is required before it can be used
+interoperably.  (Informatively, the natural parameterization
+mirrors RaptorQ's: K = <tt>sourceSymbols</tt>, P = <tt>repairSymbols</tt>,
+T = <tt>symbolSize</tt>.)</t>
+<t>A receiver that does not implement a track's signaled
+<tt>fec.algorithm</tt> simply forgoes FEC protection for that track: it
+consumes the source track normally and does not subscribe to the
+repair track.  Repair-track subscription is optional (Section 6.2),
+so an unrecognized or unimplemented algorithm is not an error.</t>
 </section>
 </section>
 
@@ -284,9 +300,13 @@ K x T = 625 x 1000 = 625,000 bytes, exactly 5,000,000 bits / 8 per
 
 <ul spacing="compact">
 <li>&quot;none&quot;: No FEC (passthrough, optional jitter buffer)</li>
-<li>&quot;raptorq&quot;: RaptorQ per RFC 6330</li>
-<li>&quot;reed-solomon&quot;: Reed-Solomon GF(2^8) per RFC 5510</li>
+<li>&quot;raptorq&quot;: RaptorQ per RFC 6330 (mandatory to implement,
+Section 4.3)</li>
+<li>&quot;reed-solomon&quot;: Reserved extension point (Section 4.3); not
+specified by this document</li>
 </ul>
+<t>A receiver that does not implement the signaled algorithm treats
+the track as unprotected (Section 4.3).</t>
 <t><strong>sourceSymbols</strong> (integer, REQUIRED): K value - source symbols per
 FEC block.  MUST be &gt;= 1.</t>
 <t><strong>repairSymbols</strong> (integer, REQUIRED): P value - repair symbols per
@@ -309,10 +329,12 @@ formula applies only when interleaveDepth &gt; 0; receivers MUST NOT
 substitute an absent or zero value into it.  For mmtp-packaged
 tracks, GOP_duration_ms equals the track's <tt>groupDurationMs</tt> (the MoQ group duration -- one group per frame on the MMT path -- not the keyframe/GOP cadence)
 signaled per <xref target="MOQ-MMT"></xref> Section 12.1.</t>
-<t>When CMAF packaging is used, the CMAF segment duration SHOULD equal
-interleaveDepth so that each segment contains exactly one FEC
+<t>When CMAF packaging is used, aligning the CMAF segment duration
+with interleaveDepth lets each segment contain exactly one FEC
 block's worth of source symbols, enabling CDN-side FEC repair
-before forwarding to FEC-unaware HLS/DASH clients.</t>
+before forwarding to FEC-unaware HLS/DASH clients.  (CMAF-level
+FEC is described only informatively in this document; see
+Section 13.)</t>
 <t><strong>repairTrack</strong> (string, REQUIRED): Track name for repair symbols,
 following the convention in Section 6.1.</t>
 <t>Repair tracks themselves are identified in the catalog by the
@@ -464,8 +486,8 @@ Symbol Size bytes.</t>
 <t>For RaptorQ, repair symbols are generated per <xref target="RFC6330"></xref> Section 5.3.
 The Encoding Symbol ID (ESI) for repair symbols starts at K (the
 number of source symbols).</t>
-<t>For Reed-Solomon, repair symbols are generated per <xref target="RFC5510"></xref> using
-the Vandermonde matrix construction.</t>
+<t>Repair symbol generation for extension algorithms (Section 4.3) is
+not specified by this document.</t>
 </section>
 
 <section anchor="sub-blocks-and-ssbg-mode"><name>Sub-Blocks and ssbg_mode</name>
@@ -517,18 +539,21 @@ specification fixes N = 1: catalog-signaled sessions do not use
 sub-blocks, and catalog-only receivers MUST assume N = 1.
 Sub-block operation remains available to broadcast deployments that
 carry an explicit OTI in ISO 23008-1 AL-FEC signaling; the
-remainder of this subsection applies only to such deployments.  The
-number of source symbols per sub-block (K_sub &lt;= K) is derived from
-the signaled parameters: K_sub = ceil(K / N), where K is the source
-symbol count (catalog <tt>sourceSymbols</tt>) and N is the Number of
-Sub-Blocks field of the explicitly signaled OTI.</t>
+remainder of this subsection applies only to such deployments and
+is informative — no deployment of this specification uses
+sub-blocks, and the text is retained as broadcast-interoperability
+guidance, not as interoperability requirements of this document.
+The number of source symbols per sub-block (K_sub &lt;= K) is derived
+from the signaled parameters: K_sub = ceil(K / N), where K is the
+source symbol count (catalog <tt>sourceSymbols</tt>) and N is the Number
+of Sub-Blocks field of the explicitly signaled OTI.</t>
 <t>When sub-blocks are used:</t>
 
 <ol>
 <li><t>The signaled Interleave Depth (interleaveDepth_ms) is the time
 span of the FULL block; a complete block's symbols all arrive
 within approximately one interleave window.  When sub-blocks are
-used, the block recovery timeout MAY be computed per sub-block by
+used, the block recovery timeout can be computed per sub-block by
 scaling the full-block span by the sub-block fraction:
 <tt>timeout = interleaveDepth_ms * K_sub / K</tt> instead of the
 full-block span <tt>interleaveDepth_ms</tt>.
@@ -539,7 +564,7 @@ overhead (P repair symbols per sub-block instead of per block).</t>
 by SBN + sub-block index) and can emit recovered data as soon as
 each sub-block completes, without waiting for the full block.</t>
 </li>
-<li><t>Receivers MUST use the derived sub-block length K_sub (not K
+<li><t>The receiver uses the derived sub-block length K_sub (not K
 from the catalog) for per-sub-block recovery when K_sub &lt; K.</t>
 </li>
 </ol>
@@ -589,8 +614,7 @@ of Group <tt>(N+1) * D - 1</tt>.</t>
 <section anchor="source-symbol-esi-derivation"><name>Source Symbol ESI Derivation</name>
 <t>Receivers MUST derive the Encoding Symbol ID (ESI) for each source
 object from MoQ transport identifiers.  The ESI identifies the
-symbol's position within its FEC block for RaptorQ or Reed-Solomon
-decoding.</t>
+symbol's position within its FEC block for FEC decoding.</t>
 <t>For a source object with MoQ Group_ID <tt>G</tt> and Object_ID <tt>O</tt>:</t>
 
 <artwork><![CDATA[D = ceil(interleaveDepth_ms / GOP_duration_ms)  # groups per block
@@ -664,10 +688,11 @@ milliseconds (e.g. D = 4 at 30 fps gives floor(4 * 33.33) = 133,
 and ceil(133 / 33.33) = 4).</t>
 </li>
 </ol>
-<t>When CMAF packaging is used, the CMAF segment duration MUST equal
-interleaveDepth_ms so that each segment boundary aligns with a FEC
-block boundary.  This enables CDN relays to perform FEC recovery at
-the segment level before forwarding to FEC-unaware clients.</t>
+<t>For CMAF packaging — an interaction this document describes only
+informatively (Section 13) — a segment boundary aligns with a FEC
+block boundary when the segment duration equals interleaveDepth_ms,
+which is what would let CDN relays perform FEC recovery at the
+segment level before forwarding to FEC-unaware clients.</t>
 </section>
 
 <section anchor="source-fec-payload-id-and-atsc-3-0-signed-region"><name>Source FEC Payload ID and ATSC 3.0 Signed Region</name>
@@ -1020,8 +1045,10 @@ FEC parameters and pass them through in the catalog <tt>fec</tt> field.</t>
 </section>
 
 <section anchor="interaction-with-cmaf-packaging"><name>Interaction with CMAF Packaging</name>
-<t>This specification is designed to work alongside CMAF packaging for
-MoQ <xref target="I-D.ietf-moq-cmsf"></xref>.  The relationship is:</t>
+<t>This section is informative.</t>
+<t>This specification's signaling (Section 5) is container-agnostic,
+and a repair track can sit alongside a CMAF-packaged source track
+in the same namespace:</t>
 
 <artwork><![CDATA[+-------------------------------------------------+
 |              MoQ Track Namespace                |
@@ -1044,9 +1071,17 @@ MoQ <xref target="I-D.ietf-moq-cmsf"></xref>.  The relationship is:</t>
 |                                                 |
 +-------------------------------------------------+
 ]]></artwork>
-<t>FEC encoding is applied to CMAF chunk payloads, treating each chunk
-(or portion thereof) as source symbols.  The FEC layer is agnostic to
-the media container format.</t>
+<t>The symbol construction, however, is not container-agnostic: the
+only source-symbol construction this document specifies is the
+MMTP-packet construction of Section 7.3, and deployments to date
+apply FEC to mmtp-packaged tracks exclusively.  Applying FEC
+directly to CMAF chunk payloads (<xref target="I-D.ietf-moq-cmsf"></xref>) would
+require a companion specification defining the chunk-to-symbol
+segmentation, padding, length framing, and ESI mapping; none is
+defined here, and this section sketches the intended track
+relationship only.  A CMAF deployment wanting FEC protection today
+carries the media as mmtp-packaged tracks (an MPU corresponds to a
+CMAF Fragment; see <xref target="MOQ-MMT"></xref>).</t>
 </section>
 
 <section anchor="security-considerations"><name>Security Considerations</name>
@@ -1177,6 +1212,10 @@ with the following initial values:</t>
 </tr>
 </tbody>
 </table><t>New registrations require Specification Required policy.</t>
+<t>Only &quot;None&quot; (0x00) and RaptorQ (0x01) are specified for
+interoperation by this document; other registered values, including
+Reed-Solomon (0x02), are extension points whose interoperable use
+requires their own specifications (Section 4.3).</t>
 </section>
 
 <section anchor="catalog-packaging-value"><name>Catalog Packaging Value</name>
