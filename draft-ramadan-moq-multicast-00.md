@@ -32,8 +32,9 @@ specification includes a multicast catalog extension for endpoint
 discovery and multi-path delivery across TV, mobile, and browser
 platforms.  All multicast delivery uses MMTP packets — the same packet
 format used on MoQ QUIC streams and datagrams — providing track
-routing, timestamps, sequencing, FEC metadata, and authentication
-natively.
+routing, timestamps, sequencing, and FEC metadata natively.  A
+manifest-based content-authentication profile protects multicast
+delivery.
 
 {mainmatter}
 
@@ -236,8 +237,8 @@ The `multicast` object contains the following members:
 **networkSource** (array of objects, OPTIONAL): Network delivery
   configuration applying to all endpoints; see Section 4.2.
 
-**auth** (object, OPTIONAL): Content authentication configuration;
-  see Section 7.2.
+**auth** (object, OPTIONAL): Content authentication configuration
+  for the bc-provenance profile; see Section 7.2.
 
 Endpoint field definitions:
 
@@ -540,95 +541,210 @@ delegated to the relay per [@!RFC7450].
 
 ## Content Authentication
 
-Multicast UDP lacks QUIC's integrity guarantees.  For MMTP-packaged
-multicast delivery, content authentication uses the MMTP
-signed_mmt_message mechanism per [@?I-D.bouazizi-mmtp] Section 3.1
-(header extension format).  This provides per-packet authentication
-using digital signatures carried in MMTP header extensions.
+Multicast UDP delivery lacks the integrity protection that QUIC
+provides on unicast paths.  This section defines "bc-provenance", a
+manifest-provenance authentication profile.  The publisher
+computes, per MoQ group per protected track, an ordered digest
+structure over the group's objects; signs its root with a dedicated
+broadcast Ed25519 key [@!RFC8032]; and publishes the signed
+manifest on a dedicated MoQ track.  Receivers verify each object —
+received or FEC-recovered — against the group root before admitting
+it to reassembly and decode.  Verification cost is one signature
+verification per group; all digests use BLAKE3 [@?BLAKE3].
+Manifest-based authentication of multicast payloads has prior art
+in AMBI [@?I-D.ietf-mboned-ambi] (expired).
 
-Key distribution for multicast authentication uses one of two
-signaling paths:
+### Manifest Track
 
-1. **MMTP PA (Package Access) messages**: Certificates are carried
-   in PA messages published on the MoQ signaling track.  PA
-   messages are MMTP signaling packets (Packet Type = signaling)
-   that carry security-related tables.
+The publisher publishes one manifest object per media group,
+group-aligned: the manifest object authenticating group N of the
+media track is published in group N of the manifest track.  The
+manifest track is a plain sibling track named by the catalog — it
+carries no role suffix and is not part of any switching set.  The
+catalog carries the pointer to the manifest track and the profile
+parameters (Section 7.2.5); it never carries the digests
+themselves.
 
-2. **MoQ catalog `auth` extension**: Certificates or certificate
-   URLs are included in the catalog's `auth` field, enabling
-   pre-join key discovery.
+### Manifest Content
 
-The specific key distribution mechanism is out of scope for this
-document, but the signaling paths above provide the transport.
-Publishers SHOULD rotate signing keys periodically and deliver new
-certificates via PA messages.  Receivers that miss a PA message can
-request the current certificate via the MoQ signaling track.
+A manifest is an ordered sequence of per-object entries, each
+binding:
+
+- **object_id**: the explicit source-symbol identity assigned at
+  encode time.  `object_id` values MUST be unique within the
+  group but need not be contiguous or start at zero.
+- **digest**: the BLAKE3-256 digest of the object's authenticated
+  bytes (Section 7.2.4).
+- **length**: the length of the authenticated bytes in octets.
+
+The entry sequence is followed by a group-close record binding
+(group_id, object_count), and by the signature.
+
+With `compaction` "merkle", the per-object entries are the leaves
+of a binary Merkle tree and the signature covers the tree root; a
+receiver verifies an object by hashing its authenticated bytes and
+checking an O(log n) inclusion path against the root.  With
+`compaction` "none", suitable for small groups, the signature
+covers the flat digest list directly.
+
+### Signature Context Binding
+
+The signature MUST NOT cover the bare root.  The signed value is
+the tuple of:
+
+1. the broadcast namespace,
+2. the track name,
+3. the group_id,
+4. the object-id range covered by the manifest,
+5. the key epoch (`keyId`),
+6. the track's codec, timing, and FEC-geometry parameters as
+   advertised in the catalog,
+7. the manifest format version, and
+8. the root (or, with `compaction` "none", the flat digest list).
+
+One broadcast key signs many tracks and many broadcasts.  A
+signature over a bare root would allow a valid (manifest, objects)
+pair to be replayed cross-track or cross-stream: an attacker could
+substitute one track's or one broadcast's authenticated content for
+another's, and the signature would still verify.  Binding the full
+context defeats this substitution.  This binding set is a superset
+of the authenticated-metadata model of
+[@?I-D.ietf-moq-secure-objects], which provides per-object
+authentication on unicast MoQ; the profile defined here complements
+that work by amortizing one signature over an entire group for
+multicast fan-out.
+
+Freshness: receivers MUST reject manifests whose group_id falls
+outside the live-edge window unless operating in an
+explicitly-configured DVR or replay mode.
+
+### Authenticated Bytes
+
+The authenticated bytes of an object are the MMTP packet bytes as
+carried in the MoQ object payload — identical across MoQ unicast,
+multicast UDP, and ROUTE after symbol-level normalization —
+excluding any transport-variant trailers.  This gives cross-path
+verifiability: the same digest validates a symbol regardless of
+which path delivered it, so a symbol received on any path, or
+recovered by FEC decoding, verifies against the same manifest
+entry.
+
+### Catalog Signaling
 
 The authentication configuration is declared in the catalog as part
 of the multicast configuration:
 
 ~~~ json
-{
-  "multicast": {
-    "auth": {
-      "scheme": "signed_mmt_message"
-    },
-    "endpoints": [...]
-  }
+"auth": {
+  "scheme": "bc-provenance",
+  "hash": "blake3",
+  "sig": "ed25519",
+  "publicKey": "<32-byte Ed25519 public key, base64url unpadded>",
+  "keyId": "v1",
+  "previousKey": "<optional, prior public key during rotation>",
+  "compaction": "merkle",
+  "enforcement": "shadow",
+  "tracks": [
+    { "mediaTrack": "video/base",
+      "manifestTrack": "video/manifest",
+      "authScope": "<32-byte value, base64url unpadded>",
+      "sourceSymbolFormat": "full-mmtp-packet" }
+  ]
 }
 ~~~
 
-**scheme** (string, REQUIRED if auth present): Authentication
-  mechanism identifier.  Defined values:
+**scheme** (string, REQUIRED if `auth` present): Authentication
+  profile identifier.  Only "bc-provenance" is defined by this
+  document.
 
-  - "signed_mmt_message": MMTP-native per-packet authentication
-    per [@?I-D.bouazizi-mmtp] Section 3.1
-  - "alta": ALTA per [@?I-D.krose-mboned-alta] — lightweight
-    asymmetric loss-tolerant authentication
+**hash** (string, REQUIRED): Digest algorithm.  Only "blake3"
+  (BLAKE3-256 [@?BLAKE3]) is defined by this document.
 
-### Authentication Carrier by Wire Layer (ALTA)
+**sig** (string, REQUIRED): Signature algorithm.  Only "ed25519"
+  [@!RFC8032] is defined by this document.
 
-ATSC 3.0 defines two independent multicast transports with
-independent authentication envelopes, and deployments MAY use
-either or both:
+**publicKey** (string, REQUIRED): The 32-byte Ed25519 broadcast
+  public key, base64url-encoded without padding.
 
-- **ROUTE** (ALC over LCT) carries auth in an LCT `EXT_AUTH` header
-  extension per [@?RFC5775] Section 5.2, demultiplexed by ASID.  ATSC
-  3.0 assigns ASID = 0 to TESLA-style authentication (A/331 Section
-  7.1) [@?ATSC-A331].  ALTA on the ROUTE/ALC path SHOULD register a
-  distinct ASID (this document suggests 10) so that both schemes can
-  coexist in the EXT_AUTH registry slot without mutual clobbering.
-- **MMTP** carries auth in an MMTP header extension per
-  [@?I-D.bouazizi-mmtp] Section 3.1.  ATSC A/360 Section 5.2.2.5
-  defines `signed_mmt_message` (A/331 Table 7.41) for MMTP
-  signaling and MA3 messages (packet type 0x2).  ALTA on the MMTP
-  path SHOULD use an MMTP header-extension `ext_type` (value from
-  the private-use range until formally allocated) with X-bit
-  kept at 0 so A/331 receivers continue to parse `payload_length`
-  for asset packets (type 0x00 MPU, type 0x03 repair) which fall
-  OUTSIDE the A3SA signed region.
+**keyId** (string, REQUIRED): Key epoch identifier.  The key epoch
+  is part of the signature context binding (Section 7.2.3).
 
-A given packet is either an LCT packet or an MMTP packet — the
-two envelopes never coexist on the same packet.  A deployment
-that delivers both an ALC/LCT signaling carousel (TSI = 0 per
-A/331) and MMTP media packets on the same multicast address will
-authenticate each wire layer with its own envelope.  Receivers
-dispatch on the wire framing, not on a unified ASID.
+**previousKey** (string, OPTIONAL): The prior epoch's public key,
+  retained during rotation.  Together with `keyId` this permits a
+  one-epoch overlap: receivers MAY accept manifests signed under
+  the prior epoch while the catalog advertises both keys.
 
-Sender and receiver implementations SHOULD be carrier-aware and
-MUST NOT assume a single envelope covers both paths.  The ALTA
-signer core (hash-chain construction, MAC derivation, Ed25519
-signature anchor) is identical across envelopes; only the
-placement of the authenticator bytes on the wire differs.
+**compaction** (string, OPTIONAL, default "merkle"): Digest
+  compaction, "merkle" or "none", as defined in Section 7.2.2.
 
-On MoQ unicast, end-to-end content authentication MAY be provided
-by Secure Objects which provides object-level encryption and
-authentication independent of multicast.
+**enforcement** (string, OPTIONAL, default "shadow"): Publisher
+  hint.  "shadow" asks receivers to verify and report; "required"
+  indicates that receivers SHOULD drop unverified objects.
+  Receivers ultimately choose their enforcement mode
+  (Section 7.2.6).
 
-Content authentication for multicast is an active area of work.
-Related prior work includes [@?I-D.krose-mboned-alta] (expired);
-deployments should track the IETF MBONED working group for
-successors.
+**tracks** (array of objects, REQUIRED): One entry per protected
+  media track.  The array MUST NOT be empty.
+
+  - **mediaTrack** (string, REQUIRED): Name of the protected media
+    track as it appears in the catalog.
+  - **manifestTrack** (string, REQUIRED): Name of the manifest
+    track carrying the signed manifests for `mediaTrack`.
+    `manifestTrack` values MUST NOT collide across entries.
+  - **authScope** (string, REQUIRED): A fresh, unpredictable
+    32-byte value, base64url-encoded without padding, generated
+    per (session, track) and mixed into the digest computation as
+    a domain-separation input.  `authScope` values MUST NOT
+    collide across entries.
+  - **sourceSymbolFormat** (string, REQUIRED): The byte format
+    digests are computed over.  Only "full-mmtp-packet" — the
+    authenticated bytes of Section 7.2.4 — is defined by this
+    document.
+
+### Receiver Enforcement
+
+Receivers operate in one of three enforcement modes: "off" (no
+verification), "shadow" (verify every object and report failures
+without dropping), or "enforce".
+
+In enforce mode a receiver MUST drop objects that fail
+verification before admission to reassembly or decode, and MUST
+discard FEC-recovered blocks whose recovered objects fail
+verification.  Injected or corrupted symbols therefore fail the
+digest check and are dropped before they can poison FEC decode.  A
+receiver in enforce mode SHOULD apply a hold-down to sources whose
+objects repeatedly fail verification.
+
+A receiver MUST be able to pin "authentication required" for a
+broadcast independently of the catalog.  Without such a pin, an
+attacker able to rewrite the catalog could remove the `auth`
+member entirely and downgrade the receiver to unauthenticated
+reception.
+
+### Threat Model
+
+This profile protects against off-path and on-segment UDP
+injection, and against corrupted or attacker-injected FEC symbols.
+
+It does not protect against a malicious MoQ relay that rewrites
+the catalog itself, nor against key substitution at the signaling
+layer, until an out-of-band key binding exists.  For
+broadcast-only receivers with no return channel, the broadcast
+public key (or a certificate chaining to one) MUST be provisioned
+or pinned out of band; a key learned solely in-band on a one-way
+channel provides no authentication.
+
+### ROUTE and Broadcast Carriage
+
+Hybrid receivers — receivers that also hold the MoQ catalog —
+verify symbols from any carrier against the same
+catalog-advertised manifests; no carrier-specific authentication
+is needed.
+
+For broadcast-only receivers, manifest objects are carried in the
+ROUTE signaling carousel, and each source block additionally
+carries the signed group digest in an ALC/LCT EXT_AUTH header
+extension per [@?RFC5775].
 
 ## Catalog as Attack Surface
 
@@ -716,15 +832,15 @@ registration.
   <seriesInfo name='Internet-Draft' value='draft-jholland-quic-multicast-09'/>
 </reference>
 
-<reference anchor='ATSC-A331' target='https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/'>
+<reference anchor="BLAKE3" target="https://github.com/BLAKE3-team/BLAKE3-specs/blob/master/blake3.pdf">
   <front>
-    <title>Signaling, Delivery, Synchronization, and Error Protection</title>
-    <author>
-      <organization>ATSC</organization>
-    </author>
-    <date year='2025' month='February'/>
+    <title>BLAKE3: one function, fast everywhere</title>
+    <author initials="J." surname="O'Connor" fullname="Jack O'Connor"/>
+    <author initials="J-P." surname="Aumasson" fullname="Jean-Philippe Aumasson"/>
+    <author initials="S." surname="Neves" fullname="Samuel Neves"/>
+    <author initials="Z." surname="Wilcox-O'Hearn" fullname="Zooko Wilcox-O'Hearn"/>
+    <date year="2021"/>
   </front>
-  <seriesInfo name='ATSC' value='A/331:2025'/>
 </reference>
 
 <reference anchor='WICG-DirectSockets' target='https://wicg.github.io/direct-sockets/'>
@@ -736,3 +852,18 @@ registration.
     <date year='2026'/>
   </front>
 </reference>
+
+# Per-Packet Signaling Authentication
+
+This appendix is informative.
+
+MMTP defines a per-packet authentication mechanism,
+signed_mmt_message ([@?I-D.bouazizi-mmtp] Section 3.1), carrying a
+digital signature in an MMTP header extension.  Per-packet
+signatures are practical only where the packet rate is very low: a
+signaling-only flow of a few packets per second can absorb a
+signature on every packet, and per-packet authentication lets a
+receiver that consumes only signaling verify each packet without
+the manifest indirection of Section 7.2.  It is not used for media
+tracks, whose packet rates make per-packet signatures impractical;
+media tracks use the bc-provenance profile of Section 7.2.
