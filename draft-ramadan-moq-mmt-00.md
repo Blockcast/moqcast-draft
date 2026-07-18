@@ -182,7 +182,7 @@ An MMT stream maps to MoQ tracks as follows:
 | Asset (stream) | Namespace |
 | Packet ID (video) | Track "video" |
 | Packet ID (audio) | Track "audio" |
-| MPU sequence | Group ID |
+| MPU (one MPU per group) | Group; number derived from media time (Section 4.4.1) |
 | MFU within MPU (and Init metadata) | Subgroup ID |
 | MMTP packet (fragment) within MFU | Object ID |
 | AL-FEC repair | Track "video/repair" |
@@ -212,7 +212,10 @@ Section 4.3).
 Group boundaries align with MPU boundaries, and subgroup boundaries
 align with MFU boundaries:
 
-- Group N contains all objects of MPU N.
+- Each group contains all objects of exactly one MPU: a change of MPU
+  sequence number starts a new group.  The group's *number* is not the
+  MPU sequence number; it is derived from media time by the formula in
+  Section 4.4.1.
 - Subgroup 0 of each group carries the MPU metadata (mmpu/moov boxes)
   as its single object.
 - Subgroups 1..M each carry exactly one MFU.  The objects within an MFU
@@ -221,6 +224,19 @@ align with MFU boundaries:
   MFU), or objects with FI=1 (first), FI=2 (zero or more middle), and
   FI=3 (last) for an MFU fragmented across packets.
 - The first media object of each group SHOULD have RAP Flag = 1.
+
+The MPU sequence number remains present in-band (in the MMTP payload
+header of every MPU fragment) and delimits which packets belong to the
+same group, but it is NOT the MoQ Group number.  Publishers MUST NOT
+copy the MPU sequence number into the Group number, and subscribers
+MUST NOT derive media time or switching decisions from it.  (The MPU
+sequence number is a per-encoder counter with an arbitrary starting
+value; two independently started encoders of the same content disagree
+on it, so counter-based group numbering cannot satisfy the switching-set
+alignment requirements of Section 4.4.  Implementations that predate
+this document and number groups by such a counter interoperate only
+with themselves and only outside switching sets; this is legacy
+behavior, not a conforming mode.)
 
 This realizes the Chunk-to-Object mode of [@I-D.wilaw-moq-cmafpackaging]
 when the source is CMAF: an MMT MPU corresponds to a CMAF Fragment and
@@ -248,45 +264,103 @@ in [@I-D.wilaw-moq-cmafpackaging].  MoQ Group numbers MUST be
 media-time-aligned across all tracks of a switching set so that
 subscribers can switch at group boundaries without discontinuity.
 
-### Group Number Formula
-
-For interoperability across senders, relays, and subscribers, the
-group number for a given media time within a switching set is
-computed as:
+Switching-set membership is declared in the catalog.  This document
+defines a per-track field:
 
 ~~~
-group_number = base + floor(ticks / groupDurationTicks)
+altGroup (OPTIONAL, unsigned integer)
+~~~
+
+Two tracks are members of the same switching set if and only if both
+carry the `altGroup` field and the values are equal.  A track that
+omits `altGroup` is a member of no switching set, and the
+switching-set requirements of this section do not bind it.  Every
+normative statement in this document that ranges over "tracks of a
+switching set" (or "the same switching set") ranges over exactly this
+membership.  A repair track (Section 8.2) protecting a member track
+carries the same `altGroup` value as the track it protects.
+
+### Group Number Formula
+
+The Group number of every mmtp-packaged track MUST be computed from
+media time by the formula in this section.  This single definition is
+what makes group boundaries align across the renditions of a
+switching set, and what lets the FEC interleave window (Section 7.1)
+map deterministically onto whole groups:
+
+~~~
+group_number = floor(ticks / groupDurationTicks)    if ticks >= 0
+group_number = 0                                    if ticks <  0
 ~~~
 
 where:
 
-- `ticks` is the presentation timestamp expressed in the catalog's
-  media `timescale` (Hz), as a signed integer.  Values less than or
-  equal to zero (which can occur during encoder start-up, on B-frame
-  reorder, or after an epoch reseed) MUST clamp to `base`.
+- `ticks` is the presentation timestamp of the group's first sample
+  in decode order (under B-frame reordering, the first sample in
+  decode order — not the sample with the minimum presentation
+  timestamp), expressed in the track's `timescale` (Hz, Section
+  4.4.2) as a signed integer.
 - `groupDurationTicks` is the per-track group duration expressed
   in the same `timescale`, as a positive integer.  The catalog
   signals it via Section 4.4.2; conversion from the integer-millisecond
   form is exact by construction (the catalog publisher rejects
   non-exact pairs and uses the integer-tick override instead).
-- `base` is a non-negative integer offset assigned to the switching
-  set, defaulting to 0 unless the catalog specifies otherwise.
+- Negative `ticks` (which can occur during encoder start-up or on
+  B-frame reorder near the start of the timeline) MUST clamp to
+  group number 0, as shown above.
 
-Integer math is normative.  Implementations MAY accept seconds-form
-inputs at API boundaries, but the seconds-to-ticks conversion MUST
-preserve the integer formula above (e.g. via `ticks =
-round(seconds * timescale)`); a float-domain `floor` is RECOMMENDED
-to apply a tolerance (e.g. `1e-9` seconds) to prevent ULP-class
-boundary mis-bucketing.
+Timeline origin: `ticks` is measured on the track's media
+presentation timeline; all tracks of a switching set share one such
+timeline.  Tick 0 is the start of the presentation — the earliest
+presentation time the publisher assigns to any sample of the
+switching set (or, for a track in no switching set, of the track
+itself) — NOT an NTP or wall-clock epoch, and NOT the Timestamp
+field of the MMTP packet header (which is NTP-derived and unrelated
+to this formula).  For ISOBMFF-derived MPU content this is the media
+composition timeline carried by the MPU's movie fragment metadata.
+All tracks of a switching set MUST publish sample timestamps on this
+common timeline; a publisher that resets the timeline (a timeline
+discontinuity) MUST reset it identically, at the same media instant,
+across all tracks of the switching set.
 
-The same `(ticks, timescale, groupDurationTicks)` triple, fed
-through this formula, MUST produce the same group number in every
-implementation that participates in the switching set.
+All arithmetic is in integers: `ticks` and `groupDurationTicks` are
+integers, `floor(ticks / groupDurationTicks)` is integer division,
+and implementations MUST NOT compute the group number in floating
+point or apply any tolerance.  An input held in another unit
+(seconds, milliseconds, a different timescale) MUST be converted to
+an exact integer tick count before the formula is applied; if that
+conversion is not exact, the publisher's timescale or group-duration
+choice is wrong (Section 4.4.2) — implementations MUST NOT round to
+compensate.
+
+The same `(ticks, groupDurationTicks)` pair, fed through this
+formula, MUST produce the same group number in every implementation
+that participates in the switching set.
+
+Worked example.  A switching set of two video renditions of the same
+content: rendition A with `timescale: 90000`, rendition B with
+`timescale: 44100`, both with `groupDurationMs: 2000` in the catalog
+(Section 4.4.2).  The sample that is 10.5 seconds into the shared
+presentation timeline has an integer timestamp in both timescales:
+
+~~~
+A: groupDurationTicks = 2000 * 90000 / 1000 = 180000
+B: groupDurationTicks = 2000 * 44100 / 1000 =  88200
+
+Same media instant, t = 10.5 s on the shared timeline:
+A: ticks = 945000   ->  floor(945000 / 180000) = 5
+B: ticks = 463050   ->  floor(463050 /  88200) = 5
+~~~
+
+Both renditions place the instant in group 5.  No intermediate value
+is shared between the two computations — only the integer results
+agree — which is exactly the property group-boundary switching
+requires.
 
 ### Catalog Signaling of Group Duration
 
 For a subscriber to apply the formula in Section 4.4.1, the catalog
-MUST publish the group duration to each track in the switching set.
+MUST publish the group duration for every mmtp-packaged track.
 This document defines a single per-track field:
 
 ~~~
@@ -506,7 +580,9 @@ publisher MUST NOT reassemble MFU fragments:
    (Section 4.6) gives the fragment order within the subgroup.
 2. The publisher MUST NOT interpret or act on the Fragmentation
    Indicator.  It routes each packet to (track, group, subgroup) by
-   packet_id, MPU sequence, and MFU index only.
+   packet_id, MPU boundary, and MFU index only: a change of MPU
+   sequence number starts the next group (Section 4.3), whose number
+   comes from the formula in Section 4.4.1.
 3. The receiver MUST reassemble each MFU from the objects of its
    subgroup before media processing, ordering by reconstructed Object
    ID:
@@ -848,6 +924,7 @@ Per-track catalog fields for mmtp packaging:
 | `timescale` | REQUIRED | Number | Media timescale in Hz (Section 4.4.2) |
 | `groupDurationMs` | REQUIRED | Number | Group duration, integer ms (Section 4.4.2) |
 | `groupDurationTicks` | OPTIONAL | Number | Integer-tick override (Section 4.4.2) |
+| `altGroup` | OPTIONAL | Number | Switching-set membership key, unsigned integer (Section 4.4) |
 | `keyframeIntervalMs` | OPTIONAL | Number | Keyframe/GOP cadence, integer ms; advisory, video only (Section 4.4.3) |
 | `keyframeIntervalTicks` | OPTIONAL | Number | Integer-tick override for the keyframe interval (Section 4.4.3) |
 | `initMode` | OPTIONAL | String | "inline" (default) or "track" (Section 4.5) |
