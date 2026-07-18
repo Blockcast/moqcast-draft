@@ -149,8 +149,8 @@ MMTP Header (12 bytes minimum) {
   Reserved (1),
   Extension Flag (X) (1),
   RAP Flag (R) (1),
-  Packet Type (6),
   Reserved (2),
+  Packet Type (6),
   Packet ID (16),
   Timestamp (32),
   Packet Sequence Number (32),
@@ -161,9 +161,9 @@ MMTP Header (12 bytes minimum) {
 
 The fixed fields sum to 96 bits (three 32-bit words).  Byte 0 is
 version(2) | packet_counter_flag(1) | FEC_type(2) | reserved(1) |
-extension_flag(1) | RAP_flag(1); byte 1 is packet_type(6) |
-reserved(2), i.e. the packet type occupies the HIGH six bits of the
-second byte ([@!ISO.23008-1] Clause 9.2).
+extension_flag(1) | RAP_flag(1); byte 1 is reserved(2) |
+packet_type(6), i.e. the packet type occupies the LOW six bits of
+the second byte ([@!ISO.23008-1] Clause 9.2).
 
 Key fields for MoQ mapping:
 
