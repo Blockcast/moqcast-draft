@@ -7,6 +7,37 @@ literature, and ATSC/3GPP/DVB standards. Per-claim analysis below.
 
 ---
 
+## CONVERSION UPDATES (2026-07-17, post spec-batch + fleet audit)
+
+Claim-language changes to make at non-provisional drafting; full notes in
+the "Patent Updates — 2026-07-17" review doc (shared Drive):
+
+1. **Claim F**: FEC_CONFIG is withdrawn from the spec (catalog-sole
+   signaling, no control-message registration) and has zero fleet
+   implementations. Restructure the independent claim around catalog-only
+   signaling; demote in-band-override precedence (elements c/d) to an
+   optional dependent or drop; fold F3's no-back-channel language into
+   the independent claim. Add derived-OTI dependent (F = K x T, Z=1, N=1,
+   Al=8 from two catalog integers; no OTI on the wire).
+2. **Claim D(c)**: primary timeout recitation becomes
+   timeout = interleaveDepthMs x safety (K- and framerate-independent;
+   the window IS the block span). Keep the filed frames x rate form as an
+   alternative embodiment.
+3. **Claim A(b)/A1**: derive D from catalog groupDurationMs (with
+   groupDurationTicks exact override), D = ceil(window / groupDurationMs);
+   frame-duration inference survives only as a dependent embodiment.
+4. **Claim A4**: delete "or AL-FEC signaling message" as an epoch source;
+   add sibling dependent for media-time agreement via the Group Number
+   Formula (floor(ticks / groupDurationTicks), shared presentation epoch,
+   negative clamp) — cross-encoder block alignment without NTP.
+5. **Claim C(g)**: filter vocabulary is Largest Object (0x2) / Next Group
+   Start (0x1) per moqt-14, replacing "LatestGroup".
+6. **Claim B is now reduced to practice** (see updated implementation
+   evidence below) — the provisional-first blocker is resolved; early
+   conversion is viable.
+
+---
+
 ## TOP 6 CLAIMS (Prioritized by Novelty × Impact)
 
 ---
@@ -176,10 +207,18 @@ B3. The method of Claim B wherein a receiver dynamically switches its
   and the other is unreliable multicast UDP, unified by shared FEC
   coordinates. No prior art addresses this specific combination.
 
-**Implementation Evidence:**
+**Implementation Evidence (updated 2026-07-17 — IMPLEMENTED):**
 - Draft: §8.3, §11.1
-- Code: `libmmt/packages/container/src/media-router.ts` (source
-  arbitration), `fec-manager.ts` (block combining)
+- Code: `libmmt/packages/container/src/fec-manager.ts:467-520`
+  (`feedSymbolFromSource` — symbols keyed (packetId, SBN, ESI),
+  first-arrival-wins dedup across multicast/MoQ paths, combined into a
+  single per-block decoder), wired at
+  `libmmt/packages/container/src/mmtp-router.ts:1215-1258`;
+  `media-router.ts` (source arbitration). Deployed configuration matches
+  Claim B1: multicast source symbols + bounded per-block repair FETCH
+  over reliable QUIC (moqtail client). B2 single-decoder holds by
+  construction; B3 switch-continuity via multicast-transport
+  takeover/failback with catalog-derived hysteresis.
 
 ---
 
