@@ -1,6 +1,12 @@
 # USPTO Filing Checklist — July 2026 package
 
-**Status: PREPARED, NOT FILED.** No provisional or non-provisional is on file as of
+**STATUS UPDATE 2026-07-17: FILED 2026-07-10 — three provisionals (App 1
+FEC Methods + Appendices, App 2 Broadcast Bridge, App 3 Wallet-Cert).
+Filing receipts are authoritative for application numbers and the exact
+date; conversion deadline 2027-07-10. Historical pre-filing text below is
+retained unchanged.**
+
+**Status (as written pre-filing): PREPARED, NOT FILED.** No provisional or non-provisional is on file as of
 2026-07-10 (Patent Center check confirmed nothing under the April 11, 2026 date the
 earlier drafts carried). Repo is private and no draft is on the IETF datatracker, so
 no public-disclosure bar date is running. **Do not publish any moqcast draft until a
