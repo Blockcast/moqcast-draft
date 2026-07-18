@@ -59,7 +59,7 @@ signaling of QUIC:
 1. **Delivery paths**: Platform-specific multicast reception for
    TV, mobile, and browser clients
 2. **Catalog extension**: A container-agnostic multicast endpoint
-   discovery mechanism for MoQ catalogs [@!I-D.ietf-moq-catalogformat]
+   discovery mechanism for MoQ catalogs [@!I-D.ietf-moq-msf]
 3. **MMTP wire format**: All multicast delivery uses MMTP packets —
    the same packet format used on MoQ QUIC streams and datagrams.
    MMTP provides track routing (packet_id), timestamps, sequencing
@@ -153,20 +153,23 @@ top-level `multicast` field containing an `endpoints` array for
 endpoint discovery.
 
 The catalog is itself delivered as a MoQ track.  Per
-[@?I-D.ietf-moq-msf] Section 5, the catalog track MUST have the
+[@!I-D.ietf-moq-msf] Section 5, the catalog track MUST have the
 case-sensitive Track Name `catalog`, and publishers conforming to this
 document MUST publish the catalog under that name.  Some WARP-lineage
 deployments instead use the legacy name `.catalog`; that name does not
-conform to [@?I-D.ietf-moq-msf] and SHOULD NOT be used as a catalog
+conform to [@!I-D.ietf-moq-msf] and SHOULD NOT be used as a catalog
 Track Name.  A publisher MAY additionally publish the catalog
 under `.catalog` as a transitional compatibility alias for non-MSF
 consumers.
 
 ## Multicast Endpoint Format
 
-The `multicast` field is a catalog extension per
-[@!I-D.ietf-moq-catalogformat] Section 3.1.  Parsers that do not
-support multicast MUST ignore it.
+The `multicast` field is a root-level extension member of the MSF
+catalog; the catalog envelope for this suite is described in
+[@!MOQ-MMT] Section 12.  [@!I-D.ietf-moq-msf] Section 5 permits
+producers to add fields and requires parsers to ignore fields they
+do not understand: parsers that do not support multicast MUST
+ignore it.
 
 The `multicast` field contains an `endpoints` array listing one or
 more multicast groups.  A single-endpoint deployment uses a
@@ -361,6 +364,10 @@ Defined types:
 **relay** (string, OPTIONAL): AMT relay address (IP or hostname).
   When present, subscribers SHOULD connect directly to this relay.
 
+**port** (integer, OPTIONAL): UDP port on which the AMT relay
+  accepts requests.  When absent, the IANA-assigned AMT port (2268,
+  [@!RFC7450]) is used.
+
 **discovery** (string, OPTIONAL): AMT relay discovery method.
 
   - "driad": DNS Reverse IP AMT Discovery per [@!RFC8777].
@@ -515,8 +522,9 @@ Packaging negotiation is implicit in MoQ: subscribers subscribe to
 tracks by name, and the catalog advertises packaging per track.  A
 subscriber that only supports LOC subscribes to the LOC track; a
 subscriber that supports MMTP subscribes to the MMTP track.  The
-`altGroup` catalog field (see the switching-set machinery of the
-referenced catalog format, [@?I-D.ietf-moq-msf]) enables publishers
+`altGroup` catalog field ([@!I-D.ietf-moq-msf] Section 5.2.12,
+profiled for this suite in [@!MOQ-MMT] Section 4.4) enables
+publishers
 to offer the same content in multiple packaging formats.
 No explicit packaging capability negotiation is needed.
 

@@ -71,7 +71,7 @@ message) is preserved non-normatively in Appendix C.
 
 The mechanism is designed to complement existing MoQ media packaging
 formats including CMAF [@?I-D.ietf-moq-cmsf], LOC [@?I-D.ietf-moq-loc], and
-MMT [@?MOQ-MMT] by operating as a separate protection layer.
+MMT [@!MOQ-MMT] by operating as a separate protection layer.
 
 # Terminology
 
@@ -175,11 +175,11 @@ on the wire.
 | Value | Algorithm | Reference |
 |-------|-----------|-----------|
 | 0x00  | None      | This document |
-| 0x01  | RaptorQ   | [@RFC6330] |
+| 0x01  | RaptorQ   | [@!RFC6330] |
 | 0x02  | Reed-Solomon (GF2^8) | [@?RFC5510] |
 | 0x03-0xFF | Reserved | IANA |
 
-**RaptorQ (0x01)**: RaptorQ fountain code per [@RFC6330].  Can recover
+**RaptorQ (0x01)**: RaptorQ fountain code per [@!RFC6330].  Can recover
 from loss of any symbols as long as K symbols (source or repair) are
 received.  RaptorQ is the mandatory-to-implement scheme and the only
 algorithm this document fully specifies (Section 4.3); deployments to
@@ -198,8 +198,8 @@ the corresponding string identifiers.
 
 An RFC 6330 decoder is configured by the Object Transmission
 Information (OTI): the 8-byte Common FEC OTI (Section 3.3.2 of
-[@RFC6330]) and the 4-byte Scheme-Specific FEC OTI (Section 3.3.3
-of [@RFC6330]), totaling 12 bytes:
+[@!RFC6330]) and the 4-byte Scheme-Specific FEC OTI (Section 3.3.3
+of [@!RFC6330]), totaling 12 bytes:
 
 ~~~
 RaptorQ OTI {
@@ -271,8 +271,13 @@ so an unrecognized or unimplemented algorithm is not an error.
 ## Catalog Fields
 
 The catalog is the sole normative FEC signaling mechanism
-(Section 5.2).  MoQ catalogs [@I-D.ietf-moq-loc] carry the FEC
-configuration at the track level:
+(Section 5.2).  The catalog is an MSF catalog
+[@!I-D.ietf-moq-msf], extended by the documents of this suite as
+described in [@!MOQ-MMT] Section 12, and is delivered on the track
+named `catalog` ([@!I-D.ietf-moq-msf] Section 5).  This document
+adds one track-level field — the `fec` object defined below — and
+one packaging value (`fec-repair`, below).  The FEC configuration
+is carried at the track level:
 
 ~~~ json
 {
@@ -333,7 +338,7 @@ interleaveDepth equal to the group duration).  The derivation
 formula applies only when interleaveDepth > 0; receivers MUST NOT
 substitute an absent or zero value into it.  For mmtp-packaged
 tracks, GOP_duration_ms equals the track's `groupDurationMs` (the MoQ group duration -- one group per frame on the MMT path -- not the keyframe/GOP cadence)
-signaled per [@?MOQ-MMT] Section 12.1.
+signaled per [@!MOQ-MMT] Section 12.1.
 
 When CMAF packaging is used, aligning the CMAF segment duration
 with interleaveDepth lets each segment contain exactly one FEC
@@ -349,7 +354,10 @@ Repair tracks themselves are identified in the catalog by the
 `packaging` value `"fec-repair"`: a track with
 `"packaging": "fec-repair"` carries repair objects (Section 7) for
 the source track whose `fec.repairTrack` field names it, and
-carries no directly renderable media.  Receivers that do not
+carries no directly renderable media.  The value extends the
+allowed packaging values of [@!I-D.ietf-moq-msf] Section 5.2.4 in
+the same manner as the `cmaf` value of [@?I-D.ietf-moq-cmsf]; see
+Section 15.3.  Receivers that do not
 implement this specification do not recognize the value and ignore
 such tracks.
 
@@ -454,11 +462,11 @@ Each object on a repair track is one complete MMTP repair packet
 (packet type 0x03, FEC Type 2) carrying exactly one repair symbol.
 Its layout is the ISO 23008-1 AL-FEC repair packet form —
 the MMTP packet header followed by the 13-byte Repair FEC Payload
-ID and the repair symbol data ([@?ISO.23008-1] Sections C.4.3 and
+ID and the repair symbol data ([@!ISO.23008-1] Sections C.4.3 and
 C.5.3; ssbg_mode0, one-stage FEC) — so the same repair packet is
 valid on MoQ, multicast UDP, and native broadcast paths without
 translation, and matches the repair-object depiction of
-[@?MOQ-MMT] Section 7:
+[@!MOQ-MMT] Section 7:
 
 ~~~
 Repair Object {
@@ -474,7 +482,7 @@ Repair Object {
 ~~~
 
 **MMTP Packet Header**: The standard 12-byte MMTP packet header
-([@?MOQ-MMT] Section 3.1) with packet type 0x03 (repair) and
+([@!MOQ-MMT] Section 3.1) with packet type 0x03 (repair) and
 FEC Type 2; its `packet_id` routes the repair flow.  Repair packets
 MUST NOT carry the optional packet counter or header extension, so
 the Repair FEC Payload ID always begins at byte offset 12.
@@ -510,7 +518,7 @@ the ISO form above, and is removed; receivers MUST NOT expect it.
 
 ## Repair Symbols
 
-For RaptorQ, repair symbols are generated per [@RFC6330] Section 5.3.
+For RaptorQ, repair symbols are generated per [@!RFC6330] Section 5.3.
 The Encoding Symbol ID (ESI) for repair symbols starts at K (the
 number of source symbols).
 
@@ -519,7 +527,7 @@ not specified by this document.
 
 ## Sub-Blocks and ssbg_mode
 
-Per ISO 23008-1 [@?ISO.23008-1] Section C.5, the FEC block structure
+Per ISO 23008-1 [@!ISO.23008-1] Section C.5, the FEC block structure
 is described by the Source Symbol Block Group mode (ssbg_mode).
 
 **ssbg_mode0** (RECOMMENDED for MMTP): One MMTP packet = one source
@@ -554,7 +562,7 @@ block -- but MAY still deliver the packet as media.
 Because the recovered symbol retains the MMTP header,
 the packet's true length is intrinsic to the recovered bytes (the
 length fields of the MMTP payload header, ISO 23008-1
-[@?ISO.23008-1]); the receiver consumes the packet per
+[@!ISO.23008-1]); the receiver consumes the packet per
 those fields and discards the trailing zero padding, then delivers the
 recovered packet to the MMTP parser.  No separate length prefix is
 carried: retaining the header makes the packet self-delimiting, which
@@ -958,7 +966,7 @@ scale.
 When this scheme is carried over a multicast QUIC channel:
 
 1. **Symbol-to-datagram mapping.**  Each source or repair symbol (one MMTP
-   packet, per [@?MOQ-MMT]) SHOULD be carried in exactly one QUIC DATAGRAM
+   packet, per [@!MOQ-MMT]) SHOULD be carried in exactly one QUIC DATAGRAM
    frame.  This aligns the erasure unit (a lost QUIC packet) with the FEC
    symbol, so one lost packet erases exactly one source symbol.  STREAM
    framing SHOULD NOT be used for FEC-protected media on a multicast
@@ -1061,7 +1069,7 @@ segmentation, padding, length framing, and ESI mapping; none is
 defined here, and this section sketches the intended track
 relationship only.  A CMAF deployment wanting FEC protection today
 carries the media as mmtp-packaged tracks (an MPU corresponds to a
-CMAF Fragment; see [@?MOQ-MMT]).
+CMAF Fragment; see [@!MOQ-MMT]).
 
 # Security Considerations
 
@@ -1158,7 +1166,7 @@ with the following initial values:
 | Value | Algorithm | Reference |
 |-------|-----------|-----------|
 | 0x00  | None      | This document |
-| 0x01  | RaptorQ   | [@RFC6330] |
+| 0x01  | RaptorQ   | [@!RFC6330] |
 | 0x02  | Reed-Solomon | [@?RFC5510] |
 | 0x03-0xFF | Unassigned | |
 
@@ -1172,9 +1180,10 @@ requires their own specifications (Section 4.3).
 ## Catalog Packaging Value
 
 This document defines the catalog `packaging` value "fec-repair"
-(Section 5.1) for repair tracks.  If a registry of catalog
-packaging values is established, this document requests
-registration of:
+(Section 5.1) for repair tracks, extending the allowed packaging
+values of the MoQ Streaming Format [@!I-D.ietf-moq-msf]
+Section 5.2.4.  If a registry of packaging values is established
+for that format, this document requests registration of:
 
 | Value | Description | Reference |
 |-------|-------------|-----------|
@@ -1337,8 +1346,7 @@ Complete catalog with FEC and multicast configuration:
 
 ~~~ json
 {
-  "version": 1,
-  "namespace": "live/broadcast",
+  "version": "draft-01",
   "tracks": [
     {
       "name": "video",
@@ -1366,8 +1374,8 @@ Complete catalog with FEC and multicast configuration:
       "name": "audio",
       "packaging": "cmaf",
       "codec": "mp4a.40.2",
-      "sampleRate": 48000,
-      "channelCount": 2,
+      "samplerate": 48000,
+      "channelConfig": "2",
       "bitrate": 128000,
       "fec": {
         "algorithm": "raptorq",
@@ -1412,9 +1420,14 @@ trivially a multiple of D:
   block; block capacity K x T = 32 x 512 = 16,384 bytes >= 16,000.
   Repair overhead P / K = 8 / 32 = 25%.
 
-The `multicast` field uses the multicast endpoint format defined in
-[@MOQ-MULTICAST] Section 4.1: a one-element `endpoints` array.  Per
-[@MOQ-MULTICAST] Section 5, all multicast delivery uses MMTP packets
+The catalog envelope is the MSF root ([@!I-D.ietf-moq-msf]
+Section 5.1); track entries carry the flat base track fields of
+[@!I-D.ietf-moq-msf] Section 5.2 (`codec`, `width`, `samplerate`,
+...) alongside the `fec` object this document defines, and inherit
+the namespace of the catalog track ([@!I-D.ietf-moq-msf]
+Section 5.2.2).  The `multicast` field uses the multicast endpoint format defined in
+[@?MOQ-MULTICAST] Section 4.1: a one-element `endpoints` array.  Per
+[@?MOQ-MULTICAST] Section 5, all multicast delivery uses MMTP packets
 regardless of a track's unicast packaging, so each track listed on
 the endpoint carries a `packetId` that routes its MMTP packets on the
 multicast UDP path.
