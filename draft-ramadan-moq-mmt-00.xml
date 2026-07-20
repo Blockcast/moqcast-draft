@@ -1123,7 +1123,7 @@ one whole MMTP packet (<xref target="MOQ-FEC"></xref> Section 7.3)</li>
 <li><strong>interleaveDepthMs</strong>: The FEC interleave window in milliseconds —
 the time span of each FEC block (<xref target="MOQ-FEC"></xref>
 Section 5.1).  The number of MPU frames per block is derived as
-D = ceil(interleaveDepthMs / groupDurationMs), using the
+D = round(interleaveDepthMs / groupDurationMs), using the
 <tt>groupDurationMs</tt> field of Section 12.1.  When ingesting broadcast
 content, set the window to the time span of the original broadcast
 FEC interleave (its frame count multiplied by the frame duration)</li>
