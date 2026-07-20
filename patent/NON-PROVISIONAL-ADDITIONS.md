@@ -59,7 +59,7 @@ Full drafting notes live in the "Patent Updates — 2026-07-17" review doc
   at MFU granularity without parsing media.
 - **Interleave-window semantics (dependent under A/D):** the millisecond
   window is the full block span, making recovery latency K-independent;
-  D = ceil(interleaveDepthMs / groupDurationMs).
+  D = round(interleaveDepthMs / groupDurationMs).
 - **bc-provenance source authentication (candidate NEW application):**
   per-group BLAKE3 manifest signing over MoQ (Ed25519, previousKey
   rotation, compaction, enforcement modes). File before the rewritten
