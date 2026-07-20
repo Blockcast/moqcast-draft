@@ -329,7 +329,10 @@ as D = round(interleaveDepthMs / GOP_duration_ms).  The
 nearest-integer round() is normative: interleaveDepthMs is itself
 rounded to the nearest millisecond when derived from a fractional
 media-unit cadence, so round() is the exact inverse whenever the
-media-unit duration exceeds 2 ms.  A ceiling would mis-derive such
+media-unit duration exceeds 1 ms: signaling as m = round(D * u)
+bounds the quantization error to half a millisecond, and
+round(m / u) recovers D exactly while that error stays below half a
+media unit.  A ceiling would mis-derive such
 cadences -- at 59.94 fps, D = 4 units spans 66.73 ms and is signaled
 as 67 ms, and ceil(67 / 16.683) yields 5 where round() recovers the
 sender's 4.  Using milliseconds
