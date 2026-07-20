@@ -1045,7 +1045,7 @@ follows:
 - **interleaveDepthMs**: The FEC interleave window in milliseconds —
   the time span of each FEC block ([@!MOQ-FEC]
   Section 5.1).  The number of MPU frames per block is derived as
-  D = ceil(interleaveDepthMs / groupDurationMs), using the
+  D = round(interleaveDepthMs / groupDurationMs), using the
   `groupDurationMs` field of Section 12.1.  When ingesting broadcast
   content, set the window to the time span of the original broadcast
   FEC interleave (its frame count multiplied by the frame duration)
