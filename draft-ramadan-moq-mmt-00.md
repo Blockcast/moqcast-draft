@@ -618,12 +618,36 @@ MFU mode enables:
 
 ## MFU Fragmentation (Raw Passthrough)
 
-A single MFU frequently exceeds the path MTU.  A 4K or 8K intra-coded
-frame is hundreds of kilobytes to several megabytes and is fragmented
-by the encoder into hundreds or thousands of MMTP packets.  Requiring
-the publisher to reassemble such an MFU before forming a MoQ object
-would force every receiver to re-fragment it for its own decoder
-pipeline and would defeat per-fragment FEC and prioritization.
+A single MFU can exceed the path MTU, but the ISO MPU-mode payload
+header does not permit an unbounded number of fragments.  The 8-bit
+`fragment_counter` is the number of MMTP payloads containing fragments
+of the same data unit that succeed the current payload; it is not a
+modulo sequence number.  A complete FI=0 data unit MUST carry zero.
+For a fragmented data unit carried in N payloads, where 2 <= N <= 256,
+the FI=1 payload MUST carry N - 1, every succeeding payload MUST
+decrement the value by one, and the FI=3 payload MUST carry zero.  The
+counter MUST NOT wrap or repeat within a data unit.
+
+The mfu mapping defined here carries exactly one data unit per MMTP
+payload, so `aggregation_flag` MUST be zero.  An input MMTP flow used
+by this mapping MUST already satisfy the 256-payload bound.  A
+publisher MUST reject a purported MFU that exceeds the bound, has an
+invalid countdown, or uses aggregation.  It MUST NOT wrap or extend
+the counter, divide the overflow between subgroups, or synthesize MoQ
+Object IDs to make a non-conformant MMTP data unit appear valid.  This
+mapping does not repacketize or subdivide an input MFU.
+
+The upstream MMTP packetizer is responsible for producing conformant
+data units.  It can represent a large timed sample as multiple MFUs
+(sample or subsample data units under [@!ISO.23008-1] Table 13), each
+with a distinct `offset`, or increase the media capacity per payload.
+It MUST NOT split one access unit across multiple MPUs
+([@!ISO.23008-1] Section 6.4).
+
+Within those bounds, requiring the publisher to reassemble an MFU
+before forming a MoQ object would force every receiver to re-fragment
+it for its own decoder pipeline and would defeat per-fragment FEC and
+prioritization.
 
 Therefore each MMTP packet maps to exactly one MoQ object, and the
 publisher MUST NOT reassemble MFU fragments:
@@ -650,6 +674,10 @@ publisher MUST NOT reassemble MFU fragments:
      (last) reassemble, in Object ID order, into one MFU by
      concatenating each fragment's media bytes, delimited as defined
      below.
+   - After ordering the fragments by reconstructed Object ID, the
+     receiver MUST validate the non-wrapping `fragment_counter`
+     countdown defined above.  Any missing, repeated, wrapped, or
+     non-decrementing count invalidates the entire MFU.
    - The reassembled MFU's RAP flag is taken from its FI=1 (or FI=0)
      object.
 
@@ -673,13 +701,16 @@ publisher MUST NOT reassemble MFU fragments:
    FI=2 or FI=3: payload_length = 6 + media_octets
    ~~~
 
-   `DU_header_octets` is 14 for timed media and 4 for non-timed
-   media.  A trailing Source FEC Payload ID and any other bytes outside
-   the declared MPU payload MUST NOT be counted.  A publisher MUST NOT
-   encode a media-only or DU-plus-media length convention.  A receiver
-   MUST reject a packet whose declaration cannot contain the required
-   header bytes, extends beyond the available MPU payload bytes, or
-   consumes an outer trailer.
+   `DU_header_octets` is 14 for timed media and 4 for non-timed media,
+   and the right-hand side MUST NOT exceed the 16-bit maximum of 65535.
+   A trailing Source FEC Payload ID is outside the declared MPU payload
+   and MUST NOT be counted.  A publisher MUST NOT encode a media-only or
+   DU-plus-media length convention.  A receiver MUST require the
+   declared MPU payload to end exactly at the protected MPU boundary
+   before the Source FEC Payload ID, when present.  It MUST reject a
+   declaration that is too short, cannot contain the required header
+   bytes, extends beyond the available MPU payload bytes, leaves
+   undeclared bytes before the outer trailer, or consumes that trailer.
 
    The MFU header (the DU header: 14 bytes for
    timed media — movie_fragment_sequence_number (32),
@@ -760,10 +791,11 @@ was published in.
 Section 4.3 maps each MFU to its own subgroup but leaves the
 subgroup key implicit.  This section defines it.
 
-The MFU identity is the object-identity component of the intrinsic
-coordinate, scoped to the group: for timed media the pair
-(movie_fragment_sequence_number, sample_number) from the timed DU
-header, and for non-timed media the Item_ID.  The
+The MFU identity is the full intrinsic coordinate scoped to the group:
+for timed media the triple (movie_fragment_sequence_number,
+sample_number, offset) from the timed DU header, and for non-timed
+media the Item_ID.  Including `offset` distinguishes multiple
+subsample MFUs that reference the same timed sample.  The
 MPU_sequence_number component of the coordinate is the group
 boundary itself (Section 4.3) and does not vary within a group.
 
