@@ -97,7 +97,7 @@ symbols.
 
 **Interleave Depth**: The time span in milliseconds of a single source
 block (the interleave window).  The encoder computes the number of
-groups per block as D = ceil(interleaveDepthMs / GOP_duration_ms).
+groups per block as D = round(interleaveDepthMs / GOP_duration_ms).
 An absent or zero Interleave Depth means no interleaving: D = 1 and
 each Group forms its own source block.
 
@@ -327,7 +327,17 @@ milliseconds.  The unit suffix in the key name is deliberate: the
 value is a duration in milliseconds, never a count of MPU frames,
 media samples, or FEC symbols.
 The encoder computes the number of groups per block
-as D = ceil(interleaveDepthMs / GOP_duration_ms).  Using milliseconds
+as D = round(interleaveDepthMs / GOP_duration_ms).  The
+nearest-integer round() is normative: interleaveDepthMs is itself
+rounded to the nearest millisecond when derived from a fractional
+media-unit cadence, so round() is the exact inverse whenever the
+media-unit duration exceeds 1 ms: signaling as m = round(D * u)
+bounds the quantization error to half a millisecond, and
+round(m / u) recovers D exactly while that error stays below half a
+media unit.  A ceiling would mis-derive such
+cadences -- at 59.94 fps, D = 4 units spans 66.73 ms and is signaled
+as 67 ms, and ceil(67 / 16.683) yields 5 where round() recovers the
+sender's 4.  Using milliseconds
 rather than frame/group counts decouples FEC from frame rate —
 30fps video and 46.875fps audio can share the same interleaveDepthMs
 value.  When absent or 0, no interleaving is applied: D = 1 and
@@ -605,7 +615,7 @@ block, computed from the signaled interleave window and the group
 duration:
 
 ~~~
-D = ceil(interleaveDepthMs / GOP_duration_ms)
+D = round(interleaveDepthMs / GOP_duration_ms)
 ~~~
 
 D is never signaled directly; only the window (Interleave Depth, in
@@ -653,7 +663,7 @@ symbol's position within its FEC block for FEC decoding.
 For a source object with MoQ Group_ID `G` and Object_ID `O`:
 
 ~~~
-D = ceil(interleaveDepthMs / GOP_duration_ms)  # groups per block
+D = round(interleaveDepthMs / GOP_duration_ms)  # groups per block
 SBN = floor(G / D)                              # source block number
 first_group = SBN * D                           # first group in block
 symbols_per_group = ceil(K / D)                 # symbols per group
@@ -771,7 +781,7 @@ Interleaving spreads source symbols across time to protect against
 burst loss.  The interleave window (Interleave Depth, in
 milliseconds) sets the time span of each source block; the number of
 consecutive media units grouped into one block follows as
-D = ceil(interleaveDepthMs / GOP_duration_ms).  With D = 4, symbols
+D = round(interleaveDepthMs / GOP_duration_ms).  With D = 4, symbols
 from 4 consecutive media units are grouped into one source block:
 
 ~~~
