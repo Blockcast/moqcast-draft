@@ -299,8 +299,9 @@ as its single object.</li>
 <li>Subgroups 1..M each carry exactly one MFU.  The objects within an MFU
 subgroup are that MFU's MMTP packets in fragment order: a single
 object with Fragmentation Indicator FI=0 (a complete, unfragmented
-MFU), or objects with FI=1 (first), FI=2 (zero or more middle), and
-FI=3 (last) for an MFU fragmented across packets.</li>
+MFU), or no more than 256 objects with FI=1 (first), FI=2 (zero or
+more middle), and FI=3 (last) for an MFU fragmented across packets.
+The <tt>fragment_counter</tt> countdown is defined in Section 5.1.</li>
 <li>The first media object of each group SHOULD have RAP Flag = 1.</li>
 </ul>
 <t>The MPU sequence number remains present in-band (in the MMTP payload
@@ -667,12 +668,28 @@ MFU Mode, IDR fragmented across packets (Section 5.1):
 </ul>
 
 <section anchor="mfu-fragmentation-raw-passthrough"><name>MFU Fragmentation (Raw Passthrough)</name>
-<t>A single MFU frequently exceeds the path MTU.  A 4K or 8K intra-coded
-frame is hundreds of kilobytes to several megabytes and is fragmented
-by the encoder into hundreds or thousands of MMTP packets.  Requiring
-the publisher to reassemble such an MFU before forming a MoQ object
-would force every receiver to re-fragment it for its own decoder
-pipeline and would defeat per-fragment FEC and prioritization.</t>
+<t>A single MFU can exceed the path MTU, but the ISO MPU-mode payload
+header does not permit an unbounded number of fragments.  The 8-bit
+<tt>fragment_counter</tt> is the number of MMTP payloads containing fragments
+of the same data unit that succeed the current payload; it is not a
+modulo sequence number.  A complete FI=0 data unit MUST carry zero.
+For a fragmented data unit carried in N payloads, where 2 &lt;= N &lt;= 256,
+the FI=1 payload MUST carry N - 1, every succeeding payload MUST
+decrement the value by one, and the FI=3 payload MUST carry zero.  The
+counter MUST NOT wrap or repeat within a data unit.</t>
+<t>The mfu mapping defined here carries exactly one data unit per MMTP
+payload, so <tt>aggregation_flag</tt> MUST be zero.  An input MMTP flow used
+by this mapping MUST already satisfy the 256-payload bound.  A
+publisher MUST reject a purported MFU that exceeds the bound, has an
+invalid countdown, or uses aggregation.  It MUST NOT wrap or extend
+the counter, divide the overflow between subgroups, or synthesize MoQ
+Object IDs to make a non-conformant MMTP data unit appear valid.  This
+mapping does not define repacketization or subdivision of an input
+MFU.</t>
+<t>Within those bounds, requiring the publisher to reassemble an MFU
+before forming a MoQ object would force every receiver to re-fragment
+it for its own decoder pipeline and would defeat per-fragment FEC and
+prioritization.</t>
 <t>Therefore each MMTP packet maps to exactly one MoQ object, and the
 publisher MUST NOT reassemble MFU fragments:</t>
 
@@ -701,6 +718,10 @@ an intrinsic byte offset):</t>
 (last) reassemble, in Object ID order, into one MFU by
 concatenating each fragment's media bytes, delimited as defined
 below.</li>
+<li>After ordering the fragments by reconstructed Object ID, the
+receiver MUST validate the non-wrapping <tt>fragment_counter</tt>
+countdown defined above.  Any missing, repeated, wrapped, or
+non-decrementing count invalidates the entire MFU.</li>
 <li>The reassembled MFU's RAP flag is taken from its FI=1 (or FI=0)
 object.</li>
 </ul></li>
@@ -723,12 +744,15 @@ object.</li>
    FI=2 or FI=3: payload_length = 6 + media_octets
 ]]></artwork>
 <t><tt>DU_header_octets</tt> is 14 for timed media and 4 for non-timed
-   media.  A trailing Source FEC Payload ID and any other bytes outside
-   the declared MPU payload MUST NOT be counted.  A publisher MUST NOT
-   encode a media-only or DU-plus-media length convention.  A receiver
-   MUST reject a packet whose declaration cannot contain the required
-   header bytes, extends beyond the available MPU payload bytes, or
-   consumes an outer trailer.</t>
+   media, and the right-hand side MUST NOT exceed the 16-bit maximum of
+   65535.  A trailing Source FEC Payload ID is outside the declared MPU
+   payload and MUST NOT be counted.  A publisher MUST NOT encode a
+   media-only or DU-plus-media length convention.  A receiver MUST
+   require the declared MPU payload to end exactly at the protected MPU
+   boundary before the Source FEC Payload ID, when present.  It MUST
+   reject a declaration that is too short, cannot contain the required
+   header bytes, extends beyond the available MPU payload bytes, leaves
+   undeclared bytes before the outer trailer, or consumes that trailer.</t>
 <t>The MFU header (the DU header: 14 bytes for
    timed media — movie_fragment_sequence_number (32),
    sample_number (32), offset (32), priority (8),
