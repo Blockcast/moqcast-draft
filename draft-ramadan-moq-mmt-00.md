@@ -660,7 +660,28 @@ publisher MUST NOT reassemble MFU fragments:
    fragment_type (4), timed_flag (1), fragmentation_indicator (2),
    aggregation_flag (1), fragment_counter (8),
    MPU_sequence_number (32); [@!ISO.23008-1]); both are stripped from
-   every fragment.  The MFU header (the DU header: 14 bytes for
+   every fragment.
+
+   The 16-bit `payload_length` field MUST be encoded and interpreted
+   as the number of bytes following that field within the MPU payload,
+   as defined by [@!ISO.23008-1].  It therefore includes the remaining
+   six bytes of the 8-byte MPU-mode payload header.  For MFU packets,
+   the declared lengths are:
+
+   ~~~
+   FI=0 or FI=1: payload_length = 6 + DU_header_octets + media_octets
+   FI=2 or FI=3: payload_length = 6 + media_octets
+   ~~~
+
+   `DU_header_octets` is 14 for timed media and 4 for non-timed
+   media.  A trailing Source FEC Payload ID and any other bytes outside
+   the declared MPU payload MUST NOT be counted.  A publisher MUST NOT
+   encode a media-only or DU-plus-media length convention.  A receiver
+   MUST reject a packet whose declaration cannot contain the required
+   header bytes, extends beyond the available MPU payload bytes, or
+   consumes an outer trailer.
+
+   The MFU header (the DU header: 14 bytes for
    timed media — movie_fragment_sequence_number (32),
    sample_number (32), offset (32), priority (8),
    dep_counter (8) — or 4 bytes for non-timed media) follows the
@@ -1045,7 +1066,7 @@ follows:
 - **interleaveDepthMs**: The FEC interleave window in milliseconds —
   the time span of each FEC block ([@!MOQ-FEC]
   Section 5.1).  The number of MPU frames per block is derived as
-  D = ceil(interleaveDepthMs / groupDurationMs), using the
+  D = round(interleaveDepthMs / groupDurationMs), using the
   `groupDurationMs` field of Section 12.1.  When ingesting broadcast
   content, set the window to the time span of the original broadcast
   FEC interleave (its frame count multiplied by the frame duration)
@@ -1110,7 +1131,7 @@ receivers via:
    (ATSC 3.0, ARIB STD-B60) receivers
 
 With frame-grouped MMTP delivery at 30 fps (33.33 ms per group), the
-133 ms interleave window derives D = ceil(133 / 33.33) = 4 groups
+133 ms interleave window derives D = round(133 / 33.33) = 4 groups
 per block, each contributing K / D = 32 / 4 = 8 source symbols;
 block capacity is K x T = 32 x 1312 = 41,984 bytes per 133 ms
 (about 2.5 Mbit/s of source data).
@@ -1575,7 +1596,7 @@ The FEC fields recompute from the S-TSID as follows:
 
 The converted parameters are internally consistent: with
 `groupDurationMs` of 1000, the 1000 ms interleave window derives
-D = ceil(1000 / 1000) = 1, so each MoQ Group is one FEC block and
+D = round(1000 / 1000) = 1, so each MoQ Group is one FEC block and
 SBN = Group_ID ([@!MOQ-FEC] Section 8).  Block capacity
 K x T = 1000 x 1000 = 1,000,000 bytes exactly matches the source
 data per window, `LS@bw` x 1.0 s / 8 = 8,000,000 / 8 = 1,000,000
