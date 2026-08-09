@@ -337,14 +337,35 @@ round(m / u) recovers D exactly while that error stays below half a
 media unit.  A ceiling would mis-derive such
 cadences -- at 59.94 fps, D = 4 units spans 66.73 ms and is signaled
 as 67 ms, and ceil(67 / 16.683) yields 5 where round() recovers the
-sender's 4.  Using milliseconds
+sender's 4.  A ratio that falls exactly halfway
+(interleaveDepthMs / GOP_duration_ms = N + 0.5, for integer N) rounds
+to N + 1 (round half away from zero).  Using milliseconds
 rather than frame/group counts decouples FEC from frame rate —
 30fps video and 46.875fps audio can share the same interleaveDepthMs
 value.  When absent or 0, no interleaving is applied: D = 1 and
 each Group forms its own source block (equivalent to an
 interleaveDepthMs equal to the group duration).  The derivation
 formula applies only when interleaveDepthMs > 0; receivers MUST NOT
-substitute an absent or zero value into it.  For mmtp-packaged
+substitute an absent or zero value into it.
+
+D is floored at 1: a source block always spans at least one group.
+If interleaveDepthMs is greater than 0 but less than half the group
+duration -- where round() would otherwise yield 0 -- D is 1.  D is
+therefore always >= 1 and the FEC block span is never zero.
+
+At shallow depth the derivation is coarse: near D = 1 the half-group
+quantization bound is a large relative error, and the result is
+sensitive for ratios near a half-integer, where the round-half-away
+rule above resolves the tie but a one-millisecond change in the
+signaled value can still flip D.  Publishers SHOULD choose
+interleaveDepthMs so that interleaveDepthMs / GOP_duration_ms sits
+clearly above 1 and away from a half-integer, keeping the intended D
+unambiguous to every receiver; where the packaging exposes an exact
+integer group duration (for example groupDurationTicks on the MMT
+path), deriving the window from it avoids the millisecond-rounding
+ambiguity entirely.
+
+For mmtp-packaged
 tracks, GOP_duration_ms equals the track's `groupDurationMs` (the MoQ group duration -- one group per frame on the MMT path -- not the keyframe/GOP cadence)
 signaled per [@!MOQ-MMT] Section 12.1.
 
@@ -589,10 +610,9 @@ When sub-blocks are used:
 1. The signaled Interleave Depth (interleaveDepthMs) is the time
    span of the FULL block; a complete block's symbols all arrive
    within approximately one interleave window.  When sub-blocks are
-   used, the block recovery timeout can be computed per sub-block by
-   scaling the full-block span by the sub-block fraction:
-   `timeout = interleaveDepthMs * K_sub / K` instead of the
-   full-block span `interleaveDepthMs`.
+   used, a sub-block's symbols arrive within a fraction of that
+   span, so the interleave-span input to the recovery-timeout budget
+   (Section 9) may be scaled to `interleaveDepthMs * K_sub / K`.
    This enables faster partial recovery at the cost of higher repair
    overhead (P repair symbols per sub-block instead of per block).
 
@@ -678,7 +698,7 @@ SS_ID = SBN * K + ESI
 
 Worked example (frame-grouped MMT delivery, one group per frame at
 30 fps): GOP_duration_ms = 1000/30 = 33.33, interleaveDepthMs = 133,
-K = 32.  Then D = ceil(133 / 33.33) = ceil(3.99) = 4 groups per
+K = 32.  Then D = round(133 / 33.33) = round(3.99) = 4 groups per
 block and symbols_per_group = 32 / 4 = 8.  For the source object
 with Group_ID G = 10, Object_ID O = 3:
 
@@ -732,12 +752,12 @@ For FEC block alignment to be deterministic, encoders MUST:
 
 5. Signal an interleave window that derives the intended group
    count: any interleaveDepthMs in the interval
-   ((D - 1) * GOP_duration_ms, D * GOP_duration_ms] derives the same
-   D.  The convention is interleaveDepthMs =
-   floor(D * GOP_duration_ms), which keeps the signaled value an
-   integer even when the group duration is not an integer number of
-   milliseconds (e.g. D = 4 at 30 fps gives floor(4 * 33.33) = 133,
-   and ceil(133 / 33.33) = 4).
+   ((D - 0.5) * GOP_duration_ms, (D + 0.5) * GOP_duration_ms] derives
+   the same D under the normative round() of Section 5.1.  The
+   convention is interleaveDepthMs = round(D * GOP_duration_ms), which
+   keeps the signaled value an integer even when the group duration is
+   not an integer number of milliseconds (e.g. D = 4 at 30 fps gives
+   round(4 * 33.33) = 133, and round(133 / 33.33) = 4).
 
 For CMAF packaging — an interaction this document describes only
 informatively (Section 13) — a segment boundary aligns with a FEC
@@ -803,8 +823,42 @@ Publishers SHOULD choose the interleave window based on:
 - Acceptable recovery latency
 - Available bandwidth for repair overhead
 
-Typical values (the block span, and therefore the recovery latency,
-is the interleave window itself; D follows from the group duration):
+The receiver's block-abandonment timeout -- how long it waits for a
+block's source and repair symbols before declaring the block
+unrecoverable -- is NOT the interleave window alone.  It is a derived
+budget that MUST cover the largest of:
+
+- the interleave span (`interleaveDepthMs`),
+- the time to produce a full block at the media cadence
+  (approximately `sourceSymbols` round-robin interleave cycles), and
+- the time to serialize a full source-plus-repair block at the repair
+  track's bandwidth,
+
+plus a margin for network jitter, one-way delay, and reordering.  The
+budget is computed from the un-rounded `interleaveDepthMs`, not from
+D * GOP_duration_ms, so the round() under-set of the D derivation (up
+to half a group) can never shorten the real repair deadline and cause
+a recoverable block to be abandoned early.  The margin MUST be a
+derived jitter, delay, and reorder budget -- the catalog
+`jitterBufferMs` is the natural source -- and implementations MUST NOT
+use a fixed multiplier of the interleave span as the timeout.
+
+Interleave depth is a recovery-budget knob, not a steady-state
+latency knob.  With systematic FEC (Section 4.1) the source symbols
+are sent in the clear and are directly playable: in the no-loss case
+a receiver plays each source object on arrival, in group order, and
+never waits for repair or for the interleave span to elapse, so
+interleave depth adds no steady-state latency.  On a reliable unicast
+leg (MoQ over QUIC), loss is repaired by the transport and the FEC
+interleave is inert, adding no latency there either.  The window
+converts to actual latency only on a lossy multicast leg, at the
+moment the receiver genuinely waits to recover a missing source
+symbol, bounded by the recovery-timeout budget above.  The
+"Recovery Latency" column below is therefore the worst-case
+lossy-path recovery budget, not latency incurred in the clean or
+unicast case.
+
+Typical values (D follows from the group duration):
 
 | Application | interleaveDepthMs | Group duration | D (groups per block) | Recovery Latency |
 |-------------|---------------------|----------------|----------------------|------------------|
@@ -1303,7 +1357,7 @@ Publisher                              Subscriber
 
 In this flow the track uses 1-second CMAF segments (one MoQ Group
 per segment), so the 1000 ms interleave window derives
-D = ceil(1000 / 1000) = 1: each Group is one FEC block carrying all
+D = round(1000 / 1000) = 1: each Group is one FEC block carrying all
 K = 32 source objects, followed by P = 8 repair objects.  The
 subscriber's decoder configuration is derived entirely from the
 catalog fields (Section 4.2): Transfer Length
@@ -1393,7 +1447,7 @@ Complete catalog with FEC and multicast configuration:
 
 Parameter consistency: both tracks use 1-second CMAF segments (one
 MoQ Group per segment), so the 1000 ms interleave window derives
-D = ceil(1000 / 1000) = 1 — one FEC block per segment — and K is
+D = round(1000 / 1000) = 1 — one FEC block per segment — and K is
 trivially a multiple of D:
 
 - Video: 5,000,000 bit/s x 1.0 s / 8 = 625,000 bytes of source data
