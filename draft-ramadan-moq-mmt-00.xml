@@ -1299,9 +1299,8 @@ requirement that parsers ignore fields they do not understand, and
 the base per-track fields are those of <xref target="I-D.ietf-moq-msf"></xref>
 Section 5.  The catalog is delivered as a MoQ track whose
 case-sensitive Track Name is <tt>catalog</tt> (<xref target="I-D.ietf-moq-msf"></xref>
-Section 5); <xref target="MOQ-MULTICAST"></xref> Section 4 gives compatibility-alias
-guidance for the non-conforming <tt>.catalog</tt> name.  The
-documents of this suite extend the base in the same manner as
+Section 5).  The documents of this suite extend the base in the
+same manner as
 <xref target="I-D.ietf-moq-cmsf"></xref> extends it: this document adds the packaging
 value <tt>mmtp</tt> and the mmtp track fields (Section 12.1), <xref target="MOQ-FEC"></xref>
 adds the per-track <tt>fec</tt> object and the <tt>fec-repair</tt> packaging
