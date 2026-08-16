@@ -156,12 +156,7 @@ endpoint discovery.
 The catalog is itself delivered as a MoQ track.  Per
 [@!I-D.ietf-moq-msf] Section 5, the catalog track MUST have the
 case-sensitive Track Name `catalog`, and publishers conforming to this
-document MUST publish the catalog under that name.  The name
-`.catalog`, used by some WARP-lineage catalog designs, does not
-conform to [@!I-D.ietf-moq-msf] and SHOULD NOT be used as a catalog
-Track Name.  A publisher MAY additionally publish the catalog
-under `.catalog` as a compatibility alias for non-MSF
-consumers.
+document MUST publish the catalog under that name.
 
 ## Multicast Endpoint Format
 
@@ -573,12 +568,15 @@ binding:
 - **object_id**: the explicit source-symbol identity assigned at
   encode time.  `object_id` values MUST be unique within the
   group but need not be contiguous or start at zero.
-- **digest**: the BLAKE3-256 digest of the object's authenticated
-  bytes (Section 7.2.4).
+- **digest**: the object's leaf digest — a keyed BLAKE3-256 over its
+  authenticated bytes (Section 7.2.4), domain-separated with
+  `authScope` and computed exactly as in Section 7.2.9.
 - **length**: the length of the authenticated bytes in octets.
 
 The entry sequence is followed by a group-close record binding
-(group_id, object_count), and by the signature.
+(group_id, object_count), and by the signature.  The on-wire encoding
+of the manifest object, of the leaf digest, and of the value the
+signature covers is specified in Section 7.2.9 (Canonical Encoding).
 
 With `compaction` "merkle", the per-object entries are the leaves
 of a binary Merkle tree and the signature covers the tree root; a
@@ -617,6 +615,10 @@ multicast fan-out.
 Freshness: receivers MUST reject manifests whose group_id falls
 outside the live-edge window unless operating in an
 explicitly-configured DVR or replay mode.
+
+The exact octet serialization of this tuple — the signed message that
+Ed25519 signs and the receiver reconstructs — is specified in
+Section 7.2.9 (Canonical Encoding).
 
 ### Authenticated Bytes
 
@@ -746,6 +748,128 @@ ROUTE signaling carousel, and each source block additionally
 carries the signed group digest in an ALC/LCT EXT_AUTH header
 extension per [@?RFC5775].
 
+### Canonical Encoding
+
+This section specifies the exact octet encoding of the leaf digest,
+the tree root, the signed message, and the manifest object, so that
+independent implementations produce byte-identical inputs to BLAKE3
+and Ed25519.  A binary encoding with explicit field widths is used
+rather than a canonicalized structured format (such as deterministic
+CBOR) to keep the signed octets unambiguous without a canonicalization
+step.
+
+All multi-octet integers are unsigned and in network byte order
+(big-endian).  The notation is:
+
+- `u8`, `u16`, `u32`, `u64`: unsigned integers of that width.
+- `lp16(x)`: a `u16` octet count followed by the `x` octets; `lp32(x)`
+  is the same with a `u32` count.  A string is encoded as its UTF-8
+  octets.
+- A digest is 32 octets (BLAKE3-256); the signature is 64 octets
+  (Ed25519 [@!RFC8032]).
+- `BLAKE3(m)` is BLAKE3 in unkeyed mode; `BLAKE3(k; m)` is BLAKE3
+  keyed with the 32-octet key `k` ([@?BLAKE3]).
+
+A conforming sender and receiver MUST produce identical octet strings
+for the leaf digest, the root, and the signed message.  A receiver
+MUST verify the Ed25519 signature over the reconstructed signed
+message and MUST reject the manifest on any mismatch.
+
+**Leaf digest.** The digest bound in each manifest entry, and hashed
+as a Merkle leaf, is:
+
+~~~
+digest_i = BLAKE3(authScope;
+                  0x00 || u32(object_id_i) || u32(length_i)
+                       || authenticated_bytes_i)
+~~~
+
+The 32-octet `authScope` (Section 7.2.5) is the BLAKE3 key, giving
+per-(session, track) domain separation.  The leading `0x00` is the
+leaf domain separator (distinct from the `0x01` used for interior
+nodes below); `object_id` and `length` are bound in so that reordering
+or truncating entries changes the digest.
+
+**Merkle Tree Hash (`compaction` "merkle").** The root is the Merkle
+Tree Hash of the leaf digests in ascending `object_id` order, using
+the tree structure of [@!RFC9162] Section 2.1 with this profile's
+keyed node hash:
+
+~~~
+MTH(D):                       # D = leaf digests, ascending object_id
+  n = length(D)
+  if n == 1: return D[0]
+  k = largest power of two strictly less than n
+  return BLAKE3(authScope; 0x01 || MTH(D[0:k]) || MTH(D[k:n]))
+~~~
+
+Fixing the split at the largest power of two strictly below `n`
+([@!RFC9162]) gives one unambiguous root for any object count,
+including odd and non-power-of-two counts.  An inclusion proof is the
+list of sibling digests on the path from a leaf to the root, verified
+by recomputing the interior-node hashes.
+
+With `compaction` "none" the value used in place of the root is the
+flat concatenation `digest_0 || digest_1 || ... || digest_(m-1)` of
+the `m` leaf digests in ascending `object_id` order (32 * m octets).
+
+**Signed message.** The signature of Section 7.2.3 is computed over
+the following octet string, which serializes the full context-binding
+tuple.  The receiver reconstructs it from the manifest object and the
+catalog:
+
+~~~
+signed_message =
+    "BCPV1-sig"                       # 9-octet ASCII domain tag
+ || u8(manifest_format_version)       # = 1
+ || u8(compaction)                    # 0 = none, 1 = merkle
+ || lp16(broadcast_namespace)
+ || lp16(track_name)                  # the media track name
+ || u64(group_id)
+ || u32(object_id_min) || u32(object_id_max)
+ || lp16(keyId)
+ || params_hash                       # 32 octets (below)
+ || lp32(root_or_list)                # 32-octet root (merkle), or
+                                      #   32*m-octet flat list (none)
+~~~
+
+`object_id_min` and `object_id_max` are the smallest and largest
+`object_id` in the manifest.  Binding `manifest_format_version` and
+`compaction` prevents version and mode confusion.  `authScope` is not
+serialized here: it keys every leaf digest, so the root (or flat list)
+already binds it.  `params_hash` binds the track's codec, timing, and
+FEC geometry (element 6 of Section 7.2.3) as a hash over a fixed-order
+encoding of those catalog fields, so they are bound without depending
+on a canonical JSON form:
+
+~~~
+params_hash = BLAKE3("BCPV1-params"
+    || lp16(codec) || u32(timescale) || u32(groupDurationTicks)
+    || lp16(fecAlgorithm) || u32(sourceSymbols) || u32(repairSymbols)
+    || u32(symbolSize) || u32(interleaveDepthMs))
+~~~
+
+**Manifest object.** The object carried on the manifest track
+(Section 7.2.1) is:
+
+~~~
+manifest_object =
+    u8(manifest_format_version)       # = 1
+ || u8(compaction)                    # 0 = none, 1 = merkle
+ || u64(group_id)
+ || u32(object_count = m)
+ || m * ( u32(object_id) || u32(length) || 32-octet digest )
+                                      #   in ascending object_id order
+ || 64-octet Ed25519 signature
+~~~
+
+The `group_id` and `object_count` fields are the group-close record of
+Section 7.2.2.  A receiver reconstructs the signed message from these
+fields plus the `broadcast_namespace`, `track_name`, `keyId`, and
+catalog parameters bound by the profile, recomputes the root (or flat
+list) from the entry digests, and verifies the signature against the
+`publicKey`.  A worked test vector is in Appendix B.
+
 ## Catalog as Attack Surface
 
 The multicast catalog extension directs receivers to join multicast
@@ -867,3 +991,87 @@ receiver that consumes only signaling verify each packet without
 the manifest indirection of Section 7.2.  It is not used for media
 tracks, whose packet rates make per-packet signatures impractical;
 media tracks use the bc-provenance profile of Section 7.2.
+
+# Test Vector: bc-provenance (BCPV1)
+
+This appendix is informative.  It gives a worked `bc-provenance`
+example (Section 7.2.9) with `compaction` "merkle".  All values are
+hexadecimal; the Ed25519 secret seed is included only so the vector
+is reproducible.
+
+Inputs:
+
+~~~
+ed25519 secret seed : 000102030405060708090a0b0c0d0e0f
+                      101112131415161718191a1b1c1d1e1f
+ed25519 publicKey   : 03a107bff3ce10be1d70dd18e74bc099
+                      67e4d6309ba50d5f1ddc8664125531b8
+authScope           : a0a1a2a3a4a5a6a7a8a9aaabacadaeaf
+                      b0b1b2b3b4b5b6b7b8b9babbbcbdbebf
+broadcast_namespace : "example.arena"
+track_name          : "video/base"
+group_id            : 42
+keyId               : "v1"
+manifest_format_version : 1     compaction : 1 (merkle)
+
+params (for params_hash):
+  codec="avc1.640028" timescale=90000 groupDurationTicks=3000
+  fecAlgorithm="raptorq" sourceSymbols=32 repairSymbols=16
+  symbolSize=1312 interleaveDepthMs=133
+params_hash         : d04d1a707cebcdc0fad2623afef8ebbd
+                      bed0e8b97ffa0eb5f99a7f6a751a01af
+
+objects (object_id, length, authenticated_bytes):
+  0, 40, 0x11 repeated 40 times
+  1, 40, 0x22 repeated 40 times
+  2, 24, 0x33 repeated 24 times
+~~~
+
+Leaf digests (Section 7.2.9), keyed BLAKE3 under authScope:
+
+~~~
+digest_0 : a640524b7c33e4b32c55d775751aa520
+           f5049b3d9a86a1baad086b17abd135c1
+digest_1 : 93e1096f01bc083e6a9096f968522b87
+           b5404ae171e2753d6771181d9f2ee845
+digest_2 : e452c8d0abadb8a9c781c7fc64755552
+           550328bab5d69928a4e7be11ef7478d9
+~~~
+
+Merkle Tree Hash of (digest_0, digest_1, digest_2): n=3, k=2, so
+root = node(node(digest_0, digest_1), digest_2):
+
+~~~
+merkle root         : 6d32a8a2e87a1a0ea7e7d98f35c7f3e3
+                      c8b8bd8226a3cf1baa53ebb115814c34
+~~~
+
+signed_message (126 octets) and the Ed25519 signature over it:
+
+~~~
+signed_message :
+  42435056312d736967 0101 000d 6578616d706c652e6172656e61
+  000a 766964656f2f62617365 000000000000002a 00000000 00000002
+  0002 7631
+  d04d1a707cebcdc0fad2623afef8ebbdbed0e8b97ffa0eb5f99a7f6a751a01af
+  00000020
+  6d32a8a2e87a1a0ea7e7d98f35c7f3e3c8b8bd8226a3cf1baa53ebb115814c34
+
+signature (64 octets) :
+  179971c4e4e9b04ada879d5a96f4980351e2c6e90a1e29f7c2363d959dd974e2
+  75a88b0cef7c66d8c38910499282d1bad710bc1cae4c62043978c11506f26c0e
+~~~
+
+The full manifest object (198 octets) carried on the manifest track:
+
+~~~
+0101 000000000000002a 00000003
+0000000000000028 a640524b7c33e4b32c55d775751aa520
+                 f5049b3d9a86a1baad086b17abd135c1
+0000000100000028 93e1096f01bc083e6a9096f968522b87
+                 b5404ae171e2753d6771181d9f2ee845
+0000000200000018 e452c8d0abadb8a9c781c7fc64755552
+                 550328bab5d69928a4e7be11ef7478d9
+179971c4e4e9b04ada879d5a96f4980351e2c6e90a1e29f7c2363d959dd974e2
+75a88b0cef7c66d8c38910499282d1bad710bc1cae4c62043978c11506f26c0e
+~~~
