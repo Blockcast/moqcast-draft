@@ -159,12 +159,7 @@ endpoint discovery.</t>
 <t>The catalog is itself delivered as a MoQ track.  Per
 <xref target="I-D.ietf-moq-msf"></xref> Section 5, the catalog track MUST have the
 case-sensitive Track Name <tt>catalog</tt>, and publishers conforming to this
-document MUST publish the catalog under that name.  The name
-<tt>.catalog</tt>, used by some WARP-lineage catalog designs, does not
-conform to <xref target="I-D.ietf-moq-msf"></xref> and SHOULD NOT be used as a catalog
-Track Name.  A publisher MAY additionally publish the catalog
-under <tt>.catalog</tt> as a compatibility alias for non-MSF
-consumers.</t>
+document MUST publish the catalog under that name.</t>
 
 <section anchor="multicast-endpoint-format"><name>Multicast Endpoint Format</name>
 <t>The <tt>multicast</tt> field is a root-level extension member of the MSF
