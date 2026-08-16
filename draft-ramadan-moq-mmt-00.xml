@@ -303,8 +303,12 @@ boxes, including <tt>ftyp</tt>, <tt>mmpu</tt>, and <tt>moov</tt>, and uses FI=0.
 <li>Subgroups 1..M each carry exactly one subsequent MPU data unit in
 authored order.  An FT=1 movie-fragment-metadata data unit is one
 complete FI=0 object.  An FT=2 timed sample is either one FI=0 object
-or an FI=1, zero-or-more FI=2, FI=3 object chain.  Section 5.2 defines
-the only permitted fragmentation state machine.</li>
+or an FI=1, zero-or-more FI=2, FI=3 object chain.  A timed sample
+whose media exceeds one data unit's capacity is carried as a
+contiguous run of producer-authored subsample data units
+(Section 5.2.1), one subgroup per subsample data unit, in ascending
+<tt>offset</tt> order.  Section 5.2 defines the only permitted
+fragmentation state machine.</li>
 <li>A timed MPU MUST publish FT=0 first.  It then MUST publish each FT=1
 data unit before every FT=2 sample that references that movie
 fragment.  If an MPU contains multiple movie fragments, the sequence
@@ -316,7 +320,8 @@ duplicate data-unit identity, or invalid FT=1/FT=2 sequence in that
 logical order invalidates the affected movie fragment.  A receiver
 MUST NOT infer the missing structure.</li>
 <li>The FI=0 or FI=1 object that begins the first FT=2 sample of each
-timed group MUST have RAP Flag = 1.</li>
+timed group — for a subsample-partitioned sample, the object that
+begins its offset-0 data unit — MUST have RAP Flag = 1.</li>
 </ul>
 <t>The MPU sequence number remains present in-band (in the MMTP payload
 header of every MPU fragment) and delimits which packets belong to the
@@ -667,6 +672,12 @@ Fragmented FT=2 sample (Section 5.2):
     Obj 1: [MMTP][PH FT=2 FI=2][sample part 2]
     Obj 2: [MMTP][PH FT=2 FI=3][sample part 3]
 
+Subsample-partitioned FT=2 sample (Section 5.2.1) — one sample,
+two producer-authored subsample data units:
+  Group N:
+    SG 4 / Obj 0..j: [MMTP][PH FT=2 FI=1][DU offset=0]  ... FI=3
+    SG 5 / Obj 0..k: [MMTP][PH FT=2 FI=1][DU offset=L0] ... FI=3
+
 [MMTP] = variable-length MMTP packet header (Section 3.1); C and X
          locate the optional packet-counter and extension bytes.
 [PH]   = MPU-mode payload header, which carries the Fragmentation
@@ -697,11 +708,15 @@ is decode time plus the authored <tt>trun</tt> composition-time offset.
 Signed offsets MUST remain signed.  Sample byte positions are
 resolved from the authored base-data-offset and <tt>trun.data_offset</tt>
 rules, not from a fixed <tt>mdat</tt>-header guess.</li>
-<li>Each FT=2 timed DU identifies exactly one sample by
-<tt>(MPU_sequence_number, movie_fragment_sequence_number,
-sample_number)</tt>.  This profile requires <tt>offset</tt> to be zero and the
-reassembled FT=2 media length to equal that sample's authored size.
-Every described sample is admitted at most once.</li>
+<li>Each FT=2 timed DU identifies one sample — or one producer-authored
+subsample of it — by <tt>(MPU_sequence_number,
+movie_fragment_sequence_number, sample_number, offset)</tt>.  A
+whole-sample data unit carries <tt>offset</tt> zero, and its reassembled
+FT=2 media length MUST equal that sample's authored size.  A
+subsample data unit (Section 5.2.1) carries the authored byte
+position of its first media byte within the sample.  Every
+<tt>(sample, offset)</tt> data unit is admitted at most once, and every
+described sample is emitted at most once.</li>
 </ol>
 <t>A receiver MUST reject a missing or ambiguous media track, timescale,
 movie-fragment sequence, <tt>tfdt</tt>, or sample identity.  It MUST also
@@ -712,7 +727,8 @@ per-sample <tt>trun</tt> composition-time-offset resolves to zero, and an
 absent <tt>trun.data_offset</tt> is not by itself an error when the ISOBMFF
 base-data-offset and run-continuation rules resolve the byte position.
 The receiver MUST reject overlapping sample byte ranges, undeclared
-bytes, duplicate samples, and FT=2 media for which the governing FT=0
+bytes, duplicate samples, duplicate or overlapping subsample data
+units (Section 5.2.1), and FT=2 media for which the governing FT=0
 or FT=1 has not been accepted.  It MUST NOT synthesize timing from the
 MMTP Timestamp, packet or MPU counters, MoQ Object IDs, arrival time,
 catalog cadence, codec frame-rate guesses, or previously observed
@@ -738,18 +754,25 @@ decrement the value by one, and the FI=3 payload MUST carry zero.  The
 counter MUST NOT wrap or repeat within a data unit.</t>
 <t>The mfu mapping defined here carries exactly one data unit per MMTP
 payload, so <tt>aggregation_flag</tt> MUST be zero.  An input MMTP flow used
-by this mapping MUST already satisfy the 256-payload bound.  A
-publisher MUST reject a purported MFU that exceeds the bound, has an
-invalid countdown, or uses aggregation.  It MUST NOT wrap or extend
-the counter, divide the overflow between subgroups, or synthesize MoQ
-Object IDs to make a non-conformant MMTP data unit appear valid.  This
-mapping does not repacketize or subdivide an input MFU.</t>
+by this mapping MUST already satisfy the 256-payload bound for every
+data unit.  A publisher MUST reject a purported data unit that exceeds
+the bound, has an invalid countdown, or uses aggregation.  It MUST NOT
+wrap or extend the counter, divide one data unit's overflow between
+subgroups, or synthesize MoQ Object IDs to make a non-conformant MMTP
+data unit appear valid.  This mapping does not repacketize or
+subdivide an input data unit: the subsample partition of
+Section 5.2.1 is authored by the origin packetizer before this
+mapping applies, never by a relay and never by this mapping itself.</t>
 <t>The upstream MMTP packetizer is responsible for producing conformant
 data units.  In this profile an FT=2 timed data unit carries one whole
-sample, possibly fragmented across at most 256 MMTP payloads; subsample
-MFUs are not accepted.  A sample that exceeds that capacity is rejected,
-not split into a second MFU or a second MPU.  An access unit MUST NOT be
-split across multiple MPUs (<xref target="ISO.23008-1"></xref> Section 6.4).</t>
+sample, or exactly one producer-authored subsample of it
+(Section 5.2.1), fragmented across at most 256 MMTP payloads.  A
+sample whose media exceeds one data unit's capacity MUST be
+partitioned into subsample data units by the origin packetizer per
+Section 5.2.1; it MUST NOT be carried by wrapping or extending the
+counter, silently truncated, or split into a second MPU.  An access
+unit MUST NOT be split across multiple MPUs (<xref target="ISO.23008-1"></xref>
+Section 6.4).</t>
 <t>Within those bounds, requiring the publisher to reassemble an MFU
 before forming a MoQ object would force every receiver to re-fragment
 it for its own decoder pipeline and would defeat per-fragment FEC and
@@ -844,6 +867,64 @@ object.</li>
 <t>For very large frames where FEC cannot recover the loss, receivers
 SHOULD support resolution-tier fallback (subscribe to a lower-resolution
 track of the switching set and upscale) rather than stalling.</t>
+
+<section anchor="subsample-data-units"><name>Subsample Data Units</name>
+<t>At a given packet size, one data unit carries at most 256 MMTP
+payloads of media.  A single intra-coded 4K or 8K sample routinely
+exceeds that capacity.  This section defines the only conformant way
+to carry such a sample: the origin packetizer partitions it into
+subsample data units, using the <tt>offset</tt> field that <xref target="ISO.23008-1"></xref>
+Section 9.3.2.3 already defines in the timed-MFU DU header.  The
+partition is producer-authored and wire-stated; nothing about it is
+inferred.</t>
+<t>A subsample data unit is an ordinary FT=2 timed data unit: it has its
+own DU header, its own FI chain, and its own <tt>fragment_counter</tt>
+countdown bounded by 256 payloads (Section 5.2).  Its identity is
+<tt>(packet_id, MPU_sequence_number, movie_fragment_sequence_number,
+sample_number, offset)</tt>, where <tt>offset</tt> is the authored byte position
+of the data unit's first media byte within the sample.</t>
+<t>Origin packetizer requirements:</t>
+
+<ol spacing="compact">
+<li>A packetizer MUST emit a sample as a single whole-sample data unit
+(<tt>offset</tt> zero) whenever the sample fits within one data unit's
+capacity.  Subsample partitioning of a sample that fits is not
+conformant.</li>
+<li>When partitioning, the first subsample data unit MUST carry
+<tt>offset</tt> zero and each subsequent one MUST carry an <tt>offset</tt> equal
+to the sum of the media lengths of all preceding subsample data
+units of that sample: offsets are strictly increasing, with no gap
+and no overlap.</li>
+<li>The subsample data units of one sample MUST be published
+contiguously on their <tt>packet_id</tt>, in ascending <tt>offset</tt> order,
+each as its own subgroup per Section 5.3.2.  No other data unit of
+the same <tt>packet_id</tt> may interleave between them.</li>
+<li><tt>priority</tt> and <tt>dep_counter</tt> describe the sample and SHOULD be
+identical across its subsample data units.</li>
+</ol>
+<t>Relays and this mapping MUST NOT create, merge, or re-partition
+subsample data units.  The prohibition of Section 5.2 is unchanged in
+substance: the entity that authors the bytes authors the partition,
+states it on the wire, and every other entity transports it verbatim.</t>
+<t>Receiver sample assembly: a subsample-partitioned sample completes
+only when every one of its subsample data units has completed under
+the state machine of Section 5.3.2 and, ordered by <tt>offset</tt>, the data
+units begin at zero, are byte-adjacent (each <tt>offset</tt> equals the
+preceding <tt>offset</tt> plus the preceding data unit's media length), and
+their total media length equals the sample's authored size from the
+FT=1 record.  A gap, overlap, duplicate <tt>offset</tt>, or length mismatch
+invalidates the sample; the receiver MUST NOT emit a partial sample or
+synthesize missing bytes.  Completion is a protocol event — every
+constituent subgroup complete — and on reliable transport a receiver
+MUST NOT substitute timers, cadence, buffer occupancy, or successor
+arrival for it.  On lossy datagram paths the existing per-data-unit
+deadline derivation applies to each subsample data unit unchanged; no
+additional sample-level timer is defined or permitted.</t>
+<t>The sample's RAP flag is the RAP flag of the FI=0 or FI=1 object of
+its offset-0 data unit.  FEC is unaffected by the partition: source
+symbols are MMTP packets (<xref target="MOQ-FEC"></xref>), and the packet stream's block
+and interleave structure does not depend on data-unit boundaries.</t>
+</section>
 </section>
 
 <section anchor="active-data-unit-association-and-subgroup-derivation"><name>Active Data-Unit Association and Subgroup Derivation</name>
@@ -883,7 +964,9 @@ transport-independent data-unit identity in the DU header:</t>
 <td>Section 9.3.2.3</td>
 </tr>
 </tbody>
-</table><t>For this timed-media profile, <tt>offset</tt> MUST be zero,
+</table><t>For this timed-media profile, <tt>offset</tt> MUST be zero for a whole-sample
+data unit and MUST equal the authored subsample byte position for a
+subsample data unit (Section 5.2.1);
 <tt>movie_fragment_sequence_number</tt> and <tt>sample_number</tt> MUST be non-zero,
 and <tt>MPU_sequence_number</tt> MAY be zero (indeed, ISO/IEC 23008-1 requires
 zero for the first MPU in an Asset).  The <tt>packet_id</tt> is validated in
@@ -941,9 +1024,13 @@ machine, using modulo-2^32 serial-number arithmetic across
 <tt>packet_sequence_number</tt> wrap within a bounded replay window.  The
 MMTP-session and MoQ-track scope are part of that ordering state;
 neither mechanism may fabricate a missing transition.</t>
-<t>Completion is transactional.  The receiver first validates the full FI
-chain, exact authored sample size, and matching unconsumed FT=1 sample
-record.  Only then may it emit the sample and consume that record.  A
+<t>Completion is transactional.  For a whole-sample data unit the
+receiver first validates the full FI chain, exact authored sample
+size, and matching unconsumed FT=1 sample record.  For a
+subsample-partitioned sample it additionally requires every
+constituent subsample data unit to have completed, with the
+byte-adjacency and total-length checks of Section 5.2.1.  Only then
+may it emit the sample and consume that record.  A
 failed check leaves every pre-existing valid state and timing record
 unchanged, except that an explicitly declared discontinuity discards
 the incomplete prior unit.</t>
