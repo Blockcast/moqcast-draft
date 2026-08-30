@@ -95,8 +95,14 @@ used to recover lost source symbols.
 **FEC Block**: The combination of K source symbols and P repair
 symbols.
 
-**Interleave Depth**: The time span in milliseconds of a single source
-block (the interleave window).  The encoder computes the number of
+**Interleave Depth**: The complete time span, in milliseconds, of one
+FEC source/repair packet block (the interleave window).  It is the
+maximum elapsed time from the first source or repair packet to the last
+source or repair packet in that block, corresponding to
+`protection_window_time` in [@!ISO.23008-1] Sections 11.2 and C.6.3.
+`sourceSymbols` (K) defines the number of source symbols and the
+decoder geometry; it does not define a time interval and MUST NOT be
+used to multiply the block span.  The encoder computes the number of
 groups per block as D = round(interleaveDepthMs / GOP_duration_ms).
 An absent or zero Interleave Depth means no interleaving: D = 1 and
 each Group forms its own source block.
@@ -322,10 +328,16 @@ symbol is fixed by the ssbg_mode0 source symbol construction rules
 renegotiated per stream.  For "raptorq", T MUST be a multiple of 8,
 the fixed Symbol Alignment of the derived OTI (Section 4.2).
 
-**interleaveDepthMs** (integer, OPTIONAL): FEC block span in
-milliseconds.  The unit suffix in the key name is deliberate: the
+**interleaveDepthMs** (integer, OPTIONAL): The complete FEC source/
+repair packet block span in milliseconds.  It is the catalog form of
+`protection_window_time` in [@!ISO.23008-1] Sections 11.2 and C.6.3:
+the actual elapsed time from sending the first source or repair packet
+to sending the last source or repair packet of the same block MUST NOT
+exceed this value.  The unit suffix in the key name is deliberate: the
 value is a duration in milliseconds, never a count of MPU frames,
-media samples, or FEC symbols.
+media samples, or FEC symbols, and never a per-symbol interval.
+`sourceSymbols` (K) controls symbol count and decoder geometry only;
+it MUST NOT be used to multiply this duration.
 The encoder computes the number of groups per block
 as D = round(interleaveDepthMs / GOP_duration_ms).  The
 nearest-integer round() is normative: interleaveDepthMs is itself
@@ -607,12 +619,14 @@ of Sub-Blocks field of the explicitly signaled OTI.
 
 When sub-blocks are used:
 
-1. The signaled Interleave Depth (interleaveDepthMs) is the time
-   span of the FULL block; a complete block's symbols all arrive
-   within approximately one interleave window.  When sub-blocks are
-   used, a sub-block's symbols arrive within a fraction of that
-   span, so the interleave-span input to the recovery-timeout budget
-   (Section 9) may be scaled to `interleaveDepthMs * K_sub / K`.
+1. `interleaveDepthMs` continues to denote the complete span of the
+   FULL source/repair block; it is not redefined by the sub-block
+   count.  For an explicitly signaled sub-block, its own first-to-last
+   packet span MAY be estimated as the corresponding fraction of the
+   full span, `interleaveDepthMs * K_sub / K`, for partial-recovery
+   scheduling.  This informative estimate MUST NOT replace the
+   full-block field or deadline, and no full-block timing value may be
+   formed by multiplying `interleaveDepthMs` by K (or `sourceSymbols`).
    This enables faster partial recovery at the cost of higher repair
    overhead (P repair symbols per sub-block instead of per block).
 
@@ -825,23 +839,41 @@ Publishers SHOULD choose the interleave window based on:
 
 The receiver's block-abandonment timeout -- how long it waits for a
 block's source and repair symbols before declaring the block
-unrecoverable -- is NOT the interleave window alone.  It is a derived
-budget that MUST cover the largest of:
+unrecoverable -- follows the ISO receiver-buffer model [@!ISO.23008-1]
+Section 11.2.  The timer is anchored at the timestamp `ts` of the
+first source or repair packet of the block, not at block creation or
+the first repair receipt.  The base FEC deadline is:
 
-- the interleave span (`interleaveDepthMs`),
-- the time to produce a full block at the media cadence
-  (approximately `sourceSymbols` round-robin interleave cycles), and
-- the time to serialize a full source-plus-repair block at the repair
-  track's bandwidth,
+~~~
+base_deadline = ts + interleaveDepthMs
+~~~
 
-plus a margin for network jitter, one-way delay, and reordering.  The
-budget is computed from the un-rounded `interleaveDepthMs`, not from
-D * GOP_duration_ms, so the round() under-set of the D derivation (up
-to half a group) can never shorten the real repair deadline and cause
-a recoverable block to be abandoned early.  The margin MUST be a
-derived jitter, delay, and reorder budget -- the catalog
-`jitterBufferMs` is the natural source -- and implementations MUST NOT
-use a fixed multiplier of the interleave span as the timeout.
+Here `interleaveDepthMs` is the complete block span and the catalog
+representation of ISO `protection_window_time` (Sections 11.2 and
+C.6.3): it covers the maximum duration from the first source or repair
+packet to the last source or repair packet in the same block.  Source
+and repair production at the media cadence, and their serialization,
+are therefore already part of that measured first-to-last span and
+MUST fit within it.  `sourceSymbols` (K) controls the number of source
+symbols and decoder geometry; it is not a timing horizon.
+
+Implementations MUST NOT compute the block span or base deadline as
+`sourceSymbols * interleaveDepthMs`, `K * interleaveDepthMs`,
+`(K - 1) * interleaveDepthMs`, or by adding a per-symbol cadence
+interval.  In particular, increasing K does not multiply or otherwise
+stretch the signaled block span.  The deadline uses the signaled
+`interleaveDepthMs` directly, not `D * GOP_duration_ms`; D is only the
+derived grouping geometry, and rounding D MUST NOT shorten the FEC
+deadline.
+
+A receiver MAY add a separately derived allowance for network jitter,
+one-way delay, reordering, or local processing before abandoning the
+block.  That allowance is additive to the base span and MUST be
+derived from those effects (the catalog `jitterBufferMs` is a natural
+input); it MUST NOT be a fixed multiplier of `interleaveDepthMs` or be
+derived from K.  At the base deadline, or at the deadline with that
+separately configured allowance, the receiver moves the block onward
+and attempts FEC processing according to its buffering model.
 
 Interleave depth is a recovery-budget knob, not a steady-state
 latency knob.  With systematic FEC (Section 4.1) the source symbols
