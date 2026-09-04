@@ -291,6 +291,7 @@ is carried at the track level:
       "repairSymbols": 125,
       "symbolSize": 1000,
       "interleaveDepthMs": 1000,
+      "reorderToleranceMs": 40,
       "repairTrack": "video/repair"
     }
   }]
@@ -359,6 +360,29 @@ each Group forms its own source block (equivalent to an
 interleaveDepthMs equal to the group duration).  The derivation
 formula applies only when interleaveDepthMs > 0; receivers MUST NOT
 substitute an absent or zero value into it.
+
+**reorderToleranceMs** (number, OPTIONAL): A receiver-local allowance
+for packet reordering, network jitter, and local processing variance,
+in milliseconds.  When present, the value MUST be finite and MUST be
+greater than or equal to zero; fractional values are permitted.  An
+explicit value of zero means that no additional allowance is required.
+An omitted field means that the publisher did not signal an allowance;
+receivers MUST preserve that distinction from an explicit zero.
+
+For a receiver that uses this field, the FEC block deadline is the
+receiver-local timestamp of the first accepted packet plus the complete
+block span and this allowance:
+
+~~~
+deadline = firstAcceptedAtMs + interleaveDepthMs + reorderToleranceMs
+~~~
+
+The allowance is added exactly once.  It MUST NOT be represented by a
+fixed multiplier of `interleaveDepthMs`, derived from `sourceSymbols`,
+or silently invented when the field is absent.  A receiver whose FEC
+deadline API requires a signaled allowance MUST reject or disable FEC
+for a track that omits this field; a receiver that applies an explicit
+local policy MUST keep that policy separate from the catalog value.
 
 D is floored at 1: a source block always spans at least one group.
 If interleaveDepthMs is greater than 0 but less than half the group
@@ -866,14 +890,17 @@ stretch the signaled block span.  The deadline uses the signaled
 derived grouping geometry, and rounding D MUST NOT shorten the FEC
 deadline.
 
-A receiver MAY add a separately derived allowance for network jitter,
-one-way delay, reordering, or local processing before abandoning the
-block.  That allowance is additive to the base span and MUST be
-derived from those effects (the catalog `jitterBufferMs` is a natural
-input); it MUST NOT be a fixed multiplier of `interleaveDepthMs` or be
-derived from K.  At the base deadline, or at the deadline with that
-separately configured allowance, the receiver moves the block onward
-and attempts FEC processing according to its buffering model.
+A receiver uses the catalog `reorderToleranceMs` allowance, when
+present, for network jitter, one-way delay, reordering, and local
+processing before abandoning the block.  That allowance is additive to
+the base span and MUST be applied exactly once; it MUST NOT be a fixed
+multiplier of `interleaveDepthMs` or be derived from K.  If the field is
+absent, a receiver that requires a signaled allowance MUST reject or
+disable FEC for the track.  A separately configured local policy MAY be
+used only when it is represented separately from the catalog value and
+does not silently rewrite the catalog.  At the resulting deadline, the
+receiver moves the block onward and attempts FEC processing according to
+its buffering model.
 
 Interleave depth is a recovery-budget knob, not a steady-state
 latency knob.  With systematic FEC (Section 4.1) the source symbols
@@ -1357,6 +1384,7 @@ track's catalog entry before subscribing:
   "repairSymbols": 8,
   "symbolSize": 1312,
   "interleaveDepthMs": 1000,
+  "reorderToleranceMs": 40,
   "repairTrack": "video/repair"
 }
 ~~~
@@ -1431,6 +1459,7 @@ Complete catalog with FEC and multicast configuration:
         "repairSymbols": 125,
         "symbolSize": 1000,
         "interleaveDepthMs": 1000,
+        "reorderToleranceMs": 40,
         "repairTrack": "video/repair"
       }
     },
@@ -1452,6 +1481,7 @@ Complete catalog with FEC and multicast configuration:
         "repairSymbols": 8,
         "symbolSize": 512,
         "interleaveDepthMs": 1000,
+        "reorderToleranceMs": 40,
         "repairTrack": "audio/repair"
       }
     },

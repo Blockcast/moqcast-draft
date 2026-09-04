@@ -295,6 +295,7 @@ is carried at the track level:</t>
       "repairSymbols": 125,
       "symbolSize": 1000,
       "interleaveDepthMs": 1000,
+      "reorderToleranceMs": 40,
       "repairTrack": "video/repair"
     }
   }]
@@ -357,6 +358,25 @@ each Group forms its own source block (equivalent to an
 interleaveDepthMs equal to the group duration).  The derivation
 formula applies only when interleaveDepthMs &gt; 0; receivers MUST NOT
 substitute an absent or zero value into it.</t>
+<t><strong>reorderToleranceMs</strong> (number, OPTIONAL): A receiver-local allowance
+for packet reordering, network jitter, and local processing variance,
+in milliseconds.  When present, the value MUST be finite and MUST be
+greater than or equal to zero; fractional values are permitted.  An
+explicit value of zero means that no additional allowance is required.
+An omitted field means that the publisher did not signal an allowance;
+receivers MUST preserve that distinction from an explicit zero.</t>
+<t>For a receiver that uses this field, the FEC block deadline is the
+receiver-local timestamp of the first accepted packet plus the complete
+block span and this allowance:</t>
+
+<artwork><![CDATA[deadline = firstAcceptedAtMs + interleaveDepthMs + reorderToleranceMs
+]]></artwork>
+<t>The allowance is added exactly once.  It MUST NOT be represented by a
+fixed multiplier of <tt>interleaveDepthMs</tt>, derived from <tt>sourceSymbols</tt>,
+or silently invented when the field is absent.  A receiver whose FEC
+deadline API requires a signaled allowance MUST reject or disable FEC
+for a track that omits this field; a receiver that applies an explicit
+local policy MUST keep that policy separate from the catalog value.</t>
 <t>D is floored at 1: a source block always spans at least one group.
 If interleaveDepthMs is greater than 0 but less than half the group
 duration -- where round() would otherwise yield 0 -- D is 1.  D is
@@ -845,14 +865,17 @@ stretch the signaled block span.  The deadline uses the signaled
 <tt>interleaveDepthMs</tt> directly, not <tt>D * GOP_duration_ms</tt>; D is only the
 derived grouping geometry, and rounding D MUST NOT shorten the FEC
 deadline.</t>
-<t>A receiver MAY add a separately derived allowance for network jitter,
-one-way delay, reordering, or local processing before abandoning the
-block.  That allowance is additive to the base span and MUST be
-derived from those effects (the catalog <tt>jitterBufferMs</tt> is a natural
-input); it MUST NOT be a fixed multiplier of <tt>interleaveDepthMs</tt> or be
-derived from K.  At the base deadline, or at the deadline with that
-separately configured allowance, the receiver moves the block onward
-and attempts FEC processing according to its buffering model.</t>
+<t>A receiver uses the catalog <tt>reorderToleranceMs</tt> allowance, when
+present, for network jitter, one-way delay, reordering, and local
+processing before abandoning the block.  That allowance is additive to
+the base span and MUST be applied exactly once; it MUST NOT be a fixed
+multiplier of <tt>interleaveDepthMs</tt> or be derived from K.  If the field is
+absent, a receiver that requires a signaled allowance MUST reject or
+disable FEC for the track.  A separately configured local policy MAY be
+used only when it is represented separately from the catalog value and
+does not silently rewrite the catalog.  At the resulting deadline, the
+receiver moves the block onward and attempts FEC processing according to
+its buffering model.</t>
 <t>Interleave depth is a recovery-budget knob, not a steady-state
 latency knob.  With systematic FEC (Section 4.1) the source symbols
 are sent in the clear and are directly playable: in the no-loss case
@@ -1475,6 +1498,7 @@ track's catalog entry before subscribing:</t>
   "repairSymbols": 8,
   "symbolSize": 1312,
   "interleaveDepthMs": 1000,
+  "reorderToleranceMs": 40,
   "repairTrack": "video/repair"
 }
 ]]></sourcecode>
@@ -1547,6 +1571,7 @@ and repair objects 0,1,2.</t>
         "repairSymbols": 125,
         "symbolSize": 1000,
         "interleaveDepthMs": 1000,
+        "reorderToleranceMs": 40,
         "repairTrack": "video/repair"
       }
     },
@@ -1568,6 +1593,7 @@ and repair objects 0,1,2.</t>
         "repairSymbols": 8,
         "symbolSize": 512,
         "interleaveDepthMs": 1000,
+        "reorderToleranceMs": 40,
         "repairTrack": "audio/repair"
       }
     },
