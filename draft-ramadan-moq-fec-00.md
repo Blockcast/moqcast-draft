@@ -458,6 +458,30 @@ every relationship from `fec.repairTrack`, `depends`, `repairLayer`
 and `scope`, and MUST NOT infer one by parsing a track name or a name
 suffix.
 
+Unknown catalog keys are handled as follows, stated here rather than
+left to be inferred elsewhere.  A receiver MUST ignore a track-level
+or `fec` object key that it does not recognize, and MUST NOT treat its
+presence as an error, so that this suite can add fields without a flag
+day.  This is the analogue, for keys, of the treatment an unrecognized
+`packaging` value receives in Section 5.1.
+
+Exactly two keys defined by this document are exceptions to that
+default, and both for the same reason: ignoring the key would change
+how the receiver must parse the wire, not merely what it knows about
+the stream.
+
+- `fec.enhancementRepair`: a receiver MUST reject a catalog carrying
+  it (Section 5.1).
+- `scope`: a receiver that does not implement overlays MUST fail
+  closed on a catalog carrying it (Section 6.4).
+
+A receiver that predates this document takes its unknown-key behavior
+from whatever specification it does implement, not from this section.
+The requirement on `scope` therefore binds receivers that implement
+this document without implementing overlays; for receivers that
+predate it, Section 8.5.1 states the consequence plainly instead of
+relying on a requirement that cannot reach them.
+
 ### Worked Catalog
 
 Three repair layers and one keyframe overlay on one source track:
@@ -646,12 +670,22 @@ publisher encodes the source once.
 
 The layers describe themselves.  A source track names layer 0 and
 nothing further; it does not enumerate its enhancement layers.  A
-publisher therefore adds or withdraws a layer by adding or removing
-one `tracks` entry, without rewriting the source track's `fec` object,
-and a relay that forwards a subset of the catalog cannot leave a
-source track pointing at a layer it did not forward.  The cost of that
-property is that the layer set is only well formed when taken as a
-whole, which is what the validation rules of Section 6.3.4 check.
+publisher therefore publishes or withdraws a layer by adding or
+removing one `tracks` entry, without rewriting the source track's
+`fec` object, and a relay that forwards a subset of the catalog cannot
+leave a source track pointing at a layer it did not forward.  The cost
+of that property is that the layer set is only well formed when taken
+as a whole, which is what the validation rules of Section 6.3.4 check.
+Not every change to a published layer set is safe, because the RS_ID
+offsets of Section 6.3.2 are derived from the set: Section 6.3.9
+states which changes this document defines and which it forbids.
+
+That relay guarantee runs in one direction only, and a relay closes
+the other direction.  A relay that forwards a subset of a catalog
+MUST NOT forward a `fec-repair` track whose source track it does not
+forward.  Dropping a source track while keeping its repair tracks
+produces exactly the orphan that Section 6.3.4 rule 9 rejects, in a
+catalog the relay itself assembled.
 
 ### Shared Block Geometry
 
@@ -659,9 +693,13 @@ All repair layers of a source track share the source block partition:
 `algorithm`, `sourceSymbols` (K), `symbolSize` (T),
 `interleaveDepthMs`, and `reorderToleranceMs` are properties of the
 source track's `fec` object and apply to every layer.  Layers differ
-only in `repairSymbols`.  A repair track MUST NOT carry any of those
-fields, nor any other geometry field (Section 6.3.4, rule 8), and a
-receiver MUST reject a catalog whose repair track does.
+only in `repairSymbols`.  A repair layer MUST NOT carry any of those
+fields, nor any other geometry field, and a receiver MUST reject a
+catalog whose repair layer does.  Section 6.3.4, rule 8 carries the
+normative enumeration and its one carve-out: an overlay is a repair
+track but is not a repair layer, and it does carry its own
+`sourceSymbols`, because it is a distinct FEC instance over its own
+source block partition rather than a layer of this one (Section 6.4).
 
 This is a wire constraint, not a convention.  Each source packet
 carries one Source FEC Payload ID for the base instance (Section 8.5),
@@ -777,16 +815,24 @@ layer set that decodes from one that silently mis-maps symbols.
 7. Repair layers and any overlay appear only when `fec.algorithm` is
    `raptorq` (Section 6.3.3 above).
 8. A track whose `packaging` is `fec-repair` carries no geometry
-   field: `mmtpMode`, `timescale`, any `groupDuration` field,
-   `symbolSize`, `interleaveDepthMs`, `reorderToleranceMs`, and
-   `sourceSymbols` except on an overlay (Section 6.4).
+   field, whether as a flat field or inside an `fec` object of its
+   own: `algorithm`, `mmtpMode`, `timescale`, any `groupDuration`
+   field, `symbolSize`, `interleaveDepthMs`, `reorderToleranceMs`,
+   and `sourceSymbols` except on an overlay (Section 6.4).  This
+   enumeration is the normative one; Section 6.3.1 gives the reason
+   for it.
 9. No orphan repair track: every track whose `packaging` is
    `fec-repair` is reachable from a source track, either by being
    named in that source's `fec.repairTrack` or by naming that source
    in `depends`.  This rule binds once the catalog declares any FEC
    source, that is any track whose `fec.algorithm` is not `none`; a
    catalog that declares no FEC source at all MAY carry an
-   unreferenced `fec-repair` track that nothing joins.
+   unreferenced `fec-repair` track that nothing joins.  This rule is
+   the one exception to the per-source remedy of the preamble above:
+   an orphan track is by definition associated with no source track,
+   so there is no source track to stop.  The receiver MUST refuse to
+   join the orphan track and MUST report its catalog path, and MUST
+   NOT stop FEC for any source track on account of it.
 10. A source track has at most one track with `"scope": "keyframe"`
     (Section 6.4), and such a track carries no `repairLayer`.
 
@@ -797,6 +843,12 @@ rule 5, at which point some ESI the set produces is not representable.
 Checking them at the set level before the first block is decoded is
 what keeps that failure from appearing as sporadic unrecoverable
 blocks much later.
+
+Every rule above is checked on the catalog, before FEC starts.
+Section 6.3.9 adds one further receiver requirement that cannot be
+checked there, because it compares the catalog against the RSB_length
+carried on repair packets and so can only be evaluated once they
+arrive.
 
 ### Receiver Selection
 
@@ -939,6 +991,67 @@ backward compatible, because it changes the source packet layout.
 Section 6.4 states the fail-closed requirement that keeps a
 pre-overlay receiver from misparsing such a stream.
 
+### Changing the Layer Set Within a Session
+
+Publishing a layer is adding one `tracks` entry and withdrawing it is
+removing one, but the two directions are not symmetric, because O_i is
+a function of every lower layer's P (Section 6.3.2).  A change to the
+set can therefore move the coordinates of a layer a receiver has
+already joined.  This subsection states which changes are defined.
+
+A publisher MAY append a layer at the next index above the highest
+published one, and MAY withdraw the highest published layer.  Neither
+changes O_i for any layer that remains, because no remaining layer's
+set of lower layers changes.  Both change the total, so RSB_length on
+the wire moves, which is benign in the append direction for the reason
+Section 6.3.8 gives: a receiver uses the total only as the
+`RS_ID < RSB_length` bound, so a receiver holding a catalog from
+before an append reads a smaller bound that excludes only symbols of
+layers it has not joined.
+
+A publisher MUST NOT renumber the `repairLayer` of a published layer,
+and MUST NOT change the `repairSymbols` of a published layer, while
+any receiver may still be consuming the source track.  Rule 2 of
+Section 6.3.4 requires `repairLayer` to be contiguous from 1 to n, so
+withdrawing a layer that is not the highest would force exactly such a
+renumbering; withdrawal of a middle layer is therefore not defined by
+this document.  A publisher that must retire a middle layer withdraws
+the set from the highest index down to it, or retires the source
+encoding and publishes a separate rendition.  Supporting middle-layer
+withdrawal directly would require a catalog generation identifier
+carried on the wire, that is in-session signaling, which Section 5.2
+does not define.
+
+The prohibition is not editorial, and the worked catalog of
+Section 5.1.2 shows why.  A receiver holding layers 0 and 2 holds ESIs
+64 to 71 and 88 to 119.  Renumber layer 2 to layer 1 and the same
+track's offset becomes O = 8, so the publisher now labels those
+symbols ESI 72 to 103 while the receiver still maps them to 88 to 119.
+The receiver feeds correctly received symbols into the decoder under
+wrong coordinates.  RaptorQ does not detect this, because a repair
+symbol is identified by its ESI alone: the result is not a reported
+error but a decode that fails, or that resolves against coordinates
+the symbols do not belong to.  Changing a published `repairSymbols`
+does the same to every layer above the one changed.
+
+A receiver MUST fail closed when, for any layer i it holds, the
+RSB_length carried on a repair packet of that instance is less than
+O_i + P_i derived from its own catalog: its own layer's RS_ID range
+does not fit under the bound the publisher is advertising, so the two
+disagree about coordinates the receiver is actively using.  It MUST
+NOT treat such a packet as a symbol to discard.  In the renumbering
+example above the total falls from 56 to 40 while the receiver's
+O_2 + P_2 is 56, so the check catches it.
+
+That check is a backstop and not a substitute for the publisher
+requirement.  It does not catch a change that leaves the total at or
+above the receiver's derived bound, for example an increase to a lower
+layer's `repairSymbols`, which shifts every higher offset while
+raising the total.  That case is silent on the wire, which is why the
+protection is the prohibition on the publisher rather than validation
+at the receiver.  A wire RSB_length larger than the receiver's derived
+total is not an error in itself: that is the append case above.
+
 ## Keyframe Overlay
 
 A source track MAY additionally be protected by a keyframe overlay: a
@@ -1026,12 +1139,19 @@ A receiver that does not implement overlays MUST fail closed on a
 catalog that declares one for a track it intends to consume, that is
 on a `fec-repair` track carrying the unknown `scope` key
 (Section 5.1.1).  It MUST NOT ignore the key and consume the source
-track anyway.  This is the one place in this document where an unknown
-catalog key is not ignorable, and the reason is in Section 8.5: an
+track anyway.  Section 5.1.1 states this document's default, that an
+unrecognized catalog key MUST be ignored; `scope` is one of the two
+exceptions to that default, and the reason is in Section 8.5: an
 overlay changes the length of the trailer on RAP source packets, so a
 receiver that ignored the declaration would strip four bytes where it
 should strip eight and would deliver four bytes of trailer to the
 media pipeline as payload on every RAP packet.
+
+This requirement reaches receivers that implement this document
+without implementing overlays.  It cannot reach a receiver that
+predates the document, whose treatment of an unrecognized key is
+fixed by whatever it does implement; for those receivers the statement
+below is the operative one rather than a requirement here.
 
 This mechanism is therefore not backward compatible with receivers
 that predate it.  A publisher that must serve such receivers publishes
@@ -1423,6 +1543,20 @@ failures are silent.  That is why Section 6.4 requires such a
 receiver to fail closed on the catalog rather than parse the stream,
 and why the overlay is declared with a key a pre-overlay receiver is
 required to reject rather than one it would ignore.
+
+The ordering was chosen knowing that the alternative is the safer of
+the two on that axis, and it is worth recording so the choice is not
+reopened as an oversight.  Overlay first and base last would leave a
+pre-overlay receiver reading the CORRECT base SS_ID from the last four
+bytes, with only four bytes of overlay trailer leaking into the media
+pipeline: one silent failure instead of two.  Base first was chosen
+anyway, because neither ordering makes such a receiver correct, and a
+receiver that is required to fail closed on the catalog never reaches
+the stream.  Given that, declaration order is the property worth
+keeping.  The remaining argument for base first, that a future third
+instance could append at the end and leave the base at a fixed offset
+from the payload end, does not apply either: rule 10 of
+Section 6.3.4 bounds the trailer at two instances.
 
 A packet of the same track that does not set `RAP_flag` carries the
 base Source FEC Payload ID alone, exactly as in the no-overlay case.

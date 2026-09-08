@@ -306,10 +306,14 @@ When a relay generates its own repair symbols:
    layer can occupy.
 
    A relay MUST compute `totalP` from the catalog it forwards, and
-   MUST re-derive it if the publisher adds a layer. A relay that
-   cannot see the full layer set (for example one forwarding a subset
-   of the catalog) MUST NOT generate repair for that source track,
-   because it cannot establish a safe floor.
+   MUST re-derive it if the publisher adds a layer. Appending a layer
+   is one of the two layer-set changes core Section 6.3.9 defines, so
+   this obligation covers a change the core document permits; the
+   changes that section forbids the publisher from making cannot be
+   accommodated by re-derivation. A relay that cannot see the full
+   layer set (for example one forwarding a subset of the catalog)
+   MUST NOT generate repair for that source track, because it cannot
+   establish a safe floor.
 
    A keyframe overlay (core Section 6.4) is a separate FEC instance
    with its own ESI space, so relay repair for the base instance
