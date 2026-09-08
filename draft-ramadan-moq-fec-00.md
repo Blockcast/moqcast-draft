@@ -95,6 +95,14 @@ used to recover lost source symbols.
 **FEC Block**: The combination of K source symbols and P repair
 symbols.
 
+**Repair Layer**: One of possibly several repair tracks protecting the
+same source blocks of a source track, each carrying a disjoint range of
+the block's repair symbols (Section 6.3).  Layer 0 is the track named
+by `repairTrack`.
+
+**Cumulative Repair Count**: The repair symbols per block available to
+a receiver holding layers 0..i, C_i = sum(P_j for j <= i).
+
 **Interleave Depth**: The time span in milliseconds of a single source
 block (the interleave window).  The encoder computes the number of
 groups per block as D = round(interleaveDepthMs / GOP_duration_ms).
@@ -390,6 +398,18 @@ Section 15.3.  Receivers that do not
 implement this specification do not recognize the value and ignore
 such tracks.
 
+**enhancementRepair** (array of objects, OPTIONAL): Additional repair
+layers for the same source blocks, in layer order (Section 6.3).  Each
+entry carries exactly two fields: `repairTrack` (string, REQUIRED), the
+name of a track with `"packaging": "fec-repair"`, distinct from the
+track-level `repairTrack` and from every other entry; and
+`repairSymbols` (integer, REQUIRED, MUST be >= 1), the repair symbols
+per block that this layer carries.  Entries MUST NOT carry any other
+field: `algorithm`, `sourceSymbols`, `symbolSize`, `interleaveDepthMs`,
+and `reorderToleranceMs` belong to the source track and are shared by
+every layer.  The track-level `repairTrack` and `repairSymbols` describe
+layer 0.  When absent, the track has a single repair layer.
+
 ## Signaling Model
 
 The catalog `fec` object (Section 5.1) is the sole normative FEC
@@ -475,6 +495,209 @@ This section is the normative statement of the repair-subscription
 model; companion documents in this suite reference it rather than
 restating it.
 
+## Layered Repair Tracks
+
+A source track MAY be protected by more than one repair track.  Each
+such track is a repair layer: an independently subscribable set of
+repair symbols for the same source blocks.  Layer 0 is the repair track
+named by `repairTrack`, carrying `repairSymbols` symbols per block;
+layers 1..n are the entries of `enhancementRepair` (Section 5.1), in
+array order, each carrying its own `repairSymbols`.
+
+Layering separates the two costs of FEC.  The repair count P buys
+tolerance to random loss and costs only bandwidth; the interleave
+window buys tolerance to burst loss and costs recovery latency
+(Section 9).  A single repair track forces the publisher to dimension P
+for the worst path it serves, and every receiver on a better path
+carries that overhead.  With layers, a receiver on a clean regional
+path subscribes layer 0 alone and a receiver on a lossy long-distance
+path adds layers until its measured loss is covered, while the
+publisher encodes the source once.
+
+### Shared Block Geometry
+
+All repair layers of a source track share the source block partition:
+`algorithm`, `sourceSymbols` (K), `symbolSize` (T),
+`interleaveDepthMs`, and `reorderToleranceMs` are properties of the
+source track's `fec` object and apply to every layer.  A layer entry
+carries only `repairTrack` and `repairSymbols`; it MUST NOT carry any
+of the shared fields, and a receiver MUST reject a catalog whose layer
+entry does.
+
+This is a wire constraint, not a convention.  Each source packet
+carries exactly one Source FEC Payload ID (Section 8.5), which fixes
+one (SBN, ESI) coordinate for that packet.  Two repair tracks with
+different K or a different interleave window would describe two
+different partitions of the same source packets and would need two
+trailers per packet.  Layers therefore differ only in which repair
+symbols of the shared block they carry.  A deployment that needs a
+different interleave window for a different receiver population needs
+a separate source encoding (a separate rendition), which is outside
+this section.
+
+### Repair Symbol Identity Across Layers
+
+Let P_i be the `repairSymbols` of layer i and O_i = sum(P_j for j < i)
+its repair symbol offset (O_0 = 0).  Layer i carries, for every source
+block, the repair symbols with RS_ID in [O_i, O_i + P_i).  The Encoding
+Symbol ID follows the single-layer rule of Section 7.2: ESI = K +
+RS_ID.  The total repair count of the block is P = sum(P_i over all
+layers), and RSB_length on every repair packet of every layer carries
+this total (Section 7.1), so the `RS_ID < RSB_length` bound holds for
+symbols from any layer.
+
+Because RaptorQ repair symbols are identified by ESI alone and any set
+of distinct encoding symbols of a block decodes together
+([@!RFC6330]), symbols received from any subset of layers, over any
+mix of paths, combine in one decode.  A receiver that has subscribed
+layers 0..i recovers a block whenever the number of lost symbols,
+source and repair together, does not exceed C_i - e, where C_i is the
+cumulative repair count and e is the RaptorQ decoding overhead
+(roughly 1e-2, 1e-4, and 1e-6 residual failure at 0, 1, and 2 symbols
+of overhead per [@!RFC6330]).  This loss tolerance is derived from K
+and the layer counts; it MUST NOT be signaled as a separate catalog
+field.
+
+Receivers MUST take layer membership and per-layer counts from the
+catalog.  RSB_length carries the total and says nothing about which
+layers a receiver holds.
+
+On layer i, the MoQ group numbered SBN carries P_i objects
+(Section 7); object j of that group carries the repair symbol with
+RS_ID = O_i + j.
+
+### Naming
+
+Layer 0 keeps the name of Section 6.1.  An enhancement layer with
+index i >= 1 MUST be named
+
+~~~
+[namespace, track_name, "repair", "<i>"]
+~~~
+
+with i in decimal, for example ["live", "video", "repair", "1"],
+rendered "live/video/repair/1".  Every layer MUST appear in the
+catalog `tracks` array with `"packaging": "fec-repair"` (Section 5.1).
+No new packaging value is defined.
+
+### Receiver Selection
+
+The per-need model of Section 6.2 applies to each layer
+independently.  On a lossy path a receiver SHOULD subscribe layer 0
+first.  When a block fails recovery with the receiver's current layer
+set and a higher layer exists, the receiver SHOULD subscribe the next
+layer; it MAY instead request only the failed block's repair objects
+from that layer, a subscription bounded to the group numbered SBN,
+when the block is still inside its recovery budget (Section 9).  Such
+a per-block request completes in about one round trip, so on a low
+round-trip path it is the natural way to cover the rare block that
+needs more than layer 0 provides without carrying the higher layer
+continuously.  A receiver MAY unsubscribe a layer after a
+receiver-chosen number of consecutive blocks whose loss stayed within
+the tolerance of the remaining layers.  Hysteresis is counted in
+blocks, the protocol's unit, not in wall-clock time.
+
+### Multicast Carriage
+
+On a multicast endpoint the receiver cannot choose tracks; the
+operator of the endpoint chooses the layer set for that path.  Each
+layer carried on an endpoint is listed with its own `packetId`
+([@?MOQ-MULTICAST] Section 4.1).  A regional endpoint typically
+carries the source track and layer 0; a public or long-distance
+endpoint carries the source track and layers 0..n.  Because every
+endpoint carries the same source packets under the same block
+partition, a receiver that moves between endpoints, or that is
+side-fed over MoQ unicast, mixes symbols from all of them in one
+decode.  Layers not carried on an endpoint remain reachable over MoQ
+unicast (Section 6.2) for receivers that have a return path.
+
+~~~ json
+{
+  "tracks": [
+    {
+      "name": "video",
+      "packaging": "mmtp",
+      "fec": {
+        "algorithm": "raptorq",
+        "sourceSymbols": 32,
+        "repairSymbols": 4,
+        "symbolSize": 1312,
+        "interleaveDepthMs": 133,
+        "repairTrack": "video/repair",
+        "enhancementRepair": [
+          { "repairTrack": "video/repair/1", "repairSymbols": 12 }
+        ]
+      }
+    },
+    {
+      "name": "video/repair",
+      "packaging": "fec-repair",
+      "priority": 240
+    },
+    {
+      "name": "video/repair/1",
+      "packaging": "fec-repair",
+      "priority": 240
+    }
+  ],
+  "multicast": {
+    "endpoints": [
+      {
+        "sourceAddress": "198.51.100.100",
+        "groupAddress": "232.1.1.50",
+        "port": 5000,
+        "tracks": [
+          { "name": "video",          "packetId": 1 },
+          { "name": "video/repair",   "packetId": 2 }
+        ]
+      },
+      {
+        "sourceAddress": "198.51.100.100",
+        "groupAddress": "232.1.1.51",
+        "port": 5000,
+        "tracks": [
+          { "name": "video",          "packetId": 1 },
+          { "name": "video/repair",   "packetId": 2 },
+          { "name": "video/repair/1", "packetId": 3 }
+        ]
+      }
+    ]
+  }
+}
+~~~
+
+Layer 0 carries RS_ID 0..3 (ESI 32..35) and layer 1 carries RS_ID
+4..15 (ESI 36..47); RSB_length is 16 on both.  A receiver holding
+layer 0 recovers a block that lost at most 2 symbols at about 1e-6
+residual failure; one holding both layers recovers a block that lost
+at most 14.  The first endpoint suits a regional path with low random
+loss; the second suits a public or long-distance path.
+
+### Interaction with the Interleave Window
+
+Layers do not change `interleaveDepthMs`, and the window remains the
+single latency lever (Section 9).  The two levers compose as follows.
+A shallow window, near one group, bounds the recovery budget to about
+one group duration plus `reorderToleranceMs`, but a burst longer than
+the window erases most of a block regardless of P, so bursts on such a
+stream are recovered only by the per-block request above, at about one
+round trip; this is viable where the round trip fits inside the
+budget, which is the regional case.  A deep window recovers bursts in
+band at the cost of the window's worst-case recovery latency, which is
+what a long-distance path with a round trip larger than any acceptable
+budget needs.  Layered repair lets both populations share one source
+encoding whose window is chosen for one of them; serving both windows
+requires two renditions.
+
+### Compatibility
+
+A catalog without `enhancementRepair` describes a single layer with
+O_0 = 0 and RSB_length = `repairSymbols`; nothing in this section
+changes its wire format or its interpretation.  A receiver that
+predates this section knows only layer 0 and remains correct, since
+layer 0 alone is a valid layer set and the additional ESIs it never
+sees do not affect decoding of the symbols it has.
+
 # Repair Object Format
 
 ## Repair Object Header
@@ -514,12 +737,18 @@ Receivers derive the Source Block Number as
 SBN = floor(SS_start / K).
 
 **RSB_length (24 bits)**: The number of repair symbols generated
-for the block — the P value (catalog `repairSymbols`).
+for the block — the P value.  For a single-layer track this is the
+catalog `repairSymbols`; when the track has repair layers
+(Section 6.3) it is the total across all layers, `repairSymbols` plus
+the sum of `enhancementRepair[].repairSymbols`, and it is the same on
+every layer's packets.
 
 **RS_ID (24 bits)**: The zero-based index of this repair symbol
 among the block's repair symbols.  The RFC 6330 Encoding Symbol ID
 is derived as ESI = K + RS_ID: repair ESIs follow the K source ESIs
-(Section 7.2).
+(Section 7.2).  When the track has repair layers (Section 6.3),
+RS_ID is the block-wide index: layer i carries RS_ID in
+[O_i, O_i + P_i).
 
 **SSB_length (24 bits)**: The number of source symbols in the
 protected source block — the K value.  When nonzero it is
@@ -1132,7 +1361,10 @@ tracks is RECOMMENDED, using the same mechanisms as source tracks
 FEC repair symbols represent additional bandwidth.  Publishers MUST
 NOT generate excessive repair symbols that could be used for bandwidth
 amplification attacks.  The repair overhead (P/K) SHOULD be limited
-to reasonable values (e.g., <= 50%).
+to reasonable values (e.g., <= 50%).  With repair layers (Section 6.3) this
+bound applies to the total repair count across all layers.  A
+receiver's share of that bandwidth is bounded by the layers it
+subscribes; the publisher's emitted repair bandwidth is the total.
 
 ## Multicast FEC Security
 
