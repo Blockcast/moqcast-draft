@@ -688,10 +688,10 @@ path adds layers until its measured loss is covered, while the
 publisher encodes the source once.</t>
 <t>The layers describe themselves.  A source track names layer 0 and
 nothing further; it does not enumerate its enhancement layers.  A
-publisher therefore publishes or withdraws a layer by adding or
-removing one <tt>tracks</tt> entry, without rewriting the source track's
-<tt>fec</tt> object, and a relay that forwards a subset of the catalog cannot
-leave a source track pointing at a layer it did not forward.  The cost
+publisher therefore publishes a layer by adding one <tt>tracks</tt> entry,
+without rewriting the source track's <tt>fec</tt> object, and a relay that
+forwards a subset of the catalog cannot leave a source track pointing
+at a layer it did not forward.  The cost
 of that property is that the layer set is only well formed when taken
 as a whole, which is what the validation rules of Section 6.3.4 check.
 Not every change to a published layer set is safe, because the RS_ID
@@ -996,12 +996,13 @@ removing one, but the two directions are not symmetric, because O_i is
 a function of every lower layer's P (Section 6.3.2).  A change to the
 set can therefore move the coordinates of a layer a receiver has
 already joined.  This subsection states which changes are defined.</t>
-<t>A publisher MAY append a layer at the next index above the highest
-published one, and MAY withdraw the highest published layer.  Neither
-changes O_i for any layer that remains, because no remaining layer's
-set of lower layers changes.  Both change the total, so RSB_length on
-the wire moves, which is benign in the append direction for the reason
-Section 6.3.8 gives: a receiver uses the total only as the
+<t>Layer sets are append-only.  A publisher MAY append a layer at the
+next index above the highest published one.  It MUST NOT withdraw a
+published layer, at any index, for the lifetime of the source
+encoding.  An append changes O_i for no layer already published,
+because no published layer's set of lower layers changes.  It does
+raise the total, so RSB_length on the wire rises, which is benign for
+the reason Section 6.3.8 gives: a receiver uses the total only as the
 <tt>RS_ID &lt; RSB_length</tt> bound, so a receiver holding a catalog from
 before an append reads a smaller bound that excludes only symbols of
 layers it has not joined.</t>
@@ -1010,13 +1011,11 @@ and MUST NOT change the <tt>repairSymbols</tt> of a published layer, while
 any receiver may still be consuming the source track.  Rule 2 of
 Section 6.3.4 requires <tt>repairLayer</tt> to be contiguous from 1 to n, so
 withdrawing a layer that is not the highest would force exactly such a
-renumbering; withdrawal of a middle layer is therefore not defined by
-this document.  A publisher that must retire a middle layer withdraws
-the set from the highest index down to it, or retires the source
-encoding and publishes a separate rendition.  Supporting middle-layer
-withdrawal directly would require a catalog generation identifier
-carried on the wire, that is in-session signaling, which Section 5.2
-does not define.</t>
+renumbering.  A publisher that must retire any layer, including the
+highest, retires the source encoding and publishes a separate
+rendition.  Supporting withdrawal directly would require a catalog
+generation identifier carried on the wire, that is in-session
+signaling, which Section 5.2 does not define.</t>
 <t>The prohibition is not editorial, and the worked catalog of
 Section 5.1.2 shows why.  A receiver holding layers 0 and 2 holds ESIs
 64 to 71 and 88 to 119.  Renumber layer 2 to layer 1 and the same
@@ -1028,14 +1027,30 @@ symbol is identified by its ESI alone: the result is not a reported
 error but a decode that fails, or that resolves against coordinates
 the symbols do not belong to.  Changing a published <tt>repairSymbols</tt>
 does the same to every layer above the one changed.</t>
+<t>Withdrawing the highest layer forces no renumbering, but it is barred
+for a different reason: it is indistinguishable on the wire from the
+renumbering above.  For the highest layer n, O_n + P_n is the total
+identically, so withdrawing it drops the wire RSB_length strictly
+below the bound derived by every receiver that had joined it, and the
+check below cannot tell that case from a genuine coordinate
+disagreement.  Both present as nothing but a smaller total.  The
+receivers holding the highest layer are also the lossiest ones, and
+they cannot recover by observation: absence of symbols is precisely
+the loss condition the layer was joined to repair, so they learn of
+the withdrawal only at the next catalog refresh, which this document
+does not bound.</t>
+<t>Append-only is what makes the check below sound.  RSB_length is
+monotonically non-decreasing over the lifetime of a source encoding,
+so a wire RSB_length below a held layer's O_i + P_i is always a
+genuine violation: no operation this document defines produces one.</t>
 <t>A receiver MUST fail closed when, for any layer i it holds, the
-RSB_length carried on a repair packet of that instance is less than
-O_i + P_i derived from its own catalog: its own layer's RS_ID range
-does not fit under the bound the publisher is advertising, so the two
-disagree about coordinates the receiver is actively using.  It MUST
-NOT treat such a packet as a symbol to discard.  In the renumbering
-example above the total falls from 56 to 40 while the receiver's
-O_2 + P_2 is 56, so the check catches it.</t>
+RSB_length carried on any repair packet of the same FEC instance is
+less than O_i + P_i derived from its own catalog: its own layer's
+RS_ID range does not fit under the bound the publisher is advertising,
+so the two disagree about coordinates the receiver is actively using.
+It MUST NOT treat such a packet as a symbol to discard.  In the
+renumbering example above the total falls from 56 to 40 while the
+receiver's O_2 + P_2 is 56, so the check catches it.</t>
 <t>That check is a backstop and not a substitute for the publisher
 requirement.  It does not catch a change that leaves the total at or
 above the receiver's derived bound, for example an increase to a lower
