@@ -97,11 +97,24 @@ symbols.
 
 **Repair Layer**: One of possibly several repair tracks protecting the
 same source blocks of a source track, each carrying a disjoint range of
-the block's repair symbols (Section 6.3).  Layer 0 is the track named
-by `repairTrack`.
+the block's repair symbols (Section 6.3).  All layers of a source track
+share one source block partition and differ only in how many repair
+symbols they carry.  Layer 0 is the track named by `repairTrack`.
 
-**Cumulative Repair Count**: The repair symbols per block available to
-a receiver holding layers 0..i, C_i = sum(P_j for j <= i).
+**Layer Index**: The integer `repairLayer` giving a layer's position in
+the ordered set of repair layers of one source track.  Layer 0 is the
+base layer; enhancement layers are numbered contiguously from 1.
+
+**RS_ID Offset**: The first Repair Symbol ID a layer may use.  For
+layer i the offset is O_i = sum(P_j for j < i), where P_j is the repair
+symbol count of layer j (Section 6.3.2).
+
+**Keyframe Overlay**: A second, independent FEC instance over a source
+track whose source symbols are only the fragments of Random Access
+Points, with its own source symbol count, its own repair symbols, and
+its own repair track, declared with `"scope": "keyframe"`
+(Section 6.4).  An overlay is not a repair layer and carries no layer
+index.
 
 **Interleave Depth**: The time span in milliseconds of a single source
 block (the interleave window).  The encoder computes the number of
@@ -398,17 +411,123 @@ Section 15.3.  Receivers that do not
 implement this specification do not recognize the value and ignore
 such tracks.
 
-**enhancementRepair** (array of objects, OPTIONAL): Additional repair
-layers for the same source blocks, in layer order (Section 6.3).  Each
-entry carries exactly two fields: `repairTrack` (string, REQUIRED), the
-name of a track with `"packaging": "fec-repair"`, distinct from the
-track-level `repairTrack` and from every other entry; and
-`repairSymbols` (integer, REQUIRED, MUST be >= 1), the repair symbols
-per block that this layer carries.  Entries MUST NOT carry any other
-field: `algorithm`, `sourceSymbols`, `symbolSize`, `interleaveDepthMs`,
-and `reorderToleranceMs` belong to the source track and are shared by
-every layer.  The track-level `repairTrack` and `repairSymbols` describe
-layer 0.  When absent, the track has a single repair layer.
+**enhancementRepair**: This field is not defined by this document.  An
+earlier revision carried a `fec.enhancementRepair` array on the source
+track.  It has been replaced by self-describing repair tracks, below:
+the source track names layer 0 only, and every further layer and any
+keyframe overlay declares its own role on its own `tracks` entry.  A
+receiver MUST reject a catalog carrying `fec.enhancementRepair`.
+
+### Repair Track Fields
+
+A track with `"packaging": "fec-repair"` describes its own role.  It
+carries the flat MSF track fields plus the fields below.  Layer 0 is
+the exception retained for compatibility: it is identified by the
+source's `fec.repairTrack`, and its own entry MAY additionally carry
+`depends` and `"repairLayer": 0`, which MUST agree with the source's
+pointer when present.
+
+**depends** (array of strings, REQUIRED on every repair track other
+than layer 0): The name of the source track this track repairs.  The
+array MUST contain exactly one name, and that name MUST identify a
+track in the same catalog whose `packaging` is `mmtp` and which
+carries an `fec` object.
+
+**repairLayer** (integer, REQUIRED on enhancement layers, OPTIONAL on
+layer 0, MUST NOT appear on an overlay): The layer index (Section 6.3).
+
+**repairSymbols** (integer, REQUIRED, MUST be >= 1): The repair symbols
+per block that this track carries, P_i.  On a repair track this field
+describes the track itself; the source track's `fec.repairSymbols`
+describes layer 0.
+
+**priority** (integer, OPTIONAL): The MoQ Transport priority of this
+track (Section 10), in the range 192 to 255.
+
+**scope** (string, OPTIONAL): When present, MUST be `"keyframe"`, and
+declares this track to be the source track's keyframe overlay
+(Section 6.4).  A receiver that does not implement overlays MUST fail
+closed on a catalog carrying this key rather than ignoring it, because
+an overlay changes the source packet wire format (Section 8.5).
+
+**sourceSymbols** (integer, REQUIRED on an overlay, MUST NOT appear
+otherwise): The overlay instance's own K.
+
+Track names carry no meaning in any of this.  A receiver MUST resolve
+every relationship from `fec.repairTrack`, `depends`, `repairLayer`
+and `scope`, and MUST NOT infer one by parsing a track name or a name
+suffix.
+
+### Worked Catalog
+
+Three repair layers and one keyframe overlay on one source track:
+
+~~~ json
+{
+  "tracks": [
+    {
+      "name": "video",
+      "packaging": "mmtp",
+      "fec": {
+        "algorithm": "raptorq",
+        "sourceSymbols": 64,
+        "repairSymbols": 8,
+        "symbolSize": 1200,
+        "interleaveDepthMs": 200,
+        "repairTrack": "video/repair"
+      }
+    },
+    {
+      "name": "video/repair",
+      "packaging": "fec-repair",
+      "depends": ["video"],
+      "repairLayer": 0,
+      "repairSymbols": 8,
+      "priority": 240
+    },
+    {
+      "name": "video/repair/1",
+      "packaging": "fec-repair",
+      "depends": ["video"],
+      "repairLayer": 1,
+      "repairSymbols": 16,
+      "priority": 244
+    },
+    {
+      "name": "video/repair/2",
+      "packaging": "fec-repair",
+      "depends": ["video"],
+      "repairLayer": 2,
+      "repairSymbols": 32,
+      "priority": 248
+    },
+    {
+      "name": "video/repair/kf",
+      "packaging": "fec-repair",
+      "depends": ["video"],
+      "scope": "keyframe",
+      "sourceSymbols": 256,
+      "repairSymbols": 32,
+      "priority": 242
+    }
+  ]
+}
+~~~
+
+A receiver derives the following from that catalog; none of it is
+carried on the wire:
+
+| Layer | P_i | O_i | RS_ID range | ESI range (K = 64) |
+|-------|-----|-----|-------------|--------------------|
+| 0 | 8 | 0 | 0 to 7 | 64 to 71 |
+| 1 | 16 | 8 | 8 to 23 | 72 to 87 |
+| 2 | 32 | 24 | 24 to 55 | 88 to 119 |
+
+The total repair count is 8 + 16 + 32 = 56, so RSB_length is 56 on
+every repair packet of layers 0, 1 and 2 (Section 7.1).  The overlay is
+a separate FEC instance and is not in that table: its own K is 256, its
+own P is 32, its RS_ID range is 0 to 31, its ESI range is 256 to 287,
+and its packets carry RSB_length 32.
 
 ## Signaling Model
 
@@ -470,6 +589,16 @@ form for URIs and logging (e.g., "live/video" and
 This convention allows subscribers to discover repair tracks without
 additional signaling.
 
+The convention covers layer 0 only, and it is a convention rather than
+a resolution mechanism.  Enhancement layers (Section 6.3) and a
+keyframe overlay (Section 6.4) have no required name: they are
+resolved from `depends`, `repairLayer` and `scope` on their own
+catalog entries (Section 5.1.1).  A receiver MUST NOT infer that a
+track is a repair track, which source it repairs, or which layer it
+is, by parsing a track name or a name suffix, and a publisher MUST NOT
+rely on a receiver doing so.  Names such as "video/repair/1" appear in
+the examples of this document for readability only.
+
 ## Subscription Model
 
 Subscribers SHOULD subscribe to the source track first, then
@@ -499,64 +628,93 @@ restating it.
 
 A source track MAY be protected by more than one repair track.  Each
 such track is a repair layer: an independently subscribable set of
-repair symbols for the same source blocks.  Layer 0 is the repair track
-named by `repairTrack`, carrying `repairSymbols` symbols per block;
-layers 1..n are the entries of `enhancementRepair` (Section 5.1), in
-array order, each carrying its own `repairSymbols`.
+repair symbols for the same source blocks.  Layer 0 is the repair
+track named by `repairTrack`, carrying the source's `repairSymbols`
+symbols per block.  Layers 1..n are the tracks that name this source
+in `depends` and carry a `repairLayer` (Section 5.1.1), one track per
+layer index.
 
 Layering separates the two costs of FEC.  The repair count P buys
 tolerance to random loss and costs only bandwidth; the interleave
 window buys tolerance to burst loss and costs recovery latency
-(Section 9).  A single repair track forces the publisher to dimension P
-for the worst path it serves, and every receiver on a better path
+(Section 9).  A single repair track forces the publisher to dimension
+P for the worst path it serves, and every receiver on a better path
 carries that overhead.  With layers, a receiver on a clean regional
 path subscribes layer 0 alone and a receiver on a lossy long-distance
 path adds layers until its measured loss is covered, while the
 publisher encodes the source once.
+
+The layers describe themselves.  A source track names layer 0 and
+nothing further; it does not enumerate its enhancement layers.  A
+publisher therefore adds or withdraws a layer by adding or removing
+one `tracks` entry, without rewriting the source track's `fec` object,
+and a relay that forwards a subset of the catalog cannot leave a
+source track pointing at a layer it did not forward.  The cost of that
+property is that the layer set is only well formed when taken as a
+whole, which is what the validation rules of Section 6.3.4 check.
 
 ### Shared Block Geometry
 
 All repair layers of a source track share the source block partition:
 `algorithm`, `sourceSymbols` (K), `symbolSize` (T),
 `interleaveDepthMs`, and `reorderToleranceMs` are properties of the
-source track's `fec` object and apply to every layer.  A layer entry
-carries only `repairTrack` and `repairSymbols`; it MUST NOT carry any
-of the shared fields, and a receiver MUST reject a catalog whose layer
-entry does.
+source track's `fec` object and apply to every layer.  Layers differ
+only in `repairSymbols`.  A repair track MUST NOT carry any of those
+fields, nor any other geometry field (Section 6.3.4, rule 8), and a
+receiver MUST reject a catalog whose repair track does.
 
 This is a wire constraint, not a convention.  Each source packet
-carries exactly one Source FEC Payload ID (Section 8.5), which fixes
-one (SBN, ESI) coordinate for that packet.  Two repair tracks with
-different K or a different interleave window would describe two
-different partitions of the same source packets and would need two
-trailers per packet.  Layers therefore differ only in which repair
-symbols of the shared block they carry.  A deployment that needs a
-different interleave window for a different receiver population needs
-a separate source encoding (a separate rendition), which is outside
-this section.
+carries one Source FEC Payload ID for the base instance (Section 8.5),
+which fixes one (SBN, ESI) coordinate for that packet.  Two repair
+tracks with different K or a different interleave window would
+describe two different partitions of the same source packets and would
+need two base trailers per packet.  Layers therefore differ only in
+which repair symbols of the shared block they carry.  A deployment
+that needs a different interleave window for a different receiver
+population needs a separate source encoding, that is a separate
+rendition, which is outside this section.  The one case where a source
+packet does carry a second Source FEC Payload ID is the keyframe
+overlay of Section 6.4, which is a distinct FEC instance rather than a
+layer, and which is bounded to one per source track for exactly this
+reason.
 
 ### Repair Symbol Identity Across Layers
 
 Let P_i be the `repairSymbols` of layer i and O_i = sum(P_j for j < i)
-its repair symbol offset (O_0 = 0).  Layer i carries, for every source
-block, the repair symbols with RS_ID in [O_i, O_i + P_i).  The Encoding
-Symbol ID follows the single-layer rule of Section 7.2: ESI = K +
-RS_ID.  The total repair count of the block is P = sum(P_i over all
-layers), and RSB_length on every repair packet of every layer carries
-this total (Section 7.1), so the `RS_ID < RSB_length` bound holds for
-symbols from any layer.
+its RS_ID offset (O_0 = 0).  Layer i carries, for every source block,
+the repair symbols with RS_ID in [O_i, O_i + P_i).  The Encoding
+Symbol ID follows the single-layer rule of Section 7.2:
+
+~~~
+O_i   = sum(P_j for j < i)
+RS_ID = O_i + j, for the j-th symbol of layer i
+ESI   = K + RS_ID
+~~~
+
+The total repair count of the block is the sum of P_i over all
+published layers.  RSB_length on every repair packet of every layer
+carries this total (Section 7.1), not the layer's own P_i.  That is
+what makes the RS_ID to ESI mapping independent of which layers a
+given receiver joined: a receiver holding a non-prefix subset computes
+the same coordinate for a symbol as a receiver holding everything, and
+the `RS_ID < RSB_length` bound holds for a symbol from any layer.
 
 Because RaptorQ repair symbols are identified by ESI alone and any set
 of distinct encoding symbols of a block decodes together
 ([@!RFC6330]), symbols received from any subset of layers, over any
-mix of paths, combine in one decode.  A receiver that has subscribed
-layers 0..i recovers a block whenever the number of lost symbols,
-source and repair together, does not exceed C_i - e, where C_i is the
-cumulative repair count and e is the RaptorQ decoding overhead
-(roughly 1e-2, 1e-4, and 1e-6 residual failure at 0, 1, and 2 symbols
-of overhead per [@!RFC6330]).  This loss tolerance is derived from K
-and the layer counts; it MUST NOT be signaled as a separate catalog
-field.
+mix of paths, combine in one decode.  Subsets need not be prefixes: in
+the worked catalog of Section 5.1.2 a receiver holding layers 0 and 2
+holds ESIs 64 to 71 and 88 to 119, which are distinct encoding symbols
+of one code, and it decodes as soon as it holds enough distinct
+symbols in total.
+
+A receiver that has subscribed a set of layers recovers a block
+whenever the number of lost symbols, source and repair together, does
+not exceed C - e, where C is the total P over the layers it holds and
+e is the RaptorQ decoding overhead (roughly 1e-2, 1e-4, and 1e-6
+residual failure at 0, 1, and 2 symbols of overhead per [@!RFC6330]).
+This loss tolerance is derived from K and the layer counts; it MUST
+NOT be signaled as a separate catalog field.
 
 Receivers MUST take layer membership and per-layer counts from the
 catalog.  RSB_length carries the total and says nothing about which
@@ -566,19 +724,79 @@ On layer i, the MoQ group numbered SBN carries P_i objects
 (Section 7); object j of that group carries the repair symbol with
 RS_ID = O_i + j.
 
-### Naming
+### Why RaptorQ Only
 
-Layer 0 keeps the name of Section 6.1.  An enhancement layer with
-index i >= 1 MUST be named
+Repair layers, and the overlay of Section 6.4, are defined only when
+`fec.algorithm` is `raptorq`.  A publisher MUST NOT signal either
+under any other algorithm, and a receiver MUST reject such a catalog
+(Section 6.3.4, rule 7).
 
-~~~
-[namespace, track_name, "repair", "<i>"]
-~~~
+RaptorQ is a fountain code over an open Encoding Symbol ID space.  A
+decoder recovers a source block from any sufficiently large set of
+distinct encoding symbols, independent of which ESIs those symbols
+carry.  Repair symbols partitioned into disjoint ESI ranges and
+carried on separate tracks therefore remain valid encoding symbols of
+one code, and any subset of layers combines without renegotiation.
 
-with i in decimal, for example ["live", "video", "repair", "1"],
-rendered "live/video/repair/1".  Every layer MUST appear in the
-catalog `tracks` array with `"packaging": "fec-repair"` (Section 5.1).
-No new packaging value is defined.
+A block code such as Reed-Solomon fixes a codeword length n = K + P
+when the block is encoded, and each repair symbol is defined relative
+to that n.  Changing P changes the code, so symbols generated for a
+larger P are not valid symbols of the code that a receiver holding
+fewer layers is decoding.  There is no single codeword length a
+publisher could choose that is correct for every subset of layers a
+receiver might join, and the choice cannot be deferred to the receiver
+because the publisher encodes once for all of them.  Layered repair
+over Reed-Solomon is therefore undefined by this document.  A future
+specification could define it, but it would have to define how a
+receiver learns the codeword length its symbols were generated
+against, which is not a property of the mechanism in this section.
+
+### Catalog Rules and Fail-Closed Validation
+
+A receiver MUST validate all of the following for a source track
+before starting FEC for it.  On any violation the receiver MUST fail
+closed: it MUST report the offending catalog path and MUST NOT start
+FEC for that source track.  A receiver MUST NOT repair the catalog by
+ignoring the offending track, because every rule below distinguishes a
+layer set that decodes from one that silently mis-maps symbols.
+
+1. `depends` names exactly one track in the same catalog, whose
+   `packaging` is `mmtp` and which carries an `fec` object.
+2. The `repairLayer` values for one source track are contiguous from 1
+   to n, with no gaps and no duplicates.  Layer 0 is the track named
+   by the source's `fec.repairTrack`.
+3. `priority`, where declared, is in the range 192 to 255 inclusive,
+   and is monotonic non-decreasing with layer index.  Layer 0's
+   priority MAY be declared on its own track; when absent it is 240.
+4. The total of `repairSymbols` across all layers is at most
+   2^24 - 1, the range of RSB_length.
+5. K + totalP - 1 is at most 2^24 - 1, which bounds the largest ESI
+   the layer set can produce.
+6. K is at most 56403, the maximum source symbols per source block in
+   [@!RFC6330].
+7. Repair layers and any overlay appear only when `fec.algorithm` is
+   `raptorq` (Section 6.3.3 above).
+8. A track whose `packaging` is `fec-repair` carries no geometry
+   field: `mmtpMode`, `timescale`, any `groupDuration` field,
+   `symbolSize`, `interleaveDepthMs`, `reorderToleranceMs`, and
+   `sourceSymbols` except on an overlay (Section 6.4).
+9. No orphan repair track: every track whose `packaging` is
+   `fec-repair` is reachable from a source track, either by being
+   named in that source's `fec.repairTrack` or by naming that source
+   in `depends`.  This rule binds once the catalog declares any FEC
+   source, that is any track whose `fec.algorithm` is not `none`; a
+   catalog that declares no FEC source at all MAY carry an
+   unreferenced `fec-repair` track that nothing joins.
+10. A source track has at most one track with `"scope": "keyframe"`
+    (Section 6.4), and such a track carries no `repairLayer`.
+
+Rules 4, 5 and 6 are the arithmetic bounds of the mechanism, and they
+bind the layer set as a whole rather than any one layer: a publisher
+can add a layer that is individually well formed and push the set past
+rule 5, at which point some ESI the set produces is not representable.
+Checking them at the set level before the first block is decoded is
+what keeps that failure from appearing as sporadic unrecoverable
+blocks much later.
 
 ### Receiver Selection
 
@@ -597,49 +815,27 @@ receiver-chosen number of consecutive blocks whose loss stayed within
 the tolerance of the remaining layers.  Hysteresis is counted in
 blocks, the protocol's unit, not in wall-clock time.
 
-### Multicast Carriage
+### Repair-Only Multicast Endpoints
 
 On a multicast endpoint the receiver cannot choose tracks; the
-operator of the endpoint chooses the layer set for that path.  Each
-layer carried on an endpoint is listed with its own `packetId`
-([@?MOQ-MULTICAST] Section 4.1).  A regional endpoint typically
-carries the source track and layer 0; a public or long-distance
-endpoint carries the source track and layers 0..n.  Because every
-endpoint carries the same source packets under the same block
-partition, a receiver that moves between endpoints, or that is
-side-fed over MoQ unicast, mixes symbols from all of them in one
-decode.  Layers not carried on an endpoint remain reachable over MoQ
+operator of the endpoint chooses which tracks that path carries.  Each
+repair layer carried on an endpoint is listed with its own `packetId`
+([@?MOQ-MULTICAST] Section 4.1), exactly as a source track is, and a
+receiver MUST route every such `packetId` to the decoder of the source
+track that layer depends on.  Because every endpoint carries the same
+source packets under the same block partition (Section 6.3.1), a
+receiver that moves between endpoints, or that is side-fed over MoQ
+unicast, mixes symbols from all of them in one decode.  Layers not
+carried on any endpoint the receiver holds remain reachable over MoQ
 unicast (Section 6.2) for receivers that have a return path.
+
+An operator MAY carry the source track and its layers together on one
+endpoint, or MAY place layers on endpoints of their own.  An endpoint
+whose track list contains only `fec-repair` tracks is a repair-only
+endpoint:
 
 ~~~ json
 {
-  "tracks": [
-    {
-      "name": "video",
-      "packaging": "mmtp",
-      "fec": {
-        "algorithm": "raptorq",
-        "sourceSymbols": 32,
-        "repairSymbols": 4,
-        "symbolSize": 1312,
-        "interleaveDepthMs": 133,
-        "repairTrack": "video/repair",
-        "enhancementRepair": [
-          { "repairTrack": "video/repair/1", "repairSymbols": 12 }
-        ]
-      }
-    },
-    {
-      "name": "video/repair",
-      "packaging": "fec-repair",
-      "priority": 240
-    },
-    {
-      "name": "video/repair/1",
-      "packaging": "fec-repair",
-      "priority": 240
-    }
-  ],
   "multicast": {
     "endpoints": [
       {
@@ -656,9 +852,8 @@ unicast (Section 6.2) for receivers that have a return path.
         "groupAddress": "232.1.1.51",
         "port": 5000,
         "tracks": [
-          { "name": "video",          "packetId": 1 },
-          { "name": "video/repair",   "packetId": 2 },
-          { "name": "video/repair/1", "packetId": 3 }
+          { "name": "video/repair/1", "packetId": 3 },
+          { "name": "video/repair/2", "packetId": 4 }
         ]
       }
     ]
@@ -666,12 +861,46 @@ unicast (Section 6.2) for receivers that have a return path.
 }
 ~~~
 
-Layer 0 carries RS_ID 0..3 (ESI 32..35) and layer 1 carries RS_ID
-4..15 (ESI 36..47); RSB_length is 16 on both.  A receiver holding
-layer 0 recovers a block that lost at most 2 symbols at about 1e-6
-residual failure; one holding both layers recovers a block that lost
-at most 14.  The first endpoint suits a regional path with low random
-loss; the second suits a public or long-distance path.
+The first endpoint suits a regional path with low random loss.  The
+second is repair-only: a receiver on a lossy path holds both, and
+receives source packets once while adding layers 1 and 2 to the same
+decode.
+
+A repair-only endpoint is never a media tier.  A receiver MUST NOT
+treat one as a rendition or quality choice, and endpoint or ladder
+selection MUST exclude it on every path by which a receiver picks
+what to render.  A repair-only endpoint's `bandwidth`
+([@?MOQ-MULTICAST] Section 4.1) is the cost of adding repair to a
+stream the receiver has already selected, not the cost of an
+alternative rendition, and MUST NOT be compared against a media
+endpoint's `bandwidth` when choosing one.  Treating the second
+endpoint above as a tier would offer a receiver a rendition that
+carries no media at all.
+
+A receiver joins a repair-only endpoint on measured loss: the rate at
+which its FEC blocks fail to recover, and the margin by which
+recovering blocks consume the repair symbols available to it.  A
+receiver MUST NOT use goodput, throughput, or estimated available
+bandwidth to decide whether to add or drop a repair layer.  A repair
+layer does not raise media quality, so a bandwidth-driven policy adds
+overhead exactly where headroom exists rather than where loss is,
+which is the opposite of the intent of this section, and on a
+congested path it would shed repair at the moment loss is highest.
+
+Layer changes are make-before-break.  A receiver MUST join the
+additional layer's endpoint and begin receiving from it before
+leaving any endpoint it currently holds, so that no source block is
+left with less coverage than the receiver already had.
+
+Hysteresis MUST derive from the FEC block span, that is from
+`interleaveDepthMs` together with `reorderToleranceMs`, and MUST NOT
+come from a fixed timer or a fixed symbol count.  A receiver MUST
+observe at least one full block span at the new layer set before
+making a further layer change.  A decision taken over less than one
+block span is taken on a partially received block, which is
+indistinguishable from a block that lost the rest of its symbols, and
+under bursty loss that drives the receiver to add and drop layers in
+step with the bursts.
 
 ### Interaction with the Interleave Window
 
@@ -691,12 +920,122 @@ requires two renditions.
 
 ### Compatibility
 
-A catalog without `enhancementRepair` describes a single layer with
-O_0 = 0 and RSB_length = `repairSymbols`; nothing in this section
-changes its wire format or its interpretation.  A receiver that
-predates this section knows only layer 0 and remains correct, since
-layer 0 alone is a valid layer set and the additional ESIs it never
-sees do not affect decoding of the symbols it has.
+A catalog whose source track names a `repairTrack` and declares no
+further repair track describes a single layer with O_0 = 0 and
+RSB_length equal to `repairSymbols`; nothing in this section changes
+its wire format or its interpretation.
+
+A receiver that predates this section knows only layer 0.  It reads
+the source's `fec.repairTrack` and `fec.repairSymbols` as before and
+remains correct, because layer 0 alone is a valid layer set and the
+additional ESIs it never subscribes do not affect decoding of the
+symbols it holds.  It will read a smaller RSB_length than the
+publisher's total only if the publisher publishes no other layer; when
+other layers exist it reads the total, which is larger than the P it
+expects and which it uses only as the `RS_ID < RSB_length` bound.
+
+The keyframe overlay of Section 6.4 is the exception: it is not
+backward compatible, because it changes the source packet layout.
+Section 6.4 states the fail-closed requirement that keeps a
+pre-overlay receiver from misparsing such a stream.
+
+## Keyframe Overlay
+
+A source track MAY additionally be protected by a keyframe overlay: a
+second, independent FEC instance whose source symbols are only the
+fragments of Random Access Points of that source track.  The overlay
+is the mechanism described informally as Strategy 2 in the unequal
+error protection material accompanying this document, specified here
+normatively.
+
+A Random Access Point is disproportionately valuable: losing one
+fragment of it renders every dependent frame undecodable until the
+next one.  The base instance protects it no better than any other
+media, and a deployment cannot fix that by deepening the base
+interleave window without paying that window's recovery latency on all
+media.  The overlay protects RAP fragments across a block of its own,
+which can be far wider than the base window, so a receiver that loses
+a burst across a RAP can still recover it without waiting for the next
+RAP and without the base instance's latency changing at all.
+
+### Overlay Instance
+
+An overlay is a separate FEC instance over the same source track.  It
+has its own `sourceSymbols` (K_overlay) and its own `repairSymbols`,
+declared on its own repair track, and it shares the source track's
+`algorithm` and `symbolSize`.  It does not share the base instance's
+K, its block partition, or its RS_ID space.
+
+An overlay is not a repair layer.  It carries no `repairLayer`, it is
+not a member of the layer index chain, and it is excluded from the
+contiguity and priority monotonicity rules of Section 6.3.4, which
+order the base layer chain only.  Its `priority` is independent within
+192 to 255, and MAY be numerically lower than a base enhancement
+layer's so that a keyframe repair symbol is delivered before an
+ordinary one.
+
+Within the overlay instance, RS_ID starts at 0 and the Encoding Symbol
+ID is K_overlay + RS_ID.  RSB_length on an overlay repair packet is
+the overlay's own P, not the base total.  Overlay ESIs never collide
+with base ESIs because the two are different instances decoded by
+different decoders; a receiver MUST NOT feed a symbol of one instance
+to the decoder of the other.
+
+The bounds of Section 6.3.4 are checked per instance.  For the overlay
+this is K_overlay + P_overlay - 1 at most 2^24 - 1, P_overlay at most
+2^24 - 1, and K_overlay at most 56403, evaluated independently of the
+base instance's totals.
+
+A source track has at most one overlay.  This bound is a wire
+constraint, not an editorial one: Section 8.5 fixes a RAP source
+packet at exactly two Source FEC Payload IDs, so the trailer length is
+fixed and a receiver can locate the payload without parsing the
+catalog first.  A second overlay on the same source track MUST be
+rejected (Section 6.3.4, rule 10).  Relaxing this bound would be a
+revision of this document and a change to the source packet layout,
+not a catalog-only change.
+
+### Overlay Membership
+
+The overlay's source symbols are the fragments of the source track
+that belong to a Random Access Point, in transmission order.  A
+publisher MUST include a source packet's payload in the overlay
+instance if and only if it sets `RAP_flag` on that packet
+(Section 8.5).  The two MUST agree on every packet: `RAP_flag` is what
+a receiver uses to decide whether a packet is an overlay source
+symbol, so a packet that is in the overlay without the flag is
+unrecoverable, and a packet with the flag that is not in the overlay
+puts the receiver's overlay symbol numbering permanently out of step
+with the publisher's.
+
+Overlay source symbols are numbered consecutively from 0 within the
+overlay instance, in the order the publisher emits them, and an
+overlay source block is K_overlay of them.  Because a RAP is a small
+fraction of the media, an overlay block spans many base blocks; the
+overlay's recovery latency is therefore its own block span and is
+unrelated to `interleaveDepthMs`.
+
+### Receiver Behavior
+
+A receiver that implements overlays and has joined the overlay repair
+track decodes the two instances independently and MAY use the
+recovered RAP fragments even when the base instance failed to recover
+the block that carried them.
+
+A receiver that does not implement overlays MUST fail closed on a
+catalog that declares one for a track it intends to consume, that is
+on a `fec-repair` track carrying the unknown `scope` key
+(Section 5.1.1).  It MUST NOT ignore the key and consume the source
+track anyway.  This is the one place in this document where an unknown
+catalog key is not ignorable, and the reason is in Section 8.5: an
+overlay changes the length of the trailer on RAP source packets, so a
+receiver that ignored the declaration would strip four bytes where it
+should strip eight and would deliver four bytes of trailer to the
+media pipeline as payload on every RAP packet.
+
+This mechanism is therefore not backward compatible with receivers
+that predate it.  A publisher that must serve such receivers publishes
+the overlay on a separate source track, or does not publish it.
 
 # Repair Object Format
 
@@ -737,18 +1076,32 @@ Receivers derive the Source Block Number as
 SBN = floor(SS_start / K).
 
 **RSB_length (24 bits)**: The number of repair symbols generated
-for the block — the P value.  For a single-layer track this is the
-catalog `repairSymbols`; when the track has repair layers
-(Section 6.3) it is the total across all layers, `repairSymbols` plus
-the sum of `enhancementRepair[].repairSymbols`, and it is the same on
-every layer's packets.
+for the block, the P value.  For a source track with a single repair
+layer this is the catalog `repairSymbols`.  When the source track has
+repair layers (Section 6.3) it is the total across all published
+layers, and it is identical on every layer's packets: a layer does not
+carry its own P_i here.  On a keyframe overlay's packets (Section 6.4)
+it is that overlay instance's own P, because the overlay is a separate
+FEC instance and its symbols are counted in its own space.
 
 **RS_ID (24 bits)**: The zero-based index of this repair symbol
 among the block's repair symbols.  The RFC 6330 Encoding Symbol ID
 is derived as ESI = K + RS_ID: repair ESIs follow the K source ESIs
-(Section 7.2).  When the track has repair layers (Section 6.3),
-RS_ID is the block-wide index: layer i carries RS_ID in
-[O_i, O_i + P_i).
+(Section 7.2).  When the source track has repair layers
+(Section 6.3), RS_ID is the block-wide index across the layer set:
+layer i carries RS_ID in [O_i, O_i + P_i).  On a keyframe overlay's
+packets, RS_ID is an index in the overlay instance's own space, from 0
+to P_overlay - 1, and the ESI is K_overlay + RS_ID.
+
+The encoder performs one RaptorQ encoding pass per source block,
+producing the total repair count, and then assigns the disjoint RS_ID
+ranges to the layer tracks according to O_i.  It MUST NOT run a
+separate encoding per layer: separate encodings of the same block are
+not symbols of a single code, so they could not be combined by a
+receiver holding more than one layer, which is the property
+Section 6.3.2 depends on.  A keyframe overlay is a separate instance
+and does get its own encoding pass, over its own source symbols
+(Section 6.4).
 
 **SSB_length (24 bits)**: The number of source symbols in the
 protected source block — the K value.  When nonzero it is
@@ -1024,6 +1377,76 @@ For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical block identifier.  QUIC
 transport encryption provides equivalent integrity protection.
 
+### Dual Source FEC Payload ID for a Keyframe Overlay
+
+When the catalog declares a keyframe overlay for a source track
+(Section 6.4), a source packet of that track carrying a Random Access
+Point fragment is a source symbol of two FEC instances, and therefore
+carries two Source FEC Payload IDs.
+
+Presence is the conjunction of two conditions, and no new field is
+added to signal it:
+
+1. The catalog declares an overlay for this source track, that is a
+   `fec-repair` track with `"scope": "keyframe"` naming it in
+   `depends` (Section 5.1.1); and
+2. The MMTP packet header sets `RAP_flag` on this packet.
+
+A publisher that declares an overlay MUST set `RAP_flag` on every
+source packet whose payload belongs to a keyframe MFU covered by the
+overlay, and MUST NOT set it on any other packet of that track.  A
+packet meeting both conditions carries two 4-byte Source FEC Payload
+IDs at the end of the packet:
+
+~~~
+Source Packet with Overlay {
+  MMTP Packet Header (96),      # RAP_flag = 1
+  MMTP Payload (..),
+  Source FEC Payload ID (32),   # base instance SS_ID
+  Source FEC Payload ID (32),   # overlay instance SS_ID
+}
+~~~
+
+The base instance's SS_ID comes FIRST and the overlay's LAST.  The
+ordering places each instance's trailer in declaration order, base
+before the extension that depends on it, so a receiver that implements
+overlays parses the two in the order the catalog presents them.
+
+The ordering does NOT make the layout safe for a receiver that does
+not implement overlays, and it is worth being explicit about why.
+Such a receiver locates the Source FEC Payload ID as the last four
+bytes of the packet.  On a RAP packet those four bytes are the
+OVERLAY SS_ID, so the receiver would read a block assignment
+belonging to the wrong FEC instance, and would additionally deliver
+the base SS_ID to the media pipeline as four bytes of payload.  Both
+failures are silent.  That is why Section 6.4 requires such a
+receiver to fail closed on the catalog rather than parse the stream,
+and why the overlay is declared with a key a pre-overlay receiver is
+required to reject rather than one it would ignore.
+
+A packet of the same track that does not set `RAP_flag` carries the
+base Source FEC Payload ID alone, exactly as in the no-overlay case.
+The trailer is therefore either 4 or 8 bytes, determined per packet by
+`RAP_flag`, and never any other length: a source track has at most one
+overlay (Section 6.3.4, rule 10).
+
+Both trailers are excluded from the protected bytes of the base
+instance, as the single trailer already is.  The overlay instance
+protects the same payload bytes as the base instance does, under its
+own K_overlay and the shared T; neither trailer is a source symbol
+byte of either instance.
+
+The A3SA redundancy mechanisms above apply to the base SS_ID only.
+The hint track field `MMTHSampleATSC3.source_fec_payload_id` and the
+MMTP `packet_counter` each carry one value, so they can carry the base
+SS_ID or the overlay SS_ID but not both.  Implementations MUST carry
+the base SS_ID in them.  A receiver operating in A3SA-verified mode
+therefore has an authenticated base block assignment and an
+unauthenticated overlay one, and SHOULD treat overlay-recovered
+fragments as it treats relay-generated repair: usable, but not a
+substitute for an authenticated base recovery where the deployment
+requires one.
+
 # Interleaving
 
 Interleaving spreads source symbols across time to protect against
@@ -1112,7 +1535,20 @@ track at the common default of 128):
 |------------|-------------------------------------------------|-------|
 | Control/Signaling (incl. catalog) | 0-63 | Delivered first |
 | Source Media | 64-191 (e.g. 128) | Protected |
-| Repair Symbols | 192-255 (e.g. 240) | Dropped first |
+| Repair layer 0 | 192-255, default 240 | Dropped first |
+| Repair layer 1 | 192-255, >= layer 0 | Declared on the track |
+| Repair layer n | 192-255, >= layer n-1 | Monotonic by layer |
+| Keyframe overlay | 192-255, independent | Outside the layer order |
+
+Layer 0's priority MAY be declared on its own repair track's catalog
+entry; when it is absent the value is 240.  Enhancement layer
+priorities are monotonic non-decreasing with layer index
+(Section 6.3.4, rule 3), so under congestion the highest layer is shed
+first and a receiver degrades through its layer set in order rather
+than losing an arbitrary one.  A keyframe overlay is not in that
+ordering: its priority is independent within 192 to 255 and MAY be
+numerically lower than an enhancement layer's, so that a keyframe
+repair symbol is delivered ahead of an ordinary one (Section 6.4).
 
 The `priority` value
 carried on a repair track's catalog entry (Appendix B) is expressed
@@ -1361,10 +1797,34 @@ tracks is RECOMMENDED, using the same mechanisms as source tracks
 FEC repair symbols represent additional bandwidth.  Publishers MUST
 NOT generate excessive repair symbols that could be used for bandwidth
 amplification attacks.  The repair overhead (P/K) SHOULD be limited
-to reasonable values (e.g., <= 50%).  With repair layers (Section 6.3) this
-bound applies to the total repair count across all layers.  A
-receiver's share of that bandwidth is bounded by the layers it
-subscribes; the publisher's emitted repair bandwidth is the total.
+to reasonable values (e.g., <= 50%).  With repair layers (Section 6.3)
+this bound applies to the total repair count across all published
+layers, and to a keyframe overlay's own P/K_overlay separately
+(Section 6.4).
+
+Layering changes the shape of the amplification exposure, because the
+attacker's lever is now which layers a victim can be made to receive
+rather than only whether it receives repair at all.  Each layer i adds
+P_i x T bytes per source block on top of the layers below it.  In the
+worked catalog of Section 5.1.2, at T = 1200, layer 0 adds 9,600
+bytes per block, layer 1 a further 19,200, and layer 2 a further
+38,400, so a receiver induced to hold the full set receives seven
+times the repair bytes of one holding layer 0 alone.  Deployments
+SHOULD bound the number of layers any single receiver may hold, and
+SHOULD apply the same join authorization to repair-layer endpoints as
+to media endpoints; a repair-only endpoint (Section 6.3.6) is not
+less sensitive than a media one merely because it carries no media.
+
+A receiver MUST NOT be made to receive a repair layer it did not
+join.  A publisher or relay MUST NOT push a repair-layer endpoint to
+a receiver that has not joined it, and MUST NOT add a layer to an
+endpoint a receiver has already joined as a way of raising that
+receiver's protection.  Repair layers are receiver-selected on
+measured loss (Section 6.3.6), so an entity able to add layers on a
+receiver's behalf could inflate that receiver's inbound traffic
+without changing anything the receiver observes as media, which makes
+the inflation invisible to the media-quality signals an application
+would otherwise notice it by.
 
 ## Multicast FEC Security
 

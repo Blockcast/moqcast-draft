@@ -87,24 +87,37 @@ Section 6 using one of these strategies:
 
 2. **Keyframe FEC overlay**: A SECOND FEC encoder covers only
    keyframe fragments with higher redundancy.  Repair symbols are
-   published on a separate MoQ track (e.g., `video/keyframe-repair`).
-   The catalog signals the overlay via a second `fec` entry:
+   published on a separate MoQ track.
+
+   **This strategy is now specified normatively in the core document**
+   (draft-ramadan-moq-fec-00 Section 6.4, with the wire format in
+   Section 8.5).  The sketch that used to appear here proposed a
+   `fecOverlay` sibling of `fec` on the source track; that shape is
+   NOT what was specified and MUST NOT be implemented.  The overlay is
+   declared instead as a self-describing repair track carrying
+   `"packaging": "fec-repair"`, `depends`, `"scope": "keyframe"`, its
+   own `sourceSymbols` and its own `repairSymbols`:
 
    ```json
    {
-     "fec": {
-       "sourceSymbols": 4,
-       "repairSymbols": 2,
-       "repairTrack": "video/repair"
-     },
-     "fecOverlay": {
-       "sourceSymbols": 16,
-       "repairSymbols": 8,
-       "repairTrack": "video/keyframe-repair",
-       "scope": "keyframe"
-     }
+     "name": "video/repair/kf",
+     "packaging": "fec-repair",
+     "depends": ["video"],
+     "scope": "keyframe",
+     "sourceSymbols": 256,
+     "repairSymbols": 32,
+     "priority": 242
    }
    ```
+
+   Three points that the sketch here did not capture and that the
+   normative text fixes: a source track has at most one overlay; a
+   RAP source packet carries two Source FEC Payload IDs, base first
+   and overlay last, so the mechanism is not backward compatible and a
+   receiver without overlay support must fail closed on the catalog;
+   and the overlay is a separate FEC instance with its own K, its own
+   RS_ID space starting at 0 and its own RSB_length, so it is not a
+   repair layer and carries no `repairLayer`.
 
    Receivers subscribe to both repair tracks.  The base FEC recovers
    P-frame losses with low overhead.  The overlay FEC provides 50%
@@ -275,8 +288,35 @@ Use cases for relay-generated repair include:
 When a relay generates its own repair symbols:
 
 1. The relay MUST successfully decode the source block first
-2. Generated repair symbols SHOULD use ESIs that do not conflict with
-   publisher-generated repair (e.g., ESI >= K + P_publisher)
+2. Generated repair symbols MUST use ESIs that do not conflict with
+   any publisher-generated repair symbol for the block:
+   `ESI >= K + totalP`, where `totalP` is the sum of `repairSymbols`
+   over ALL published repair layers of the source track, not the
+   `repairSymbols` of layer 0 alone.
+
+   This is the layered correction to the older `ESI >= K + P_publisher`
+   guidance, which is wrong whenever the source track publishes more
+   than one repair layer (core document Section 6.3).  With the worked
+   catalog of core Section 5.1.2 (K = 64, P = 8 / 16 / 32), the old
+   rule gives `64 + 8 = 72`, which is layer 1's FIRST ESI: a relay
+   starting there emits symbols colliding with layers 1 and 2, and a
+   receiver holding those layers sees two different symbols claiming
+   one encoding symbol coordinate and fails to decode. The correct
+   floor is `64 + 56 = 120`, one past the highest ESI any publisher
+   layer can occupy.
+
+   A relay MUST compute `totalP` from the catalog it forwards, and
+   MUST re-derive it if the publisher adds a layer. A relay that
+   cannot see the full layer set (for example one forwarding a subset
+   of the catalog) MUST NOT generate repair for that source track,
+   because it cannot establish a safe floor.
+
+   A keyframe overlay (core Section 6.4) is a separate FEC instance
+   with its own ESI space, so relay repair for the base instance
+   cannot collide with it. A relay generating repair for the overlay
+   instance applies the same rule within that instance:
+   `ESI >= K_overlay + P_overlay`.
+
 3. The relay MAY advertise relay-specific repair via a separate track
    namespace or track path suffix
 
