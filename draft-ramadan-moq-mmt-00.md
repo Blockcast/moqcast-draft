@@ -340,8 +340,10 @@ switching set, and what lets the FEC interleave window (Section 7.1)
 map deterministically onto whole groups:
 
 ~~~
-group_number = floor(ticks / groupDurationTicks)    if ticks >= 0
-group_number = 0                                    if ticks <  0
+relative_ticks = ticks - presentationAnchorTicks
+group_number = floor(relative_ticks / groupDurationTicks)
+               if relative_ticks >= 0
+group_number = 0 if relative_ticks < 0
 ~~~
 
 where:
@@ -356,23 +358,52 @@ where:
   signals it via Section 4.4.2; conversion from the integer-millisecond
   form is exact by construction (the catalog publisher rejects
   non-exact pairs and uses the integer-tick override instead).
-- Negative `ticks` (which can occur during encoder start-up or on
-  B-frame reorder near the start of the timeline) MUST clamp to
-  group number 0, as shown above.
+- `presentationAnchorTicks` is the signed timestamp in this track's
+  `timescale` that corresponds to presentation time zero.  It includes
+  the publisher's edit-list, encoder-priming, and composition-time
+  decisions, and MUST be applied before the formula.  A track that is
+  intended to be rendered with another audio or video track MUST signal
+  this field; a track that is not part of a synchronized presentation
+  MAY omit it and use zero as its local origin.
+- Negative `relative_ticks` (which can occur during encoder start-up,
+  audio priming, or B-frame reorder near the start of the timeline)
+  MUST clamp to group number 0, as shown above.
 
 Timeline origin: `ticks` is measured on the track's media
-presentation timeline; all tracks of a switching set share one such
-timeline.  Tick 0 is the start of the presentation — the earliest
-presentation time the publisher assigns to any sample of the
-switching set (or, for a track in no switching set, of the track
-itself) — NOT an NTP or wall-clock epoch, and NOT the Timestamp
-field of the MMTP packet header (which is NTP-derived and unrelated
-to this formula).  For ISOBMFF-derived MPU content this is the media
-composition timeline carried by the MPU's movie fragment metadata.
-All tracks of a switching set MUST publish sample timestamps on this
-common timeline; a publisher that resets the timeline (a timeline
-discontinuity) MUST reset it identically, at the same media instant,
-across all tracks of the switching set.
+presentation timeline; `presentationAnchorTicks` maps that track to
+the shared presentation timeline.  For every set of audio and video
+tracks intended to be rendered together, the publisher MUST choose one
+presentation origin and MUST signal an anchor for each track such that
+
+~~~
+presentation_time = (ticks - presentationAnchorTicks) / timescale
+~~~
+
+has the same rational value for samples representing the same media
+instant.  This is a media-time relation, not an NTP or wall-clock
+relation, and it is not the `Timestamp` field of the MMTP packet header
+(which is NTP-derived and unrelated to this formula).  For
+ISOBMFF-derived MPU content, the anchor is applied to the composition
+timeline after edit-list and priming adjustments.  All tracks of a
+switching set MUST use the same presentation origin as well.  A
+publisher that resets the timeline (a timeline discontinuity) MUST
+reset it identically, at the same media instant, across every affected
+audio, video, and switching-set track.
+
+For two tracks A and B, a receiver can verify that timestamps describe
+the same presentation instant without floating-point conversion:
+
+~~~
+(ticksA - presentationAnchorTicksA) * timescaleB ==
+    (ticksB - presentationAnchorTicksB) * timescaleA
+~~~
+
+The group-duration agreement rule in this section applies after the
+same anchor conversion.  Consequently, equal rational values of
+`groupDurationTicks / timescale` and correctly paired
+`presentationAnchorTicks` values are what align 30-fps video with
+audio; per-track `timescale` and `groupDurationTicks` values alone do
+not establish synchronization.
 
 All arithmetic is in integers: `ticks` and `groupDurationTicks` are
 integers, `floor(ticks / groupDurationTicks)` is integer division,
@@ -390,17 +421,18 @@ that participates in the switching set.
 
 Worked example.  A switching set of two video renditions of the same
 content: rendition A with `timescale: 90000`, rendition B with
-`timescale: 44100`, both with `groupDurationMs: 2000` in the catalog
-(Section 4.4.2).  The sample that is 10.5 seconds into the shared
-presentation timeline has an integer timestamp in both timescales:
+`timescale: 44100`, both with `presentationAnchorTicks: 0` and
+`groupDurationMs: 2000` in the catalog (Section 4.4.2).  The sample
+that is 10.5 seconds into the shared presentation timeline has an
+integer timestamp in both timescales:
 
 ~~~
 A: groupDurationTicks = 2000 * 90000 / 1000 = 180000
 B: groupDurationTicks = 2000 * 44100 / 1000 =  88200
 
 Same media instant, t = 10.5 s on the shared timeline:
-A: ticks = 945000   ->  floor(945000 / 180000) = 5
-B: ticks = 463050   ->  floor(463050 /  88200) = 5
+A: relative_ticks = 945000 -> floor(945000 / 180000) = 5
+B: relative_ticks = 463050 -> floor(463050 /  88200) = 5
 ~~~
 
 Both renditions place the instant in group 5.  No intermediate value
@@ -1233,6 +1265,7 @@ receivers via:
       "sourceSymbols": 32,
       "repairSymbols": 8,
       "interleaveDepthMs": 133,
+      "reorderToleranceMs": 40,
       "symbolSize": 1312,
       "repairTrack": "video/repair"
     }
@@ -1350,6 +1383,7 @@ Per-track catalog fields for mmtp packaging:
 | `packaging` | REQUIRED | String | MUST be "mmtp" |
 | `mmtpMode` | REQUIRED | String | MUST be "mfu" (Section 5); defined by this document |
 | `timescale` | REQUIRED | Number | Media timescale in Hz ([@!I-D.ietf-moq-msf] Section 5.2.21, profiled REQUIRED here; Section 4.4.2) |
+| `presentationAnchorTicks` | REQUIRED for synchronized audio/video tracks | Signed integer | Track timestamp corresponding to shared presentation time zero (Section 4.4.1); defined by this document |
 | `groupDurationMs` | REQUIRED | Number | Group duration, integer ms (Section 4.4.2); defined by this document |
 | `groupDurationTicks` | OPTIONAL | Number | Integer-tick override (Section 4.4.2); defined by this document |
 | `altGroup` | OPTIONAL | Number | Switching-set membership key ([@!I-D.ietf-moq-msf] Section 5.2.12, profiled in Section 4.4) |
@@ -1418,6 +1452,10 @@ defined in [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   `multicast.endpoints[].tracks[]` entry, with `packetId` assigned per
   the rule below
 - `LS@bw` -> `bitrate` ([@!I-D.ietf-moq-msf] Section 5.2.22)
+- the source composition/edit-list origin for each synchronized media
+  track -> `presentationAnchorTicks`; a converter MUST preserve one
+  common presentation origin across audio and video and MUST NOT emit
+  zero merely because the source offset was unavailable
 - `FECParameters@overhead` -> `fec.repairSymbols` (computed as
   K x overhead / 100)
 - `fecOTI` F,T -> `fec.sourceSymbols` (K = ceil(F / T)),
@@ -1626,6 +1664,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
       "packaging": "mmtp",
       "mmtpMode": "mfu",
       "timescale": 90000,
+      "presentationAnchorTicks": 0,
       "groupDurationMs": 1000,
       "codec": "avc1.64001f",
       "width": 1920,
@@ -1639,6 +1678,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
         "repairSymbols": 250,
         "symbolSize": 1000,
         "interleaveDepthMs": 1000,
+        "reorderToleranceMs": 40,
         "repairTrack": "video/1080p/repair"
       }
     },
@@ -1652,6 +1692,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
       "packaging": "mmtp",
       "mmtpMode": "mfu",
       "timescale": 48000,
+      "presentationAnchorTicks": 0,
       "groupDurationMs": 1000,
       "codec": "mp4a.40.2",
       "samplerate": 48000,
