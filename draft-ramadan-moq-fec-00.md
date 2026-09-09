@@ -424,8 +424,9 @@ A track with `"packaging": "fec-repair"` describes its own role.  It
 carries the flat MSF track fields plus the fields below.  Layer 0 is
 the exception retained for compatibility: it is identified by the
 source's `fec.repairTrack`, and its own entry MAY additionally carry
-`depends` and `"repairLayer": 0`, which MUST agree with the source's
-pointer when present.
+`depends`, `"repairLayer": 0` and `repairSymbols`, each of which MUST
+agree with the source's corresponding field when present
+(Section 6.3.4, rules 2 and 11).
 
 **depends** (array of strings, REQUIRED on every repair track other
 than layer 0): The name of the source track this track repairs.  The
@@ -436,10 +437,16 @@ carries an `fec` object.
 **repairLayer** (integer, REQUIRED on enhancement layers, OPTIONAL on
 layer 0, MUST NOT appear on an overlay): The layer index (Section 6.3).
 
-**repairSymbols** (integer, REQUIRED, MUST be >= 1): The repair symbols
-per block that this track carries, P_i.  On a repair track this field
-describes the track itself; the source track's `fec.repairSymbols`
-describes layer 0.
+**repairSymbols** (integer, REQUIRED on every repair track other than
+layer 0, where it is OPTIONAL; MUST be >= 1): The repair symbols per
+block that this track carries, P_i.  On an enhancement layer or an
+overlay this field is that track's only statement of its count.  For
+layer 0 the source track's `fec.repairSymbols` is the single
+authoritative value of P_0: the layer-0 track MAY restate it, MUST
+restate it identically when it does, and a conflicting pair is a
+catalog error that fails closed (Section 6.3.4, rule 11).  A receiver
+derives P_0, every O_i, and the block total from the source field,
+never from a layer-0 track's copy.
 
 **priority** (integer, OPTIONAL): The MoQ Transport priority of this
 track (Section 10), in the range 192 to 255.
@@ -719,7 +726,10 @@ reason.
 ### Repair Symbol Identity Across Layers
 
 Let P_i be the `repairSymbols` of layer i and O_i = sum(P_j for j < i)
-its RS_ID offset (O_0 = 0).  Layer i carries, for every source block,
+its RS_ID offset (O_0 = 0).  P_0 is the source track's
+`fec.repairSymbols`, which is authoritative even where the layer-0
+track restates it (Section 5.1.1); P_i for i >= 1 is that layer
+track's own `repairSymbols`.  Layer i carries, for every source block,
 the repair symbols with RS_ID in [O_i, O_i + P_i).  The Encoding
 Symbol ID follows the single-layer rule of Section 7.2:
 
@@ -835,6 +845,16 @@ layer set that decodes from one that silently mis-maps symbols.
    NOT stop FEC for any source track on account of it.
 10. A source track has at most one track with `"scope": "keyframe"`
     (Section 6.4), and such a track carries no `repairLayer`.
+11. The layer-0 repair track's `repairSymbols`, where declared, equals
+    the source track's `fec.repairSymbols`.  The source field is the
+    single authoritative value of P_0; the layer-0 track MAY restate
+    it and MUST restate it identically.  A receiver MUST reject a
+    catalog declaring both with different values, and MUST NOT resolve
+    the conflict by preferring either field, because the two readings
+    disagree about O_1, about the block total, and therefore about the
+    RSB_length that every layer's packets carry (Section 6.3.2).  This
+    rule is why rules 4 and 5 have a single well defined totalP to
+    bound.
 
 Rules 4, 5 and 6 are the arithmetic bounds of the mechanism, and they
 bind the layer set as a whole rather than any one layer: a publisher
@@ -849,6 +869,24 @@ Section 6.3.9 adds one further receiver requirement that cannot be
 checked there, because it compares the catalog against the RSB_length
 carried on repair packets and so can only be evaluated once they
 arrive.
+
+The following are the fail-closed cases this section introduces,
+written against the worked catalog of Section 5.1.2 (K = 64, P_0 = 8,
+P_1 = 16, P_2 = 32) so that each defect is one edit away from a valid
+catalog.  Each row is a catalog a receiver MUST reject before starting
+FEC for `video`, and none of them is detectable from the wire.
+
+| Catalog defect | Rule | Why the wire cannot catch it |
+|---|---|---|
+| `video/repair` declares `repairSymbols` 16 while the source declares `fec.repairSymbols` 8 | 11 | Both readings are self-consistent: one derives O_1 = 8 and total 56, the other O_1 = 16 and total 64.  A repair symbol is identified by ESI alone, so a receiver that resolved P_0 the other way decodes with a shifted mapping and reports a corrupt block, not a catalog error. |
+| Two tracks declare `"repairLayer": 1` for `video` | 2 | Both claim RS_ID 8 to 23.  Symbols from the two tracks are distinct on the wire but collide in ESI, so a decode fed from both sees duplicate encoding symbols and stalls short of K. |
+| `video/repair/2` is present but no track declares layer 1 | 2 | O_2 is a function of P_1, which is absent, so the receiver has no offset for layer 2 at all. |
+| `video/repair/kf` carries `"repairLayer": 3` alongside `"scope": "keyframe"` | 10 | The overlay is a second FEC instance over its own K (Section 6.4).  Admitting it as a layer would fold its RS_ID space into O_i and place its symbols in the base instance's ESI range. |
+| A second track for `video` declares `"scope": "keyframe"` | 10 | A RAP packet carries exactly two Source FEC Payload IDs and the receiver strips a fixed trailer length (Section 8.5.1), so a third instance is not expressible on the wire. |
+| `video/repair/1` carries `symbolSize` or its own `fec` object | 8 | A repair track carrying its own geometry would name itself as layer 0 and bypass rule 9's reachability check. |
+
+A receiver MAY report several violations at once, but MUST NOT start
+FEC for the source track while any of them stands.
 
 ### Receiver Selection
 
