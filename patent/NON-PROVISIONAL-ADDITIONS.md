@@ -72,3 +72,90 @@ Full drafting notes live in the "Patent Updates — 2026-07-17" review doc
   (packetId, SBN, ESI) first-arrival-wins across multicast/MoQ paths into
   a single per-block decoder; deployed configuration matches Claim B1
   (multicast source + reliable-QUIC repair).
+
+---
+
+# Application 3 — Wallet-Rooted Device Certificate Issuance (64/109,478)
+
+**Everything above this line concerns Applications 1–2 (FEC / broadcast
+bridge). Application 3 is a separate invention family — device identity and
+PKI — and had no conversion notes until now.**
+
+Filed 2026-07-10 as "Wallet-Rooted Device Certificate Issuance with Offline
+Claim Verification and Threshold-Signature Custody." Same 2027-07-10 deadline,
+same 2027-05-10 counsel checkpoint.
+
+## Conversion notes recorded at filing
+
+From the filing comment on Paperclip BLO-14673:
+
+- Fold the claim-sketch appendix into counsel's draft.
+- **§4 (browser mTLS enablement) strengthens when IWA Phase 0 lands** — the
+  WASM TLS client. Until then that section describes an enabling mechanism
+  we have not reduced to practice.
+
+## Developments since 2026-07-10 — raw material, NOT a novelty assessment
+
+⚠ **Read this as an engineering changelog for counsel to triage, not as a
+claim of patentability.** Whether any item is new matter, already covered by
+the provisional's disclosure, or unpatentable is counsel's call. Several of
+these were design decisions rather than implementations, and a provisional's
+priority only reaches what it actually disclosed.
+
+**Certificate identity extraction — a third path, with explicit precedence.**
+The deployed system reads subscriber identity from two different places and
+they disagree: `AuthenticateMTLS` reads the UID OID
+`0.9.2342.19200300.100.1.1`, while `deliverySessionMTLSRelayID` reads
+`Subject.CommonName`. Neither reads a **URI SAN**. Work in progress adds a
+third extractor reading the URI SAN and documents a precedence order among
+the three. The wallet-slug SAN in §2 of the specification is the URI-SAN
+mechanism; the operational question of *precedence when multiple identity
+encodings are present in one certificate* is not something the provisional
+addresses.
+
+**Fail-closed parsing of the identity URI.** A separate implementation
+distinguishes "no Blockcast identity URI present" from "two identity URIs
+that disagree" and fails closed on the second, rather than picking one.
+
+**Binding a credential to the node that will serve it, before issuance.**
+The session-broker design binds a relay identifier into the ticket at mint
+time and requires the broker to publish that binding to the serving relay
+**synchronously, before the ticket is returned to the client** — so a holder
+cannot present a valid credential at a node that has never been told about
+it. Renewal extends validity locally and must not re-publish. A failed
+publication is an error, never a fall-back to unattributed access. This is an
+ordering constraint on issuance rather than a property of the certificate,
+which may or may not be within the filed disclosure.
+
+**Wallet proof as enrollment-only, with a distinct long-lived credential.**
+Ratified 2026-08-08: the wallet signature authenticates *enrollment*; the
+registered challenge key is the actual long-lived credential thereafter.
+Deliberately **not** characterized as two-factor — the wallet is not a second
+factor at authentication time because it is not present at authentication
+time. If the provisional's offline-claim-token mechanism is read as covering
+this separation, that reading should be made explicit at conversion.
+
+**Credential lifetimes and concurrency, as reduced to practice.** Ticket TTL
+5 minutes; certificate TTL 24 hours renewed at ~50% of life with jitter; a
+cap of 3 concurrent credentials per subscriber per feed, sized for primary +
+standby + migration overlap.
+
+**Staged enforcement as a deployment property.** A three-state per-endpoint
+mode (`off` / `log-only` / `enforced`) allowing certificate enforcement to be
+introduced against live traffic without a flag-flip that changes
+authentication for every caller at once. Likely closer to operational
+practice than invention, but it is the mechanism by which the filed scheme
+becomes deployable.
+
+**Explicitly out of scope — stated so it is not claimed by accident.**
+Downstream re-fan-out by an authorized holder is accepted as undetectable and
+is handled as a contract term, not a technical control. Nothing in this work
+detects or prevents it, and no claim should imply otherwise.
+
+## Open item
+
+The specification's §4 depends on browser-mTLS with non-extractable keys.
+Track whether IWA Phase 0 lands before 2027-05-10 — if it does, the
+enablement argument for §4 is materially stronger at conversion; if it does
+not, counsel should know §4 rests on an unimplemented mechanism.
+

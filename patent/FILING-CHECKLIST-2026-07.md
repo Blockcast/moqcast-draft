@@ -6,6 +6,26 @@ Filing receipts are authoritative for application numbers and the exact
 date; conversion deadline 2027-07-10. Historical pre-filing text below is
 retained unchanged.**
 
+## Filed applications (recorded 2026-08-09)
+
+Transcribed from the filing confirmations on Paperclip BLO-14531 (Apps 1–2)
+and BLO-14673 (App 3). Note the series is **64/**, not the `63/xxx,xxx` the
+pre-filing text below predicted.
+
+| App | Number | Title | Receipt (ET) | Conf # | Patent Center # |
+|---|---|---|---|---|---|
+| 1 | **64/109,453** | Forward Error Correction Methods for Publish/Subscribe Media Transport with Multi-Path Delivery (incl. appendices: claims A–F / A4–A6 + IFC) | 2026-07-10 21:44:05 | 3880 | 78596812 |
+| 2 | **64/109,460** | Broadcast-to-Unicast Media Bridge with FEC Preservation + Hierarchical FEC Catalog Signaling | 2026-07-10 21:54 | 9637 | — |
+| 3 | **64/109,478** | Wallet-Rooted Device Certificate Issuance with Offline Claim Verification and Threshold-Signature Custody | 2026-07-10 22:23:08 | 7569 | 78598593 |
+
+All three: provisional under 35 U.S.C. 111(b), inventor Omar Ramadan,
+applicant/assignee Blockcast Inc., small entity, $130 fee each.
+**One shared priority date: 2026-07-10. Conversion deadline 2027-07-10.**
+
+⚠ These are the *acknowledgement* numbers from filing. The formal Filing
+Receipts under 37 CFR 1.54 issue separately — verify inventor and title data
+on them in Patent Center and correct this table if they differ.
+
 **Status (as written pre-filing): PREPARED, NOT FILED.** No provisional or non-provisional is on file as of
 2026-07-10 (Patent Center check confirmed nothing under the April 11, 2026 date the
 earlier drafts carried). Repo is private and no draft is on the IETF datatracker, so
@@ -21,6 +41,7 @@ filing receipt is in hand** (IETF submission is an absolute worldwide disclosure
 | `APPLICATION-1-APPENDICES.pdf` | **Filed with App 1**: Appendix A = prioritized claim set (A–F + A4–A6 + prior-art analysis); Appendices B–D = Intrinsic Fragment Coordinate design disclosure + draft claims + reassembly section |
 | `APPLICATION-2-BROADCAST-BRIDGE.pdf` | Specification 2: broadcast-to-unicast bridge with FEC preservation + hierarchical FEC catalog signaling (Claims E, F basis) |
 | `APP2-FIGURES.pdf` | Figures for Application 2 |
+| `APPLICATION-3-WALLET-CERT.pdf` | Specification 3: wallet-rooted device certificate issuance — offline claim token, wallet-slug SAN, MPC transparency, wallet-gated rotation, browser mTLS with non-extractable keys. **0 drawing sheets.** Separate invention family (device identity / PKI), not a continuation of Apps 1–2 |
 | `NON-PROVISIONAL-ADDITIONS.md` | Claims to add at conversion (per-layer progressive-codec FEC); recompute the 12-month deadline from the ACTUAL filing date |
 
 ## Cover sheet data (form SB/16, one per application)
@@ -47,6 +68,9 @@ filing receipt is in hand** (IETF submission is an absolute worldwide disclosure
 5. Repeat for App 2.
 6. Save both filing receipts (application numbers are 63/xxx,xxx). Provisionals
    are never published or examined.
+   <!-- Superseded 2026-08-09: three applications were filed, not two, and the
+        assigned series was 64/, not 63/. Actuals are in "Filed applications"
+        at the top of this file. Left unedited as pre-filing history. -->
 
 ## Immediately after filing
 
