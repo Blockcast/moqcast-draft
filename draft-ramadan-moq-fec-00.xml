@@ -1201,8 +1201,11 @@ ordinary one.</t>
 ID is K_overlay + RS_ID.  RSB_length on an overlay repair packet is
 the overlay's own P, not the base total.  Overlay ESIs never collide
 with base ESIs because the two are different instances decoded by
-different decoders; a receiver MUST NOT feed a symbol of one instance
-to the decoder of the other.</t>
+different decoders; a receiver MUST NOT feed a repair symbol of one
+instance to the decoder of the other, and MUST NOT reuse a source
+symbol's coordinate in one instance as its coordinate in the other.
+A RAP source packet is a source symbol of both instances, at an
+unrelated coordinate in each (Section 6.4.2).</t>
 <t>The bounds of Section 6.3.4 are checked per instance.  For the overlay
 this is K_overlay + P_overlay - 1 at most 2^24 - 1, P_overlay at most
 2^24 - 1, and K_overlay at most 56403, evaluated independently of the
@@ -1234,6 +1237,32 @@ overlay source block is K_overlay of them.  Because a RAP is a small
 fraction of the media, an overlay block spans many base blocks; the
 overlay's recovery latency is therefore its own block span and is
 unrelated to <tt>interleaveDepthMs</tt>.</t>
+<t>That number is the overlay's flat SS_ID, and it is the value carried
+in the overlay Source FEC Payload ID on a RAP source packet
+(Section 8.5.1).  It lives in the overlay instance's own SS_ID space,
+which starts at 0 at the first overlay source symbol of the stream
+and is independent of the base instance's SS_ID space; the two IDs on
+one packet are unrelated numbers.  Overlay coordinates derive from it
+exactly as base coordinates derive from the base SS_ID, with
+K_overlay in place of K:</t>
+
+<artwork><![CDATA[SBN_overlay = floor(SS_ID_overlay / K_overlay)
+ESI_overlay = SS_ID_overlay % K_overlay
+]]></artwork>
+<t>K_overlay is the <tt>sourceSymbols</tt> declared on the overlay's own repair
+track (Section 5.1.1).  An overlay repair packet carries
+SS_start = SBN_overlay x K_overlay, so the overlay source block it
+protects is SBN_overlay = floor(SS_start / K_overlay), and its
+SSB_length is authoritative for that block when nonzero, on the same
+terms as for the base instance (Section 7.1).</t>
+<t>A receiver knows that a repair packet belongs to the overlay because
+it arrives on the repair track that the catalog declares with
+<tt>&quot;scope&quot;: &quot;keyframe&quot;</tt> for this source track, and that track has its
+own <tt>packet_id</tt>.  The instance is therefore fixed by the track the
+packet arrived on; no field of the repair packet distinguishes the
+two, and a receiver MUST NOT attempt to infer the instance from
+SS_start, RSB_length, or SSB_length, whose values are only
+interpretable once the instance is known.</t>
 </section>
 
 <section anchor="receiver-behavior"><name>Receiver Behavior</name>
@@ -1296,7 +1325,12 @@ the Repair FEC Payload ID always begins at byte offset 12.</t>
 <t><strong>SS_start (32 bits)</strong>: The flat SS_ID (Section 8.3) of the FIRST
 source symbol of the protected source block: SS_start = SBN x K.
 Receivers derive the Source Block Number as
-SBN = floor(SS_start / K).</t>
+SBN = floor(SS_start / K).  The K in both expressions is the K of the
+FEC instance this repair packet belongs to, which the receiver knows
+from the repair track the packet arrived on and not from the packet
+(Section 6.4.2).  On a keyframe overlay's packets it is K_overlay and
+the coordinate is the overlay's; on every other repair packet it is
+the base instance's K, shared by all of that instance's repair layers.</t>
 <t><strong>RSB_length (24 bits)</strong>: The number of repair symbols generated
 for the block, the P value.  For a source track with a single repair
 layer this is the catalog <tt>repairSymbols</tt>.  When the source track has
@@ -1325,7 +1359,10 @@ and does get its own encoding pass, over its own source symbols
 <t><strong>SSB_length (24 bits)</strong>: The number of source symbols in the
 protected source block — the K value.  When nonzero it is
 authoritative for the block; a value of 0 means the receiver uses
-the catalog <tt>sourceSymbols</tt> value instead.</t>
+the catalog <tt>sourceSymbols</tt> value instead.  On a keyframe overlay's
+packets this is K_overlay, and the catalog value it defers to when 0
+is the <tt>sourceSymbols</tt> of the overlay's own repair track, not the
+source track's (Section 6.4.2).</t>
 <t><strong>Repair Symbol Data</strong>: Exactly one repair symbol of Symbol Size
 (T) bytes, generated per Section 7.2.  Carrying one symbol per
 object aligns the loss unit with the FEC symbol (Section 11.3) and
@@ -1350,27 +1387,44 @@ SOURCE packet MAY be shorter than T on the wire — the zero padding
 that extends it to Symbol Size (T) is applied by the encoder and
 decoder as part of the source symbol construction below and is NOT
 transmitted.  SBN = floor(SS_ID / K), ESI =
-SS_ID % K.  This is the natural model for MMTP because packets are
-sized to fit in UDP datagrams and no fragmentation or reassembly is
-needed at the FEC layer.  This is a fixed-T construction: under the
+SS_ID % K, where SS_ID and K are those of the FEC instance the symbol
+belongs to: the base instance's, or a keyframe overlay's own
+(Section 6.4.2).  This is the natural model for MMTP because packets
+are sized to fit in UDP datagrams and no fragmentation or reassembly
+is needed at the FEC layer.  This is a fixed-T construction: under the
 source symbol construction below, every source symbol is exactly T
 bytes and each source block is exactly K x T bytes — the property
 the derived Transfer Length of Section 4.2 relies on.</t>
 <t><strong>Source symbol construction</strong>: The T-byte source symbol protected by
 RaptorQ is the complete MMTP source packet -- MMTP packet header
-included -- with the trailing 4-byte
-Source FEC Payload ID (SS_ID, Section 8) removed, right zero-padded to
-Symbol Size (T).  The SS_ID is excluded from the protected bytes
-because it is the symbol's own block coordinate (SBN*K + ESI) and is
-therefore both self-referential and recoverable without protection;
-including it would consume T-byte budget and force the decoder to
-reconstruct a locator it already used to place the symbol.  Publishers
+included -- with the entire trailing Source FEC Payload ID trailer
+removed, right zero-padded to Symbol Size (T).</t>
+<t>The trailer is the whole run of Source FEC Payload IDs at the end of
+the packet.  Its length L is 8 bytes on a packet that carries both a
+base and an overlay Source FEC Payload ID, and 4 bytes on every other
+packet.  A packet carries both when the catalog declares a keyframe
+overlay for the track and the packet sets <tt>RAP_flag</tt>, and only then
+(Section 8.5.1), so L is determined per packet and a receiver that
+has read the catalog knows L before it parses the packet.  Both
+instances remove the same L bytes: on a RAP packet covered by an
+overlay, the base instance and the overlay instance protect one
+identical T-byte symbol.</t>
+<t>A Source FEC Payload ID is excluded from the protected bytes because
+it is the symbol's own block coordinate in its instance (SBN*K + ESI)
+and is therefore both self-referential and recoverable without
+protection; including it would consume T-byte budget and force the
+decoder to reconstruct a locator it already used to place the symbol.
+The overlay's ID is excluded for the same reason, and additionally
+because a symbol whose protected bytes differed between the two
+instances could not be described by one construction.  Publishers
 MUST NOT prepend a length field or otherwise reframe the packet
 before encoding, and MUST size packets so the packet excluding its
-SS_ID does not exceed T.  A receiver that observes a source packet
-whose length excluding SS_ID exceeds T MUST NOT feed it to the
+trailer does not exceed T.  A receiver that observes a source packet
+whose length excluding its trailer exceeds T MUST NOT feed it to the
 decoder -- a truncated symbol would corrupt recovery for the entire
-block -- but MAY still deliver the packet as media.
+block -- but MAY still deliver the packet as media.  Both checks are
+evaluated on that packet's own L: on a RAP packet under an overlay
+the budget is the packet less 8 bytes, not less 4.
 Because the recovered symbol retains the MMTP header,
 the packet's true length is intrinsic to the recovered bytes (the
 length fields of the MMTP payload header, ISO 23008-1
@@ -1384,6 +1438,28 @@ byte layout is defined here deliberately: a receiver cannot recover a
 block whose symbols were built under a different framing, so a
 per-stream layout discriminator is out of scope for this specification
 and MUST NOT be required for interoperation.</t>
+<t>A recovered source symbol carries no Source FEC Payload ID, of either
+instance: the trailer was removed before encoding, so the decoder
+reconstructs the packet without it.  A receiver MUST NOT re-append a
+trailer before delivering the recovered packet to the MMTP parser,
+and MUST NOT expect the recovered bytes to end in a block coordinate.
+This holds identically for a symbol recovered by a keyframe overlay,
+which the receiver delivers as media on the strength of the overlay
+recovery alone.</t>
+<t>Because both instances remove the same L bytes, the T-byte symbol at
+a RAP packet's base coordinate and the one at its overlay coordinate
+are byte-identical.  That identity is what makes one construction
+serve both instances, but it does not by itself let a receiver move a
+recovered symbol between them: the packet's base SS_ID was in the
+removed trailer, and this document defines no mapping from an overlay
+coordinate to a base one.  A receiver MUST NOT place an
+overlay-recovered symbol into a base source block unless it has
+determined that packet's base (SBN, ESI) independently, for instance
+from a redundant carriage of the base SS_ID (Section 8.5) or from MoQ
+transport identifiers (Section 8.3).  Absent that, an overlay
+recovery is usable as media but MUST NOT be counted toward base block
+recovery, and in particular MUST NOT be treated as reducing the
+number of erasures the base decoder still has to solve.</t>
 <t><strong>Sub-blocks</strong>: When a single source block produces a large number
 of source symbols, RFC 6330 permits dividing each block into N
 sub-blocks (the Number of Sub-Blocks field of the OTI; the RFC 6330
@@ -1470,6 +1546,11 @@ of Group <tt>(N+1) * D - 1</tt>.</t>
 <t>Receivers MUST derive the Encoding Symbol ID (ESI) for each source
 object from MoQ transport identifiers.  The ESI identifies the
 symbol's position within its FEC block for FEC decoding.</t>
+<t>This section derives base instance coordinates.  It does not apply to
+a keyframe overlay: an overlay's membership is fixed by <tt>RAP_flag</tt>
+rather than by group alignment, so D, <tt>interleaveDepthMs</tt>, and the
+group arithmetic below have no overlay counterpart.  An overlay's
+coordinates come from its own SS_ID and K_overlay (Section 6.4.2).</t>
 <t>For a source object with MoQ Group_ID <tt>G</tt> and Object_ID <tt>O</tt>:</t>
 
 <artwork><![CDATA[D = round(interleaveDepthMs / GOP_duration_ms)  # groups per block
@@ -1644,7 +1725,12 @@ overlay (Section 6.3.4, rule 10).</t>
 instance, as the single trailer already is.  The overlay instance
 protects the same payload bytes as the base instance does, under its
 own K_overlay and the shared T; neither trailer is a source symbol
-byte of either instance.</t>
+byte of either instance.  This is the L = 8 case of the source symbol
+construction of Section 7.3, which is where the removal is normative;
+a RAP packet under an overlay therefore yields one T-byte symbol that
+both instances protect, and both the encoder's packet sizing budget
+and the receiver's oversize check are taken against the 8-byte
+trailer rather than the 4-byte one.</t>
 <t>The A3SA redundancy mechanisms above apply to the base SS_ID only.
 The hint track field <tt>MMTHSampleATSC3.source_fec_payload_id</tt> and the
 MMTP <tt>packet_counter</tt> each carry one value, so they can carry the base
