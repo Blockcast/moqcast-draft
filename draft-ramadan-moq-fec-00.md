@@ -27,8 +27,8 @@ organization = "Blockcast"
 This document specifies a mechanism for transmitting Forward Error
 Correction (FEC) repair data alongside source media in Media over
 QUIC (MoQ) sessions.  It defines catalog-based signaling of FEC
-configuration — including a derived RaptorQ Object Transmission
-Information that requires no in-session messages — conventions for
+configuration -- including a derived RaptorQ Object Transmission
+Information that requires no in-session messages -- conventions for
 repair track naming, and the format of repair objects.  RaptorQ
 (RFC 6330) is the mandatory-to-implement and only fully specified
 FEC scheme; an algorithm registry provides extension points for
@@ -53,7 +53,7 @@ environments where burst packet loss is common.
 
 This document defines:
 
-1. A catalog extension carrying the complete FEC configuration —
+1. A catalog extension carrying the complete FEC configuration --
    the sole normative FEC signaling mechanism
 2. A normative derivation of the RaptorQ Object Transmission
    Information (OTI) from the catalog fields, so that catalog-only
@@ -183,7 +183,7 @@ sessionless multicast receivers alike.
 When source objects are delivered as QUIC datagrams (unreliable), FEC
 recovery is the primary loss mitigation mechanism.  When delivered as
 QUIC stream objects (reliable), QUIC retransmission handles loss and
-FEC is redundant — receivers MAY skip FEC decoding in this case.
+FEC is redundant -- receivers MAY skip FEC decoding in this case.
 
 # FEC Configuration
 
@@ -252,7 +252,7 @@ fixed-T symbol construction of Section 7.3, as follows:
   containing a single source block.  Blocks are sequenced by the
   Source Block Number (Section 8), derived from the Repair FEC
   Payload ID of repair objects (Section 7.1) and from transport
-  identifiers for source symbols (Section 8.3) — not by the
+  identifiers for source symbols (Section 8.3) -- not by the
   RFC 6330 Z partitioning.
 - **Number of Sub-Blocks**: N = 1.  Catalog-signaled sessions do
   not use sub-blocking (Section 7.3).
@@ -262,8 +262,8 @@ fixed-T symbol construction of Section 7.3, as follows:
 This derivation is normative and complete: a receiver that has a
 track's catalog `fec` object requires no additional signaling to
 configure its decoder.  This is what allows catalog-only receivers
-— including multicast and sessionless receivers, which no control
-message can reach — to decode (Section 5.2).
+-- including multicast and sessionless receivers, which no control
+message can reach -- to decode (Section 5.2).
 
 ## Other FEC Algorithms
 
@@ -297,7 +297,7 @@ The catalog is the sole normative FEC signaling mechanism
 [@!I-D.ietf-moq-msf], extended by the documents of this suite as
 described in [@!MOQ-MMT] Section 12, and is delivered on the track
 named `catalog` ([@!I-D.ietf-moq-msf] Section 5).  This document
-adds one track-level field — the `fec` object defined below — and
+adds one track-level field -- the `fec` object defined below -- and
 one packaging value (`fec-repair`, below).  The FEC configuration
 is carried at the track level:
 
@@ -346,7 +346,7 @@ FEC block.  MUST be >= 1 when a repair track is published.
 **symbolSize** (integer, REQUIRED): T value - bytes per symbol.  All
 symbols in a block have the same size; the byte layout of each source
 symbol is fixed by the ssbg_mode0 source symbol construction rules
-(Section 7.3) — it is not carried in the catalog and MUST NOT be
+(Section 7.3) -- it is not carried in the catalog and MUST NOT be
 renegotiated per stream.  For "raptorq", T MUST be a multiple of 8,
 the fixed Symbol Alignment of the derived OTI (Section 4.2).
 
@@ -374,7 +374,7 @@ as 67 ms, and ceil(67 / 16.683) yields 5 where round() recovers the
 sender's 4.  A ratio that falls exactly halfway
 (interleaveDepthMs / GOP_duration_ms = N + 0.5, for integer N) rounds
 to N + 1 (round half away from zero).  Using milliseconds
-rather than frame/group counts decouples FEC from frame rate —
+rather than frame/group counts decouples FEC from frame rate --
 30fps video and 46.875fps audio can share the same interleaveDepthMs
 value.  When absent or 0, no interleaving is applied: D = 1 and
 each Group forms its own source block (equivalent to an
@@ -423,7 +423,7 @@ path), deriving the window from it avoids the millisecond-rounding
 ambiguity entirely.
 
 For mmtp-packaged
-tracks, GOP_duration_ms equals the track's `groupDurationMs` (the MoQ group duration -- one group per frame on the MMT path -- not the keyframe/GOP cadence)
+tracks, GOP_duration_ms equals the track's `groupDurationMs` (the MoQ group duration, that is the duration of one MPU, not the keyframe/GOP cadence)
 signaled per [@!MOQ-MMT] Section 12.1.
 
 When CMAF packaging is used, aligning the CMAF segment duration
@@ -614,8 +614,8 @@ track data or out of band.
 
 Relays that treat control messages of unknown types as session
 errors make any new in-session mechanism undeployable across an
-existing relay mesh.  To keep FEC signaling — and MoQ extensions
-generally — evolvable, relays conforming to
+existing relay mesh.  To keep FEC signaling -- and MoQ extensions
+generally -- evolvable, relays conforming to
 this specification are subject to the following requirements:
 
 1. A relay MUST NOT terminate, reset, or otherwise fail a session
@@ -678,7 +678,7 @@ subscribe to the repair track if:
 Repair-track subscription is selective and per-need: a subscriber
 chooses whether to consume repair data based on its own path
 conditions, and MAY start or stop its repair-track subscription at
-any time during the session — for example, subscribing only after
+any time during the session -- for example, subscribing only after
 observing loss, or not subscribing at all on a reliable path.
 
 Publishers and relays MUST NOT require subscription to repair
@@ -1287,10 +1287,10 @@ the overlay on a separate source track, or does not publish it.
 
 Each object on a repair track is one complete MMTP repair packet
 (packet type 0x03, FEC Type 2) carrying exactly one repair symbol.
-Its layout is the ISO 23008-1 AL-FEC repair packet form —
+Its layout is the ISO 23008-1 AL-FEC repair packet form --
 the MMTP packet header followed by the 13-byte Repair FEC Payload
 ID and the repair symbol data ([@!ISO.23008-1] Sections C.4.3 and
-C.5.3; ssbg_mode0, one-stage FEC) — so the same repair packet is
+C.5.3; ssbg_mode0, one-stage FEC) -- so the same repair packet is
 valid on MoQ, multicast UDP, and native broadcast paths without
 translation, and matches the repair-object depiction of
 [@!MOQ-MMT] Section 7:
@@ -1353,7 +1353,7 @@ and does get its own encoding pass, over its own source symbols
 (Section 6.4).
 
 **SSB_length (24 bits)**: The number of source symbols in the
-protected source block — the K value.  When nonzero it is
+protected source block -- the K value.  When nonzero it is
 authoritative for the block; a value of 0 means the receiver uses
 the catalog `sourceSymbols` value instead.  On a keyframe overlay's
 packets this is K_overlay, and the catalog value it defers to when 0
@@ -1382,7 +1382,7 @@ is described by the Source Symbol Block Group mode (ssbg_mode).
 **ssbg_mode0** (RECOMMENDED for MMTP): One MMTP packet = one source
 symbol.  Each MoQ object or multicast UDP datagram carries exactly
 one FEC symbol.  Repair symbols are exactly T bytes on the wire; a
-SOURCE packet MAY be shorter than T on the wire — the zero padding
+SOURCE packet MAY be shorter than T on the wire -- the zero padding
 that extends it to Symbol Size (T) is applied by the encoder and
 decoder as part of the source symbol construction below and is NOT
 transmitted.  SBN = floor(SS_ID / K), ESI =
@@ -1392,7 +1392,7 @@ belongs to: the base instance's, or a keyframe overlay's own
 are sized to fit in UDP datagrams and no fragmentation or reassembly
 is needed at the FEC layer.  This is a fixed-T construction: under the
 source symbol construction below, every source symbol is exactly T
-bytes and each source block is exactly K x T bytes — the property
+bytes and each source block is exactly K x T bytes -- the property
 the derived Transfer Length of Section 4.2 relies on.
 
 **Source symbol construction**: The T-byte source symbol protected by
@@ -1522,8 +1522,8 @@ milliseconds) is carried in the catalog.
 
 ## Single-Group Blocks (D = 1)
 
-When the derived group count D is 1 — because interleaveDepthMs is
-absent, 0, or no greater than the group duration — each FEC block
+When the derived group count D is 1 -- because interleaveDepthMs is
+absent, 0, or no greater than the group duration -- each FEC block
 corresponds to exactly one MoQ Group:
 
 ~~~
@@ -1644,8 +1644,8 @@ For FEC block alignment to be deterministic, encoders MUST:
    not an integer number of milliseconds (e.g. D = 4 at 30 fps gives
    round(4 * 33.33) = 133, and round(133 / 33.33) = 4).
 
-For CMAF packaging — an interaction this document describes only
-informatively (Section 13) — a segment boundary aligns with a FEC
+For CMAF packaging -- an interaction this document describes only
+informatively (Section 13) -- a segment boundary aligns with a FEC
 block boundary when the segment duration equals interleaveDepthMs,
 which is what would let CDN relays perform FEC recovery at the
 segment level before forwarding to FEC-unaware clients.
@@ -1653,7 +1653,7 @@ segment level before forwarding to FEC-unaware clients.
 ## Source FEC Payload ID and ATSC 3.0 Signed Region
 
 The 4-byte Source FEC Payload ID (SS_ID) is appended at the END of
-each MMTP source packet — following the MMTP payload, outside the
+each MMTP source packet -- following the MMTP payload, outside the
 base MMTP packet header.  Per
 ATSC A/360 Section 5.2.2.5, the ATSC 3.0 Signed Application (A3SA)
 signing mechanism covers signaling messages and MA3 messages
@@ -2485,7 +2485,7 @@ Complete catalog with FEC and multicast configuration:
 
 Parameter consistency: both tracks use 1-second CMAF segments (one
 MoQ Group per segment), so the 1000 ms interleave window derives
-D = round(1000 / 1000) = 1 — one FEC block per segment — and K is
+D = round(1000 / 1000) = 1 -- one FEC block per segment -- and K is
 trivially a multiple of D:
 
 - Video: 5,000,000 bit/s x 1.0 s / 8 = 625,000 bytes of source data
