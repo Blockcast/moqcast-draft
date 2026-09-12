@@ -925,6 +925,61 @@ its offset-0 data unit.  FEC is unaffected by the partition: source
 symbols are MMTP packets (<xref target="MOQ-FEC"></xref>), and the packet stream's block
 and interleave structure does not depend on data-unit boundaries.</t>
 </section>
+<section anchor="source-contiguity"><name>Source Contiguity</name>
+<t>Section 5.2.1 requires the subsample data units of one sample to be
+published contiguously on their <tt>packet_id</tt>.  This section states the
+corresponding requirement one level down, for the fragments of a
+single data unit, and applies it to every fragmented data unit rather
+than only to subsample-partitioned ones.</t>
+<t><xref target="ISO.23008-1"></xref> does not prohibit a packetizer from emitting an
+unrelated payload of the same <tt>packet_id</tt> between two fragments of one
+data unit.  This profile does prohibit it.</t>
+<t>An origin packetizer MUST carry the fragments of one data unit on
+consecutive <tt>packet_sequence_number</tt> values of that data unit's
+<tt>packet_id</tt>, in FI order, with no other payload of that <tt>packet_id</tt>
+between them.  The sequence numbers of the FI=1 fragment, of each FI=2
+fragment, and of the FI=3 fragment MUST be successive values under
+modulo-2^32 arithmetic.  A data unit of a different <tt>packet_id</tt> MAY be
+emitted at any point, and a further data unit of the same <tt>packet_id</tt>
+MAY be emitted once that data unit's FI=3 fragment has been emitted.</t>
+<t>The requirement constrains the packetizer's emission order only.  Loss
+or reordering on the path does not violate it: the receiver restores
+the per-<tt>packet_id</tt> serial packet order, including recovered packets,
+before the state machine of Section 5.3.2 (Section 5.3.3).  Repair
+carried on its own flow bears a different <tt>packet_id</tt> and therefore
+cannot interleave.</t>
+<t>A producer that violates source contiguity creates a failure its peers
+can neither diagnose nor repair.  The symptoms are stated here so that
+an implementer can recognise them in its own output:</t>
+<ul spacing="compact">
+<li>The data unit never completes.  Its fragments no longer share an
+active-data-unit address and are held as separate, incomplete state.</li>
+<li>It is never recovered by a weaker association key.  Per Section 5.3
+a receiver MUST NOT fall back to (stream, MPU sequence number), the
+fragment counter alone, an MMTP timestamp, a signaling identifier,
+or arrival order.  A continuation carries no data-unit identity, so
+no such fallback can distinguish a continuation of the open data
+unit from an orphan of a different data unit whose first fragment
+was lost in the same sequence gap.</li>
+<li>It consumes two of the receiver's bounded in-flight data-unit
+records (Section 5.2, item 5) rather than one: the open data unit at
+the first fragment's address, and the stranded continuations at
+theirs.  Sustained violation therefore exhausts that bound at twice
+the rate a capacity model predicts, and displaces healthy data units
+belonging to unrelated samples.</li>
+<li>The loss is silent.  A receiver that enforces its bound by evicting
+an incomplete record emits no protocol error; the only observable is
+its count of evicted incomplete data units.  A violating peer
+presents to an operator as intermittent quality loss with no error
+surface.</li>
+</ul>
+<t>A receiver MUST NOT relax association in order to tolerate such a
+producer.  Doing so exchanges recoverable loss for unrecoverable
+cross-data-unit corruption: a continuation admitted into the wrong
+data unit corrupts media that would otherwise have been discarded.
+Source contiguity is consequently a property to verify against a
+producer at integration time, not one to defend against at run time.</t>
+</section>
 </section>
 
 <section anchor="active-data-unit-association-and-subgroup-derivation"><name>Active Data-Unit Association and Subgroup Derivation</name>
