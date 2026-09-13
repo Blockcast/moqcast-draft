@@ -931,9 +931,9 @@ A producer that violates source contiguity creates a failure its peers
 can neither diagnose nor repair.  In its own output the violation is
 directly visible: on one `packet_id`, between two fragments of the same
 data unit, a `packet_sequence_number` that is not the successor of the
-preceding fragment's; or, between an FI=1 fragment and its FI=3,
-another data unit's FI=0 or FI=1 payload.  The consequences at the
-receiver, which the producer cannot see, are these:
+preceding fragment's `packet_sequence_number`; or, between an FI=1
+fragment and its FI=3, another data unit's FI=0 or FI=1 payload.  The
+consequences at the receiver, which the producer cannot see, are these:
 
 - The data unit never completes.  Its fragments no longer share an
   active-data-unit address and are held as separate, incomplete state.
