@@ -818,10 +818,17 @@ publisher MUST NOT reassemble MFU fragments:
    metadata octets; they have no DU header.  Fragmented or empty
    metadata is rejected by this profile.
 5. The receiver MUST bound both in-flight data-unit memory and pending
-   FT=1 sample records.  A new first fragment or metadata record that
-   would exceed either bound is rejected; an existing valid record is
-   not evicted to admit it.  An incomplete data unit is discarded on
-   declared discontinuity or unrecoverable loss and is never emitted.
+   FT=1 sample records.  At either bound it MUST reclaim a slot by
+   evicting the least recently admitted incomplete record — an open
+   data unit or a parked continuation run alike — and admit the new
+   one; it rejects only when no such record exists.  A record that has
+   already completed is never a candidate.  Reclaiming by refusal
+   alone is not conformant: a receiver that operates without a timeout
+   has nothing to retire a parked run, so a run that charges a slot no
+   eviction can reclaim makes the bound refuse every later data unit
+   permanently — and Section 5.2.2 describes a producer that creates
+   such runs.  An incomplete data unit is discarded on declared
+   discontinuity or unrecoverable loss and is never emitted.
 
 For very large frames where FEC cannot recover the loss, receivers
 SHOULD support resolution-tier fallback (subscribe to a lower-resolution
@@ -917,8 +924,12 @@ carried on its own flow bears a different `packet_id` and therefore
 cannot interleave.
 
 A producer that violates source contiguity creates a failure its peers
-can neither diagnose nor repair.  The symptoms are stated here so that
-an implementer can recognise them in its own output:
+can neither diagnose nor repair.  In its own output the violation is
+directly visible: on one `packet_id`, a `packet_sequence_number` that
+is not the successor of the preceding fragment's between two fragments
+of the same data unit, or another data unit's FI=0 or FI=1 payload
+between an FI=1 and its FI=3.  The consequences at the receiver, which
+the producer cannot see, are these:
 
 - The data unit never completes.  Its fragments no longer share an
   active-data-unit address and are held as separate, incomplete state.
@@ -935,11 +946,11 @@ an implementer can recognise them in its own output:
   theirs.  Sustained violation therefore exhausts that bound at twice
   the rate a capacity model predicts, and displaces healthy data units
   belonging to unrelated samples.
-- The loss is silent.  A receiver that enforces its bound by evicting
-  an incomplete record emits no protocol error; the only observable is
-  its count of evicted incomplete data units.  A violating peer
-  presents to an operator as intermittent quality loss with no error
-  surface.
+- The loss is silent.  The receiver reclaims the slot by eviction
+  (Section 5.2, item 5) and emits no protocol error; the only
+  observable is its count of evicted incomplete data units.  A
+  violating peer presents to an operator as intermittent quality loss
+  with no error surface.
 
 A receiver MUST NOT relax association in order to tolerate such a
 producer.  Doing so exchanges recoverable loss for unrecoverable
@@ -990,7 +1001,7 @@ following FT=1 or FT=2 data unit the next unused Subgroup ID in source
 order.  All packets from one FI=1 through FI=3 chain share that ID.
 An FI=2 or FI=3 packet therefore remains in the subgroup opened by the
 immediately preceding FI=1 packet on the same `packet_id`; a new data
-unit cannot interleave before the chain closes.
+unit MUST NOT interleave before the chain closes (Section 5.2.2).
 
 The publisher and receiver each maintain at most one active fragmented
 data unit per `(packet_id, MPU_sequence_number)` while processing
