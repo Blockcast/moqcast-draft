@@ -864,13 +864,17 @@ object.</li>
    evicting the least recently admitted incomplete record — an open
    data unit or a parked continuation run alike — and admit the new
    one; it rejects only when no such record exists.  A record that has
-   already completed is never a candidate.  Reclaiming by refusal
-   alone is not conformant: a receiver that operates without a timeout
-   has nothing to retire a parked run, so a run that charges a slot no
-   eviction can reclaim makes the bound refuse every later data unit
-   permanently — and Section 5.2.2 describes a producer that creates
-   such runs.  An incomplete data unit is discarded on declared
-   discontinuity or unrecoverable loss and is never emitted.</t>
+   already completed is never a candidate.  The key is admission time
+   and not last use: a stranded continuation run keeps receiving
+   packets, so keying on last use would refresh it indefinitely and
+   make the slow-completing healthy data units the victims instead.
+   Reclaiming by refusal alone is not conformant: a receiver that
+   operates without a timeout has nothing to retire a parked run, so a
+   run that charges a slot no eviction can reclaim makes the bound
+   refuse every later data unit permanently — and Section 5.2.2
+   describes a producer that creates such runs.  An incomplete data
+   unit is discarded on declared discontinuity or unrecoverable loss
+   and is never emitted.</t>
 <t>For very large frames where FEC cannot recover the loss, receivers
 SHOULD support resolution-tier fallback (subscribe to a lower-resolution
 track of the switching set and upscale) rather than stalling.</t>
@@ -957,11 +961,11 @@ carried on its own flow bears a different <tt>packet_id</tt> and therefore
 cannot interleave.</t>
 <t>A producer that violates source contiguity creates a failure its peers
 can neither diagnose nor repair.  In its own output the violation is
-directly visible: on one `packet_id`, a `packet_sequence_number` that
-is not the successor of the preceding fragment's between two fragments
-of the same data unit, or another data unit's FI=0 or FI=1 payload
-between an FI=1 and its FI=3.  The consequences at the receiver, which
-the producer cannot see, are these:</t>
+directly visible: on one <tt>packet_id</tt>, between two fragments of the same
+data unit, a <tt>packet_sequence_number</tt> that is not the successor of the
+preceding fragment's; or, between an FI=1 fragment and its FI=3,
+another data unit's FI=0 or FI=1 payload.  The consequences at the
+receiver, which the producer cannot see, are these:</t>
 <ul spacing="compact">
 <li>The data unit never completes.  Its fragments no longer share an
 active-data-unit address and are held as separate, incomplete state.</li>
@@ -975,9 +979,12 @@ was lost in the same sequence gap.</li>
 <li>It consumes two of the receiver's bounded in-flight data-unit
 records (Section 5.2, item 5) rather than one: the open data unit at
 the first fragment's address, and the stranded continuations at
-theirs.  Sustained violation therefore exhausts that bound at twice
-the rate a capacity model predicts, and displaces healthy data units
-belonging to unrelated samples.</li>
+theirs.  Sustained violation therefore consumes that bound at twice
+the rate a capacity model predicts.  Eviction by least recently
+admitted retires the stranded records first, since they never
+complete and so only age; a healthy data unit is displaced only once
+it has been open longer than every stranded record — the
+slow-completing large fragmented frame this profile exists to carry.</li>
 <li>The loss is silent.  The receiver reclaims the slot by eviction
 (Section 5.2, item 5) and emits no protocol error; the only
 observable is its count of evicted incomplete data units.  A
