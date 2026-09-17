@@ -818,10 +818,21 @@ publisher MUST NOT reassemble MFU fragments:
    metadata octets; they have no DU header.  Fragmented or empty
    metadata is rejected by this profile.
 5. The receiver MUST bound both in-flight data-unit memory and pending
-   FT=1 sample records.  A new first fragment or metadata record that
-   would exceed either bound is rejected; an existing valid record is
-   not evicted to admit it.  An incomplete data unit is discarded on
-   declared discontinuity or unrecoverable loss and is never emitted.
+   FT=1 sample records.  At either bound it MUST reclaim a slot by
+   evicting the least recently admitted incomplete record — an open
+   data unit or a parked continuation run alike — and admit the new
+   one; it rejects only when no such record exists.  A record that has
+   already completed is never a candidate.  The key is admission time
+   and not last use: a stranded continuation run keeps receiving
+   packets, so keying on last use would refresh it indefinitely and
+   make the slow-completing healthy data units the victims instead.
+   Reclaiming by refusal alone is not conformant: a receiver that
+   operates without a timeout has nothing to retire a parked run, so a
+   run that charges a slot no eviction can reclaim makes the bound
+   refuse every later data unit permanently — and Section 5.2.2
+   describes a producer that creates such runs.  An incomplete data
+   unit is discarded on declared discontinuity or unrecoverable loss
+   and is never emitted.
 
 For very large frames where FEC cannot recover the loss, receivers
 SHOULD support resolution-tier fallback (subscribe to a lower-resolution
@@ -888,6 +899,73 @@ its offset-0 data unit.  FEC is unaffected by the partition: source
 symbols are MMTP packets ([@!MOQ-FEC]), and the packet stream's block
 and interleave structure does not depend on data-unit boundaries.
 
+### Source Contiguity
+
+Section 5.2.1 requires the subsample data units of one sample to be
+published contiguously on their `packet_id`.  This section states the
+corresponding requirement one level down, for the fragments of a
+single data unit, and applies it to every fragmented data unit rather
+than only to subsample-partitioned ones.
+
+[@!ISO.23008-1] does not prohibit a packetizer from emitting an
+unrelated payload of the same `packet_id` between two fragments of one
+data unit.  This profile does prohibit it.
+
+An origin packetizer MUST carry the fragments of one data unit on
+consecutive `packet_sequence_number` values of that data unit's
+`packet_id`, in FI order, with no other payload of that `packet_id`
+between them.  The sequence numbers of the FI=1 fragment, of each FI=2
+fragment, and of the FI=3 fragment MUST be successive values under
+modulo-2^32 arithmetic.  A data unit of a different `packet_id` MAY be
+emitted at any point, and a further data unit of the same `packet_id`
+MAY be emitted once that data unit's FI=3 fragment has been emitted.
+
+The requirement constrains the packetizer's emission order only.  Loss
+or reordering on the path does not violate it: the receiver restores
+the per-`packet_id` serial packet order, including recovered packets,
+before the state machine of Section 5.3.2 (Section 5.3.3).  Repair
+carried on its own flow bears a different `packet_id` and therefore
+cannot interleave.
+
+A producer that violates source contiguity creates a failure its peers
+can neither diagnose nor repair.  In its own output the violation is
+directly visible: on one `packet_id`, between two fragments of the same
+data unit, a `packet_sequence_number` that is not the successor of the
+preceding fragment's `packet_sequence_number`; or, between an FI=1
+fragment and its FI=3, another data unit's FI=0 or FI=1 payload.  The
+consequences at the receiver, which the producer cannot see, are these:
+
+- The data unit never completes.  Its fragments no longer share an
+  active-data-unit address and are held as separate, incomplete state.
+- It is never recovered by a weaker association key.  Per Section 5.3
+  a receiver MUST NOT fall back to (stream, MPU sequence number), the
+  fragment counter alone, an MMTP timestamp, a signaling identifier,
+  or arrival order.  A continuation carries no data-unit identity, so
+  no such fallback can distinguish a continuation of the open data
+  unit from an orphan of a different data unit whose first fragment
+  was lost in the same sequence gap.
+- It consumes two of the receiver's bounded in-flight data-unit
+  records (Section 5.2, item 5) rather than one: the open data unit at
+  the first fragment's address, and the stranded continuations at
+  theirs.  Sustained violation therefore consumes that bound at twice
+  the rate a capacity model predicts.  Eviction by least recently
+  admitted retires the stranded records first, since they never
+  complete and so only age; a healthy data unit is displaced only once
+  it has been open longer than every stranded record — the
+  slow-completing large fragmented frame this profile exists to carry.
+- The loss is silent.  The receiver reclaims the slot by eviction
+  (Section 5.2, item 5) and emits no protocol error; the only
+  observable is its count of evicted incomplete data units.  A
+  violating peer presents to an operator as intermittent quality loss
+  with no error surface.
+
+A receiver MUST NOT relax association in order to tolerate such a
+producer.  Doing so exchanges recoverable loss for unrecoverable
+cross-data-unit corruption: a continuation admitted into the wrong
+data unit corrupts media that would otherwise have been discarded.
+Source contiguity is consequently a property to verify against a
+producer at integration time, not one to defend against at run time.
+
 ## Active Data-Unit Association and Subgroup Derivation
 
 Object IDs are transport coordinates, not an MMTP continuation key.
@@ -930,7 +1008,7 @@ following FT=1 or FT=2 data unit the next unused Subgroup ID in source
 order.  All packets from one FI=1 through FI=3 chain share that ID.
 An FI=2 or FI=3 packet therefore remains in the subgroup opened by the
 immediately preceding FI=1 packet on the same `packet_id`; a new data
-unit cannot interleave before the chain closes.
+unit MUST NOT interleave before the chain closes (Section 5.2.2).
 
 The publisher and receiver each maintain at most one active fragmented
 data unit per `(packet_id, MPU_sequence_number)` while processing
