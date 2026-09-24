@@ -1064,7 +1064,18 @@ This specification is designed for interoperability with ATSC A/331
 | `fecOTI` (in S-TSID) | Derived OTI (Section 4.2) |
 | Source TOI range | Group ID range per Section 8 |
 | `maximumDelay` | Equal to Interleave Depth (both are durations in milliseconds) |
-| `overhead` | Computed as (P / K) x 100 |
+| `overhead` | ceil(100 x P / K), in integer arithmetic (below) |
+
+`overhead` is an integer percentage.  It is computed from the catalog
+`repairSymbols` (P) and `sourceSymbols` (K) as ceil(100 x P / K),
+evaluated in integer arithmetic as (100 x P + K - 1) div K; computing
+the ratio P / K in floating point first can land just above an
+integer and make the ceiling overshoot by one ([@!MOQ-MMT]
+Section 12.3).  The reverse direction, used when ingesting an S-TSID,
+is P = (K x overhead) div 100, the largest P whose exported `overhead`
+does not exceed the ingested one.  That inverse and its round-trip
+properties are informative and are given in [@!MOQ-MMT] Sections
+12.2 and 12.3.
 
 Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
 FEC parameters and pass them through in the catalog `fec` field.
