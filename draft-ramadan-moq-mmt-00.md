@@ -215,6 +215,7 @@ An MMT stream maps to MoQ tracks as follows:
 | MPU (one MPU per group) | Group; number derived from media time (Section 4.4.1) |
 | MPU data unit (FT=0, FT=1, or FT=2) | Subgroup ID |
 | MMTP packet (fragment) within a data unit | Object ID |
+| AL-FEC signaling message (OPTIONAL, packet_id 0) | Object in Subgroup 0 immediately before FT=0 (Section 8) |
 | AL-FEC repair | Track "video/repair" |
 
 ## Object Payload
@@ -229,6 +230,13 @@ MoQ Object Payload {
   [Source FEC Payload ID (32)],   // trails FEC Type=1 packets
 }
 ~~~
+
+The one exception is the OPTIONAL AL-FEC signaling object of
+Section 8: its payload is a complete MMTP signaling packet (packet
+type 0x02) on packet_id 0 with FEC Type 0.  It carries a signaling
+message rather than an MPU-mode payload header and data-unit
+fragment, and no Source FEC Payload ID.  No other object on an mmtp
+source track uses packet type 0x02 or packet_id 0.
 
 Throughout this document, "MMTP packet" means the header-included
 wire unit and "MMTP payload" means the bytes that follow the packet
@@ -261,7 +269,12 @@ align with MPU data-unit boundaries:
   Section 4.4.1.
 - Subgroup 0 of each group carries exactly one complete FT=0 MPU
   metadata packet.  Its data unit contains the authored initialization
-  boxes, including `ftyp`, `mmpu`, and `moov`, and uses FI=0.
+  boxes, including `ftyp`, `mmpu`, and `moov`, and uses FI=0.  When the
+  publisher carries the OPTIONAL AL-FEC signaling object of Section 8,
+  that object is in Subgroup 0 of the same group and is the object
+  immediately before the FT=0 object; Subgroup 0 then carries exactly
+  these two objects.  No other object precedes FT=0, and a group
+  carries at most one signaling object.
 - Subgroups 1..M each carry exactly one subsequent MPU data unit in
   authored order.  An FT=1 movie-fragment-metadata data unit is one
   complete FI=0 object.  An FT=2 timed sample is either one FI=0 object
@@ -271,7 +284,9 @@ align with MPU data-unit boundaries:
   (Section 5.2.1), one subgroup per subsample data unit, in ascending
   `offset` order.  Section 5.2 defines the only permitted
   fragmentation state machine.
-- A timed MPU MUST publish FT=0 first.  It then MUST publish each FT=1
+- A timed MPU MUST publish FT=0 before every FT=1 and FT=2 data unit;
+  only the OPTIONAL signaling object of Section 8 may precede it.  It
+  then MUST publish each FT=1
   data unit before every FT=2 sample that references that movie
   fragment.  If an MPU contains multiple movie fragments, the sequence
   repeats as FT=1 followed by its FT=2 samples.  Validation is performed
@@ -280,7 +295,10 @@ align with MPU data-unit boundaries:
   their turn.  A missing or duplicate FT=0 invalidates the group; a gap,
   duplicate data-unit identity, or invalid FT=1/FT=2 sequence in that
   logical order invalidates the affected movie fragment.  A receiver
-  MUST NOT infer the missing structure.
+  MUST NOT infer the missing structure.  The signaling object is not a
+  data unit: its presence or absence does not affect this validation,
+  and a signaling object anywhere other than immediately before FT=0
+  in Subgroup 0, or a second one in a group, invalidates the group.
 - The FI=0 or FI=1 object that begins the first FT=2 sample of each
   timed group -- for a subsample-partitioned sample, the object that
   begins its offset-0 data unit -- MUST have RAP Flag = 1.
@@ -597,7 +615,8 @@ set MAY carry different keyframe cadences.
 ## Init Segment Signaling
 
 Publishers signal MPU metadata inline as the complete FT=0 object in
-Subgroup 0 of every group (Section 4.3).  Its data unit contains the
+Subgroup 0 of every group (Section 4.3), preceded in that subgroup only
+by the OPTIONAL AL-FEC signaling object of Section 8.  Its data unit contains the
 authored initialization boxes, including `ftyp`, `mmpu`, and `moov`.
 This document defines no separate init-track mode: splitting the
 per-MPU metadata onto another track would lose the ordering contract
@@ -660,7 +679,8 @@ This profile transports each authored MPU data unit without rewriting it:
 ~~~
 MFU Mode (one subgroup per MPU data unit):
   Group N:
-    SG 0 / Obj 0: [MMTP][PH FT=0 FI=0][ftyp+mmpu+moov]
+   [SG 0 / Obj 0: [MMTP type=0x02 id=0][AL-FEC sig msg]] (Section 8)
+    SG 0 / next:  [MMTP][PH FT=0 FI=0][ftyp+mmpu+moov]
     SG 1 / Obj 0: [MMTP][PH FT=1 FI=0][moof+mdat prefix]
     SG 2 / Obj 0: [MMTP][PH FT=2 FI=0][DU][sample 1]
     SG 3 / Obj 0: [MMTP][PH FT=2 FI=0][DU][sample 2]
@@ -682,6 +702,9 @@ two producer-authored subsample data units:
          locate the optional packet-counter and extension bytes.
 [PH]   = MPU-mode payload header, which carries the Fragmentation
          Indicator (FI); the FI is NOT in the MMTP packet header.
+[...]  = OPTIONAL signaling object.  When present it is the first
+         object of SG 0 and FT=0 is the object after it; when absent,
+         FT=0 is the first object of SG 0 (Obj 0).
 ~~~
 
 FT=0 initializes the track, FT=1 supplies the authoritative movie
@@ -1155,7 +1178,9 @@ A subscriber joins a live mmtp-packaged track as follows:
    (Section 4.5) and it validates, initialize the decoder from it
    immediately.  In all cases the subscriber MUST accept the
    authoritative FT=0 object in Subgroup 0 before admitting this
-   group's FT=1 or FT=2 data units.
+   group's FT=1 or FT=2 data units.  An AL-FEC signaling object that
+   precedes FT=0 in Subgroup 0 (Section 8) is not decoder
+   initialization and does not satisfy this step.
 
 3. **Subscribe at a group boundary.** Issue SUBSCRIBE requesting
    delivery from the start of the newest available group, not from
@@ -1300,19 +1325,37 @@ MMT-specific considerations for their use.
 
 A publisher MAY also carry the MMTP AL-FEC signaling message of
 Section 8.3 on a MoQ mmtp source track, as an object whose payload
-is an MMTP signaling packet on packet_id 0 (Section 3.1).  Such an
+is an MMTP signaling packet on packet_id 0 (Section 3.1).  When
+present, it is published in Subgroup 0 of an MPU group as the object
+immediately before, and in the same subgroup as, that group's FT=0
+object, and a group carries at most one such object (Sections 4.2
+and 4.3).  Such an
 object is a redundant in-band copy of catalog state, not a second
 signaling mechanism: the message MUST NOT signal FEC parameters that
 contradict the track's catalog `fec` object, and where the two
 disagree the catalog governs.  The object carries no media data
 unit and no repair symbol, so a MoQ receiver MUST NOT deliver it to
 a media or repair decoder (Section 3.1); a receiver that does not
-process MMTP signaling discards it.  A MoQ track carries only the
+process MMTP signaling discards it.
+
+The signaling object is not an FEC source symbol.  Its MMTP packet
+has FEC Type 0 and no Source FEC Payload ID; it is not protected by
+any repair symbol, is not counted in `sourceSymbols` (K) or in the
+`symbols_per_group` of [@!MOQ-FEC] Section 8, and has no Encoding
+Symbol ID.  Its Object ID MUST NOT be used as the Object_ID `O` of
+the [@!MOQ-FEC] Section 8 derivation.  Because it occupies an Object
+ID in Subgroup 0, Object IDs on an mmtp source track are not
+positions in the FEC block: a receiver MUST take each source
+symbol's (SBN, ESI) from the Source FEC Payload ID that trails its
+FEC Type 1 packet ([@!MOQ-FEC] Section 8.5), not from its Object ID.
+
+A MoQ track carries only the
 signaling packets its publisher chose to place on that track, so
 the packet_sequence_number values it exhibits on packet_id 0 need
-not be contiguous.  A receiver MUST NOT infer loss from, or defer
-any other packet behind, a packet_sequence_number gap on
-packet_id 0 of a MoQ track.
+not be contiguous.  A receiver MUST NOT infer loss from a
+packet_sequence_number gap on packet_id 0 of a MoQ track, and MUST
+NOT defer any packet, including a later packet on packet_id 0,
+behind such a gap.
 
 ## MMT-Specific FEC Parameters
 

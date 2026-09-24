@@ -178,7 +178,9 @@ The protocol operates as follows:
 The catalog is the sole normative FEC signaling mechanism
 (Section 5.2); no in-session message is required, which makes the
 same signaling path work for interactive QUIC sessions and for
-sessionless multicast receivers alike.
+sessionless multicast receivers alike.  A packaging profile MAY
+define a redundant in-band copy of catalog FEC state (Section 5.2);
+such a copy never replaces the catalog.
 
 When source objects are delivered as QUIC datagrams (unreliable), FEC
 recovery is the primary loss mitigation mechanism.  When delivered as
@@ -602,7 +604,13 @@ The catalog `fec` object (Section 5.1) is the sole normative FEC
 signaling mechanism.  A receiver that has a track's catalog entry
 has everything needed to discover and subscribe to the repair track
 (Section 6) and to configure its decoder via the derived OTI
-(Section 4.2); no in-session signaling is defined or required.
+(Section 4.2); no in-session signaling is required.  A packaging
+profile MAY define a redundant in-band copy of the catalog's FEC
+state (for example, the MMTP AL-FEC signaling object of
+[@!MOQ-MMT] Section 8).  Such a copy MUST NOT signal FEC parameters
+that contradict the track's catalog `fec` object; where the two
+disagree the catalog governs, and a receiver MUST NOT require the
+copy in order to configure its decoder.
 
 This holds uniformly across delivery paths.  In particular, control
 messages cannot reach multicast or sessionless receivers at all
@@ -1565,6 +1573,18 @@ rather than by group alignment, so D, `interleaveDepthMs`, and the
 group arithmetic below have no overlay counterpart.  An overlay's
 coordinates come from its own SS_ID and K_overlay (Section 6.4.2).
 
+The derivation applies only to objects that are FEC source symbols.
+An object that a packaging profile defines as carrying no source
+symbol -- for example, the in-band AL-FEC signaling object of
+[@!MOQ-MMT] Section 8 -- has no ESI, is not counted in K or in
+`symbols_per_group`, and its Object_ID MUST NOT be used as `O`.  A
+packaging profile whose tracks can carry such objects, or whose
+Object IDs are not positions in the FEC block, MUST carry a Source
+FEC Payload ID on every source symbol (Section 8.5); a receiver of
+that profile takes each source symbol's (SBN, ESI) from that field
+by the inverse given below, not from its Object_ID.  The mmtp
+packaging of [@!MOQ-MMT] is such a profile.
+
 For a source object with MoQ Group_ID `G` and Object_ID `O`:
 
 ~~~
@@ -2414,7 +2434,8 @@ K = 32 source objects, followed by P = 8 repair objects.  The
 subscriber's decoder configuration is derived entirely from the
 catalog fields (Section 4.2): Transfer Length
 F = K x T = 32 x 1312 = 41,984 bytes, Symbol Size T = 1312,
-Z = 1, N = 1, Al = 8.  No in-session message is exchanged.
+Z = 1, N = 1, Al = 8.  No in-session message is required, and this
+CMAF track carries none.
 
 ## Recovery Example
 
