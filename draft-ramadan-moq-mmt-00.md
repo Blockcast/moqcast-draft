@@ -170,9 +170,11 @@ Key fields for MoQ mapping:
 - **Packet ID**: Maps to MoQ track within namespace.  This document
   reserves packet_id 0 for the MMTP signaling flow: MMTP packets of
   packet type 0x02 carrying signaling messages, such as the AL-FEC
-  signaling message of Section 8.3.  The signaling flow maps to no
-  MoQ track.  An MMTP packet carrying media (packet type 0x00) or a
-  repair symbol (packet type 0x03) MUST NOT use packet_id 0; a
+  signaling message of Section 8.3.  No MoQ track is advertised for
+  the signaling flow, but an mmtp source track MAY carry its packets
+  as objects (Section 8).  An MMTP packet carrying media (packet
+  type 0x00) or a repair symbol (packet type 0x03) MUST NOT use
+  packet_id 0; a
   track's packet_id is in the range 1..65535, and on multicast
   delivery it is the `packetId` the endpoint advertises for the
   track ([@!MOQ-MULTICAST] Section 4.1).  On every delivery path, a
@@ -1279,7 +1281,7 @@ S-TSID {
 }
 ~~~
 
-For MoQ, no OTI is carried in-session: receivers derive the
+For MoQ, no OTI is required in-session: receivers derive the
 complete RaptorQ OTI from the catalog `fec` fields per
 [@!MOQ-FEC] Section 4.2 (Transfer Length F = K x T, Symbol Size T,
 Z = 1 source block, N = 1 sub-block, Al = 8).  The S-TSID
@@ -1290,10 +1292,27 @@ its conversion to catalog fields.
 
 FEC parameters for mmtp-packaged tracks are signaled in the catalog
 `fec` object, defined normatively in [@!MOQ-FEC] Section 5 -- the
-sole normative FEC signaling mechanism.  There is no in-session FEC
-signaling.
+sole normative FEC signaling mechanism.  No in-session FEC
+signaling is required: the catalog carries every FEC parameter a
+receiver needs.
 This document does not redefine the catalog fields but specifies
 MMT-specific considerations for their use.
+
+A publisher MAY also carry the MMTP AL-FEC signaling message of
+Section 8.3 on a MoQ mmtp source track, as an object whose payload
+is an MMTP signaling packet on packet_id 0 (Section 3.1).  Such an
+object is a redundant in-band copy of catalog state, not a second
+signaling mechanism: the message MUST NOT signal FEC parameters that
+contradict the track's catalog `fec` object, and where the two
+disagree the catalog governs.  The object carries no media data
+unit and no repair symbol, so a MoQ receiver MUST NOT deliver it to
+a media or repair decoder (Section 3.1); a receiver that does not
+process MMTP signaling discards it.  A MoQ track carries only the
+signaling packets its publisher chose to place on that track, so
+the packet_sequence_number values it exhibits on packet_id 0 need
+not be contiguous.  A receiver MUST NOT infer loss from, or defer
+any other packet behind, a packet_sequence_number gap on
+packet_id 0 of a MoQ track.
 
 ## MMT-Specific FEC Parameters
 
@@ -1376,7 +1395,9 @@ receivers via:
    message MUST carry it in an MMTP signaling packet (packet type
    0x02) on packet_id 0, the MMTP signaling flow (Section 3.1); on
    multicast delivery it shares the multicast group of the media it
-   describes.  No track is advertised on packet_id 0
+   describes, and on MoQ delivery it MAY be carried as an object of an
+   mmtp source track under the rules of Section 8.  No track is
+   advertised on packet_id 0
    ([@!MOQ-MULTICAST] Section 4.1), and a receiver does not deliver
    these packets to a media or repair decoder (Section 3.1;
    [@!MOQ-MULTICAST] Section 5)
