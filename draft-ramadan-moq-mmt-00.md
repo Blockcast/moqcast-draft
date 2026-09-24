@@ -175,7 +175,13 @@ Key fields for MoQ mapping:
   repair symbol (packet type 0x03) MUST NOT use packet_id 0; a
   track's packet_id is in the range 1..65535, and on multicast
   delivery it is the `packetId` the endpoint advertises for the
-  track ([@!MOQ-MULTICAST] Section 4.1)
+  track ([@!MOQ-MULTICAST] Section 4.1).  On every delivery path, a
+  receiver MUST NOT deliver an MMTP packet on packet_id 0 to a media
+  or repair decoder, including one received as the payload of an
+  object of a media or repair track: a receiver that processes MMTP
+  signaling reads it as a signaling message, and any other receiver
+  discards it ([@!MOQ-MULTICAST] Section 5 states the same rule for
+  every unlisted packet_id on multicast)
 - **Timestamp**: UTC wallclock send time in NTP short format,
   carried inside the object payload.  MoQ Transport defines no
   per-object timestamp field; receivers needing the send time read
@@ -1333,13 +1339,14 @@ receivers via:
 
 2. **MMTP AL-FEC Signaling (message_id=0x0203)**: in-band delivery
    per ISO/IEC 23008-1:2023 Amendment 1:2025, for native broadcast
-   (ATSC 3.0, ARIB STD-B60) receivers.  The message is carried in an
-   MMTP signaling packet (packet type 0x02) on packet_id 0, the MMTP
-   signaling flow (Section 3.1), and on multicast delivery it shares
-   the multicast group of the media it describes.  Because
-   packet_id 0 is never advertised for a track ([@!MOQ-MULTICAST]
-   Section 4.1), these packets never reach a media or repair decoder
-   ([@!MOQ-MULTICAST] Section 5)
+   (ATSC 3.0, ARIB STD-B60) receivers.  A publisher that sends this
+   message MUST carry it in an MMTP signaling packet (packet type
+   0x02) on packet_id 0, the MMTP signaling flow (Section 3.1); on
+   multicast delivery it shares the multicast group of the media it
+   describes.  No track is advertised on packet_id 0
+   ([@!MOQ-MULTICAST] Section 4.1), and a receiver does not deliver
+   these packets to a media or repair decoder (Section 3.1;
+   [@!MOQ-MULTICAST] Section 5)
 
 With frame-grouped MMTP delivery at 30 fps (33.33 ms per group), the
 133 ms interleave window derives D = round(133 / 33.33) = 4 groups
@@ -1517,14 +1524,27 @@ defined in [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
 - `LS@bw` -> `bitrate` ([@!I-D.ietf-moq-msf] Section 5.2.22)
 - `FECParameters@overhead` -> `fec.repairSymbols`, computed as
   P = floor(K x overhead / 100) and evaluated in integer arithmetic
-  as (K x overhead) div 100: the inverse of the export rule of
-  Section 12.3, whose rounding note and round-trip properties apply
+  as (K x overhead) div 100, where a div b is the integer quotient
+  floor(a / b) of a non-negative integer a and a positive integer b:
+  the inverse of the export rule of Section 12.3, whose rounding
+  note and round-trip properties apply
 - `fecOTI` F,T -> `fec.sourceSymbols` (K = ceil(F / T)),
   `fec.symbolSize` (T)
 - `FECParameters@maximumDelay` -> `fec.interleaveDepthMs` (both are
   durations in integer milliseconds; the RFC 6330 Z parameter — the
   number of source blocks — is unrelated to interleaving and does
   not map to any catalog FEC field)
+
+An ingested `@overhead` with K x overhead < 100 yields P = 0, less
+than one repair symbol per block.  A catalog cannot express that for
+a flow that has a RepairFlow (`repairSymbols` is at least 1 when a
+repair track is published, [@!MOQ-FEC] Section 5.1), so the
+conversion of such an S-TSID fails: the converter neither rounds P
+up nor emits the source flow without its RepairFlow.  The
+round-trip properties of Section 12.3 assume that the ingested
+`@overhead` was rounded up as that section specifies; an
+`@overhead` that its producer rounded down or to nearest can ingest
+to a P below the one it was computed from.
 
 No OTI is carried in the output catalog.  The MoQ-side decoder
 configuration is re-derived from the catalog fields as
@@ -1580,24 +1600,22 @@ double-precision value of (7 / 100) x 100 is 7.000000000000001, whose
 ceiling is 8, not 7.
 
 The ingest rule of Section 12.2, P = (K x overhead) div 100, is the
-matching inverse: it yields the largest P whose exported `@overhead`
-does not exceed the ingested one.  Like the rest of this section, the
-resulting round-trip properties are informative:
+matching inverse: ceil(100 x P / K) <= overhead if and only if
+P <= (K x overhead) div 100, so the ingest rule yields the largest P
+whose exported `@overhead` does not exceed the ingested one.  Like
+the rest of this section, the resulting round-trip properties are
+informative:
 
-- catalog -> S-TSID -> catalog reproduces `repairSymbols` exactly when
-  K <= 100.  For larger K, several values of P share one whole-percent
-  `@overhead`, and the round trip yields the largest of them.
-- S-TSID -> catalog -> S-TSID reproduces `@overhead` exactly when
-  K >= 100, and for any K when the ingested `@overhead` equals
-  ceil(100 x P / K) for some P.
+- catalog -> S-TSID -> catalog always reproduces `repairSymbols` when
+  K <= 100.  For larger K, several values of P can share one
+  whole-percent `@overhead`, and the round trip yields the largest of
+  them.
+- S-TSID -> catalog -> S-TSID always reproduces `@overhead` when
+  K >= 100.  For smaller K it reproduces `@overhead` if and only if
+  the ingested value equals ceil(100 x P / K) for some P; otherwise
+  it yields the largest such value below the ingested one.
 - Either round trip is stable: converting its output again changes
   nothing.
-
-An ingested `@overhead` with K x overhead < 100 yields P = 0, less
-than one repair symbol per block.  A catalog cannot express that for a
-flow that has a RepairFlow (`repairSymbols` is at least 1 when a
-repair track is published, [@!MOQ-FEC] Section 5.1), so the converter
-rejects such a RepairFlow rather than rounding P up.
 
 ## Multicast Endpoint Catalog Extension
 

@@ -1140,16 +1140,21 @@ symbols with symbols received from other paths.</t>
 </tbody>
 </table><t><tt>overhead</tt> is an integer percentage.  It is computed from the catalog
 <tt>repairSymbols</tt> (P) and <tt>sourceSymbols</tt> (K) as ceil(100 x P / K),
-evaluated in integer arithmetic as (100 x P + K - 1) div K; computing
-the ratio P / K in floating point first can land just above an
-integer and make the ceiling overshoot by one (<xref target="MOQ-MMT"></xref>
-Section 12.3).  The reverse direction, used when ingesting an S-TSID,
-is P = (K x overhead) div 100, the largest P whose exported <tt>overhead</tt>
-does not exceed the ingested one.  That inverse and its round-trip
-properties are informative and are given in <xref target="MOQ-MMT"></xref> Sections
-12.2 and 12.3.</t>
+evaluated in integer arithmetic as (100 x P + K - 1) div K, where
+a div b is the integer quotient floor(a / b) of a non-negative
+integer a and a positive integer b; computing the ratio P / K in
+floating point first can land just above an integer and make the
+ceiling overshoot by one (<xref target="MOQ-MMT"></xref> Section 12.3).  The reverse
+direction, used when ingesting an S-TSID, is
+P = (K x overhead) div 100, the largest P whose exported <tt>overhead</tt>
+does not exceed the ingested one.  Both directions are the
+informative conversions of <xref target="MOQ-MMT"></xref> Sections 12.2 and 12.3,
+which also give their round-trip properties.</t>
 <t>Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
-FEC parameters and pass them through in the catalog <tt>fec</tt> field.</t>
+FEC parameters and pass them through in the catalog <tt>fec</tt> field.
+<tt>overhead</tt> in particular is not passed through verbatim: the catalog
+carries P rather than a percentage, and <tt>overhead</tt> is converted as
+above.</t>
 </section>
 </section>
 

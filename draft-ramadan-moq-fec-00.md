@@ -1068,17 +1068,22 @@ This specification is designed for interoperability with ATSC A/331
 
 `overhead` is an integer percentage.  It is computed from the catalog
 `repairSymbols` (P) and `sourceSymbols` (K) as ceil(100 x P / K),
-evaluated in integer arithmetic as (100 x P + K - 1) div K; computing
-the ratio P / K in floating point first can land just above an
-integer and make the ceiling overshoot by one ([@!MOQ-MMT]
-Section 12.3).  The reverse direction, used when ingesting an S-TSID,
-is P = (K x overhead) div 100, the largest P whose exported `overhead`
-does not exceed the ingested one.  That inverse and its round-trip
-properties are informative and are given in [@!MOQ-MMT] Sections
-12.2 and 12.3.
+evaluated in integer arithmetic as (100 x P + K - 1) div K, where
+a div b is the integer quotient floor(a / b) of a non-negative
+integer a and a positive integer b; computing the ratio P / K in
+floating point first can land just above an integer and make the
+ceiling overshoot by one ([@!MOQ-MMT] Section 12.3).  The reverse
+direction, used when ingesting an S-TSID, is
+P = (K x overhead) div 100, the largest P whose exported `overhead`
+does not exceed the ingested one.  Both directions are the
+informative conversions of [@!MOQ-MMT] Sections 12.2 and 12.3,
+which also give their round-trip properties.
 
 Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
 FEC parameters and pass them through in the catalog `fec` field.
+`overhead` in particular is not passed through verbatim: the catalog
+carries P rather than a percentage, and `overhead` is converted as
+above.
 
 # Interaction with CMAF Packaging
 
