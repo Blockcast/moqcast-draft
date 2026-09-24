@@ -167,7 +167,15 @@ the second byte ([@!ISO.23008-1] Clause 9.2).
 
 Key fields for MoQ mapping:
 
-- **Packet ID**: Maps to MoQ track within namespace
+- **Packet ID**: Maps to MoQ track within namespace.  This document
+  reserves packet_id 0 for the MMTP signaling flow: MMTP packets of
+  packet type 0x02 carrying signaling messages, such as the AL-FEC
+  signaling message of Section 8.3.  The signaling flow maps to no
+  MoQ track.  An MMTP packet carrying media (packet type 0x00) or a
+  repair symbol (packet type 0x03) MUST NOT use packet_id 0; a
+  track's packet_id is in the range 1..65535, and on multicast
+  delivery it is the `packetId` the endpoint advertises for the
+  track ([@!MOQ-MULTICAST] Section 4.1)
 - **Timestamp**: UTC wallclock send time in NTP short format,
   carried inside the object payload.  MoQ Transport defines no
   per-object timestamp field; receivers needing the send time read
@@ -1027,11 +1035,16 @@ data unit and MUST equal the authored subsample byte position for a
 subsample data unit (Section 5.2.1);
 `movie_fragment_sequence_number` and `sample_number` MUST be non-zero,
 and `MPU_sequence_number` MAY be zero (indeed, ISO/IEC 23008-1 requires
-zero for the first MPU in an Asset).  The `packet_id` is validated in
-the scope of its MMTP session and is not subject to a blanket non-zero
-rule.  A continuation inherits the accepted first-fragment identity
-from active state; it does not reconstruct or guess another copy of the
-DU header.
+zero for the first MPU in an Asset).  The `packet_id` MUST be
+non-zero: packet_id 0 is the MMTP signaling flow (Section 3.1) and
+carries no media data unit, so a receiver MUST reject an MPU-mode
+packet (packet type 0x00) on packet_id 0 rather than admit it to
+active state.  A non-zero `packet_id` is validated in the scope of its
+MMTP session; on multicast delivery it is validated against the
+`packetId` values the endpoint advertises ([@!MOQ-MULTICAST]
+Section 5).  A continuation inherits the accepted first-fragment
+identity from active state; it does not reconstruct or guess another
+copy of the DU header.
 
 ### Subgroup Derivation
 
@@ -1353,7 +1366,13 @@ receivers via:
 
 2. **MMTP AL-FEC Signaling (message_id=0x0203)**: in-band delivery
    per ISO/IEC 23008-1:2023 Amendment 1:2025, for native broadcast
-   (ATSC 3.0, ARIB STD-B60) receivers
+   (ATSC 3.0, ARIB STD-B60) receivers.  The message is carried in an
+   MMTP signaling packet (packet type 0x02) on packet_id 0, the MMTP
+   signaling flow (Section 3.1), and on multicast delivery it shares
+   the multicast group of the media it describes.  Because
+   packet_id 0 is never advertised for a track ([@!MOQ-MULTICAST]
+   Section 4.1), these packets never reach a media or repair decoder
+   ([@!MOQ-MULTICAST] Section 5)
 
 With frame-grouped MMTP delivery at 30 fps (33.33 ms per group), the
 133 ms interleave window derives D = round(133 / 33.33) = 4 groups
@@ -1534,8 +1553,10 @@ defined in [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   track -> `presentationAnchorTicks`; a converter MUST preserve one
   common presentation origin across audio and video and MUST NOT emit
   zero merely because the source offset was unavailable
-- `FECParameters@overhead` -> `fec.repairSymbols` (computed as
-  K x overhead / 100)
+- `FECParameters@overhead` -> `fec.repairSymbols`, computed as
+  P = floor(K x overhead / 100) and evaluated in integer arithmetic
+  as (K x overhead) div 100: the inverse of the export rule of
+  Section 12.3, whose rounding note and round-trip properties apply
 - `fecOTI` F,T -> `fec.sourceSymbols` (K = ceil(F / T)),
   `fec.symbolSize` (T)
 - `FECParameters@maximumDelay` -> `fec.interleaveDepthMs` (both are
@@ -1558,9 +1579,11 @@ within the (sourceAddress, groupAddress, port) tuple by Section 4.1
 of [@!MOQ-MULTICAST]; reusing `tsi` directly would collide for a
 repair flow that shares its source's `tsi`.  The converter assigns
 `packetId`
-sequentially in `tsi` order, emitting each source flow immediately
-before its repair flow (so `tsi` 1 source -> packetId 1, its repair ->
-packetId 2, `tsi` 2 source -> packetId 3).  Flows sharing one
+sequentially from 1 in `tsi` order, emitting each source flow
+immediately before its repair flow (so `tsi` 1 source -> packetId 1,
+its repair -> packetId 2, `tsi` 2 source -> packetId 3); it never
+assigns 0, which is reserved for the MMTP signaling flow
+([@!MOQ-MULTICAST] Section 4.1).  Flows sharing one
 (sourceAddress, groupAddress, port) tuple collapse into a single
 endpoint whose `tracks[]` array lists them all.
 
@@ -1576,12 +1599,43 @@ When generating ATSC-compatible output, convert the MoQ catalog to
 S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 
 - `multicast.endpoints[].sourceAddress` -> `RS@sIpAddr`
-- `fec.repairSymbols / fec.sourceSymbols x 100` -> `FECParameters@overhead`
+- `fec.repairSymbols` (P) and `fec.sourceSymbols` (K) ->
+  `FECParameters@overhead`, computed as ceil(100 x P / K) and
+  evaluated in integer arithmetic as (100 x P + K - 1) div K
 - `fec.interleaveDepthMs` -> `FECParameters@maximumDelay` (both are
   durations in milliseconds; no scaling by frame duration)
 - `fec.sourceSymbols x fec.symbolSize` -> `fecOTI` F, with
   T = `fec.symbolSize`, Z = 1, N = 1, Al = 8 -- the exported OTI is
   exactly the derived OTI of [@!MOQ-FEC] Section 4.2
+
+`FECParameters@overhead` is an integer percentage, so the ratio
+100 x P / K is rounded up: the exported overhead never understates the
+catalog's repair rate.  The rule is stated in integer arithmetic
+because computing P / K in binary floating point first and then
+scaling by 100 can land just above an integer, and the ceiling then
+overshoots by one: for P = 7 and K = 100, the IEEE 754
+double-precision value of (7 / 100) x 100 is 7.000000000000001, whose
+ceiling is 8, not 7.
+
+The ingest rule of Section 12.2, P = (K x overhead) div 100, is the
+matching inverse: it yields the largest P whose exported `@overhead`
+does not exceed the ingested one.  Like the rest of this section, the
+resulting round-trip properties are informative:
+
+- catalog -> S-TSID -> catalog reproduces `repairSymbols` exactly when
+  K <= 100.  For larger K, several values of P share one whole-percent
+  `@overhead`, and the round trip yields the largest of them.
+- S-TSID -> catalog -> S-TSID reproduces `@overhead` exactly when
+  K >= 100, and for any K when the ingested `@overhead` equals
+  ceil(100 x P / K) for some P.
+- Either round trip is stable: converting its output again changes
+  nothing.
+
+An ingested `@overhead` with K x overhead < 100 yields P = 0, less
+than one repair symbol per block.  A catalog cannot express that for a
+flow that has a RepairFlow (`repairSymbols` is at least 1 when a
+repair track is published, [@!MOQ-FEC] Section 5.1), so the converter
+rejects such a RepairFlow rather than rounding P up.
 
 ## Multicast Endpoint Catalog Extension
 
@@ -1811,7 +1865,10 @@ fields of [@!I-D.ietf-moq-msf] Section 5.2 (Section 12.1).
 The FEC fields recompute from the S-TSID as follows:
 
 - `sourceSymbols`: K = ceil(F / T) = ceil(1,000,000 / 1,000) = 1000
-- `repairSymbols`: K x overhead / 100 = 1000 x 25 / 100 = 250
+- `repairSymbols`: P = (K x overhead) div 100 = (1000 x 25) div 100
+  = 250 (Section 12.2); re-exporting gives `@overhead` =
+  (100 x 250 + 1000 - 1) div 1000 = 25, the ingested value
+  (Section 12.3)
 - `interleaveDepthMs`: `maximumDelay` = 1000 ms (both are durations)
 - Derived MoQ OTI ([@!MOQ-FEC] Section 4.2):
   F = K x T = 1000 x 1000 = 1,000,000 bytes, Z = 1, N = 1, Al = 8 --

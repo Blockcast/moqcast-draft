@@ -2142,10 +2142,20 @@ symbols with symbols received from other paths.</t>
 
 <tr>
 <td><tt>overhead</tt></td>
-<td>Computed as (P / K) x 100</td>
+<td>ceil(100 x P / K), in integer arithmetic (below)</td>
 </tr>
 </tbody>
-</table><t>Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
+</table><t><tt>overhead</tt> is an integer percentage.  It is computed from the catalog
+<tt>repairSymbols</tt> (P) and <tt>sourceSymbols</tt> (K) as ceil(100 x P / K),
+evaluated in integer arithmetic as (100 x P + K - 1) div K; computing
+the ratio P / K in floating point first can land just above an
+integer and make the ceiling overshoot by one (<xref target="MOQ-MMT"></xref>
+Section 12.3).  The reverse direction, used when ingesting an S-TSID,
+is P = (K x overhead) div 100, the largest P whose exported <tt>overhead</tt>
+does not exceed the ingested one.  That inverse and its round-trip
+properties are informative and are given in <xref target="MOQ-MMT"></xref> Sections
+12.2 and 12.3.</t>
+<t>Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
 FEC parameters and pass them through in the catalog <tt>fec</tt> field.</t>
 </section>
 </section>
