@@ -1005,6 +1005,7 @@ its offset-0 data unit.  FEC is unaffected by the partition: source
 symbols are MMTP packets (<xref target="MOQ-FEC"></xref>), and the packet stream's block
 and interleave structure does not depend on data-unit boundaries.</t>
 </section>
+
 <section anchor="source-contiguity"><name>Source Contiguity</name>
 <t>Section 5.2.1 requires the subsample data units of one sample to be
 published contiguously on their <tt>packet_id</tt>.  This section states the
@@ -1035,6 +1036,7 @@ data unit, a <tt>packet_sequence_number</tt> that is not the successor of the
 preceding fragment's <tt>packet_sequence_number</tt>; or, between an FI=1
 fragment and its FI=3, another data unit's FI=0 or FI=1 payload.  The
 consequences at the receiver, which the producer cannot see, are these:</t>
+
 <ul spacing="compact">
 <li>The data unit never completes.  Its fragments no longer share an
 active-data-unit address and are held as separate, incomplete state.</li>
