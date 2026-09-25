@@ -1635,7 +1635,10 @@ SBN = floor(SS_ID / K)
 ESI = SS_ID % K
 ~~~
 
-Both derivations produce the same (SBN, ESI) for the same packet.
+For a packaging profile whose Object IDs are positions in the FEC
+block, both derivations produce the same (SBN, ESI) for the same
+packet.  For mmtp, a receiver takes them from the Source FEC Payload
+ID on every path.
 
 ## Encoder Constraints
 
