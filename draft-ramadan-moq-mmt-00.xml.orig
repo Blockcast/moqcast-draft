@@ -1793,22 +1793,13 @@ T = <tt>fec.symbolSize</tt>, Z = 1, N = 1, Al = 8 -- the exported OTI is
 exactly the derived OTI of <xref target="MOQ-FEC"></xref> Section 4.2</li>
 </ul>
 <t><tt>FECParameters@overhead</tt> is an integer percentage, so the ratio
-100 x P / K is rounded up: for a catalog whose only FEC instance is
-the source track's own, the exported overhead never understates the
-catalog's repair rate.  That guarantee does not extend to a catalog
-that declares layered repair tracks (<xref target="MOQ-FEC"></xref> Section 6.3) or a
-keyframe overlay (<xref target="MOQ-FEC"></xref> Section 6.4).  There <tt>fec.repairSymbols</tt>
-is P_0, the base layer only; layers i &gt;= 1 and the overlay carry
-repair symbols of their own, and a single <tt>FECParameters@overhead</tt>
-cannot represent them.  Converting such a catalog with this rule
-therefore understates its repair rate, and the exported
-<tt>FECParameters</tt> describes the base layer alone, not the catalog's
-full repair capacity.</t>
-<t>The rule is stated in integer arithmetic because computing P / K in
-binary floating point first and then scaling by 100 can land just
-above an integer, and the ceiling then overshoots by one: for P = 7
-and K = 100, the IEEE 754 double-precision value of (7 / 100) x 100
-is 7.000000000000001, whose ceiling is 8, not 7.</t>
+100 x P / K is rounded up: the exported overhead never understates the
+catalog's repair rate.  The rule is stated in integer arithmetic
+because computing P / K in binary floating point first and then
+scaling by 100 can land just above an integer, and the ceiling then
+overshoots by one: for P = 7 and K = 100, the IEEE 754
+double-precision value of (7 / 100) x 100 is 7.000000000000001, whose
+ceiling is 8, not 7.</t>
 <t>The ingest rule of Section 12.2, P = (K x overhead) div 100, is the
 matching inverse: ceil(100 x P / K) &lt;= overhead if and only if
 P &lt;= (K x overhead) div 100, so the ingest rule yields the largest P
