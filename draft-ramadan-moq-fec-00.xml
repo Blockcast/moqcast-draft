@@ -1596,10 +1596,14 @@ SS_ID          = 2 * 32 + 19       = 83
 <t>The multicast-side inverse gives the same coordinates:
 SBN = floor(83 / 32) = 2, ESI = 83 % 32 = 19.</t>
 <t>This enables multi-path FEC combining: a receiver that obtains the
-same MMTP packet via MoQ unicast (using Group_ID/Object_ID) and
-multicast UDP (using SS_ID from the FEC Payload ID) derives
-identical (SBN, ESI) coordinates; receivers MAY combine symbols
-from any transport path toward the same FEC block recovery.</t>
+same MMTP packet via MoQ unicast and via multicast UDP derives
+identical (SBN, ESI) coordinates, because on both paths it takes
+them from the SS_ID in the packet's Source FEC Payload ID (the mmtp
+profile carries one on every source symbol, as required above).
+For a packaging profile whose Object IDs are positions in the FEC
+block, the Group_ID/Object_ID derivation yields the same
+coordinates.  Receivers MAY combine symbols from any transport path
+toward the same FEC block recovery.</t>
 <t>For MMTP over multicast UDP where the Source FEC Payload ID carries
 SS_ID directly:</t>
 
