@@ -178,7 +178,9 @@ The protocol operates as follows:
 The catalog is the sole normative FEC signaling mechanism
 (Section 5.2); no in-session message is required, which makes the
 same signaling path work for interactive QUIC sessions and for
-sessionless multicast receivers alike.
+sessionless multicast receivers alike.  A packaging profile MAY
+define a redundant in-band copy of catalog FEC state (Section 5.2);
+such a copy never replaces the catalog.
 
 When source objects are delivered as QUIC datagrams (unreliable), FEC
 recovery is the primary loss mitigation mechanism.  When delivered as
@@ -602,7 +604,13 @@ The catalog `fec` object (Section 5.1) is the sole normative FEC
 signaling mechanism.  A receiver that has a track's catalog entry
 has everything needed to discover and subscribe to the repair track
 (Section 6) and to configure its decoder via the derived OTI
-(Section 4.2); no in-session signaling is defined or required.
+(Section 4.2); no in-session signaling is required.  A packaging
+profile MAY define a redundant in-band copy of the catalog's FEC
+state (for example, the MMTP AL-FEC signaling object of
+[@!MOQ-MMT] Section 8).  Such a copy MUST NOT signal FEC parameters
+that contradict the track's catalog `fec` object; where the two
+disagree the catalog governs, and a receiver MUST NOT require the
+copy in order to configure its decoder.
 
 This holds uniformly across delivery paths.  In particular, control
 messages cannot reach multicast or sessionless receivers at all
@@ -1565,6 +1573,18 @@ rather than by group alignment, so D, `interleaveDepthMs`, and the
 group arithmetic below have no overlay counterpart.  An overlay's
 coordinates come from its own SS_ID and K_overlay (Section 6.4.2).
 
+The derivation applies only to objects that are FEC source symbols.
+An object that a packaging profile defines as carrying no source
+symbol -- for example, the in-band AL-FEC signaling object of
+[@!MOQ-MMT] Section 8 -- has no ESI, is not counted in K or in
+`symbols_per_group`, and its Object_ID MUST NOT be used as `O`.  A
+packaging profile whose tracks can carry such objects, or whose
+Object IDs are not positions in the FEC block, MUST carry a Source
+FEC Payload ID on every source symbol (Section 8.5); a receiver of
+that profile takes each source symbol's (SBN, ESI) from that field
+by the inverse given below, not from its Object_ID.  The mmtp
+packaging of [@!MOQ-MMT] is such a profile.
+
 For a source object with MoQ Group_ID `G` and Object_ID `O`:
 
 ~~~
@@ -1598,10 +1618,14 @@ The multicast-side inverse gives the same coordinates:
 SBN = floor(83 / 32) = 2, ESI = 83 % 32 = 19.
 
 This enables multi-path FEC combining: a receiver that obtains the
-same MMTP packet via MoQ unicast (using Group_ID/Object_ID) and
-multicast UDP (using SS_ID from the FEC Payload ID) derives
-identical (SBN, ESI) coordinates; receivers MAY combine symbols
-from any transport path toward the same FEC block recovery.
+same MMTP packet via MoQ unicast and via multicast UDP derives
+identical (SBN, ESI) coordinates, because on both paths it takes
+them from the SS_ID in the packet's Source FEC Payload ID (the mmtp
+profile carries one on every source symbol, as required above).
+For a packaging profile whose Object IDs are positions in the FEC
+block, the Group_ID/Object_ID derivation yields the same
+coordinates.  Receivers MAY combine symbols from any transport path
+toward the same FEC block recovery.
 
 For MMTP over multicast UDP where the Source FEC Payload ID carries
 SS_ID directly:
@@ -1611,7 +1635,10 @@ SBN = floor(SS_ID / K)
 ESI = SS_ID % K
 ~~~
 
-Both derivations produce the same (SBN, ESI) for the same packet.
+For a packaging profile whose Object IDs are positions in the FEC
+block, both derivations produce the same (SBN, ESI) for the same
+packet.  For mmtp, a receiver takes them from the Source FEC Payload
+ID on every path.
 
 ## Encoder Constraints
 
@@ -2072,10 +2099,26 @@ This specification is designed for interoperability with ATSC A/331
 | `fecOTI` (in S-TSID) | Derived OTI (Section 4.2) |
 | Source TOI range | Group ID range per Section 8 |
 | `maximumDelay` | Equal to Interleave Depth (both are durations in milliseconds) |
-| `overhead` | Computed as (P / K) x 100 |
+| `overhead` | ceil(100 x P / K), in integer arithmetic (below) |
+
+`overhead` is an integer percentage.  It is computed from the catalog
+`repairSymbols` (P) and `sourceSymbols` (K) as ceil(100 x P / K),
+evaluated in integer arithmetic as (100 x P + K - 1) div K, where
+a div b is the integer quotient floor(a / b) of a non-negative
+integer a and a positive integer b; computing the ratio P / K in
+floating point first can land just above an integer and make the
+ceiling overshoot by one ([@!MOQ-MMT] Section 12.3).  The reverse
+direction, used when ingesting an S-TSID, is
+P = (K x overhead) div 100, the largest P whose exported `overhead`
+does not exceed the ingested one.  Both directions are the
+informative conversions of [@!MOQ-MMT] Sections 12.2 and 12.3,
+which also give their round-trip properties.
 
 Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
 FEC parameters and pass them through in the catalog `fec` field.
+`overhead` in particular is not passed through verbatim: the catalog
+carries P rather than a percentage, and `overhead` is converted as
+above.
 
 # Interaction with CMAF Packaging
 
@@ -2398,7 +2441,8 @@ K = 32 source objects, followed by P = 8 repair objects.  The
 subscriber's decoder configuration is derived entirely from the
 catalog fields (Section 4.2): Transfer Length
 F = K x T = 32 x 1312 = 41,984 bytes, Symbol Size T = 1312,
-Z = 1, N = 1, Al = 8.  No in-session message is exchanged.
+Z = 1, N = 1, Al = 8.  No in-session message is required, and this
+CMAF track carries none.
 
 ## Recovery Example
 

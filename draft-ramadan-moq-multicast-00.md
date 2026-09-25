@@ -262,8 +262,14 @@ Endpoint field definitions:
   - **packetId** (integer, REQUIRED): MMTP packet_id used for
     packet-level track routing on multicast.  Maps directly to the
     Packet ID field in the MMTP header (Section 3.1 of
-    [@!MOQ-MMT]).  Values MUST be unique within an
-    (sourceAddress, groupAddress, port) tuple.
+    [@!MOQ-MMT]).  The value is an integer in the range 1..65535.
+    Values MUST be unique within an
+    (sourceAddress, groupAddress, port) tuple.  The value 0 is
+    reserved: packet_id 0 is the MMTP signaling flow ([@!MOQ-MMT]
+    Section 3.1), which, when present, arrives on the same tuple as
+    the media and carries MMTP signaling messages such as the AL-FEC
+    signaling message (message_id 0x0203, [@!MOQ-MMT] Section 8.3).
+    A publisher MUST NOT advertise packet_id 0 for a track.
 
 **bandwidth** (integer, RECOMMENDED): Aggregate bandwidth of this
   endpoint in bits per second, defined as the sum of the UDP payload
@@ -291,6 +297,9 @@ Receivers MUST ignore endpoints whose fields are mutually
 inconsistent -- for example, a `protocol` of "ssm" with
 `sourceAddress` omitted, a `sourceAddress` present with `protocol`
 of "asm", or a `groupAddress` outside the multicast address space.
+Receivers MUST likewise ignore an endpoint that lists a track
+`packetId` outside the range 1..65535, including 0, the MMTP
+signaling flow.
 
 Subscribers receiving a catalog with multicast endpoints MAY
 auto-connect to the multicast group when multicast APIs are
@@ -467,7 +476,18 @@ transports without modification:
 
 Receivers on multicast demultiplex packets using the MMTP packet_id
 field, which maps to the `packetId` assigned in the multicast
-catalog endpoint (Section 4.1).  FEC source and repair packets are
+catalog endpoint (Section 4.1).  A receiver MUST NOT deliver to any
+media or repair decoder a packet whose packet_id is not advertised
+for a track, for the (sourceAddress, groupAddress, port) tuple on
+which the packet arrived, by an endpoint that the receiver has not
+ignored under Section 4.1.  The rule is scoped to the tuple, the
+scope in which `packetId` values are unique, rather than to one
+endpoint entry.  Because an endpoint that advertises packet_id 0 for
+a track is ignored, the rule covers every packet of the MMTP
+signaling flow: a receiver that processes MMTP signaling reads those
+packets as signaling messages ([@!MOQ-MMT] Section 3.1), and any
+other receiver discards them, as it discards packets on any other
+unlisted packet_id.  FEC source and repair packets are
 distinguished by the MMTP FEC Type field per [@!MOQ-MMT]
 Section 3.1: values 0 and 1 both indicate source packets (0 = not
 FEC-protected, 1 = AL-FEC source packet), 2 indicates a repair

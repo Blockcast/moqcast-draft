@@ -158,7 +158,9 @@ symbols</li>
 <t>The catalog is the sole normative FEC signaling mechanism
 (Section 5.2); no in-session message is required, which makes the
 same signaling path work for interactive QUIC sessions and for
-sessionless multicast receivers alike.</t>
+sessionless multicast receivers alike.  A packaging profile MAY
+define a redundant in-band copy of catalog FEC state (Section 5.2);
+such a copy never replaces the catalog.</t>
 <t>When source objects are delivered as QUIC datagrams (unreliable), FEC
 recovery is the primary loss mitigation mechanism.  When delivered as
 QUIC stream objects (reliable), QUIC retransmission handles loss and
@@ -604,7 +606,13 @@ and its packets carry RSB_length 32.</t>
 signaling mechanism.  A receiver that has a track's catalog entry
 has everything needed to discover and subscribe to the repair track
 (Section 6) and to configure its decoder via the derived OTI
-(Section 4.2); no in-session signaling is defined or required.</t>
+(Section 4.2); no in-session signaling is required.  A packaging
+profile MAY define a redundant in-band copy of the catalog's FEC
+state (for example, the MMTP AL-FEC signaling object of
+<xref target="MOQ-MMT"></xref> Section 8).  Such a copy MUST NOT signal FEC parameters
+that contradict the track's catalog <tt>fec</tt> object; where the two
+disagree the catalog governs, and a receiver MUST NOT require the
+copy in order to configure its decoder.</t>
 <t>This holds uniformly across delivery paths.  In particular, control
 messages cannot reach multicast or sessionless receivers at all
 (Section 11), so no control-message mechanism could serve as the
@@ -1551,6 +1559,17 @@ a keyframe overlay: an overlay's membership is fixed by <tt>RAP_flag</tt>
 rather than by group alignment, so D, <tt>interleaveDepthMs</tt>, and the
 group arithmetic below have no overlay counterpart.  An overlay's
 coordinates come from its own SS_ID and K_overlay (Section 6.4.2).</t>
+<t>The derivation applies only to objects that are FEC source symbols.
+An object that a packaging profile defines as carrying no source
+symbol -- for example, the in-band AL-FEC signaling object of
+<xref target="MOQ-MMT"></xref> Section 8 -- has no ESI, is not counted in K or in
+<tt>symbols_per_group</tt>, and its Object_ID MUST NOT be used as <tt>O</tt>.  A
+packaging profile whose tracks can carry such objects, or whose
+Object IDs are not positions in the FEC block, MUST carry a Source
+FEC Payload ID on every source symbol (Section 8.5); a receiver of
+that profile takes each source symbol's (SBN, ESI) from that field
+by the inverse given below, not from its Object_ID.  The mmtp
+packaging of <xref target="MOQ-MMT"></xref> is such a profile.</t>
 <t>For a source object with MoQ Group_ID <tt>G</tt> and Object_ID <tt>O</tt>:</t>
 
 <artwork><![CDATA[D = round(interleaveDepthMs / GOP_duration_ms)  # groups per block
@@ -1577,17 +1596,24 @@ SS_ID          = 2 * 32 + 19       = 83
 <t>The multicast-side inverse gives the same coordinates:
 SBN = floor(83 / 32) = 2, ESI = 83 % 32 = 19.</t>
 <t>This enables multi-path FEC combining: a receiver that obtains the
-same MMTP packet via MoQ unicast (using Group_ID/Object_ID) and
-multicast UDP (using SS_ID from the FEC Payload ID) derives
-identical (SBN, ESI) coordinates; receivers MAY combine symbols
-from any transport path toward the same FEC block recovery.</t>
+same MMTP packet via MoQ unicast and via multicast UDP derives
+identical (SBN, ESI) coordinates, because on both paths it takes
+them from the SS_ID in the packet's Source FEC Payload ID (the mmtp
+profile carries one on every source symbol, as required above).
+For a packaging profile whose Object IDs are positions in the FEC
+block, the Group_ID/Object_ID derivation yields the same
+coordinates.  Receivers MAY combine symbols from any transport path
+toward the same FEC block recovery.</t>
 <t>For MMTP over multicast UDP where the Source FEC Payload ID carries
 SS_ID directly:</t>
 
 <artwork><![CDATA[SBN = floor(SS_ID / K)
 ESI = SS_ID % K
 ]]></artwork>
-<t>Both derivations produce the same (SBN, ESI) for the same packet.</t>
+<t>For a packaging profile whose Object IDs are positions in the FEC
+block, both derivations produce the same (SBN, ESI) for the same
+packet.  For mmtp, a receiver takes them from the Source FEC Payload
+ID on every path.</t>
 </section>
 
 <section anchor="encoder-constraints"><name>Encoder Constraints</name>
@@ -2142,11 +2168,26 @@ symbols with symbols received from other paths.</t>
 
 <tr>
 <td><tt>overhead</tt></td>
-<td>Computed as (P / K) x 100</td>
+<td>ceil(100 x P / K), in integer arithmetic (below)</td>
 </tr>
 </tbody>
-</table><t>Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
-FEC parameters and pass them through in the catalog <tt>fec</tt> field.</t>
+</table><t><tt>overhead</tt> is an integer percentage.  It is computed from the catalog
+<tt>repairSymbols</tt> (P) and <tt>sourceSymbols</tt> (K) as ceil(100 x P / K),
+evaluated in integer arithmetic as (100 x P + K - 1) div K, where
+a div b is the integer quotient floor(a / b) of a non-negative
+integer a and a positive integer b; computing the ratio P / K in
+floating point first can land just above an integer and make the
+ceiling overshoot by one (<xref target="MOQ-MMT"></xref> Section 12.3).  The reverse
+direction, used when ingesting an S-TSID, is
+P = (K x overhead) div 100, the largest P whose exported <tt>overhead</tt>
+does not exceed the ingested one.  Both directions are the
+informative conversions of <xref target="MOQ-MMT"></xref> Sections 12.2 and 12.3,
+which also give their round-trip properties.</t>
+<t>Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
+FEC parameters and pass them through in the catalog <tt>fec</tt> field.
+<tt>overhead</tt> in particular is not passed through verbatim: the catalog
+carries P rather than a percentage, and <tt>overhead</tt> is converted as
+above.</t>
 </section>
 </section>
 
@@ -2516,7 +2557,8 @@ K = 32 source objects, followed by P = 8 repair objects.  The
 subscriber's decoder configuration is derived entirely from the
 catalog fields (Section 4.2): Transfer Length
 F = K x T = 32 x 1312 = 41,984 bytes, Symbol Size T = 1312,
-Z = 1, N = 1, Al = 8.  No in-session message is exchanged.</t>
+Z = 1, N = 1, Al = 8.  No in-session message is required, and this
+CMAF track carries none.</t>
 </section>
 
 <section anchor="recovery-example"><name>Recovery Example</name>
