@@ -1610,7 +1610,10 @@ SS_ID directly:</t>
 <artwork><![CDATA[SBN = floor(SS_ID / K)
 ESI = SS_ID % K
 ]]></artwork>
-<t>Both derivations produce the same (SBN, ESI) for the same packet.</t>
+<t>For a packaging profile whose Object IDs are positions in the FEC
+block, both derivations produce the same (SBN, ESI) for the same
+packet.  For mmtp, a receiver takes them from the Source FEC Payload
+ID on every path.</t>
 </section>
 
 <section anchor="encoder-constraints"><name>Encoder Constraints</name>
