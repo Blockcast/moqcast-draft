@@ -255,8 +255,14 @@ track identifier used in the MoQ catalog.</li>
 <li><strong>packetId</strong> (integer, REQUIRED): MMTP packet_id used for
 packet-level track routing on multicast.  Maps directly to the
 Packet ID field in the MMTP header (Section 3.1 of
-<xref target="MOQ-MMT"></xref>).  Values MUST be unique within an
-(sourceAddress, groupAddress, port) tuple.</li>
+<xref target="MOQ-MMT"></xref>).  The value is an integer in the range 1..65535.
+Values MUST be unique within an
+(sourceAddress, groupAddress, port) tuple.  The value 0 is
+reserved: packet_id 0 is the MMTP signaling flow (<xref target="MOQ-MMT"></xref>
+Section 3.1), which, when present, arrives on the same tuple as
+the media and carries MMTP signaling messages such as the AL-FEC
+signaling message (message_id 0x0203, <xref target="MOQ-MMT"></xref> Section 8.3).
+A publisher MUST NOT advertise packet_id 0 for a track.</li>
 </ul>
 <t><strong>bandwidth</strong> (integer, RECOMMENDED): Aggregate bandwidth of this
   endpoint in bits per second, defined as the sum of the UDP payload
@@ -280,7 +286,10 @@ unambiguous within a multicast group.</t>
 <t>Receivers MUST ignore endpoints whose fields are mutually
 inconsistent -- for example, a <tt>protocol</tt> of &quot;ssm&quot; with
 <tt>sourceAddress</tt> omitted, a <tt>sourceAddress</tt> present with <tt>protocol</tt>
-of &quot;asm&quot;, or a <tt>groupAddress</tt> outside the multicast address space.</t>
+of &quot;asm&quot;, or a <tt>groupAddress</tt> outside the multicast address space.
+Receivers MUST likewise ignore an endpoint that lists a track
+<tt>packetId</tt> outside the range 1..65535, including 0, the MMTP
+signaling flow.</t>
 <t>Subscribers receiving a catalog with multicast endpoints MAY
 auto-connect to the multicast group when multicast APIs are
 available and multicast delivery is preferred (IWA DirectSocket,
@@ -460,7 +469,18 @@ transports without modification:</t>
 </tbody>
 </table><t>Receivers on multicast demultiplex packets using the MMTP packet_id
 field, which maps to the <tt>packetId</tt> assigned in the multicast
-catalog endpoint (Section 4.1).  FEC source and repair packets are
+catalog endpoint (Section 4.1).  A receiver MUST NOT deliver to any
+media or repair decoder a packet whose packet_id is not advertised
+for a track, for the (sourceAddress, groupAddress, port) tuple on
+which the packet arrived, by an endpoint that the receiver has not
+ignored under Section 4.1.  The rule is scoped to the tuple, the
+scope in which <tt>packetId</tt> values are unique, rather than to one
+endpoint entry.  Because an endpoint that advertises packet_id 0 for
+a track is ignored, the rule covers every packet of the MMTP
+signaling flow: a receiver that processes MMTP signaling reads those
+packets as signaling messages (<xref target="MOQ-MMT"></xref> Section 3.1), and any
+other receiver discards them, as it discards packets on any other
+unlisted packet_id.  FEC source and repair packets are
 distinguished by the MMTP FEC Type field per <xref target="MOQ-MMT"></xref>
 Section 3.1: values 0 and 1 both indicate source packets (0 = not
 FEC-protected, 1 = AL-FEC source packet), 2 indicates a repair
