@@ -530,7 +530,9 @@ subscribers fall back to MoQ/QUIC unicast by subscribing with the
 Largest Object or Next Group Start filter per
 [@!I-D.ietf-moq-transport].
 No coordinate mapping between multicast SBN and MoQ group_id is
-needed -- the relay provides the current position.
+needed -- the relay provides the current position.  Failover replaces
+the multicast path; it is distinct from per-block unicast repair
+(Section 6.2), which leaves the multicast subscription in place.
 
 ## Packaging Negotiation
 
@@ -543,6 +545,45 @@ profiled for this suite in [@!MOQ-MMT] Section 4.4) enables
 publishers
 to offer the same content in multiple packaging formats.
 No explicit packaging capability negotiation is needed.
+
+## Per-Block Unicast Repair
+
+A multicast or AMT receiver repairs every FEC block in-band from the
+repair symbols it receives on its multicast paths.  For a block that
+in-band FEC leaves unrecovered at its FEC deadline, a receiver that
+holds a MoQ session (Section 1.1) applies the receiver repair policy
+of [@!MOQ-FEC] Section 11.4:
+
+- A keyframe-bearing block is repaired on demand, with top priority,
+  by a standalone FETCH [@!I-D.ietf-moq-transport] over that session
+  of the repair-track group numbered with the block's SBN.  Because
+  the repair track's group number is the SBN, which the receiver
+  already holds from the Source FEC Payload IDs of multicast packets,
+  no coordinate mapping is needed here either, and the returned
+  symbols are deduplicated by SBN and ESI per item 1 of Section 6.  Only an
+  unrecoverable keyframe-bearing block may stall video, until the
+  next Random Access Point.
+
+- Any other video block is repaired best-effort, by unicast repair
+  only where it does not compete with keyframe repair, and on failure
+  is concealed without stalling presentation or audio/video
+  synchronization.  An audio block is treated in the same way and
+  never stalls video.
+
+Which blocks are keyframe-bearing, and the unicast repair budget and
+priorities, are derived from the catalog and from in-band evidence,
+with a block of unknown class treated as keyframe-bearing
+([@!MOQ-FEC] Sections 11.4.1 and 11.4.5).
+
+A receiver without a MoQ session -- the self-describing exception of
+Section 1.1 -- cannot request unicast repair.  It relies on in-band
+FEC and, where published, the keyframe overlay ([@!MOQ-FEC]
+Section 6.4), and it treats an unrecovered keyframe-bearing block as
+unrecoverable.
+
+A FETCH for a repair-track group that the relay no longer retains
+fails, and the receiver then treats the block as unrecoverable.  How
+long a relay retains repair-track groups is relay policy.
 
 # Security Considerations
 

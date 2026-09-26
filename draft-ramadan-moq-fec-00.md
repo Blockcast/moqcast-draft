@@ -1267,6 +1267,12 @@ track decodes the two instances independently and MAY use the
 recovered RAP fragments even when the base instance failed to recover
 the block that carried them.
 
+The overlay is the publisher-side half of keyframe protection.  The
+receiver-side half is the repair policy of Section 11.4, under which a
+receiver gives a keyframe-bearing base block that in-band decoding
+leaves unrecovered priority unicast repair; Section 11.4.6 states how
+the two combine.
+
 A receiver that does not implement overlays MUST fail closed on a
 catalog that declares one for a track it intends to consume, that is
 on a `fec-repair` track carrying the unknown `scope` key
@@ -1360,10 +1366,15 @@ Section 6.3.2 depends on.  A keyframe overlay is a separate instance
 and does get its own encoding pass, over its own source symbols
 (Section 6.4).
 
-**SSB_length (24 bits)**: The number of source symbols in the
-protected source block -- the K value.  When nonzero it is
-authoritative for the block; a value of 0 means the receiver uses
-the catalog `sourceSymbols` value instead.  On a keyframe overlay's
+**SSB_length (24 bits)**: The number of source symbols the publisher
+authored in the protected source block.  When nonzero it is
+authoritative for the block and MUST NOT exceed K; a value below K
+marks a short source block, which remains a K-symbol block whose
+remaining ESIs are zero padding (Section 7.4).  A value of 0 means
+the block has K authored source symbols, K being the catalog
+`sourceSymbols` value.  SSB_length never changes the K used in
+SS_start, in ESI = K + RS_ID, or in the decoder configuration of
+Section 4.2.  On a keyframe overlay's
 packets this is K_overlay, and the catalog value it defers to when 0
 is the `sourceSymbols` of the overlay's own repair track, not the
 source track's (Section 6.4.2).
@@ -1514,6 +1525,62 @@ Publishers using MMTP packaging SHOULD use ssbg_mode0 without
 sub-blocks.  Sub-blocks are primarily useful for large-K
 configurations (K >= 64) where full-block recovery latency exceeds
 acceptable limits.
+
+## Short Source Blocks
+
+A publisher MAY close a source block before it holds K source
+symbols, for example at a media-unit boundary so that the block's
+span stays within `interleaveDepthMs` (Section 5.1).  Such a block is
+a short source block.  It is not a block with a smaller K: it remains
+a K-symbol block of the same FEC instance, with the same Transfer
+Length F = K x T (Section 4.2) and the same SS_ID stride, so
+SS_start = SBN x K and ESI = K + RS_ID hold for it exactly as for a
+full block.  This section applies per FEC instance; for a keyframe
+overlay, K is K_overlay (Section 6.4.2).
+
+For a short source block whose SSB_length is S, with 0 < S < K:
+
+1. The publisher encodes the block with the authored source symbols
+   at ESIs 0 to S - 1 and all-zero symbols of T bytes at ESIs S to
+   K - 1.  It MUST NOT transmit the padding symbols, and it MUST carry
+   S in the SSB_length field of every repair packet of the block, on
+   every repair track of the instance.
+
+2. The next block starts at SS_ID (SBN + 1) x K.  The SS_IDs
+   SBN x K + S to SBN x K + K - 1 are never assigned to a transmitted
+   packet, and a receiver MUST NOT count them as lost source symbols.
+
+3. A receiver that knows S treats ESIs S to K - 1 as received
+   zero-valued source symbols: they are known to the decoder and are
+   fed to it as such.  They are not media and are never delivered as
+   such.
+
+4. The block is complete, and needs no repair, once all S authored
+   source symbols have arrived.  It is recoverable once the authored
+   source symbols and the repair symbols the receiver holds together
+   number at least S, plus the decoding overhead of Section 6.3.2,
+   because the K - S padding symbols supply the rest of the K symbols
+   the decoder needs.
+
+5. Recovery yields the S authored source symbols, S x T bytes, each
+   consumed per the source symbol construction of Section 7.3.  The
+   padding never reaches the MMTP parser.
+
+Source packets carry only SS_ID, so the SSB_length of a repair packet
+is the only wire signal of S.  Until a receiver has accepted a repair
+packet of the block it does not know S and treats the block as a full
+K-symbol block; it MUST NOT infer S from a gap in SS_IDs, from a group
+or MPU boundary, or from elapsed time.  A repair packet obtained by
+unicast repair (Section 11.4) conveys S in the same way.
+
+A receiver MUST fail closed on inconsistent short-block signaling.  It
+MUST discard a repair packet whose SSB_length exceeds K.  It MUST
+discard a repair packet whose nonzero SSB_length differs from the
+value it has already accepted for the block, leaving the block's state
+unchanged.  It MUST NOT feed the decoder a source symbol at an ESI of
+S or greater, which would occupy a padding position, and it MUST
+discard a repair packet whose SSB_length would place a source symbol
+it already holds in the padding.
 
 # Block and Group Alignment
 
@@ -1863,7 +1930,9 @@ disable FEC for the track.  A separately configured local policy MAY be
 used only when it is represented separately from the catalog value and
 does not silently rewrite the catalog.  At the resulting deadline, the
 receiver moves the block onward and attempts FEC processing according to
-its buffering model.
+its buffering model.  What a receiver of a multicast or AMT leg does
+with a block that is still unrecovered at that deadline -- unicast
+repair, a stall, or concealment -- is specified in Section 11.4.
 
 Interleave depth is a recovery-budget knob, not a steady-state
 latency knob.  With systematic FEC (Section 4.1) the source symbols
@@ -1935,6 +2004,11 @@ Under congestion, this priority separation ensures:
 2. Repair overhead is gracefully shed
 3. Receivers degrade to QUIC retransmission when FEC is unavailable
 
+On a multicast or AMT leg, a receiver's on-demand unicast repair
+requests take their priorities from Section 11.4.5: the repair of a
+keyframe-bearing block is requested at the priority of its source
+track, and every other repair request at repair priority.
+
 # Hybrid Unicast and Multicast Delivery
 
 This FEC mechanism is designed to support hybrid delivery architectures
@@ -1963,7 +2037,8 @@ to recover from packet loss without retransmission:
 The same MoQ objects (source and repair) can be transmitted over both
 unicast (QUIC/WebTransport) and multicast (UDP/SSM/AMT) paths.  Receivers
 on reliable unicast paths MAY skip FEC decoding, while receivers on lossy
-multicast paths use FEC for recovery.
+multicast paths use FEC for recovery and apply the receiver repair
+policy of Section 11.4 to any block that FEC does not recover.
 
 ~~~
 Publisher
@@ -2076,7 +2151,9 @@ When this scheme is carried over a multicast QUIC channel:
    covered by the repair flow SHOULD NOT drive unicast repair for losses
    the FEC recovers, preserving the O(1) sender cost that motivates
    broadcast FEC.  Unicast repair MAY be retained as a last resort for
-   losses exceeding the repair budget.
+   losses exceeding the repair budget; Section 11.4 specifies which
+   blocks a receiver repairs that way, with what priority, and what it
+   does with a block that stays unrecovered.
 
 Symbols delivered over a multicast QUIC channel are deduplicated by
 their Source Block Number and Encoding Symbol ID; [@!QUIC-MULTICAST]
@@ -2084,6 +2161,239 @@ normatively requires only this deduplication.  Because the (SBN, ESI)
 derivation in Section 8.3 of this document gives each symbol a
 path-independent identity, receivers MAY additionally combine such
 symbols with symbols received from other paths.
+
+## Receiver Repair Policy
+
+This section specifies what a receiver of a multicast or AMT leg does
+with a base-instance block of a source track that in-band FEC has not
+recovered by the block's FEC deadline (Section 9).  A receiver on a
+reliable MoQ/QUIC leg relies on transport retransmission (Section 3)
+and does not need it.
+
+Every block receives in-band FEC processing.  A receiver MUST attempt
+to recover every block, whatever its class, from the source and repair
+symbols received on its multicast and AMT paths, together with any it
+receives on other paths (Section 8.3), up to the block's FEC deadline.
+The rest of this section governs only a block that is still
+unrecovered at that deadline: the receiver does not hold all of its
+authored source symbols (K, or SSB_length for a short source block,
+Section 7.4), and decoding from the symbols it holds has not recovered
+them.
+
+The policy distinguishes keyframe-bearing blocks, whose loss stops
+video decoding until the next Random Access Point (RAP), from other
+blocks, whose loss damages only frames up to the next RAP.
+Keyframe-bearing blocks are protected by priority unicast repair and
+are the only blocks whose loss may stall video.  Other blocks are
+repaired on a best-effort basis and, when repair fails, concealed.
+
+### Block Classification
+
+A base block of a video source track is keyframe-bearing if it
+carries, or may carry, any fragment of a RAP.  The receiver classifies
+each block from two inputs, and only from them.
+
+1. In-band evidence.  A block is keyframe-bearing if any source packet
+   the receiver holds from it sets `RAP_flag` or carries two Source
+   FEC Payload IDs (Section 8.5.1), or begins an MPU: a change of MPU
+   sequence number, or an FT=0 MPU metadata packet
+   ([@!MOQ-MMT] Section 4.3).
+
+2. Catalog-authored timing.  The keyframe instants of a track are its
+   group starts, at the cadence of the catalog group duration
+   (`groupDurationMs`, or `groupDurationTicks` where present,
+   [@!MOQ-MMT] Section 4.4.2), and, where the catalog carries
+   `keyframeIntervalMs` or `keyframeIntervalTicks`
+   ([@!MOQ-MMT] Section 4.4.3), every keyframe at that cadence from
+   the group start.  The receiver locates a block in media time from
+   the authored timing of the source packets it holds from that block
+   and from the blocks adjacent to it, bounded by the block span
+   `interleaveDepthMs` (Section 5.1), with the catalog `framerate`
+   converting that span into the media units the block can cover and
+   K bounding the source symbols it can hold.  A block whose located
+   span contains a keyframe instant is keyframe-bearing.
+
+A block is non-keyframe-bearing only when the receiver has located its
+span, that span contains no keyframe instant, and no in-band evidence
+marks the block.  Every other block is of unknown class, and a
+receiver MUST treat a block of unknown class as keyframe-bearing.  In
+particular:
+
+- A block from which the receiver holds no source symbol, and whose
+  span the adjacent blocks do not bound, is of unknown class.
+
+- On a video track whose catalog entry carries neither
+  `keyframeIntervalMs` nor `keyframeIntervalTicks`, the receiver
+  cannot exclude a keyframe after the group start from any span, so
+  every block of the track is of unknown class.
+
+- Where every block spans at least one whole group, as in the model
+  of Sections 8.1 and 8.2, every block contains a group start and is
+  keyframe-bearing.  The non-keyframe class arises only where the
+  source symbols of one group span several blocks, as on an
+  mmtp-packaged track whose interleave window is shorter than its
+  group duration.
+
+A receiver MUST NOT classify a block from a receiver-local default,
+from a cadence inferred by observing past keyframes or packet
+arrivals, or from the absence of `RAP_flag` on the packets it happens
+to hold: the absence of the flag on a received packet says nothing
+about a packet that was lost.  A publisher that wants receivers to be
+able to apply the non-keyframe treatment of Section 11.4.3 publishes
+`keyframeIntervalMs` or `keyframeIntervalTicks`.
+
+The blocks of a track that the catalog identifies as audio are
+treated by Section 11.4.4, not classified by this section.  A track
+that the receiver cannot identify from its catalog entry is treated as
+video.
+
+### Keyframe-Bearing Blocks
+
+When a keyframe-bearing block is still unrecovered at its FEC
+deadline, a receiver that holds a MoQ session with a relay serving the
+block's repair track MUST request on-demand unicast repair for it,
+with the priority of Section 11.4.5.  The request is a standalone
+FETCH [@!I-D.ietf-moq-transport], over QUIC, of the repair-track group
+numbered with the block's SBN (Section 6.3.2): on layer 0, and on
+further layers in layer order where the receiver needs more symbols
+than layer 0 carries.  The FETCH MAY be limited to the object range
+that covers the block's shortfall.  The repair symbols it returns are
+deduplicated against the symbols already held by SBN and ESI
+(Section 8.3) and fed to the same decoder; their SSB_length also
+conveys a short block's authored length (Section 7.4).  The receiver
+MUST NOT delay this request behind any non-keyframe or audio repair,
+and MUST NOT defer it waiting for a keyframe overlay (Section 11.4.6).
+While the request is outstanding, the receiver MAY hold video
+presentation for the block.
+
+A keyframe-bearing block is unrecoverable when its unicast repair
+fails or completes without recovering it, or when the receiver holds
+no MoQ session through which to request it (for example a sessionless
+receiver of a self-describing stream, [@?MOQ-MULTICAST] Section 1.1).
+An unrecoverable keyframe-bearing block is the only case in which a
+receiver MAY stall video.  If the symbols it could not recover
+include, or the receiver cannot exclude that they include, fragments
+of a RAP, the receiver treats the track as discontinuous and does not
+resume video before the next RAP ([@!MOQ-MMT] Section 6.1, step 6).
+If the block's RAP fragments are all held or recovered, for example
+through a keyframe overlay, its remaining loss is concealed as for a
+non-keyframe block (Section 11.4.3).
+
+If the next RAP arrives complete before a keyframe repair completes,
+the repair is moot: the receiver resumes from that RAP and SHOULD
+cancel the FETCH.
+
+### Other Video Blocks
+
+For a non-keyframe-bearing block of a video track, in-band FEC remains
+the primary repair.  A receiver MAY also request unicast repair for
+it, in the form of Section 11.4.2, but only on the terms of
+Section 11.4.5: never ahead of or concurrently with keyframe repair,
+and only within the budget that keyframe repair leaves unspent.
+
+When such a block is unrecovered -- at its FEC deadline without
+unicast repair, or when its unicast repair cannot complete before the
+presentation time of the first media it would repair -- the receiver
+MUST NOT stall.  It conceals the affected frames, and every frame that
+depends on them, until the next RAP, and keeps presentation and
+audio/video synchronization running:
+
+- Concealed frames occupy the presentation times authored for the
+  frames they replace.  The receiver MUST NOT pause the presentation
+  clock it shares with other tracks, and MUST NOT shift, re-time, or
+  drop later frames to absorb the loss.
+
+- The concealment method is an implementation choice: for example
+  holding or replaying the last presented frame, or presenting decoder
+  output in which missing reference data is filled (commonly visible
+  as a solid or green fill).  The receiver MUST NOT submit to the
+  decoder a sample that the packaging's reassembly rules have
+  invalidated ([@!MOQ-MMT] Section 5.2).
+
+- The next RAP ends concealment, and the receiver resumes normal
+  decoding from it.
+
+### Audio Blocks
+
+The blocks of an audio track are never grounds to stall video.
+In-band FEC applies to them as to every block, and a receiver MAY
+request unicast repair for an audio block on the same best-effort
+terms as for a non-keyframe video block (Section 11.4.5).  `RAP_flag`
+on an audio packet does not make its block keyframe-bearing; that
+class applies to video tracks only.
+
+When an audio block is unrecovered, the receiver MUST conceal the lost
+audio, for example with silence or packet-loss concealment, for
+exactly the authored duration of the lost frames, taken from the
+catalog-authored audio timing and the authored timestamps of the
+frames it holds, and MUST keep the audio clock advancing.  It MUST NOT
+stall video, pause the shared presentation clock, or re-time video to
+absorb audio loss, and it MUST NOT stall audio presentation waiting
+for a repair that cannot complete before the presentation time of the
+lost frames.
+
+### Unicast Repair Budget and Priority
+
+A receiver's unicast repair budget is derived from the catalog, not
+from a receiver-local rate or byte constant.  It accrues per
+keyframe-bearing block: each block that Section 11.4.1 classifies as
+keyframe-bearing adds one repair-track group for each repair track the
+receiver fetches, that is P_u x T bytes, where P_u is the sum of the
+repair symbol counts of those tracks (P for a single repair track, the
+P_i of Section 6.3 for layers) and T is `symbolSize` (Section 5.1).
+Over any interval the budget is therefore R_kf x P_u x T, where R_kf,
+the keyframe-bearing block rate, is the rate at which blocks are
+classified keyframe-bearing from catalog-authored timing and in-band
+evidence.  On a track whose blocks are all of unknown class, R_kf is
+the block rate itself.
+
+1. A keyframe-bearing block's repair is always within budget: the
+   receiver requests at most one repair-track group per repair track
+   for each keyframe-bearing block, which is exactly what that block
+   adds.
+
+2. Non-keyframe and audio repair MAY spend only budget that
+   keyframe-bearing blocks accrued and did not spend.  Unspent budget
+   does not carry past the end of the group, at the track's catalog
+   group duration, in which it accrued.
+
+3. A receiver MUST NOT issue a non-keyframe or audio repair FETCH
+   while a keyframe repair FETCH is outstanding on the same session,
+   and SHOULD cancel its outstanding non-keyframe and audio repair
+   FETCHes when a keyframe-bearing block falls due.
+
+A keyframe repair FETCH MUST carry a subscriber priority
+[@!I-D.ietf-moq-transport] numerically no greater than the priority of
+the source track it repairs (Section 10), so that it is delivered
+ahead of every repair track and is not shed with repair data under
+congestion.  A non-keyframe or audio repair FETCH MUST carry a
+priority numerically no lower than that of the repair track it
+fetches (Section 10), so that it is shed first.
+
+### Relationship to the Keyframe Overlay
+
+The keyframe overlay of Section 6.4 and this policy are
+complementary.  The overlay is publisher-side and proactive: it
+protects RAP fragments across a block of its own, needs no return
+path, and so also serves sessionless receivers.  This policy is
+receiver-side and reactive: it spends unicast repair only on
+keyframe-bearing blocks that in-band FEC actually failed to recover,
+and it needs a MoQ session.  A receiver that holds both:
+
+- classifies blocks by Section 11.4.1 whether or not it holds the
+  overlay;
+
+- MUST NOT defer the unicast repair of a keyframe-bearing block to
+  wait for overlay recovery, whose latency is the overlay's own block
+  span (Section 6.4.2), not the base deadline;
+
+- ends its wait for a RAP with whichever of base decoding, overlay
+  decoding, or unicast repair supplies the RAP's fragments first; and
+
+- having recovered a block's RAP fragments through the overlay,
+  conceals the rest of that block's loss as for a non-keyframe block
+  (Section 11.4.3) and SHOULD cancel any outstanding keyframe repair
+  FETCH for it.
 
 # ATSC 3.0 Compatibility
 
