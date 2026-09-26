@@ -558,11 +558,12 @@ of [@!MOQ-FEC] Section 11.4:
   by a standalone FETCH [@!I-D.ietf-moq-transport] over that session
   of the repair-track group numbered with the block's SBN.  Because
   the repair track's group number is the SBN, which the receiver
-  already holds from the Source FEC Payload IDs of multicast packets,
-  no coordinate mapping is needed here either, and the returned
-  symbols are deduplicated by SBN and ESI per item 1 of Section 6.
-  Only an unrecoverable keyframe-bearing block may stall video, until
-  the next Random Access Point.
+  derives from the Source FEC Payload IDs of multicast packets, no
+  coordinate mapping is needed here either, and the returned symbols
+  are deduplicated by SBN and ESI per item 1 of Section 6.  Only a
+  keyframe-bearing block may stall video: while its repair is
+  outstanding and, if it proves unrecoverable, until the next Random
+  Access Point.
 
 - Any other video block is repaired best-effort, by unicast repair
   only where it does not compete with keyframe repair, and on failure
@@ -582,8 +583,9 @@ Section 6.4), and it treats an unrecovered keyframe-bearing block as
 unrecoverable.
 
 A FETCH for a repair-track group that the relay no longer retains
-fails, and the receiver then treats the block as unrecoverable.  How
-long a relay retains repair-track groups is relay policy.
+fails or returns none of the group's objects, and the receiver then
+treats the block as unrecoverable.  How long a relay retains
+repair-track groups is relay policy.
 
 # Security Considerations
 
