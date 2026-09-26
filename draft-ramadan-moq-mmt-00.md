@@ -589,12 +589,24 @@ keyframe interval shorter.  The field applies to video tracks only; a
 publisher that cannot determine the cadence simply omits it.
 
 Because the field is advisory, its absence is not a catalog error:
-subscribers that rely on it (for keyframe-loss repair or refresh
-scheduling) simply leave that behavior disabled when it is absent, and
-MUST NOT reject a catalog solely because it is missing.  When present,
+subscribers MUST NOT reject a catalog solely because it is missing, and
+a subscriber that relies on it for refresh scheduling leaves that
+behavior disabled when it is absent.  A receiver applying the repair
+policy of [@!MOQ-FEC] Section 11.4 cannot then exclude a keyframe
+after the group start from any FEC block, so it treats every block of
+the track as keyframe-bearing (fail closed); it MUST NOT substitute a
+locally chosen or observed cadence.  When present,
 `keyframeIntervalMs` MUST be a positive integer; a zero value is a
 catalog error (it would drive a receiver's derived repair timeout to
 zero).
+
+Advisory describes the field's presence, not its accuracy.  A receiver
+applying that repair policy relies on a published keyframe interval to
+exclude keyframes from part of a group, so when the field is present
+it binds every keyframe of the track: the publisher MUST NOT emit a
+keyframe other than at a group start or a whole number of intervals
+after one.  A publisher whose encoder can place keyframes off that
+cadence, for example at scene cuts, omits the field.
 
 As with the group duration, the integer-millisecond form cannot
 express a keyframe cadence whose tick count is non-integer on the
@@ -607,10 +619,12 @@ keyframeIntervalTicks (OPTIONAL, unsigned integer)
 expressed in the same timescale as `groupDurationTicks` (Section 4.4.2,
 selected by the track's container kind).  If both
 `keyframeIntervalMs` and `keyframeIntervalTicks` are present,
-`keyframeIntervalTicks` wins.  Unlike `groupDurationTicks`, this
-document places NO switching-set agreement requirement on the keyframe
-interval: it is a per-track advisory hint, and tracks in a switching
-set MAY carry different keyframe cadences.
+`keyframeIntervalTicks` wins.  A receiver applying the repair policy
+of [@!MOQ-FEC] Section 11.4 treats a `keyframeIntervalMs` whose tick
+conversion is not exact, with no override, as absent.  Unlike
+`groupDurationTicks`, this document places NO switching-set agreement
+requirement on the keyframe interval: it is a per-track advisory hint,
+and tracks in a switching set MAY carry different keyframe cadences.
 
 ## Init Segment Signaling
 
@@ -1153,6 +1167,12 @@ Section 4.3).  Accordingly a receiver:
   [@!ISO.23008-1] Section 9.3.2.3), since these are decode-order
   roots upon which other access units depend.
 
+On a multicast or AMT leg, [@!MOQ-FEC] Section 11.4 specifies the
+receiver repair policy this implies: an FEC block that carries, or may
+carry, part of a RAP (the RAP MFU or the FT=0 or FT=1 data unit that
+governs it) gets priority unicast repair, and loss confined to other
+data units is concealed without stalling presentation.
+
 # Subscriber Join and Relay Behavior
 
 This section defines the join procedure for subscribers and the
@@ -1210,7 +1230,14 @@ A subscriber joins a live mmtp-packaged track as follows:
    unrepairable loss (Section 5.2), the subscriber MUST
    treat the track as discontinuous and MUST NOT resume presentation
    before the next completely reassembled RAP MFU (normally the
-   start of the next group).
+   start of the next group).  The same holds when the group's FT=0
+   data unit, or the FT=1 data unit governing its RAP, is lost, since
+   the RAP then cannot be admitted (Section 4.3).  On a multicast or
+   AMT leg, loss that spares those three data units does not make the
+   track discontinuous for presentation: the subscriber conceals the
+   affected samples and keeps presentation and audio/video
+   synchronization running until the next RAP ([@!MOQ-FEC]
+   Sections 11.4.3 and 11.4.4, the latter for audio).
 
 ## Relay Retention for Late Joiners
 
