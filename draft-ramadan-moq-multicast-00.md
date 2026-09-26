@@ -560,9 +560,9 @@ of [@!MOQ-FEC] Section 11.4:
   the repair track's group number is the SBN, which the receiver
   already holds from the Source FEC Payload IDs of multicast packets,
   no coordinate mapping is needed here either, and the returned
-  symbols are deduplicated by SBN and ESI per item 1 of Section 6.  Only an
-  unrecoverable keyframe-bearing block may stall video, until the
-  next Random Access Point.
+  symbols are deduplicated by SBN and ESI per item 1 of Section 6.
+  Only an unrecoverable keyframe-bearing block may stall video, until
+  the next Random Access Point.
 
 - Any other video block is repaired best-effort, by unicast repair
   only where it does not compete with keyframe repair, and on failure

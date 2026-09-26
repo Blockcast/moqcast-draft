@@ -2378,11 +2378,11 @@ keyframe-bearing adds one repair-track group for each repair track the
 receiver fetches, that is P_u x T bytes, where P_u is the sum of the
 repair symbol counts of those tracks (P for a single repair track, the
 P_i of Section 6.3 for layers) and T is <tt>symbolSize</tt> (Section 5.1).
-Over any interval the budget is therefore R_kf x P_u x T, where R_kf,
-the keyframe-bearing block rate, is the rate at which blocks are
-classified keyframe-bearing from catalog-authored timing and in-band
-evidence.  On a track whose blocks are all of unknown class, R_kf is
-the block rate itself.</t>
+The budget therefore accrues at R_kf x P_u x T bytes per second, where
+R_kf, the keyframe-bearing block rate, is the number of blocks per
+second classified keyframe-bearing from catalog-authored timing and
+in-band evidence.  On a track whose blocks are all of unknown class,
+R_kf is the block rate itself.</t>
 
 <ol>
 <li><t>A keyframe-bearing block's repair is always within budget: the
