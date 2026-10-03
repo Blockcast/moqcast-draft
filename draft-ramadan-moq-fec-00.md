@@ -2076,11 +2076,12 @@ Sub-Blocks field of the explicitly signaled OTI.
 When sub-blocks are used:
 
 1. `interleaveDepthMs` keeps its Section 5.1 meaning, the span of the
-   FULL block.  A sub-block's own span MAY be estimated as
+   FULL block.  A sub-block's own span can be estimated as
    `interleaveDepthMs * K_sub / K` for partial-recovery scheduling;
-   this estimate MUST NOT replace the full-block field or deadline.  This enables faster partial
-   recovery at the cost of higher repair overhead (P repair symbols
-   per sub-block instead of per block).
+   the estimate never replaces the full-block field or deadline
+   (Section 9).  This enables faster partial recovery at the cost of
+   higher repair overhead (P repair symbols per sub-block instead of
+   per block).
 
 2. The receiver tracks source symbol arrivals per sub-block (keyed
    by SBN + sub-block index) and can emit recovered data as soon as
