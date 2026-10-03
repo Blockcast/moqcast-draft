@@ -66,9 +66,9 @@ This document defines:
 7. Compatibility mappings for ATSC 3.0 and ARIB STD-B60 [@?ARIB-B60]
    broadcast systems
 
-The mechanism is designed to complement existing MoQ media packaging
-formats including CMAF [@?I-D.ietf-moq-cmsf], LOC [@?I-D.ietf-moq-loc], and
-MMT [@!MOQ-MMT] by operating as a separate protection layer.
+The mechanism protects MMTP-packaged tracks [@!MOQ-MMT]; Section 7.3
+of this document specifies the protected source symbol, and Section 13
+describes the relationship to CMAF packaging informatively.
 
 # Terminology
 
@@ -81,10 +81,13 @@ capitals, as shown here.
 **Source Track**: A MoQ track carrying media data (e.g., video, audio).
 
 **Repair Track**: A MoQ track carrying FEC repair symbols for a
-corresponding source track.
+corresponding source track; it carries one ISO FEC repair flow
+([@!ISO.23008-1] 3.1.9), and with its source track forms an FEC
+encoded flow (3.1.7).
 
 **Source Block**: A sequence of K source symbols over which FEC
-encoding is performed.
+encoding is performed; the ISO source symbol block (3.1.34), generated
+from a source packet block (3.1.32).
 
 **Source Symbol**: A fixed-size unit of source data used for FEC
 encoding.
@@ -93,7 +96,7 @@ encoding.
 used to recover lost source symbols.
 
 **FEC Block**: The combination of K source symbols and P repair
-symbols.
+symbols; the ISO encoding symbol block (3.1.5).
 
 **Repair Layer**: One of possibly several repair tracks protecting the
 same source blocks of a source track, each carrying a disjoint range of
@@ -105,9 +108,8 @@ symbols they carry.  Layer 0 is the track named by `repairTrack`.
 the ordered set of repair layers of one source track.  Layer 0 is the
 base layer; enhancement layers are numbered contiguously from 1.
 
-**RS_ID Offset**: The first Repair Symbol ID a layer may use.  For
-layer i the offset is O_i = sum(P_j for j < i), where P_j is the repair
-symbol count of layer j (Section 6.3.2).
+**RS_ID Offset**: The first Repair Symbol ID a layer may use; O_i for
+layer i (Section 6.3.2).
 
 **Keyframe Overlay**: A second, independent FEC instance over a source
 track whose source symbols are only the fragments of Random Access
@@ -117,16 +119,9 @@ its own repair track, declared with `"scope": "keyframe"`
 index.
 
 **Interleave Depth**: The complete time span, in milliseconds, of one
-FEC source/repair packet block (the interleave window).  It is the
-maximum elapsed time from the first source or repair packet to the last
-source or repair packet in that block, corresponding to
-`protection_window_time` in [@!ISO.23008-1] Sections 11.2 and C.6.3.
-`sourceSymbols` (K) defines the number of source symbols and the
-decoder geometry; it does not define a time interval and MUST NOT be
-used to multiply the block span.  The encoder computes the number of
-groups per block as D = round(interleaveDepthMs / GOP_duration_ms).
-An absent or zero Interleave Depth means no interleaving: D = 1 and
-each Group forms its own source block.
+FEC source/repair packet block, signaled as `interleaveDepthMs`
+(Section 5.1); the catalog form of `protection_window_time` in
+[@!ISO.23008-1] Sections 11.2 and C.6.3.
 
 **Object Transmission Information (OTI)**: Parameters required to
 configure a RaptorQ decoder, as defined in [@!RFC6330].
@@ -136,33 +131,7 @@ specific source block within a session.
 
 # Protocol Overview
 
-~~~
-Publisher                              Subscriber
-    |                                       |
-    |  (catalog obtained; track's fec       |
-    |   field read, Section 5)              |
-    |                                       |
-    |  SUBSCRIBE (source track)             |
-    |<--------------------------------------|
-    |                                       |
-    |  SUBSCRIBE_OK                         |
-    |-------------------------------------->|
-    |                                       |
-    |  SUBSCRIBE (repair track, optional)   |
-    |<--------------------------------------|
-    |                                       |
-    |  SUBSCRIBE_OK                         |
-    |-------------------------------------->|
-    |                                       |
-    |  OBJECT (source, group=N, obj=0..K-1) |
-    |-------------------------------------->|
-    |                                       |
-    |  OBJECT (repair, group=N, obj=0..P-1) |
-    |-------------------------------------->|
-    |                                       |
-~~~
-
-The protocol operates as follows:
+The protocol operates as follows (Appendix A.1 shows the exchange):
 
 1. Subscriber obtains the catalog and reads the track's `fec`
    object (Section 5), which carries the complete FEC configuration
@@ -175,12 +144,7 @@ The protocol operates as follows:
    (Section 4.2) and uses repair symbols to recover any lost source
    symbols
 
-The catalog is the sole normative FEC signaling mechanism
-(Section 5.2); no in-session message is required, which makes the
-same signaling path work for interactive QUIC sessions and for
-sessionless multicast receivers alike.  A packaging profile MAY
-define a redundant in-band copy of catalog FEC state (Section 5.2);
-such a copy never replaces the catalog.
+FEC configuration is signaled only in the catalog (Section 5.2).
 
 When source objects are delivered as QUIC datagrams (unreliable), FEC
 recovery is the primary loss mitigation mechanism.  When delivered as
@@ -190,33 +154,25 @@ FEC is redundant -- receivers MAY skip FEC decoding in this case.
 # FEC Configuration
 
 This section defines the FEC algorithm identifiers and the decoder
-parameters that constitute a track's FEC configuration.  The
-configuration is signaled exclusively in the catalog (Section 5);
-for RaptorQ, the full RFC 6330 Object Transmission Information is
+parameters that constitute a track's FEC configuration, which is
+signaled in the catalog (Section 5.2); for RaptorQ, the full RFC 6330
+Object Transmission Information is
 derived from the catalog fields (Section 4.2) rather than carried
 on the wire.
 
 ## FEC Algorithms
 
-| Value | Algorithm | Reference |
-|-------|-----------|-----------|
-| 0x00  | None      | This document |
-| 0x01  | RaptorQ   | [@!RFC6330] |
-| 0x02  | Reed-Solomon (GF2^8) | [@?RFC5510] |
-| 0x03-0xFF | Reserved | IANA |
+FEC algorithm values are registered in the "MoQ FEC Algorithms"
+registry (Section 15.2); the catalog (Section 5.1) carries the
+corresponding string identifiers.
 
 **RaptorQ (0x01)**: RaptorQ fountain code per [@!RFC6330].  Can recover
 from loss of any symbols as long as K symbols (source or repair) are
-received.  RaptorQ is the mandatory-to-implement scheme and the only
-algorithm this document fully specifies (Section 4.3).
+received.  It is the mandatory-to-implement scheme (Section 4.3).
 
 **Reed-Solomon (0x02)**: Reed-Solomon erasure code over GF(2^8) per
-[@?RFC5510].  This identifier is an extension point: it is allocated
-in the registry but its use is not specified by this document
+[@?RFC5510]; an extension point not specified by this document
 (Section 4.3).
-
-The numeric values identify algorithms in registries; the catalog
-(Section 5.1) carries the corresponding string identifiers.
 
 ## RaptorQ Object Transmission Information
 
@@ -242,10 +198,8 @@ construct the OTI from the catalog fields (Section 5.1) under the
 fixed-T symbol construction of Section 7.3, as follows:
 
 - **Transfer Length**: F = K x T, where K is `sourceSymbols` and T
-  is `symbolSize`.  Under the fixed-T construction every source
-  block carries exactly K symbols of exactly T bytes (short symbols
-  are zero-padded to T, Section 7.3), so the transfer length is
-  exact by construction.  It is never computed from the cumulative
+  is `symbolSize`, exact under the fixed-T construction of
+  Section 7.3.  It is never computed from the cumulative
   size of source objects, which a receiver that has lost objects
   could not know.
 - **Symbol Size**: T = `symbolSize`.
@@ -263,9 +217,7 @@ fixed-T symbol construction of Section 7.3, as follows:
 
 This derivation is normative and complete: a receiver that has a
 track's catalog `fec` object requires no additional signaling to
-configure its decoder.  This is what allows catalog-only receivers
--- including multicast and sessionless receivers, which no control
-message can reach -- to decode (Section 5.2).
+configure its decoder (Section 5.2).
 
 ## Other FEC Algorithms
 
@@ -280,9 +232,7 @@ allocated for a Reed-Solomon erasure code over GF(2^8) [@?RFC5510],
 but its symbol construction, parameter derivation, and repair
 object semantics are not specified by this document; a future
 companion specification is required before it can be used
-interoperably.  (Informatively, the natural parameterization
-mirrors RaptorQ's: K = `sourceSymbols`, P = `repairSymbols`,
-T = `symbolSize`.)
+interoperably.
 
 A receiver that does not implement a track's signaled
 `fec.algorithm` simply forgoes FEC protection for that track: it
@@ -294,8 +244,7 @@ so an unrecognized or unimplemented algorithm is not an error.
 
 ## Catalog Fields
 
-The catalog is the sole normative FEC signaling mechanism
-(Section 5.2).  The catalog is an MSF catalog
+The catalog (Section 5.2) is an MSF catalog
 [@!I-D.ietf-moq-msf], extended by the documents of this suite as
 described in [@!MOQ-MMT] Section 12, and is delivered on the track
 named `catalog` ([@!I-D.ietf-moq-msf] Section 5).  This document
@@ -321,23 +270,17 @@ is carried at the track level:
 }
 ~~~
 
-(The parameter set is internally consistent for a 5 Mbit/s track
-with 1-second CMAF segments: one block per segment holds
-K x T = 625 x 1000 = 625,000 bytes, exactly 5,000,000 bits / 8 per
-1000 ms window; see Appendix B for the full worked catalog.)
+(Appendix B works this parameter set through in full.)
 
 Field definitions:
 
 **algorithm** (string, REQUIRED if fec present): FEC scheme identifier.
 
-  - "none": No FEC (passthrough, optional jitter buffer)
+  - "none": No FEC
   - "raptorq": RaptorQ per RFC 6330 (mandatory to implement,
     Section 4.3)
   - "reed-solomon": Reserved extension point (Section 4.3); not
     specified by this document
-
-A receiver that does not implement the signaled algorithm treats
-the track as unprotected (Section 4.3).
 
 **sourceSymbols** (integer, REQUIRED): K value - source symbols per
 FEC block.  MUST be >= 1.
@@ -349,23 +292,26 @@ FEC block.  MUST be >= 1 when a repair track is published.
 symbols in a block have the same size; the byte layout of each source
 symbol is fixed by the ssbg_mode0 source symbol construction rules
 (Section 7.3) -- it is not carried in the catalog and MUST NOT be
-renegotiated per stream.  For "raptorq", T MUST be a multiple of 8,
-the fixed Symbol Alignment of the derived OTI (Section 4.2).
+renegotiated per stream.  For "raptorq", T is a multiple of 8, the
+fixed Symbol Alignment of the derived OTI (Section 4.2).
 
 **interleaveDepthMs** (integer, OPTIONAL): The complete FEC source/
 repair packet block span in milliseconds.  It is the catalog form of
 `protection_window_time` in [@!ISO.23008-1] Sections 11.2 and C.6.3:
 the actual elapsed time from sending the first source or repair packet
 to sending the last source or repair packet of the same block MUST NOT
-exceed this value.  The unit suffix in the key name is deliberate: the
-value is a duration in milliseconds, never a count of MPU frames,
-media samples, or FEC symbols, and never a per-symbol interval.
-`sourceSymbols` (K) controls symbol count and decoder geometry only;
-it MUST NOT be used to multiply this duration.
-The encoder computes the number of groups per block
-as D = round(interleaveDepthMs / GOP_duration_ms).  The
-nearest-integer round() is normative: interleaveDepthMs is itself
-rounded to the nearest millisecond when derived from a fractional
+exceed this value.  It is a duration, never a count of frames,
+samples, or symbols, and never a per-symbol interval.
+The number of groups per block is derived, never signaled, as
+D = max(1, round(interleaveDepthMs / group_duration_ms)), where
+group_duration_ms is the track's group duration (for mmtp-packaged
+tracks, its `groupDurationMs` signaled per [@!MOQ-MMT] Section 12.1)
+and round() is nearest-integer with ties away from zero; an absent
+or zero interleaveDepthMs is treated as equal to the group duration,
+meaning no interleaving: D = 1 and each Group forms its own source
+block.  D is therefore always >= 1, and a window below half a group
+also gives D = 1.  The nearest-integer round() is normative:
+interleaveDepthMs is itself rounded to the nearest millisecond when derived from a fractional
 media-unit cadence, so round() is the exact inverse whenever the
 media-unit duration exceeds 1 ms: signaling as m = round(D * u)
 bounds the quantization error to half a millisecond, and
@@ -374,15 +320,17 @@ media unit.  A ceiling would mis-derive such
 cadences -- at 59.94 fps, D = 4 units spans 66.73 ms and is signaled
 as 67 ms, and ceil(67 / 16.683) yields 5 where round() recovers the
 sender's 4.  A ratio that falls exactly halfway
-(interleaveDepthMs / GOP_duration_ms = N + 0.5, for integer N) rounds
+(interleaveDepthMs / group_duration_ms = N + 0.5, for integer N) rounds
 to N + 1 (round half away from zero).  Using milliseconds
 rather than frame/group counts decouples FEC from frame rate --
 30fps video and 46.875fps audio can share the same interleaveDepthMs
-value.  When absent or 0, no interleaving is applied: D = 1 and
-each Group forms its own source block (equivalent to an
-interleaveDepthMs equal to the group duration).  The derivation
-formula applies only when interleaveDepthMs > 0; receivers MUST NOT
-substitute an absent or zero value into it.
+value.
+
+Publishers SHOULD choose interleaveDepthMs so that
+interleaveDepthMs / group_duration_ms is clearly above 1 and away
+from a half-integer; where the packaging provides an exact integer
+group duration (for example `groupDurationTicks` on the MMT path),
+deriving the window from it avoids rounding ambiguity.
 
 **reorderToleranceMs** (number, OPTIONAL): A receiver-local allowance
 for packet reordering, network jitter, and local processing variance,
@@ -400,40 +348,11 @@ block span and this allowance:
 deadline = firstAcceptedAtMs + interleaveDepthMs + reorderToleranceMs
 ~~~
 
-The allowance is added exactly once.  It MUST NOT be represented by a
-fixed multiplier of `interleaveDepthMs`, derived from `sourceSymbols`,
-or silently invented when the field is absent.  A receiver whose FEC
+The allowance is added exactly once and MUST NOT be silently invented
+when the field is absent.  A receiver whose FEC
 deadline API requires a signaled allowance MUST reject or disable FEC
 for a track that omits this field; a receiver that applies an explicit
 local policy MUST keep that policy separate from the catalog value.
-
-D is floored at 1: a source block always spans at least one group.
-If interleaveDepthMs is greater than 0 but less than half the group
-duration -- where round() would otherwise yield 0 -- D is 1.  D is
-therefore always >= 1 and the FEC block span is never zero.
-
-At shallow depth the derivation is coarse: near D = 1 the half-group
-quantization bound is a large relative error, and the result is
-sensitive for ratios near a half-integer, where the round-half-away
-rule above resolves the tie but a one-millisecond change in the
-signaled value can still flip D.  Publishers SHOULD choose
-interleaveDepthMs so that interleaveDepthMs / GOP_duration_ms sits
-clearly above 1 and away from a half-integer, keeping the intended D
-unambiguous to every receiver; where the packaging exposes an exact
-integer group duration (for example groupDurationTicks on the MMT
-path), deriving the window from it avoids the millisecond-rounding
-ambiguity entirely.
-
-For mmtp-packaged
-tracks, GOP_duration_ms equals the track's `groupDurationMs` (the MoQ group duration, that is the duration of one MPU, not the keyframe/GOP cadence)
-signaled per [@!MOQ-MMT] Section 12.1.
-
-When CMAF packaging is used, aligning the CMAF segment duration
-with interleaveDepthMs lets each segment contain exactly one FEC
-block's worth of source symbols, enabling CDN-side FEC repair
-before forwarding to FEC-unaware HLS/DASH clients.  (CMAF-level
-FEC is described only informatively in this document; see
-Section 13.)
 
 **repairTrack** (string, REQUIRED): Track name for repair symbols,
 following the convention in Section 6.1.
@@ -449,25 +368,22 @@ Section 15.3.  Receivers that do not
 implement this specification do not recognize the value and ignore
 such tracks.
 
-**enhancementRepair**: This field is not defined by this document.  An
-earlier revision carried a `fec.enhancementRepair` array on the source
-track.  It has been replaced by self-describing repair tracks, below:
-the source track names layer 0 only, and every further layer and any
-keyframe overlay declares its own role on its own `tracks` entry.  A
-receiver MUST reject a catalog carrying `fec.enhancementRepair`.
+**enhancementRepair**: Not defined.  Repair layers and keyframe
+overlays are declared on their own repair-track entries
+(Section 5.1.1), and a catalog carrying this member is rejected under
+the exceptions there.
 
 ### Repair Track Fields
 
 A track with `"packaging": "fec-repair"` describes its own role.  It
 carries the flat MSF track fields plus the fields below.  Layer 0 is
-the exception retained for compatibility: it is identified by the
-source's `fec.repairTrack`, and its own entry MAY additionally carry
-`depends`, `"repairLayer": 0` and `repairSymbols`, each of which MUST
-agree with the source's corresponding field when present
-(Section 6.3.4, rules 2 and 11).
+identified by the source's `fec.repairTrack`; its entry MAY also carry
+`depends`, `"repairLayer": 0` and `repairSymbols`, which MUST agree
+with the source's corresponding field when present (Section 6.3.4,
+rules 2 and 11).
 
-**depends** (array of strings, REQUIRED on every repair track other
-than layer 0): The name of the source track this track repairs.  The
+**depends** (array of strings, REQUIRED except on layer 0): The name
+of the source track this track repairs.  The
 array MUST contain exactly one name, and that name MUST identify a
 track in the same catalog whose `packaging` is `mmtp` and which
 carries an `fec` object.
@@ -475,25 +391,17 @@ carries an `fec` object.
 **repairLayer** (integer, REQUIRED on enhancement layers, OPTIONAL on
 layer 0, MUST NOT appear on an overlay): The layer index (Section 6.3).
 
-**repairSymbols** (integer, REQUIRED on every repair track other than
-layer 0, where it is OPTIONAL; MUST be >= 1): The repair symbols per
-block that this track carries, P_i.  On an enhancement layer or an
-overlay this field is that track's only statement of its count.  For
-layer 0 the source track's `fec.repairSymbols` is the single
-authoritative value of P_0: the layer-0 track MAY restate it, MUST
-restate it identically when it does, and a conflicting pair is a
-catalog error that fails closed (Section 6.3.4, rule 11).  A receiver
-derives P_0, every O_i, and the block total from the source field,
-never from a layer-0 track's copy.
+**repairSymbols** (integer, REQUIRED except on layer 0; MUST be
+>= 1): The repair symbols per block that this track carries, P_i.
+For layer 0 the source track's `fec.repairSymbols` is the
+authoritative P_0 (Section 6.3.4, rule 11).
 
 **priority** (integer, OPTIONAL): The MoQ Transport priority of this
 track (Section 10), in the range 192 to 255.
 
 **scope** (string, OPTIONAL): When present, MUST be `"keyframe"`, and
 declares this track to be the source track's keyframe overlay
-(Section 6.4).  A receiver that does not implement overlays MUST fail
-closed on a catalog carrying this key rather than ignoring it, because
-an overlay changes the source packet wire format (Section 8.5).
+(Section 6.4).  It is one of the unknown-key exceptions below.
 
 **sourceSymbols** (integer, REQUIRED on an overlay, MUST NOT appear
 otherwise): The overlay instance's own K.
@@ -503,29 +411,16 @@ every relationship from `fec.repairTrack`, `depends`, `repairLayer`
 and `scope`, and MUST NOT infer one by parsing a track name or a name
 suffix.
 
-Unknown catalog keys are handled as follows, stated here rather than
-left to be inferred elsewhere.  A receiver MUST ignore a track-level
-or `fec` object key that it does not recognize, and MUST NOT treat its
-presence as an error, so that this suite can add fields without a flag
-day.  This is the analogue, for keys, of the treatment an unrecognized
-`packaging` value receives in Section 5.1.
-
-Exactly two keys defined by this document are exceptions to that
-default, and both for the same reason: ignoring the key would change
-how the receiver must parse the wire, not merely what it knows about
-the stream.
+A receiver MUST ignore a track-level or `fec` object key that it does
+not recognize, and MUST NOT treat its presence as an error, so that
+this suite can add fields without a flag day.  Exactly two keys
+defined by this document are exceptions, because ignoring either
+would change how the receiver must parse the wire:
 
 - `fec.enhancementRepair`: a receiver MUST reject a catalog carrying
-  it (Section 5.1).
+  it.
 - `scope`: a receiver that does not implement overlays MUST fail
   closed on a catalog carrying it (Section 6.4).
-
-A receiver that predates this document takes its unknown-key behavior
-from whatever specification it does implement, not from this section.
-The requirement on `scope` therefore binds receivers that implement
-this document without implementing overlays; for receivers that
-predate it, Section 8.5.1 states the consequence plainly instead of
-relying on a requirement that cannot reach them.
 
 ### Worked Catalog
 
@@ -620,11 +515,8 @@ track data or out of band.
 
 ## Relay Extensibility Requirements
 
-Relays that treat control messages of unknown types as session
-errors make any new in-session mechanism undeployable across an
-existing relay mesh.  To keep FEC signaling -- and MoQ extensions
-generally -- evolvable, relays conforming to
-this specification are subject to the following requirements:
+Relays conforming to this specification are subject to the following
+requirements:
 
 1. A relay MUST NOT terminate, reset, or otherwise fail a session
    in response to a control message whose type it does not
@@ -634,9 +526,6 @@ this specification are subject to the following requirements:
    in response to an object extension header whose type it does not
    recognize.  Such extension headers MUST be forwarded unmodified
    to downstream subscribers; a relay MUST NOT strip them.
-
-These requirements are prerequisites for any future in-session FEC
-signaling mechanism to be deployable.
 
 # Repair Track Convention
 
@@ -660,9 +549,6 @@ Examples:
 These name components are commonly rendered in slash-separated
 form for URIs and logging (e.g., "live/video" and
 "live/video/repair"); the normative form is the tuple.
-
-This convention allows subscribers to discover repair tracks without
-additional signaling.
 
 The convention covers layer 0 only, and it is a convention rather than
 a resolution mechanism.  Enhancement layers (Section 6.3) and a
@@ -695,10 +581,6 @@ repair-track subscription.  Repair tracks are optional; subscribers
 MAY choose to rely solely on QUIC retransmission or to accept
 unrecovered loss.
 
-This section is the normative statement of the repair-subscription
-model; companion documents in this suite reference it rather than
-restating it.
-
 ## Layered Repair Tracks
 
 A source track MAY be protected by more than one repair track.  Each
@@ -709,73 +591,43 @@ symbols per block.  Layers 1..n are the tracks that name this source
 in `depends` and carry a `repairLayer` (Section 5.1.1), one track per
 layer index.
 
-Layering separates the two costs of FEC.  The repair count P buys
-tolerance to random loss and costs only bandwidth; the interleave
-window buys tolerance to burst loss and costs recovery latency
-(Section 9).  A single repair track forces the publisher to dimension
-P for the worst path it serves, and every receiver on a better path
-carries that overhead.  With layers, a receiver on a clean regional
-path subscribes layer 0 alone and a receiver on a lossy long-distance
-path adds layers until its measured loss is covered, while the
-publisher encodes the source once.
+Layered repair is an extension of [@!ISO.23008-1] that an ISO AL-FEC
+message cannot express: its one-stage coding structure has a single
+`repair_flow_id`, so only layer 0 maps to an ISO repair flow.  A
+repair layer is also unrelated to the layers of ISO layer-aware FEC
+(LA-FEC, Clause C.2.3).
 
-The layers describe themselves.  A source track names layer 0 and
-nothing further; it does not enumerate its enhancement layers.  A
-publisher therefore publishes a layer by adding one `tracks` entry,
-without rewriting the source track's `fec` object, and a relay that
-forwards a subset of the catalog cannot leave a source track pointing
-at a layer it did not forward.  The cost
-of that property is that the layer set is only well formed when taken
-as a whole, which is what the validation rules of Section 6.3.4 check.
-Not every change to a published layer set is safe, because the RS_ID
-offsets of Section 6.3.2 are derived from the set: Section 6.3.9
-states which changes this document defines and which it forbids.
-
-That relay guarantee runs in one direction only, and a relay closes
-the other direction.  A relay that forwards a subset of a catalog
-MUST NOT forward a `fec-repair` track whose source track it does not
-forward.  Dropping a source track while keeping its repair tracks
-produces exactly the orphan that Section 6.3.4 rule 9 rejects, in a
-catalog the relay itself assembled.
+Layering separates the two costs of FEC: the repair count P buys
+tolerance to random loss at a cost in bandwidth, and the interleave
+window buys tolerance to burst loss at a cost in recovery latency
+(Section 9).  Layers let a receiver on a lossier path add repair
+without changing the source encoding.  A source track names only
+layer 0; each further layer declares itself on its own `tracks`
+entry, so the layer set is validated as a whole (Section 6.3.4) and
+changed only as Section 6.3.9 allows.  A relay that forwards a subset
+of a catalog MUST NOT forward a `fec-repair` track whose source track
+it does not forward (Section 6.3.4, rule 9).
 
 ### Shared Block Geometry
 
-All repair layers of a source track share the source block partition:
-`algorithm`, `sourceSymbols` (K), `symbolSize` (T),
-`interleaveDepthMs`, and `reorderToleranceMs` are properties of the
-source track's `fec` object and apply to every layer.  Layers differ
-only in `repairSymbols`.  A repair layer MUST NOT carry any of those
-fields, nor any other geometry field, and a receiver MUST reject a
-catalog whose repair layer does.  Section 6.3.4, rule 8 carries the
-normative enumeration and its one carve-out: an overlay is a repair
-track but is not a repair layer, and it does carry its own
-`sourceSymbols`, because it is a distinct FEC instance over its own
-source block partition rather than a layer of this one (Section 6.4).
-
-This is a wire constraint, not a convention.  Each source packet
-carries one Source FEC Payload ID for the base instance (Section 8.5),
-which fixes one (SBN, ESI) coordinate for that packet.  Two repair
-tracks with different K or a different interleave window would
-describe two different partitions of the same source packets and would
-need two base trailers per packet.  Layers therefore differ only in
-which repair symbols of the shared block they carry.  A deployment
-that needs a different interleave window for a different receiver
-population needs a separate source encoding, that is a separate
-rendition, which is outside this section.  The one case where a source
-packet does carry a second Source FEC Payload ID is the keyframe
-overlay of Section 6.4, which is a distinct FEC instance rather than a
-layer, and which is bounded to one per source track for exactly this
-reason.
+All repair layers of a source track share its block geometry
+(`algorithm`, `sourceSymbols`, `symbolSize`, `interleaveDepthMs`,
+`reorderToleranceMs`) and differ only in `repairSymbols`.  A repair
+layer MUST NOT carry a geometry field; rule 8 of Section 6.3.4 lists
+them, and a receiver rejects a catalog that violates it.  Because each
+source packet carries one base Source FEC Payload ID (Section 8.5), a
+different K or interleave window needs a separate rendition; the
+keyframe overlay (Section 6.4) is a separate FEC instance, not a
+layer.
 
 ### Repair Symbol Identity Across Layers
 
-Let P_i be the `repairSymbols` of layer i and O_i = sum(P_j for j < i)
-its RS_ID offset (O_0 = 0).  P_0 is the source track's
-`fec.repairSymbols`, which is authoritative even where the layer-0
-track restates it (Section 5.1.1); P_i for i >= 1 is that layer
-track's own `repairSymbols`.  Layer i carries, for every source block,
-the repair symbols with RS_ID in [O_i, O_i + P_i).  The Encoding
-Symbol ID follows the single-layer rule of Section 7.2:
+Let P_i be the `repairSymbols` of layer i and O_i its RS_ID offset,
+defined below (O_0 = 0).  P_0 is the source track's
+`fec.repairSymbols` (Section 6.3.4, rule 11), and P_i for i >= 1 the
+layer track's own `repairSymbols`.  Layer i carries, for every source
+block, the repair symbols with RS_ID in [O_i, O_i + P_i).  The
+Encoding Symbol ID follows the single-layer rule of Section 7.2:
 
 ~~~
 O_i   = sum(P_j for j < i)
@@ -818,30 +670,13 @@ RS_ID = O_i + j.
 
 ### Why RaptorQ Only
 
-Repair layers, and the overlay of Section 6.4, are defined only when
-`fec.algorithm` is `raptorq`.  A publisher MUST NOT signal either
-under any other algorithm, and a receiver MUST reject such a catalog
-(Section 6.3.4, rule 7).
-
-RaptorQ is a fountain code over an open Encoding Symbol ID space.  A
-decoder recovers a source block from any sufficiently large set of
-distinct encoding symbols, independent of which ESIs those symbols
-carry.  Repair symbols partitioned into disjoint ESI ranges and
-carried on separate tracks therefore remain valid encoding symbols of
-one code, and any subset of layers combines without renegotiation.
-
-A block code such as Reed-Solomon fixes a codeword length n = K + P
-when the block is encoded, and each repair symbol is defined relative
-to that n.  Changing P changes the code, so symbols generated for a
-larger P are not valid symbols of the code that a receiver holding
-fewer layers is decoding.  There is no single codeword length a
-publisher could choose that is correct for every subset of layers a
-receiver might join, and the choice cannot be deferred to the receiver
-because the publisher encodes once for all of them.  Layered repair
-over Reed-Solomon is therefore undefined by this document.  A future
-specification could define it, but it would have to define how a
-receiver learns the codeword length its symbols were generated
-against, which is not a property of the mechanism in this section.
+Repair layers and the overlay are defined only for `raptorq`: a
+publisher MUST NOT signal either under any other algorithm, and a
+receiver rejects such a catalog (Section 6.3.4, rule 7).  Layering
+relies on RaptorQ's open Encoding Symbol ID space, in which repair
+symbols from disjoint ESI ranges on separate tracks remain symbols of
+one code; a block code such as Reed-Solomon fixes n = K + P at
+encoding time, so its symbols for one P are not valid for another.
 
 ### Catalog Rules and Fail-Closed Validation
 
@@ -860,21 +695,19 @@ layer set that decodes from one that silently mis-maps symbols.
 3. `priority`, where declared, is in the range 192 to 255 inclusive,
    and is monotonic non-decreasing with layer index.  Layer 0's
    priority MAY be declared on its own track; when absent it is 240.
-4. The total of `repairSymbols` across all layers is at most
-   2^24 - 1, the range of RSB_length.
-5. K + totalP - 1 is at most 2^24 - 1, which bounds the largest ESI
-   the layer set can produce.
-6. K is at most 56403, the maximum source symbols per source block in
-   [@!RFC6330].
+4. For each FEC instance, the total of `repairSymbols` across all its
+   layers is at most 2^24 - 1, the range of RSB_length.
+5. For each FEC instance, K + totalP - 1 is at most 2^24 - 1, which
+   bounds the largest ESI the instance can produce.
+6. For each FEC instance, K is at most 56403, the maximum source
+   symbols per source block in [@!RFC6330].
 7. Repair layers and any overlay appear only when `fec.algorithm` is
    `raptorq` (Section 6.3.3 above).
 8. A track whose `packaging` is `fec-repair` carries no geometry
    field, whether as a flat field or inside an `fec` object of its
    own: `algorithm`, `mmtpMode`, `timescale`, any `groupDuration`
    field, `symbolSize`, `interleaveDepthMs`, `reorderToleranceMs`,
-   and `sourceSymbols` except on an overlay (Section 6.4).  This
-   enumeration is the normative one; Section 6.3.1 gives the reason
-   for it.
+   and `sourceSymbols` except on an overlay (Section 6.4).
 9. No orphan repair track: every track whose `packaging` is
    `fec-repair` is reachable from a source track, either by being
    named in that source's `fec.repairTrack` or by naming that source
@@ -900,25 +733,14 @@ layer set that decodes from one that silently mis-maps symbols.
     rule is why rules 4 and 5 have a single well defined totalP to
     bound.
 
-Rules 4, 5 and 6 are the arithmetic bounds of the mechanism, and they
-bind the layer set as a whole rather than any one layer: a publisher
-can add a layer that is individually well formed and push the set past
-rule 5, at which point some ESI the set produces is not representable.
-Checking them at the set level before the first block is decoded is
-what keeps that failure from appearing as sporadic unrecoverable
-blocks much later.
-
-Every rule above is checked on the catalog, before FEC starts.
-Section 6.3.9 adds one further receiver requirement that cannot be
-checked there, because it compares the catalog against the RSB_length
-carried on repair packets and so can only be evaluated once they
-arrive.
+Section 6.3.9 adds one check that can only be made on received repair
+packets.
 
 The following are the fail-closed cases this section introduces,
 written against the worked catalog of Section 5.1.2 (K = 64, P_0 = 8,
 P_1 = 16, P_2 = 32) so that each defect is one edit away from a valid
-catalog.  Each row is a catalog a receiver MUST reject before starting
-FEC for `video`, and none of them is detectable from the wire.
+catalog.  Each row violates the rule shown, and none of them is
+detectable from the wire.
 
 | Catalog defect | Rule | Why the wire cannot catch it |
 |---|---|---|
@@ -929,8 +751,7 @@ FEC for `video`, and none of them is detectable from the wire.
 | A second track for `video` declares `"scope": "keyframe"` | 10 | A RAP packet carries exactly two Source FEC Payload IDs and the receiver strips a fixed trailer length (Section 8.5.1), so a third instance is not expressible on the wire. |
 | `video/repair/1` carries `symbolSize` or its own `fec` object | 8 | A repair track carrying its own geometry would name itself as layer 0 and bypass rule 9's reachability check. |
 
-A receiver MAY report several violations at once, but MUST NOT start
-FEC for the source track while any of them stands.
+A receiver MAY report several violations at once.
 
 ### Receiver Selection
 
@@ -940,17 +761,13 @@ first.  When a block fails recovery with the receiver's current layer
 set and a higher layer exists, the receiver SHOULD subscribe the next
 layer; it MAY instead request only the failed block's repair objects
 from that layer, a subscription bounded to the group numbered SBN,
-when the block is still inside its recovery budget (Section 9).  Such
-a per-block request completes in about one round trip, so on a low
-round-trip path it is the natural way to cover the rare block that
-needs more than layer 0 provides without carrying the higher layer
-continuously.  On a multicast or AMT leg, Section 11.4 governs such
+when the block is still inside its recovery budget (Section 9).   On a multicast or AMT leg, Section 11.4 governs such
 per-block requests: which blocks get one, when, with what budget and
 priority, and what happens when one fails.  A receiver MAY
 unsubscribe a layer after a receiver-chosen number of consecutive
 blocks whose loss stayed within the tolerance of the remaining layers.
-Hysteresis is counted in blocks, the protocol's unit, not in
-wall-clock time.
+Hysteresis is counted in blocks, the protocol's unit, not by a fixed
+timer (Section 6.3.6).
 
 ### Repair-Only Multicast Endpoints
 
@@ -1010,19 +827,13 @@ what to render.  A repair-only endpoint's `bandwidth`
 ([@?MOQ-MULTICAST] Section 4.1) is the cost of adding repair to a
 stream the receiver has already selected, not the cost of an
 alternative rendition, and MUST NOT be compared against a media
-endpoint's `bandwidth` when choosing one.  Treating the second
-endpoint above as a tier would offer a receiver a rendition that
-carries no media at all.
+endpoint's `bandwidth` when choosing one.
 
 A receiver joins a repair-only endpoint on measured loss: the rate at
 which its FEC blocks fail to recover, and the margin by which
 recovering blocks consume the repair symbols available to it.  A
 receiver MUST NOT use goodput, throughput, or estimated available
-bandwidth to decide whether to add or drop a repair layer.  A repair
-layer does not raise media quality, so a bandwidth-driven policy adds
-overhead exactly where headroom exists rather than where loss is,
-which is the opposite of the intent of this section, and on a
-congested path it would shed repair at the moment loss is highest.
+bandwidth to decide whether to add or drop a repair layer.
 
 Layer changes are make-before-break.  A receiver MUST join the
 additional layer's endpoint and begin receiving from it before
@@ -1033,48 +844,24 @@ Hysteresis MUST derive from the FEC block span, that is from
 `interleaveDepthMs` together with `reorderToleranceMs`, and MUST NOT
 come from a fixed timer or a fixed symbol count.  A receiver MUST
 observe at least one full block span at the new layer set before
-making a further layer change.  A decision taken over less than one
-block span is taken on a partially received block, which is
-indistinguishable from a block that lost the rest of its symbols, and
-under bursty loss that drives the receiver to add and drop layers in
-step with the bursts.
+making a further layer change. 
 
 ### Interaction with the Interleave Window
 
-Layers do not change `interleaveDepthMs`, and the window remains the
-single latency lever (Section 9).  The two levers compose as follows.
-A shallow window, near one group, bounds the recovery budget to about
-one group duration plus `reorderToleranceMs`, but a burst longer than
-the window erases most of a block regardless of P, so bursts on such a
-stream are recovered only by the per-block request above, at about one
-round trip; this is viable where the round trip fits inside the
-budget, which is the regional case.  A deep window recovers bursts in
-band at the cost of the window's worst-case recovery latency, which is
-what a long-distance path with a round trip larger than any acceptable
-budget needs.  Layered repair lets both populations share one source
-encoding whose window is chosen for one of them; serving both windows
-requires two renditions.
+Layers never change `interleaveDepthMs`, the stream's single
+recovery-latency lever (Section 9).  A shallow window recovers bursts
+only by per-block unicast repair (Sections 6.3.5 and 11.4.2), at about
+one round trip; a deep window recovers them in band at that window's
+latency.  Serving both requires two renditions (Section 6.3.1).
 
 ### Compatibility
 
-A catalog whose source track names a `repairTrack` and declares no
-further repair track describes a single layer with O_0 = 0 and
-RSB_length equal to `repairSymbols`; nothing in this section changes
-its wire format or its interpretation.
-
-A receiver that predates this section knows only layer 0.  It reads
-the source's `fec.repairTrack` and `fec.repairSymbols` as before and
-remains correct, because layer 0 alone is a valid layer set and the
-additional ESIs it never subscribes do not affect decoding of the
-symbols it holds.  It will read a smaller RSB_length than the
-publisher's total only if the publisher publishes no other layer; when
-other layers exist it reads the total, which is larger than the P it
-expects and which it uses only as the `RS_ID < RSB_length` bound.
-
-The keyframe overlay of Section 6.4 is the exception: it is not
-backward compatible, because it changes the source packet layout.
-Section 6.4 states the fail-closed requirement that keeps a
-pre-overlay receiver from misparsing such a stream.
+A source track with a single repair track is the one-layer case
+(O_0 = 0, RSB_length = `repairSymbols`).  A receiver that subscribes
+only layer 0 decodes correctly whatever other layers exist: layer 0
+alone is a valid layer set, and it uses RSB_length only as the
+`RS_ID < RSB_length` bound.  The keyframe overlay is the exception: it
+changes the source packet layout (Section 6.4.3).
 
 ### Changing the Layer Set Within a Session
 
@@ -1158,20 +945,12 @@ total is not an error in itself: that is the append case above.
 
 A source track MAY additionally be protected by a keyframe overlay: a
 second, independent FEC instance whose source symbols are only the
-fragments of Random Access Points of that source track.  The overlay
-is the mechanism described informally as Strategy 2 in the unequal
-error protection material accompanying this document, specified here
-normatively.
+fragments of Random Access Points of that source track.
 
-A Random Access Point is disproportionately valuable: losing one
-fragment of it renders every dependent frame undecodable until the
-next one.  The base instance protects it no better than any other
-media, and a deployment cannot fix that by deepening the base
-interleave window without paying that window's recovery latency on all
-media.  The overlay protects RAP fragments across a block of its own,
-which can be far wider than the base window, so a receiver that loses
-a burst across a RAP can still recover it without waiting for the next
-RAP and without the base instance's latency changing at all.
+Losing part of a Random Access Point makes every dependent frame
+undecodable until the next one; the overlay protects RAP fragments
+across a block of its own, which can be wider than the base window,
+without changing the base instance's latency.
 
 ### Overlay Instance
 
@@ -1181,6 +960,16 @@ declared on its own repair track, and it shares the source track's
 `algorithm` and `symbolSize`.  It does not share the base instance's
 K, its block partition, or its RS_ID space.
 
+Every per-block quantity of this document -- K, the total repair count
+P, SS_ID, SBN, ESI, RS_ID, SS_Start, RSB_length, SSB_length, the
+short-block rules of Section 7.4, and the bounds of Section 6.3.4 --
+is defined within one FEC instance.  For the base instance, K is the
+source track's `fec.sourceSymbols` and P is the sum of
+`repairSymbols` over its published layers (Section 6.3.2); for an
+overlay, K and P are the `sourceSymbols` and `repairSymbols` of its
+own track.  A repair packet belongs to the instance of the track it
+arrived on (Section 6.4.2).
+
 An overlay is not a repair layer.  It carries no `repairLayer`, it is
 not a member of the layer index chain, and it is excluded from the
 contiguity and priority monotonicity rules of Section 6.3.4, which
@@ -1189,9 +978,7 @@ order the base layer chain only.  Its `priority` is independent within
 layer's so that a keyframe repair symbol is delivered before an
 ordinary one.
 
-Within the overlay instance, RS_ID starts at 0 and the Encoding Symbol
-ID is K_overlay + RS_ID.  RSB_length on an overlay repair packet is
-the overlay's own P, not the base total.  Overlay ESIs never collide
+Overlay ESIs never collide
 with base ESIs because the two are different instances decoded by
 different decoders; a receiver MUST NOT feed a repair symbol of one
 instance to the decoder of the other, and MUST NOT reuse a source
@@ -1199,39 +986,22 @@ symbol's coordinate in one instance as its coordinate in the other.
 A RAP source packet is a source symbol of both instances, at an
 unrelated coordinate in each (Section 6.4.2).
 
-The bounds of Section 6.3.4 are checked per instance.  For the overlay
-this is K_overlay + P_overlay - 1 at most 2^24 - 1, P_overlay at most
-2^24 - 1, and K_overlay at most 56403, evaluated independently of the
-base instance's totals.
-
-A source track has at most one overlay.  This bound is a wire
-constraint, not an editorial one: Section 8.5 fixes a RAP source
-packet at exactly two Source FEC Payload IDs, so the trailer length is
-fixed and a receiver can locate the payload without parsing the
-catalog first.  A second overlay on the same source track MUST be
-rejected (Section 6.3.4, rule 10).  Relaxing this bound would be a
-revision of this document and a change to the source packet layout,
-not a catalog-only change.
+A source track has at most one overlay (Section 6.3.4, rule 10), a
+wire constraint explained in Section 8.5.1.
 
 ### Overlay Membership
 
 The overlay's source symbols are the fragments of the source track
 that belong to a Random Access Point, in transmission order.  A
-publisher MUST include a source packet's payload in the overlay
-instance if and only if it sets `RAP_flag` on that packet
-(Section 8.5).  The two MUST agree on every packet: `RAP_flag` is what
-a receiver uses to decide whether a packet is an overlay source
-symbol, so a packet that is in the overlay without the flag is
-unrecoverable, and a packet with the flag that is not in the overlay
-puts the receiver's overlay symbol numbering permanently out of step
-with the publisher's.
+publisher that declares an overlay MUST set `RAP_flag` on a source
+packet of the track, and MUST include the packet's payload in the
+overlay instance, if and only if that payload belongs to a keyframe
+MFU covered by the overlay.
 
 Overlay source symbols are numbered consecutively from 0 within the
 overlay instance, in the order the publisher emits them, and an
-overlay source block is K_overlay of them.  The one exception is a
-short overlay block (Section 7.4), which holds fewer, and after which
-numbering resumes at the first SS_ID of the next overlay block.
-Because a RAP is a small
+overlay source block is K_overlay of them.  Overlay blocks, including
+short ones, follow Section 7.4.  Because a RAP is a small
 fraction of the media, an overlay block spans many base blocks; the
 overlay's recovery latency is therefore its own block span and is
 unrelated to `interleaveDepthMs`.
@@ -1242,20 +1012,8 @@ in the overlay Source FEC Payload ID on a RAP source packet
 which starts at 0 at the first overlay source symbol of the stream
 and is independent of the base instance's SS_ID space; the two IDs on
 one packet are unrelated numbers.  Overlay coordinates derive from it
-exactly as base coordinates derive from the base SS_ID, with
-K_overlay in place of K:
-
-~~~
-SBN_overlay = floor(SS_ID_overlay / K_overlay)
-ESI_overlay = SS_ID_overlay % K_overlay
-~~~
-
-K_overlay is the `sourceSymbols` declared on the overlay's own repair
-track (Section 5.1.1).  An overlay repair packet carries
-SS_start = SBN_overlay x K_overlay, so the overlay source block it
-protects is SBN_overlay = floor(SS_start / K_overlay), and its
-SSB_length gives that block's authored source symbol count on the
-same terms as for the base instance (Sections 7.1 and 7.4).
+exactly as base coordinates derive from the base SS_ID (Section 8.3),
+with K_overlay in place of K.
 
 A receiver knows that a repair packet belongs to the overlay because
 it arrives on the repair track that the catalog declares with
@@ -1263,7 +1021,7 @@ it arrives on the repair track that the catalog declares with
 own `packet_id`.  The instance is therefore fixed by the track the
 packet arrived on; no field of the repair packet distinguishes the
 two, and a receiver MUST NOT attempt to infer the instance from
-SS_start, RSB_length, or SSB_length, whose values are only
+SS_Start, RSB_length, or SSB_length, whose values are only
 interpretable once the instance is known.
 
 ### Receiver Behavior
@@ -1281,24 +1039,13 @@ the two combine.
 
 A receiver that does not implement overlays MUST fail closed on a
 catalog that declares one for a track it intends to consume, that is
-on a `fec-repair` track carrying the unknown `scope` key
-(Section 5.1.1).  It MUST NOT ignore the key and consume the source
-track anyway.  Section 5.1.1 states this document's default, that an
-unrecognized catalog key MUST be ignored; `scope` is one of the two
-exceptions to that default, and the reason is in Section 8.5: an
-overlay changes the length of the trailer on RAP source packets, so a
-receiver that ignored the declaration would strip four bytes where it
-should strip eight and would deliver four bytes of trailer to the
-media pipeline as payload on every RAP packet.
+on a `fec-repair` track carrying the unknown `scope` key, and MUST
+NOT ignore the key and consume the source track anyway.  This is one
+of the unknown-key exceptions of Section 5.1.1; Section 8.5.1
+describes the wire consequence of ignoring the key.
 
-This requirement reaches receivers that implement this document
-without implementing overlays.  It cannot reach a receiver that
-predates the document, whose treatment of an unrecognized key is
-fixed by whatever it does implement; for those receivers the statement
-below is the operative one rather than a requirement here.
-
-This mechanism is therefore not backward compatible with receivers
-that predate it.  A publisher that must serve such receivers publishes
+This mechanism is not backward compatible with receivers that predate
+it (Section 8.5.1).  A publisher that must serve such receivers publishes
 the overlay on a separate source track, or does not publish it.
 
 # Repair Object Format
@@ -1310,16 +1057,18 @@ Each object on a repair track is one complete MMTP repair packet
 Its layout is the ISO 23008-1 AL-FEC repair packet form --
 the MMTP packet header followed by the 13-byte Repair FEC Payload
 ID and the repair symbol data ([@!ISO.23008-1] Sections C.4.3 and
-C.5.3; ssbg_mode0, one-stage FEC) -- so the same repair packet is
+C.5.3; ssbg_mode0, one-stage FEC with N = 1, and ffsrpts_flag = 0, so
+no FFSRP_TS, Section C.5.1) -- so the same repair packet is
 valid on MoQ, multicast UDP, and native broadcast paths without
 translation, and matches the repair-object depiction of
-[@!MOQ-MMT] Section 7:
+[@!MOQ-MMT] Section 7.  The layout below reproduces [@!ISO.23008-1]
+Section C.5.3 for convenience:
 
 ~~~
 Repair Object {
   MMTP Packet Header (96),      # packet type 0x03, FEC Type 2
   Repair FEC Payload ID {
-    SS_start (32),
+    SS_Start (32),
     RSB_length (24),
     RS_ID (24),
     SSB_length (24),
@@ -1334,55 +1083,39 @@ FEC Type 2; its `packet_id` routes the repair flow.  Repair packets
 MUST NOT carry the optional packet counter or header extension, so
 the Repair FEC Payload ID always begins at byte offset 12.
 
-**SS_start (32 bits)**: The flat SS_ID (Section 8.3) of the FIRST
-source symbol of the protected source block: SS_start = SBN x K.
+**SS_Start (32 bits)**: The flat SS_ID (Section 8.3) of the FIRST
+source symbol of the protected source block: SS_Start = SBN x K.
 Receivers derive the Source Block Number as
-SBN = floor(SS_start / K).  The K in both expressions is the K of the
-FEC instance this repair packet belongs to, which the receiver knows
-from the repair track the packet arrived on and not from the packet
-(Section 6.4.2).  On a keyframe overlay's packets it is K_overlay and
-the coordinate is the overlay's; on every other repair packet it is
-the base instance's K, shared by all of that instance's repair layers.
+SBN = floor(SS_Start / K).  K here, as in every field below, is that
+of the packet's FEC instance (Section 6.4.1).
 
 **RSB_length (24 bits)**: The number of repair symbols generated
-for the block, the P value.  For a source track with a single repair
-layer this is the catalog `repairSymbols`.  When the source track has
-repair layers (Section 6.3) it is the total across all published
-layers, and it is identical on every layer's packets: a layer does not
-carry its own P_i here.  On a keyframe overlay's packets (Section 6.4)
-it is that overlay instance's own P, because the overlay is a separate
-FEC instance and its symbols are counted in its own space.
+for the block: the instance's total repair count P, identical on every
+repair packet of the instance; a layer does not carry its own P_i.
 
 **RS_ID (24 bits)**: The zero-based index of this repair symbol
-among the block's repair symbols.  The RFC 6330 Encoding Symbol ID
-is derived as ESI = K + RS_ID: repair ESIs follow the K source ESIs
-(Section 7.2).  When the source track has repair layers
-(Section 6.3), RS_ID is the block-wide index across the layer set:
-layer i carries RS_ID in [O_i, O_i + P_i).  On a keyframe overlay's
-packets, RS_ID is an index in the overlay instance's own space, from 0
-to P_overlay - 1, and the ESI is K_overlay + RS_ID.
+among the block's P repair symbols.  The RFC 6330 Encoding Symbol ID
+is derived as ESI = K + RS_ID (Section 7.2).  Layer i of the base
+instance carries RS_ID in [O_i, O_i + P_i) (Section 6.3.2).
 
-The encoder performs one RaptorQ encoding pass per source block,
-producing the total repair count, and then assigns the disjoint RS_ID
+The encoder performs one RaptorQ encoding pass per source block of
+each instance, producing the total repair count, and then assigns the
+disjoint RS_ID
 ranges to the layer tracks according to O_i.  It MUST NOT run a
 separate encoding per layer: separate encodings of the same block are
 not symbols of a single code, so they could not be combined by a
 receiver holding more than one layer, which is the property
-Section 6.3.2 depends on.  A keyframe overlay is a separate instance
-and does get its own encoding pass, over its own source symbols
-(Section 6.4).
+Section 6.3.2 depends on.
 
 **SSB_length (24 bits)**: The number of source symbols the publisher
 authored in the protected source block, from 1 to K; it is K for a
 full block.  It is authoritative for the block.  A value below K
 marks a short source block, which remains a K-symbol block whose
 remaining ESIs are zero padding (Section 7.4).  A publisher MUST NOT
-send 0 or a value above K, and a receiver MUST discard a repair
-packet carrying either (Section 7.4).  SSB_length never changes the K
-used in SS_start, in ESI = K + RS_ID, or in the decoder configuration
-of Section 4.2.  On a keyframe overlay's packets the K of this
-definition is K_overlay, the `sourceSymbols` of the overlay's own
-repair track, not the source track's (Section 6.4.2).
+send 0 or a value above K; a receiver discards a repair packet
+carrying either (Section 7.4).  SSB_length never changes the K
+used in SS_Start, in ESI = K + RS_ID, or in the decoder configuration
+of Section 4.2.
 
 **Repair Symbol Data**: Exactly one repair symbol of Symbol Size
 (T) bytes, generated per Section 7.2.  Carrying one symbol per
@@ -1400,8 +1133,9 @@ not specified by this document.
 
 ## Sub-Blocks and ssbg_mode
 
-Per ISO 23008-1 [@!ISO.23008-1] Section C.5, the FEC block structure
-is described by the Source Symbol Block Group mode (ssbg_mode).
+Per ISO 23008-1 [@!ISO.23008-1] Section C.3.3 (signalled per C.6.3,
+Table C.5), the FEC block structure is described by the source symbol
+block generation (SSBG) mode (ssbg_mode).
 
 **ssbg_mode0** (RECOMMENDED for MMTP): One MMTP packet = one source
 symbol.  Each MoQ object or multicast UDP datagram carries exactly
@@ -1409,10 +1143,8 @@ one FEC symbol.  Repair symbols are exactly T bytes on the wire; a
 SOURCE packet MAY be shorter than T on the wire -- the zero padding
 that extends it to Symbol Size (T) is applied by the encoder and
 decoder as part of the source symbol construction below and is NOT
-transmitted.  SBN = floor(SS_ID / K), ESI =
-SS_ID % K, where SS_ID and K are those of the FEC instance the symbol
-belongs to: the base instance's, or a keyframe overlay's own
-(Section 6.4.2).  This is the natural model for MMTP because packets
+transmitted.  SBN and ESI follow from SS_ID (Section 8.3).  This is
+the natural model for MMTP because packets
 are sized to fit in UDP datagrams and no fragmentation or reassembly
 is needed at the FEC layer.  This is a fixed-T construction: under the
 source symbol construction below, every source symbol is exactly T
@@ -1425,45 +1157,27 @@ included -- with the entire trailing Source FEC Payload ID trailer
 removed, right zero-padded to Symbol Size (T).
 
 The trailer is the whole run of Source FEC Payload IDs at the end of
-the packet.  Its length L is 8 bytes on a packet that carries both a
-base and an overlay Source FEC Payload ID, and 4 bytes on every other
-packet.  A packet carries both when the catalog declares a keyframe
-overlay for the track and the packet sets `RAP_flag`, and only then
-(Section 8.5.1), so L is determined per packet and a receiver that
-has read the catalog knows L before it parses the packet.  Both
-instances remove the same L bytes: on a RAP packet covered by an
-overlay, the base instance and the overlay instance protect one
-identical T-byte symbol.
+the packet; its length L, 4 or 8 bytes, is determined per packet as
+specified in Section 8.5.1.  Both instances remove the same L bytes:
+on a RAP packet covered by an overlay, the base instance and the
+overlay instance protect one identical T-byte symbol.
 
-A Source FEC Payload ID is excluded from the protected bytes because
-it is the symbol's own block coordinate in its instance (SBN*K + ESI)
-and is therefore both self-referential and recoverable without
-protection; including it would consume T-byte budget and force the
-decoder to reconstruct a locator it already used to place the symbol.
-The overlay's ID is excluded for the same reason, and additionally
-because a symbol whose protected bytes differed between the two
-instances could not be described by one construction.  Publishers
+Publishers
 MUST NOT prepend a length field or otherwise reframe the packet
-before encoding, and MUST size packets so the packet excluding its
-trailer does not exceed T.  A receiver that observes a source packet
-whose length excluding its trailer exceeds T MUST NOT feed it to the
+before encoding, and MUST size packets so the packet less its own
+L-byte trailer does not exceed T.  A receiver that observes a source
+packet whose length less its own L exceeds T MUST NOT feed it to the
 decoder -- a truncated symbol would corrupt recovery for the entire
-block -- but MAY still deliver the packet as media.  Both checks are
-evaluated on that packet's own L: on a RAP packet under an overlay
-the budget is the packet less 8 bytes, not less 4.
+block -- but MAY still deliver the packet as media.
+
 Because the recovered symbol retains the MMTP header,
 the packet's true length is intrinsic to the recovered bytes (the
 length fields of the MMTP payload header, ISO 23008-1
 [@!ISO.23008-1]); the receiver consumes the packet per
 those fields and discards the trailing zero padding, then delivers the
-recovered packet to the MMTP parser.  No separate length prefix is
-carried: retaining the header makes the packet self-delimiting, which
-is the reason this layout is normative rather than a payload-only
-framing that must prepend its own length.  A single normative
-byte layout is defined here deliberately: a receiver cannot recover a
-block whose symbols were built under a different framing, so a
-per-stream layout discriminator is out of scope for this specification
-and MUST NOT be required for interoperation.
+recovered packet to the MMTP parser.  No length prefix is carried,
+and a per-stream layout discriminator MUST NOT be required for
+interoperation.
 
 A recovered source symbol carries no Source FEC Payload ID, of either
 instance: the trailer was removed before encoding, so the decoder
@@ -1474,13 +1188,9 @@ This holds identically for a symbol recovered by a keyframe overlay,
 which the receiver delivers as media on the strength of the overlay
 recovery alone.
 
-Because both instances remove the same L bytes, the T-byte symbol at
-a RAP packet's base coordinate and the one at its overlay coordinate
-are byte-identical.  That identity is what makes one construction
-serve both instances, but it does not by itself let a receiver move a
-recovered symbol between them: the packet's base SS_ID was in the
-removed trailer, and this document defines no mapping from an overlay
-coordinate to a base one.  A receiver MUST NOT place an
+The packet's base SS_ID was in the removed trailer, and this document
+defines no mapping from an overlay coordinate to a base one: a
+receiver MUST NOT place an
 overlay-recovered symbol into a base source block unless it has
 determined that packet's base (SBN, ESI) independently, for instance
 from a redundant carriage of the base SS_ID (Section 8.5) or from MoQ
@@ -1491,45 +1201,12 @@ number of erasures the base decoder still has to solve.
 
 **Sub-blocks**: When a single source block produces a large number
 of source symbols, RFC 6330 permits dividing each block into N
-sub-blocks (the Number of Sub-Blocks field of the OTI; the RFC 6330
-Z parameter is the number of source blocks and is fixed at 1 by
-this specification, Section 4.2).  The derived OTI of this
-specification fixes N = 1: catalog-signaled sessions do not use
-sub-blocks, and catalog-only receivers MUST assume N = 1.
-Sub-block operation remains available to broadcast systems that
-carry an explicit OTI in ISO 23008-1 AL-FEC signaling; the
-remainder of this subsection applies only to such systems and is
-informative broadcast-interoperability guidance, not an
-interoperability requirement of this document.
-The number of source symbols per sub-block (K_sub <= K) is derived
-from the signaled parameters: K_sub = ceil(K / N), where K is the
-source symbol count (catalog `sourceSymbols`) and N is the Number
-of Sub-Blocks field of the explicitly signaled OTI.
-
-When sub-blocks are used:
-
-1. `interleaveDepthMs` continues to denote the complete span of the
-   FULL source/repair block; it is not redefined by the sub-block
-   count.  For an explicitly signaled sub-block, its own first-to-last
-   packet span MAY be estimated as the corresponding fraction of the
-   full span, `interleaveDepthMs * K_sub / K`, for partial-recovery
-   scheduling.  This informative estimate MUST NOT replace the
-   full-block field or deadline, and no full-block timing value may be
-   formed by multiplying `interleaveDepthMs` by K (or `sourceSymbols`).
-   This enables faster partial recovery at the cost of higher repair
-   overhead (P repair symbols per sub-block instead of per block).
-
-2. The receiver tracks source symbol arrivals per sub-block (keyed
-   by SBN + sub-block index) and can emit recovered data as soon as
-   each sub-block completes, without waiting for the full block.
-
-3. The receiver uses the derived sub-block length K_sub (not K
-   from the catalog) for per-sub-block recovery when K_sub < K.
-
+sub-blocks (the Number of Sub-Blocks field of the OTI).  The derived
+OTI of Section 4.2 fixes N = 1, so catalog-signaled sessions do not
+use sub-blocks; sub-block operation by broadcast systems that carry
+an explicit OTI is described informatively in Section 12.2.
 Publishers using MMTP packaging SHOULD use ssbg_mode0 without
-sub-blocks.  Sub-blocks are primarily useful for large-K
-configurations (K >= 64) where full-block recovery latency exceeds
-acceptable limits.
+sub-blocks.
 
 ## Short Source Blocks
 
@@ -1538,10 +1215,8 @@ symbols, for example at a media-unit boundary so that the block's
 span stays within `interleaveDepthMs` (Section 5.1).  Such a block is
 a short source block.  It is not a block with a smaller K: it remains
 a K-symbol block of the same FEC instance, with the same Transfer
-Length F = K x T (Section 4.2) and the same SS_ID stride, so
-SS_start = SBN x K and ESI = K + RS_ID hold for it exactly as for a
-full block.  This section applies per FEC instance; for a keyframe
-overlay, K is K_overlay (Section 6.4.2).
+Length F = K x T (Section 4.2) and the same SS_ID stride, so the
+coordinates of Section 7.1 hold for it exactly as for a full block.
 
 For a short source block whose SSB_length is S, with 1 <= S < K:
 
@@ -1594,22 +1269,14 @@ it already holds in the padding.
 
 # Block and Group Alignment
 
-Throughout this section, D is the DERIVED number of groups per FEC
-block, computed from the signaled interleave window and the group
-duration:
-
-~~~
-D = round(interleaveDepthMs / GOP_duration_ms)
-~~~
-
-D is never signaled directly; only the window (Interleave Depth, in
+Throughout this section, D is the derived group count of Section 5.1;
+it is never signaled, and only the window (Interleave Depth, in
 milliseconds) is carried in the catalog.
 
 ## Single-Group Blocks (D = 1)
 
-When the derived group count D is 1 -- because interleaveDepthMs is
-absent, 0, or no greater than the group duration -- each FEC block
-corresponds to exactly one MoQ Group:
+When D (Section 5.1) is 1, each FEC block corresponds to exactly one
+MoQ Group:
 
 ~~~
 Group 0:  [Obj 0] [Obj 1] ... [Obj K-1]  ->  FEC Block 0
@@ -1640,46 +1307,40 @@ of Group `(N+1) * D - 1`.
 
 ## Source Symbol ESI Derivation
 
-Receivers MUST derive the Encoding Symbol ID (ESI) for each source
-object from MoQ transport identifiers.  The ESI identifies the
-symbol's position within its FEC block for FEC decoding.
+A source symbol's coordinates follow from its flat SS_ID:
+SBN = floor(SS_ID / K) and ESI = SS_ID % K, the ESI being the
+symbol's position within its FEC block.  An object that a packaging
+profile defines as carrying no source symbol -- for example, the
+in-band AL-FEC signaling object of [@!MOQ-MMT] Section 8 -- has no
+ESI, is not counted in K or in `symbols_per_group`, and its Object_ID
+MUST NOT be used as `O`.  A packaging profile whose tracks can carry
+such objects, or whose Object IDs are not positions in the FEC block,
+MUST carry a Source FEC Payload ID on every source symbol
+(Section 8.5), and its receivers take SS_ID from that field on every
+path; the mmtp packaging of [@!MOQ-MMT] is such a profile.
 
-This section derives base instance coordinates.  It does not apply to
-a keyframe overlay: an overlay's membership is fixed by `RAP_flag`
-rather than by group alignment, so D, `interleaveDepthMs`, and the
-group arithmetic below have no overlay counterpart.  An overlay's
-coordinates come from its own SS_ID and K_overlay (Section 6.4.2).
-
-The derivation applies only to objects that are FEC source symbols.
-An object that a packaging profile defines as carrying no source
-symbol -- for example, the in-band AL-FEC signaling object of
-[@!MOQ-MMT] Section 8 -- has no ESI, is not counted in K or in
-`symbols_per_group`, and its Object_ID MUST NOT be used as `O`.  A
-packaging profile whose tracks can carry such objects, or whose
-Object IDs are not positions in the FEC block, MUST carry a Source
-FEC Payload ID on every source symbol (Section 8.5); a receiver of
-that profile takes each source symbol's (SBN, ESI) from that field
-by the inverse given below, not from its Object_ID.  The mmtp
-packaging of [@!MOQ-MMT] is such a profile.
-
-For a source object with MoQ Group_ID `G` and Object_ID `O`:
+A receiver of a profile whose Object IDs are positions in the FEC
+block MUST instead derive the base coordinates of a source object from
+MoQ transport identifiers, as follows.  This Group_ID/Object_ID
+derivation has no keyframe-overlay counterpart (Section 6.4.2).  For a
+source object with MoQ Group_ID `G` and Object_ID `O`, with D
+(Section 5.1), and SBN and first_group as in Section 8.2:
 
 ~~~
-D = round(interleaveDepthMs / GOP_duration_ms)  # groups per block
-SBN = floor(G / D)                              # source block number
-first_group = SBN * D                           # first group in block
 symbols_per_group = ceil(K / D)                 # symbols per group
 ESI = (G - first_group) * symbols_per_group + O # encoding symbol ID
 ~~~
 
-The flat SS_ID (per ISO 23008-1 Section C.5.2) is reconstructed as:
+The flat SS_ID is reconstructed as follows.  This is a constraint of
+this document on the SS_ID of [@!ISO.23008-1] Section C.5.2, which
+ISO lets start at an arbitrary value: here it is block-aligned.
 
 ~~~
 SS_ID = SBN * K + ESI
 ~~~
 
-Worked example (frame-grouped MMT delivery, one group per frame at
-30 fps): GOP_duration_ms = 1000/30 = 33.33, interleaveDepthMs = 133,
+Worked example (a profile whose Object IDs are positions in the FEC
+block, one group per frame at 30 fps): group_duration_ms = 1000/30 = 33.33, interleaveDepthMs = 133,
 K = 32.  Then D = round(133 / 33.33) = round(3.99) = 4 groups per
 block and symbols_per_group = 32 / 4 = 8.  For the source object
 with Group_ID G = 10, Object_ID O = 3:
@@ -1694,28 +1355,10 @@ SS_ID          = 2 * 32 + 19       = 83
 The multicast-side inverse gives the same coordinates:
 SBN = floor(83 / 32) = 2, ESI = 83 % 32 = 19.
 
-This enables multi-path FEC combining: a receiver that obtains the
-same MMTP packet via MoQ unicast and via multicast UDP derives
-identical (SBN, ESI) coordinates, because on both paths it takes
-them from the SS_ID in the packet's Source FEC Payload ID (the mmtp
-profile carries one on every source symbol, as required above).
-For a packaging profile whose Object IDs are positions in the FEC
-block, the Group_ID/Object_ID derivation yields the same
-coordinates.  Receivers MAY combine symbols from any transport path
-toward the same FEC block recovery.
-
-For MMTP over multicast UDP where the Source FEC Payload ID carries
-SS_ID directly:
-
-~~~
-SBN = floor(SS_ID / K)
-ESI = SS_ID % K
-~~~
-
-For a packaging profile whose Object IDs are positions in the FEC
-block, both derivations produce the same (SBN, ESI) for the same
-packet.  For mmtp, a receiver takes them from the Source FEC Payload
-ID on every path.
+Every transport path therefore yields the same (SBN, ESI) for the same
+packet -- for mmtp because each path reads the same SS_ID, and
+otherwise because both derivations agree -- so receivers MAY combine
+symbols from any transport path toward the same FEC block recovery.
 
 ## Encoder Constraints
 
@@ -1740,23 +1383,17 @@ For FEC block alignment to be deterministic, encoders MUST:
    in the final groups collide with the repair ESI range (ESI >= K).
 
 5. Signal an interleave window that derives the intended group
-   count: any interleaveDepthMs in the interval
-   ((D - 0.5) * GOP_duration_ms, (D + 0.5) * GOP_duration_ms] derives
-   the same D under the normative round() of Section 5.1.  The
-   convention is interleaveDepthMs = round(D * GOP_duration_ms), which
-   keeps the signaled value an integer even when the group duration is
-   not an integer number of milliseconds (e.g. D = 4 at 30 fps gives
-   round(4 * 33.33) = 133, and round(133 / 33.33) = 4).
-
-For CMAF packaging -- an interaction this document describes only
-informatively (Section 13) -- a segment boundary aligns with a FEC
-block boundary when the segment duration equals interleaveDepthMs,
-which is what would let CDN relays perform FEC recovery at the
-segment level before forwarding to FEC-unaware clients.
+   count: that is, an interleaveDepthMs for which Section 5.1 yields
+   the intended D.  The convention is
+   interleaveDepthMs = round(D * group_duration_ms), which keeps the
+   signaled value an integer even when the group duration is not an
+   integer number of milliseconds (as in the 30 fps example of
+   Section 8.3, where D = 4 is signaled as 133 ms).
 
 ## Source FEC Payload ID and ATSC 3.0 Signed Region
 
-The 4-byte Source FEC Payload ID (SS_ID) is appended at the END of
+The 4-byte Source FEC Payload ID (SS_ID; ffsrpts_flag = 0, so no
+FFSRP_TS, [@!ISO.23008-1] Section C.5.1) is appended at the END of
 each MMTP source packet -- following the MMTP payload, outside the
 base MMTP packet header.  Per
 ATSC A/360 Section 5.2.2.5, the ATSC 3.0 Signed Application (A3SA)
@@ -1797,13 +1434,18 @@ added to signal it:
 1. The catalog declares an overlay for this source track, that is a
    `fec-repair` track with `"scope": "keyframe"` naming it in
    `depends` (Section 5.1.1); and
-2. The MMTP packet header sets `RAP_flag` on this packet.
+2. The MMTP packet header sets `RAP_flag` on this packet, which the
+   publisher does exactly for the packets of the overlay
+   (Section 6.4.2).
 
-A publisher that declares an overlay MUST set `RAP_flag` on every
-source packet whose payload belongs to a keyframe MFU covered by the
-overlay, and MUST NOT set it on any other packet of that track.  A
-packet meeting both conditions carries two 4-byte Source FEC Payload
-IDs at the end of the packet:
+This use of `RAP_flag` as the overlay-membership and trailer-length
+discriminator extends its semantics in [@!ISO.23008-1] Clause 9.2.3,
+and the overlay's RAP-subset source flow cannot be described by an
+ISO AL-FEC message, which identifies an FEC source flow by
+`packet_id` (Clause C.6.3).
+
+A packet meeting both conditions carries two 4-byte Source FEC
+Payload IDs at the end of the packet:
 
 ~~~
 Source Packet with Overlay {
@@ -1814,53 +1456,40 @@ Source Packet with Overlay {
 }
 ~~~
 
-The base instance's SS_ID comes FIRST and the overlay's LAST.  The
-ordering places each instance's trailer in declaration order, base
-before the extension that depends on it, so a receiver that implements
-overlays parses the two in the order the catalog presents them.
+The base instance's SS_ID comes FIRST and the overlay's LAST,
+following declaration order (base before the extension that depends
+on it), so a receiver that implements overlays parses the two in the
+order the catalog presents them.
 
-The ordering does NOT make the layout safe for a receiver that does
-not implement overlays, and it is worth being explicit about why.
-Such a receiver locates the Source FEC Payload ID as the last four
-bytes of the packet.  On a RAP packet those four bytes are the
-OVERLAY SS_ID, so the receiver would read a block assignment
-belonging to the wrong FEC instance, and would additionally deliver
-the base SS_ID to the media pipeline as four bytes of payload.  Both
-failures are silent.  That is why Section 6.4 requires such a
-receiver to fail closed on the catalog rather than parse the stream,
-and why the overlay is declared with a key a pre-overlay receiver is
-required to reject rather than one it would ignore.
-
-The ordering was chosen knowing that the alternative is the safer of
-the two on that axis, and it is worth recording so the choice is not
-reopened as an oversight.  Overlay first and base last would leave a
-pre-overlay receiver reading the CORRECT base SS_ID from the last four
-bytes, with only four bytes of overlay trailer leaking into the media
-pipeline: one silent failure instead of two.  Base first was chosen
-anyway, because neither ordering makes such a receiver correct, and a
-receiver that is required to fail closed on the catalog never reaches
-the stream.  Given that, declaration order is the property worth
-keeping.  The remaining argument for base first, that a future third
-instance could append at the end and leave the base at a fixed offset
-from the payload end, does not apply either: rule 10 of
-Section 6.3.4 bounds the trailer at two instances.
+Neither ordering makes the layout safe for a receiver that does not
+implement overlays.  Such a receiver locates the Source FEC Payload
+ID as the last four bytes of the packet.  On a RAP packet those four
+bytes are the OVERLAY SS_ID, so the receiver would read a block
+assignment belonging to the wrong FEC instance, and would
+additionally deliver the base SS_ID to the media pipeline as four
+bytes of payload; the reverse order would leave only the second
+failure, and both are silent.  That is why the overlay is declared
+with a key such a receiver is required to fail closed on
+(Section 5.1.1) rather than one it would ignore.
 
 A packet of the same track that does not set `RAP_flag` carries the
 base Source FEC Payload ID alone, exactly as in the no-overlay case.
-The trailer is therefore either 4 or 8 bytes, determined per packet by
-`RAP_flag`, and never any other length: a source track has at most one
-overlay (Section 6.3.4, rule 10).
+The trailer length L is therefore 8 bytes on a packet meeting both
+conditions and 4 bytes on every other packet, determined per packet
+and never any other length, so a receiver that has read the catalog
+can locate the payload before it parses the packet.  This is why a
+source track has at most one overlay (Section 6.3.4, rule 10);
+relaxing that bound would be a revision of this document and a change
+to the source packet layout, not a catalog-only change.
 
 Both trailers are excluded from the protected bytes of the base
 instance, as the single trailer already is.  The overlay instance
 protects the same payload bytes as the base instance does, under its
 own K_overlay and the shared T; neither trailer is a source symbol
 byte of either instance.  This is the L = 8 case of the source symbol
-construction of Section 7.3, which is where the removal is normative;
-a RAP packet under an overlay therefore yields one T-byte symbol that
-both instances protect, and both the encoder's packet sizing budget
-and the receiver's oversize check are taken against the 8-byte
-trailer rather than the 4-byte one.
+construction of Section 7.3, where the removal and the packet sizing
+budget are normative; a RAP packet under an overlay therefore yields
+one T-byte symbol that both instances protect.
 
 The A3SA redundancy mechanisms above apply to the base SS_ID only.
 The hint track field `MMTHSampleATSC3.source_fec_payload_id` and the
@@ -1878,12 +1507,12 @@ requires one.
 Interleaving spreads source symbols across time to protect against
 burst loss.  The interleave window (Interleave Depth, in
 milliseconds) sets the time span of each source block; the number of
-consecutive media units grouped into one block follows as
-D = round(interleaveDepthMs / GOP_duration_ms).  With D = 4, symbols
-from 4 consecutive media units are grouped into one source block:
+consecutive groups in one block follows as D (Section 5.1).  With
+D = 4, symbols from 4 consecutive groups are grouped into one source
+block:
 
 ~~~
-Media Units:    M0   M1   M2   M3   M4   M5   M6   M7
+Groups:         M0   M1   M2   M3   M4   M5   M6   M7
                  |    |    |    |    |    |    |    |
 D=4:            [--- Block 0 ---]  [--- Block 1 ---]
                  S0   S1   S2   S3   S4   S5   S6   S7
@@ -1912,52 +1541,29 @@ the first repair receipt.  The base FEC deadline is:
 base_deadline = ts + interleaveDepthMs
 ~~~
 
-Here `interleaveDepthMs` is the complete block span and the catalog
-representation of ISO `protection_window_time` (Sections 11.2 and
-C.6.3): it covers the maximum duration from the first source or repair
-packet to the last source or repair packet in the same block.  Source
-and repair production at the media cadence, and their serialization,
-are therefore already part of that measured first-to-last span and
-MUST fit within it.  `sourceSymbols` (K) controls the number of source
-symbols and decoder geometry; it is not a timing horizon.
+Here `interleaveDepthMs` is the complete first-to-last block span of
+Section 5.1, which already bounds source and repair production at the
+media cadence and their serialization.
 
-Implementations MUST NOT compute the block span or base deadline as
-`sourceSymbols * interleaveDepthMs`, `K * interleaveDepthMs`,
-`(K - 1) * interleaveDepthMs`, or by adding a per-symbol cadence
-interval.  In particular, increasing K does not multiply or otherwise
-stretch the signaled block span.  The deadline uses the signaled
-`interleaveDepthMs` directly, not `D * GOP_duration_ms`; D is only the
-derived grouping geometry, and rounding D MUST NOT shorten the FEC
-deadline.
+Implementations MUST NOT derive a full-block span or FEC deadline from
+K, from D, from a per-symbol interval, or by a multiplier: the block
+span is `interleaveDepthMs`, and a deadline adds `interleaveDepthMs`
+and, where used, `reorderToleranceMs`, each exactly once.
 
 A receiver uses the catalog `reorderToleranceMs` allowance, when
 present, for network jitter, one-way delay, reordering, and local
 processing before abandoning the block.  That allowance is additive to
-the base span and MUST be applied exactly once; it MUST NOT be a fixed
-multiplier of `interleaveDepthMs` or be derived from K.  If the field is
-absent, a receiver that requires a signaled allowance MUST reject or
-disable FEC for the track.  A separately configured local policy MAY be
-used only when it is represented separately from the catalog value and
-does not silently rewrite the catalog.  At the resulting deadline, the
+the base span and MUST be applied exactly once.  If the field is
+absent, Section 5.1 applies.  At the resulting deadline, the
 receiver moves the block onward and attempts FEC processing according to
 its buffering model.  What a receiver of a multicast or AMT leg does
 with a block that is still unrecovered at that deadline -- unicast
 repair, a stall, or concealment -- is specified in Section 11.4.
 
-Interleave depth is a recovery-budget knob, not a steady-state
-latency knob.  With systematic FEC (Section 4.1) the source symbols
-are sent in the clear and are directly playable: in the no-loss case
-a receiver plays each source object on arrival, in group order, and
-never waits for repair or for the interleave span to elapse, so
-interleave depth adds no steady-state latency.  On a reliable unicast
-leg (MoQ over QUIC), loss is repaired by the transport and the FEC
-interleave is inert, adding no latency there either.  The window
-converts to actual latency only on a lossy multicast leg, at the
-moment the receiver genuinely waits to recover a missing source
-symbol, bounded by the recovery-timeout budget above.  The
-"Recovery Latency" column below is therefore the worst-case
-lossy-path recovery budget, not latency incurred in the clean or
-unicast case.
+The code is systematic (Section 4.1): a receiver plays source objects
+on arrival, and the window adds latency only when a lossy leg forces
+it to wait for recovery.  The "Recovery Latency" column below is that
+worst-case budget.
 
 Typical values (D follows from the group duration):
 
@@ -1989,19 +1595,10 @@ track at the common default of 128):
 | Repair layer n | 192-255, >= layer n-1 | Monotonic by layer |
 | Keyframe overlay | 192-255, independent | Outside the layer order |
 
-Layer 0's priority MAY be declared on its own repair track's catalog
-entry; when it is absent the value is 240.  Enhancement layer
-priorities are monotonic non-decreasing with layer index
-(Section 6.3.4, rule 3), so under congestion the highest layer is shed
-first and a receiver degrades through its layer set in order rather
-than losing an arbitrary one.  A keyframe overlay is not in that
-ordering: its priority is independent within 192 to 255 and MAY be
-numerically lower than an enhancement layer's, so that a keyframe
-repair symbol is delivered ahead of an ordinary one (Section 6.4).
-
-The `priority` value
-carried on a repair track's catalog entry (Appendix B) is expressed
-in the MoQ 0-255 scale.
+Layer priorities and the layer-0 default follow Section 6.3.4,
+rule 3, so under congestion the highest layer is shed first and a
+receiver degrades through its layer set in order; a keyframe
+overlay's priority is independent of that order (Section 6.4.1).
 
 Publishers and relays convey these priorities through the priority
 fields and scheduling rules of [@!I-D.ietf-moq-transport]
@@ -2014,11 +1611,8 @@ Under congestion, this priority separation ensures:
 2. Repair overhead is gracefully shed
 3. Receivers degrade to QUIC retransmission when FEC is unavailable
 
-On a multicast or AMT leg, a receiver's on-demand unicast repair
-requests take their priorities from Section 11.4.5: the repair of a
-keyframe-bearing block is requested in the Source Media range, ahead
-of every repair track, and every other repair request in the repair
-range.
+On a multicast or AMT leg, the priorities of on-demand unicast repair
+requests are set by Section 11.4.5.
 
 # Hybrid Unicast and Multicast Delivery
 
@@ -2039,17 +1633,15 @@ to recover from packet loss without retransmission:
 - **Native SSM**: Receivers join multicast group directly
 - **AMT Tunneling**: Receivers without native multicast connect via AMT
   relays discovered through DRIAD ([@?RFC8777])
-- **TreeDN Distribution**: Hierarchical multicast trees per [@?RFC9706]
-  with FEC protection at each hop.  ISP edge routers with inline AMT
-  relay capability [@?JUNIPER-TREEDN] can serve as TreeDN nodes,
-  replacing x86 CDN servers with in-router replication while
-  preserving FEC repair across the delivery path
+- **TreeDN Distribution**: Hierarchical multicast trees per [@?RFC9706],
+  with FEC protection at each hop
 
 The same MoQ objects (source and repair) can be transmitted over both
 unicast (QUIC/WebTransport) and multicast (UDP/SSM/AMT) paths.  Receivers
-on reliable unicast paths MAY skip FEC decoding, while receivers on lossy
-multicast paths use FEC for recovery and apply the receiver repair
-policy of Section 11.4 to any block that FEC does not recover.
+on reliable unicast paths can skip FEC decoding (Section 3), while
+receivers on lossy multicast paths use FEC for recovery and apply the
+receiver repair policy of Section 11.4 to any block that FEC does not
+recover.
 
 ~~~
 Publisher
@@ -2071,26 +1663,22 @@ Unicast   SSM Multicast      AMT Tunnel
 Client    Clients]            Remote]
 
 FEC:      FEC:                FEC:
-Optional  Required            Required
+Optional  Expected            Expected
 ~~~
 
 ## Deployment Applicability
 
 The repair overhead this mechanism adds is justified only where the
 delivery path actually loses packets, and multicast loss characteristics
-differ by orders of magnitude across access technologies.  The "Required"
-annotation in the figure above is the common lossy-multicast case, not a
-universal rule: FEC strength (the repair count P and the Interleave Depth)
-is a per-path deployment parameter carried at the track level in the
-catalog `fec` field, selected per path by which tracks a given endpoint
-carries, NOT a protocol constant.
+differ by orders of magnitude across access technologies.  FEC strength
+(P and Interleave Depth) is a per-path deployment choice, expressed by
+which tracks each endpoint carries, not a protocol constant.
 
 - **Engineered low-loss segments.**  On managed PON or DOCSIS delivered
   over a provisioned VLAN, steady-state loss is typically far below
   10^-6.  Disabling FEC for such a path is signaled through the catalog
   alone, by omitting the repair track from the tracks that path's
-  endpoints carry; the requirement in Section 5.1 that P MUST be >= 1
-  applies only when a repair track is published.  Adding repair symbols
+  endpoints carry.  Adding repair symbols
   on such a path spends bandwidth to recover losses that do not occur.
 
 - **FEC-capable broadcast PHYs.**  ATSC 3.0, DVB-S2/S2X, and 5G broadcast
@@ -2108,12 +1696,6 @@ carries, NOT a protocol constant.
 
 - **Public Internet and AMT tunnels.**  Loss is real and bursty; a
   non-trivial repair count with interleaving is RECOMMENDED.
-
-Because source and repair symbols can be deduplicated across paths by
-their Source Block Number and Encoding Symbol ID (Section 8.3), a
-receiver served by a low-loss path is enabled to skip the repair-track
-subscription, while a receiver on a lossy path consumes it: the same
-stream pays repair overhead only where the loss is.
 
 ## Interaction with Multicast QUIC
 
@@ -2153,8 +1735,9 @@ When this scheme is carried over a multicast QUIC channel:
    transitively from the verified surviving symbols used to reconstruct
    it.  Deployments requiring per-object authentication of recovered data
    SHOULD additionally apply an object-level scheme (for example the
-   signed_mmt_message structure; see Section 14.5) computed below the FEC
-   layer, which survives reconstruction.
+   manifest-based bc-provenance profile of [@?MOQ-MULTICAST]
+   Section 7.2) computed below the FEC layer, which survives
+   reconstruction.
 
 4. **Repair channel versus unicast repair.**  A publisher using this
    scheme broadcasts repair symbols on the multicast channel (the repair
@@ -2162,18 +1745,12 @@ When this scheme is carried over a multicast QUIC channel:
    covered by the repair flow SHOULD NOT drive unicast repair for losses
    the FEC recovers, preserving the O(1) sender cost that motivates
    broadcast FEC.  Unicast repair MAY be retained as a last resort for
-   losses exceeding the repair budget.  Section 11.4 specifies the MoQ
-   form of that last resort: which blocks a receiver repairs by FETCH
-   (a receiver holding a MoQ session MUST so repair a keyframe-bearing
-   block), with what priority, and what it does with a block that
-   stays unrecovered.
+   losses exceeding the repair budget.  Section 11.4 specifies that last resort.
 
 Symbols delivered over a multicast QUIC channel are deduplicated by
 their Source Block Number and Encoding Symbol ID; [@!QUIC-MULTICAST]
-normatively requires only this deduplication.  Because the (SBN, ESI)
-derivation in Section 8.3 of this document gives each symbol a
-path-independent identity, receivers MAY additionally combine such
-symbols with symbols received from other paths.
+normatively requires only this deduplication, and Section 8.3 permits
+combining them with symbols received from other paths.
 
 ## Receiver Repair Policy
 
@@ -2200,6 +1777,10 @@ blocks, whose loss damages only frames up to the next RAP.
 Keyframe-bearing blocks are protected by priority unicast repair and
 are the only blocks whose loss may stall video.  Other blocks are
 repaired on a best-effort basis and, when repair fails, concealed.
+Every frame and audio sample a receiver presents MUST be presented at
+its authored time on the presentation clock shared by its tracks, and
+a receiver MUST NOT stall video or pause that clock except for a
+keyframe-bearing block (Section 11.4.2).
 
 ### Block Classification
 
@@ -2277,14 +1858,10 @@ block of unknown class as keyframe-bearing.  In particular:
   `interleaveDepthMs` (Section 5.1) closes before the group ends
   (Section 7.4).
 
-A receiver MUST NOT classify a block from a receiver-local default,
-from a cadence inferred by observing past keyframes or packet
-arrivals, from the MMTP Timestamp, arrival time, or elapsed time, from
-a media-unit count synthesized from `framerate` and
-`interleaveDepthMs` (which bounds transmission time, not media time),
-or from the absence of `RAP_flag` on the packets it happens to hold:
-the absence of the flag on a received packet says nothing about a
-packet that was lost.  A publisher that wants receivers to be able to
+A receiver MUST NOT classify a block from any input other than those
+this section names; in particular, the absence of `RAP_flag` on the
+packets it holds says nothing about a packet that was lost.  A
+publisher that wants receivers to be able to
 apply the non-keyframe treatment of Section 11.4.3 publishes an exact
 keyframe interval, which then binds every keyframe of the track
 ([@!MOQ-MMT] Section 4.4.3).
@@ -2308,8 +1885,8 @@ range that covers the block's shortfall.  The repair symbols it
 returns are deduplicated against the symbols already held by SBN and
 ESI (Section 8.3) and fed to the same decoder; their SSB_length also
 conveys a short block's authored length (Section 7.4).  The receiver
-MUST NOT delay this request behind any non-keyframe or audio repair,
-and MUST NOT defer it waiting for a keyframe overlay (Section 11.4.6).
+MUST NOT delay this request behind any non-keyframe or audio repair;
+Section 11.4.6 covers its interplay with a keyframe overlay.
 A FETCH completes or fails by MoQ Transport events, its last object
 or an error; a receiver MUST NOT declare it failed on a locally chosen
 timeout.
@@ -2325,12 +1902,9 @@ recover includes, or may include, any part of a RAP (Section 11.4.1),
 the receiver treats the track as discontinuous, MAY stall video, and
 does not resume video before the next RAP ([@!MOQ-MMT] Section 6.1,
 step 6).  Otherwise, as when it holds or has recovered every part of
-the block's RAPs, for example a RAP MFU recovered through a keyframe
-overlay together with the FT=0 and FT=1 data units that govern it, it
-conceals the block's remaining loss as for a non-keyframe block
-(Section 11.4.3).  A stall does not re-time media: whether or not it
-also pauses the presentation clock shared with audio, every frame
-presented after it is presented at its authored time on that clock.
+the block's RAPs (including through a keyframe overlay,
+Section 11.4.6), it conceals the block's remaining loss as for a
+non-keyframe block (Section 11.4.3).
 
 If the next RAP arrives complete before a keyframe repair completes,
 the repair is moot: the receiver resumes from that RAP and SHOULD
@@ -2353,9 +1927,8 @@ audio/video synchronization running:
 
 - Concealment fills the presentation interval of the frames it
   replaces and ends at the authored presentation time of the next
-  frame the receiver presents.  The receiver MUST NOT pause the
-  presentation clock it shares with other tracks, and MUST NOT shift,
-  re-time, or drop later frames to absorb the loss.  It derives no
+  frame the receiver presents.  The receiver MUST NOT drop later
+  frames to absorb the loss.  It derives no
   timing for the frames it replaces ([@!MOQ-MMT] Section 5.1).
 
 - The concealment method is an implementation choice: for example
@@ -2370,8 +1943,8 @@ audio/video synchronization running:
 
 ### Audio Blocks
 
-The blocks of an audio track are never grounds to stall video.
-In-band FEC applies to them as to every block, and a receiver MAY
+In-band FEC applies to the blocks of an audio track as to every block,
+and a receiver MAY
 request unicast repair for an audio block on the same best-effort
 terms as for a non-keyframe video block (Section 11.4.5).  `RAP_flag`
 on an audio packet does not make its block keyframe-bearing; that
@@ -2381,10 +1954,9 @@ When an audio block is unrecovered, the receiver MUST conceal the lost
 audio, for example with silence or packet-loss concealment, from the
 end of the last audio it presented to the authored presentation time
 of the next audio it presents, and MUST keep the audio clock advancing
-through the loss.  It MUST NOT stall video, pause the shared
-presentation clock, or re-time video or later audio to absorb audio
-loss, and it MUST NOT stall audio presentation waiting for a repair
-that has not completed by the presentation time of the lost audio.
+through the loss.  It MUST NOT stall audio presentation waiting for a
+repair that has not completed by the presentation time of the lost
+audio.
 
 ### Unicast Repair Budget and Priority
 
@@ -2396,15 +1968,8 @@ a track counting as that track's `symbolSize` T (Section 5.1).
 - Each block that Section 11.4.1 treats as keyframe-bearing, including
   a block of unknown class, credits the budget with P_t x T bytes when
   it reaches its FEC deadline, where P_t is the total repair count of
-  its base instance (the source track's `repairSymbols`, or with
-  repair layers the sum of P_i over every published layer,
-  Section 6.3.2) and T is its track's `symbolSize`.  The budget
-  therefore accrues at R_kf x P_t x T bytes per second, where R_kf,
-  the keyframe-bearing block rate, is the number of blocks per second
-  treated as keyframe-bearing: the block rate itself on a track whose
-  blocks are all keyframe-bearing or of unknown class, and less where
-  a keyframe interval lets Section 11.4.1 classify blocks as
-  non-keyframe-bearing.
+  its base instance (Section 6.4.1) and T is its track's
+  `symbolSize`.
 
 - A credit expires when the next keyframe-bearing block of the same
   source track reaches its FEC deadline, so unspent budget never
@@ -2481,27 +2046,52 @@ This specification is designed for interoperability with ATSC A/331
 | `<RepairFlow>` | Repair track subscription |
 | `fecOTI` (in S-TSID) | Derived OTI (Section 4.2) |
 | Source TOI range | Group ID range per Section 8 |
-| `maximumDelay` | Equal to Interleave Depth (both are durations in milliseconds) |
-| `overhead` | ceil(100 x P / K), in integer arithmetic (below) |
+| `maximumDelay` | Interleave Depth ([@!MOQ-MMT] Sections 12.2-12.3) |
+| `overhead` | From P and K ([@!MOQ-MMT] Sections 12.2-12.3) |
 
-`overhead` is an integer percentage.  It is computed from the catalog
-`repairSymbols` (P) and `sourceSymbols` (K) as ceil(100 x P / K),
-evaluated in integer arithmetic as (100 x P + K - 1) div K, where
-a div b is the integer quotient floor(a / b) of a non-negative
-integer a and a positive integer b; computing the ratio P / K in
-floating point first can land just above an integer and make the
-ceiling overshoot by one ([@!MOQ-MMT] Section 12.3).  The reverse
-direction, used when ingesting an S-TSID, is
-P = (K x overhead) div 100, the largest P whose exported `overhead`
-does not exceed the ingested one.  Both directions are the
-informative conversions of [@!MOQ-MMT] Sections 12.2 and 12.3,
-which also give their round-trip properties.
+`overhead` is not carried in the catalog; it is converted to and from
+`repairSymbols` by the informative rules of [@!MOQ-MMT] Sections 12.2
+and 12.3.
 
 Publishers ingesting ATSC 3.0 broadcasts SHOULD preserve the original
 FEC parameters and pass them through in the catalog `fec` field.
 `overhead` in particular is not passed through verbatim: the catalog
 carries P rather than a percentage, and `overhead` is converted as
 above.
+
+## Sub-Blocks in Broadcast Systems
+
+This subsection is informative broadcast-interoperability guidance,
+not an interoperability requirement of this document.  Sub-block
+operation (Section 7.3) remains available to broadcast systems that
+carry an explicit OTI, such as the A/331 S-TSID `fecOTI`; the
+ISO 23008-1 AL-FEC message carries no OTI, and the split source
+blocks of [@!ISO.23008-1] are the two-stage FEC coding structure of
+Clause C.2.2, which this document does not use.  The number of
+source symbols per sub-block (K_sub <= K) is derived from the
+signaled parameters: K_sub = ceil(K / N), where K is the source
+symbol count (catalog `sourceSymbols`) and N is the Number of
+Sub-Blocks field of the explicitly signaled OTI.
+
+When sub-blocks are used:
+
+1. `interleaveDepthMs` keeps its Section 5.1 meaning, the span of the
+   FULL block.  A sub-block's own span can be estimated as
+   `interleaveDepthMs * K_sub / K` for partial-recovery scheduling;
+   the estimate never replaces the full-block field or deadline
+   (Section 9).  This enables faster partial recovery at the cost of
+   higher repair overhead (P repair symbols per sub-block instead of
+   per block).
+
+2. The receiver tracks source symbol arrivals per sub-block (keyed
+   by SBN + sub-block index) and can emit recovered data as soon as
+   each sub-block completes, without waiting for the full block.
+
+3. The receiver uses the derived sub-block length K_sub (not K
+   from the catalog) for per-sub-block recovery when K_sub < K.
+
+Sub-blocks are primarily useful for large-K configurations (K >= 64)
+where full-block recovery latency exceeds acceptable limits.
 
 # Interaction with CMAF Packaging
 
@@ -2545,6 +2135,12 @@ relationship only.  A CMAF deployment wanting FEC protection
 carries the media as mmtp-packaged tracks (an MPU corresponds to a
 CMAF Fragment; see [@!MOQ-MMT]).
 
+A segment duration equal to interleaveDepthMs would align each
+segment boundary with a FEC block boundary, so that a segment holds
+exactly one block's worth of source symbols and a CDN relay could
+perform FEC recovery at the segment level before forwarding to
+FEC-unaware HLS/DASH clients.
+
 # Security Considerations
 
 ## FEC Does Not Provide Confidentiality
@@ -2566,19 +2162,14 @@ tracks is RECOMMENDED, using the same mechanisms as source tracks
 FEC repair symbols represent additional bandwidth.  Publishers MUST
 NOT generate excessive repair symbols that could be used for bandwidth
 amplification attacks.  The repair overhead (P/K) SHOULD be limited
-to reasonable values (e.g., <= 50%).  With repair layers (Section 6.3)
-this bound applies to the total repair count across all published
-layers, and to a keyframe overlay's own P/K_overlay separately
-(Section 6.4).
+to reasonable values (e.g., <= 50%).  The bound applies per FEC
+instance (Section 6.4.1).
 
 Layering changes the shape of the amplification exposure, because the
 attacker's lever is now which layers a victim can be made to receive
 rather than only whether it receives repair at all.  Each layer i adds
-P_i x T bytes per source block on top of the layers below it.  In the
-worked catalog of Section 5.1.2, at T = 1200, layer 0 adds 9,600
-bytes per block, layer 1 a further 19,200, and layer 2 a further
-38,400, so a receiver induced to hold the full set receives seven
-times the repair bytes of one holding layer 0 alone.  Deployments
+P_i x T bytes per source block, so a receiver induced to hold more
+layers receives proportionally more repair traffic.  Deployments
 SHOULD bound the number of layers any single receiver may hold, and
 SHOULD apply the same join authorization to repair-layer endpoints as
 to media endpoints; a repair-only endpoint (Section 6.3.6) is not
@@ -2588,12 +2179,7 @@ A receiver MUST NOT be made to receive a repair layer it did not
 join.  A publisher or relay MUST NOT push a repair-layer endpoint to
 a receiver that has not joined it, and MUST NOT add a layer to an
 endpoint a receiver has already joined as a way of raising that
-receiver's protection.  Repair layers are receiver-selected on
-measured loss (Section 6.3.6), so an entity able to add layers on a
-receiver's behalf could inflate that receiver's inbound traffic
-without changing anything the receiver observes as media, which makes
-the inflation invisible to the media-quality signals an application
-would otherwise notice it by.
+receiver's protection.
 
 ## Multicast FEC Security
 
@@ -2609,9 +2195,7 @@ apply:
    consistency by checking that decoded data matches expected patterns
    (e.g., valid media container structure).
 
-3. **Source Authentication**: For SSM, receivers verify source address
-   matches (S,G) subscription.  For AMT, trust is delegated to the
-   AMT relay's authentication mechanisms.
+3. **Source Authentication**: See [@?MOQ-MULTICAST] Section 7.1.
 
 4. **Block Integrity**: Receivers MAY implement block-level checksums
    to detect corrupted recovery.  If decoded source data fails
@@ -2634,32 +2218,16 @@ apply:
 
 ## ATSC 3.0 Signed Region (A3SA) Considerations
 
-When operating within the ATSC 3.0 ecosystem, content authenticity
-is enforced via the A3SA (ATSC 3.0 Signed Application) framework
-defined in ATSC A/360 Section 5.2.2.5.  The `signed_mmt_message`
-structure (A/331 Table 7.41) provides digital signatures over MMTP
-signaling and MA3 messages.
-
-The Source FEC Payload ID (4-byte SS_ID appended to MMTP source
-packets) falls OUTSIDE the A3SA signed region, as A3SA signing
-excludes asset packets (MMTP type 0x00 and 0x03).  Implementations
-that require authenticated FEC block assignment MUST use one of the
-mechanisms described in Section 8.5:
-
-- Hint track redundancy (`MMTHSampleATSC3.source_fec_payload_id`)
-- MMTP `packet_counter` field (C bit = 1, counter = SS_ID)
-
-An attacker who can modify the trailing Source FEC Payload ID without
-detection could redirect source symbols to incorrect FEC blocks,
-causing recovery failures or corrupted output.  On multicast networks
-without A3SA verification, receivers SHOULD cross-check the SS_ID
-against the MMTP packet_sequence_number to detect obvious tampering
-(e.g., SS_ID values that imply impossible block assignments given the
-known K and interleave depth).
-
-For MoQ transport (QUIC), the TLS encryption and AEAD integrity
-protection on QUIC packets provides equivalent protection of the
-Source FEC Payload ID without requiring A3SA.
+The Source FEC Payload ID falls outside the A3SA signed region
+(Section 8.5).  An attacker who can modify it without detection could
+redirect source symbols to incorrect FEC blocks, causing recovery
+failures or corrupted output.  Implementations that require
+authenticated FEC block assignment MUST use one of the mechanisms
+described in Section 8.5.  On multicast networks without A3SA
+verification, receivers SHOULD cross-check the SS_ID against the MMTP
+packet_sequence_number to detect obvious tampering (e.g., SS_ID values
+that imply impossible block assignments given the known K and
+interleave depth).
 
 # IANA Considerations
 
@@ -2667,7 +2235,7 @@ Source FEC Payload ID without requiring A3SA.
 
 This document requests no registrations in any MoQ message type or
 extension header registry.  FEC signaling is catalog-only
-(Section 5); no document in this suite requests a control-message
+(Section 5.2); no document in this suite requests a control-message
 codepoint.
 
 ## FEC Algorithm Registry
@@ -2776,16 +2344,6 @@ for that format, this document requests registration of:
   <seriesInfo name='ARIB STD-B60' value='Version 1.14'/>
 </reference>
 
-<reference anchor='JUNIPER-TREEDN' target='https://community.juniper.net/blogs/lenny/2025/08/21/introduction-to-TreeDN'>
-  <front>
-    <title>TreeDN - The Fix for Catastrophically Successful Live Streaming Events</title>
-    <author initials='L.' surname='Giuliano' fullname='Lenny Giuliano'>
-      <organization>Juniper Networks</organization>
-    </author>
-    <date year='2025' month='August'/>
-  </front>
-</reference>
-
 # Example Message Flows
 
 ## Catalog-Driven FEC
@@ -2832,27 +2390,14 @@ Publisher                              Subscriber
 ~~~
 
 In this flow the track uses 1-second CMAF segments (one MoQ Group
-per segment), so the 1000 ms interleave window derives
-D = round(1000 / 1000) = 1: each Group is one FEC block carrying all
+per segment), so, as in Appendix B, the 1000 ms interleave window
+derives D = 1: each Group is one FEC block carrying all
 K = 32 source objects, followed by P = 8 repair objects.  The
 subscriber's decoder configuration is derived entirely from the
 catalog fields (Section 4.2): Transfer Length
 F = K x T = 32 x 1312 = 41,984 bytes, Symbol Size T = 1312,
 Z = 1, N = 1, Al = 8.  No in-session message is required, and this
 CMAF track carries none.
-
-## Recovery Example
-
-Subscriber receives source objects 0,1,3,4,5,6,7,8,9 (object 2 lost)
-and repair objects 0,1,2.
-
-With K=10, P=3, subscriber has:
-
-- 9 source symbols (ESI 0,1,3,4,5,6,7,8,9)
-- 3 repair symbols (ESI 10,11,12)
-- Total: 12 symbols >= K=10
-
-RaptorQ decoder can recover the missing source symbol (ESI 2).
 
 # Catalog Example
 
