@@ -98,10 +98,12 @@ and only when, they appear in all capitals, as shown here.
 
 **MMTP**: MMT Protocol - the packet layer of MMT (ISO 23008-1 Clause 9)
 
-**MPU**: Media Processing Unit - a self-contained media segment in MMT,
-typically aligned with a Group of Pictures (GOP)
+**MPU**: Media Processing Unit - a generic container for independently
+decodable timed or non-timed data ([@!ISO.23008-1] Clause 3.1.14)
 
-**MFU**: Media Fragment Unit - a single coded media frame within an MPU
+**MFU**: Media Fragment Unit - a sample or subsample of timed media
+data, or an item of non-timed media data, within an MPU
+([@!ISO.23008-1] Clause 9.3.1)
 
 **AL-FEC**: Application-Layer Forward Error Correction
 
@@ -112,7 +114,8 @@ ATSC 3.0 signaling table containing transport and FEC parameters
 
 **MPT**: MMT Package Table - signaling table containing MMT asset info
 
-**MPI**: MMT Presentation Information - presentation timing table
+**MPI**: Media Presentation Information - signalling table carrying
+the presentation information document ([@!ISO.23008-1] Clause 10.3.8)
 
 # MMT Overview
 
@@ -145,12 +148,12 @@ MMT uses a layered architecture:
 MMTP Header (12 bytes minimum) {
   Version (2),
   Packet Counter Flag (C) (1),
-  FEC Type (F) (2),
+  FEC_type (FEC) (2),
   Reserved (1),
   Extension Flag (X) (1),
   RAP Flag (R) (1),
   Reserved (2),
-  Packet Type (6),
+  type (6),
   Packet ID (16),
   Timestamp (32),
   Packet Sequence Number (32),
@@ -162,7 +165,7 @@ MMTP Header (12 bytes minimum) {
 The fixed fields sum to 96 bits (three 32-bit words).  Byte 0 is
 version(2) | packet_counter_flag(1) | FEC_type(2) | reserved(1) |
 extension_flag(1) | RAP_flag(1); byte 1 is reserved(2) |
-packet_type(6), i.e. the packet type occupies the LOW six bits of
+type(6), i.e. the packet type occupies the LOW six bits of
 the second byte ([@!ISO.23008-1] Clause 9.2).
 
 Key fields for MoQ mapping:
@@ -184,11 +187,17 @@ Key fields for MoQ mapping:
   signaling reads it as a signaling message, and any other receiver
   discards it ([@!MOQ-MULTICAST] Section 5 states the same rule for
   every unlisted packet_id on multicast)
-- **Timestamp**: UTC wallclock send time in NTP short format,
-  carried inside the object payload.  MoQ Transport defines no
-  per-object timestamp field; receivers needing the send time read
-  it from the preserved MMTP packet header (see Section 10.1 for
-  the format and its wrap period)
+- **Timestamp**: UTC wallclock send time in NTP short format (32
+  bits: 16-bit seconds and 16-bit fraction, relative to the NTP
+  epoch), carried inside the object payload.  MoQ Transport defines
+  no per-object timestamp field; receivers needing the send time read
+  it from the preserved MMTP packet header.  Because the seconds part
+  is 16 bits, the value wraps every 65 536 seconds (about 18.2
+  hours): it identifies the send time modulo that period and MUST NOT
+  be interpreted as an absolute wallclock time without an out-of-band
+  era reference.  It is used for packet delivery and jitter
+  measurement and is never media time: not a DTS, PTS, duration,
+  media-clock epoch, or movie-fragment identifier
 - **Packet Sequence Number**: per-`packet_id`, incremented by one modulo
   2^32 across the flow ([@!ISO.23008-1] Clause 9.2.3); carried inside
   the object payload for wrap-aware MMTP-layer loss/ordering detection.
@@ -209,9 +218,9 @@ An MMT stream maps to MoQ tracks as follows:
 
 | MMT Component | MoQ Mapping |
 |---------------|-------------|
-| Asset (stream) | Namespace |
-| Packet ID (video) | Track "video" |
-| Packet ID (audio) | Track "audio" |
+| Package | Namespace |
+| Asset, by Packet ID (video) | Track "video" |
+| Asset, by Packet ID (audio) | Track "audio" |
 | MPU (one MPU per group) | Group; number derived from media time (Section 4.4.1) |
 | MPU data unit (FT=0, FT=1, or FT=2) | Subgroup ID |
 | MMTP packet (fragment) within a data unit | Object ID |
@@ -244,29 +253,23 @@ header, per [@!ISO.23008-1].  Both MMTP header layers are always
 preserved: the packet header carries the FEC Type, RAP Flag, and
 timestamp, and the MPU-mode payload header (the first bytes of the
 MMTP payload) carries the Fragmentation Indicator and MPU sequence
-number that receivers and the FEC layer depend on.  This document
-does not define a
-header-stripped delivery mode.  A publisher that wishes to deliver
-raw ISOBMFF fragments without MMTP encapsulation publishes the track
-with CMAF packaging per [@!I-D.wilaw-moq-cmafpackaging] instead.  In
-this profile an MPU can contain one or more ISOBMFF movie fragments:
-FT=1 carries one movie fragment's metadata and each FT=2 data unit
-carries one sample.  That layout is not the CMAF Chunk-to-Object
-mapping.
+number that receivers and the FEC layer depend on.  A publisher that
+wishes to deliver raw ISOBMFF fragments without MMTP encapsulation
+publishes the track with CMAF packaging [@?I-D.ietf-moq-cmsf]
+instead.  In this profile an MPU can contain one or more ISOBMFF movie
+fragments: FT=1 carries one movie fragment's metadata and each FT=2
+data unit carries one sample.
 
 ## Group Boundaries
 
 This section defines the object layout of mfu mode
-(`mmtpMode: "mfu"`, Section 12.1) -- the only object layout this
-document fully specifies.
+(`mmtpMode: "mfu"`, Section 12.1).
 
 Group boundaries align with MPU boundaries, and subgroup boundaries
 align with MPU data-unit boundaries:
 
 - Each group contains all objects of exactly one MPU: a change of MPU
-  sequence number starts a new group.  The group's *number* is not the
-  MPU sequence number; it is derived from media time by the formula in
-  Section 4.4.1.
+  sequence number starts a new group, numbered per Section 4.4.1.
 - Subgroup 0 of each group carries exactly one complete FT=0 MPU
   metadata packet.  Its data unit contains the authored initialization
   boxes, including `ftyp`, `mmpu`, and `moov`, and uses FI=0.  When the
@@ -289,10 +292,11 @@ align with MPU data-unit boundaries:
   then MUST publish each FT=1
   data unit before every FT=2 sample that references that movie
   fragment.  If an MPU contains multiple movie fragments, the sequence
-  repeats as FT=1 followed by its FT=2 samples.  Validation is performed
-  in ascending Subgroup ID, not network arrival order: concurrently
-  delivered subgroups MAY arrive in any order and are buffered until
-  their turn.  A missing or duplicate FT=0 invalidates the group; a gap,
+  repeats as FT=1 followed by its FT=2 samples.  A receiver MUST
+  validate and process subgroups in ascending Subgroup ID, not network
+  arrival order, and MUST NOT admit an FT=2 sample before its FT=1
+  metadata: concurrently delivered subgroups MAY arrive in any order
+  and are buffered until their turn.  A missing or duplicate FT=0 invalidates the group; a gap,
   duplicate data-unit identity, or invalid FT=1/FT=2 sequence in that
   logical order invalidates the affected movie fragment.  A receiver
   MUST NOT infer the missing structure.  The signaling object is not a
@@ -322,15 +326,12 @@ through the byte before the first media sample byte-for-byte into FT=1,
 and MUST copy the referenced sample bytes byte-for-byte and without
 transformation into FT=2.  A receiver can therefore reconstruct the
 authored movie fragment without synthesizing box fields, sample timing,
-or media bytes (Section 5.1).  Receiver-side size and structure checks
-do not by themselves provide cryptographic proof of byte equality; the
-publisher's byte-preservation requirement is normative.
+or media bytes (Section 5.1).
 
 Mapping each data unit to its own subgroup makes a complete metadata
 unit or sample the unit of in-order delivery, loss, and FEC.  Relays MAY
-deliver subgroups concurrently, but a receiver MUST process them in
-ascending Subgroup ID and MUST NOT admit an FT=2 sample before its FT=1
-metadata.  Under unrecoverable congestion a relay MAY drop a subgroup;
+deliver subgroups concurrently.  Under unrecoverable congestion a relay
+MAY drop a subgroup;
 the resulting gap invalidates the affected movie fragment rather than
 authorizing inferred metadata, timing, or cadence.
 
@@ -354,15 +355,11 @@ altGroup (OPTIONAL, unsigned integer)
 
 defined by [@!I-D.ietf-moq-msf] Section 5.2.12: an integer
 identifying a group of tracks that are alternate versions of one
-another.  This document does not redefine the field; it profiles
-membership exactly.
-Two tracks are members of the same switching set if and only if both
+another.  Two tracks are members of the same switching set if and only if both
 carry the `altGroup` field and the values are equal.  A track that
 omits `altGroup` is a member of no switching set, and the
-switching-set requirements of this section do not bind it.  Every
-normative statement in this document that ranges over "tracks of a
-switching set" (or "the same switching set") ranges over exactly this
-membership.  A repair track (Section 8.2) protecting a member track
+switching-set requirements of this section do not bind it.  A repair
+track (Section 8.2) protecting a member track
 carries the same `altGroup` value as the track it protects.
 
 ### Group Number Formula
@@ -389,9 +386,8 @@ where:
   4.4.2) as a signed integer.
 - `groupDurationTicks` is the per-track group duration expressed
   in the same `timescale`, as a positive integer.  The catalog
-  signals it via Section 4.4.2; conversion from the integer-millisecond
-  form is exact by construction (the catalog publisher rejects
-  non-exact pairs and uses the integer-tick override instead).
+  signals it per Section 4.4.2, which requires the conversion to be
+  exact.
 - `presentationAnchorTicks` is the signed timestamp in this track's
   `timescale` that corresponds to presentation time zero.  It includes
   the publisher's edit-list, encoder-priming, and composition-time
@@ -399,9 +395,6 @@ where:
   intended to be rendered with another audio or video track MUST signal
   this field; a track that is not part of a synchronized presentation
   MAY omit it and use zero as its local origin.
-- Negative `relative_ticks` (which can occur during encoder start-up,
-  audio priming, or B-frame reorder near the start of the timeline)
-  MUST clamp to group number 0, as shown above.
 
 Timeline origin: `ticks` is measured on the track's media
 presentation timeline; `presentationAnchorTicks` maps that track to
@@ -416,7 +409,7 @@ presentation_time = (ticks - presentationAnchorTicks) / timescale
 has the same rational value for samples representing the same media
 instant.  This is a media-time relation, not an NTP or wall-clock
 relation, and it is not the `Timestamp` field of the MMTP packet header
-(which is NTP-derived and unrelated to this formula).  For
+(Section 3.1).  For
 ISOBMFF-derived MPU content, the anchor is applied to the composition
 timeline after edit-list and priming adjustments.  All tracks of a
 switching set MUST use the same presentation origin as well.  A
@@ -449,10 +442,6 @@ conversion is not exact, the publisher's timescale or group-duration
 choice is wrong (Section 4.4.2) -- implementations MUST NOT round to
 compensate.
 
-The same `(ticks, groupDurationTicks)` pair, fed through this
-formula, MUST produce the same group number in every implementation
-that participates in the switching set.
-
 Worked example.  A switching set of two video renditions of the same
 content: rendition A with `timescale: 90000`, rendition B with
 `timescale: 44100`, both with `presentationAnchorTicks: 0` and
@@ -484,41 +473,14 @@ This document defines a single per-track field:
 groupDurationMs (REQUIRED, unsigned integer, milliseconds)
 ~~~
 
-Rationale for the chosen unit:
+The timescale is the MSF `timescale` field ([@!I-D.ietf-moq-msf]
+Section 5.2.21), resolved per the track's `packaging` value
+([@!I-D.ietf-moq-msf] Section 5.2.4; this document adds `mmtp`,
+Section 12.1):
 
-- Integer milliseconds is unambiguous across catalog encodings (JSON,
-  CBOR) and avoids the float-vs-integer tension that motivated the
-  integer-ticks form of the formula in the first place.
-- Segment-aligned ABR ladders commonly use group durations in
-  whole-millisecond multiples (e.g. 100, 1000, 2000, 4000), so
-  catalog and encoder agree without conversion in the common case.
-- The primary use case for the integer-tick override (below) is an MPU
-  group duration at a non-integer-millisecond cadence (for example an
-  all-intra, one-frame MPU at 1/30 s = 33.333... ms), which cannot be
-  expressed in integer milliseconds and which some low-latency MoQ
-  deployments need.
-
-A track's container kind is carried in the catalog `packaging` field
-([@!I-D.ietf-moq-msf] Section 5.2.4, REQUIRED), NOT a `container`
-field.  The base specification defines the value `loc` (among
-others); [@?I-D.ietf-moq-cmsf] Section 3.5.1 extends the allowed
-values with `cmaf`; and this document adds `mmtp` in the same
-manner (Section 12.1).  ("container kind" is used informally below
-as a synonym for the `packaging` value.)  Per-track codec is
-carried in the flat, top-level `codec` field
-([@!I-D.ietf-moq-msf] Section 5.2.18), as are the other rendition
-parameters (Section 12.1); there is no nested parameter object.
-
-The timescale is carried in the per-track `timescale` field --
-defined by [@!I-D.ietf-moq-msf] Section 5.2.21 ("the number of time
-units that pass per second") and OPTIONAL there -- for every
-container kind; no container kind uses a differently named or
-nested field.  The subscriber resolves it per the track's container
-kind:
-
-| Container | Timescale source |
+| `packaging` | Timescale source |
 |-----------|------------------|
-| `mmtp`    | The `timescale` field, which this document profiles as REQUIRED for mmtp tracks (Section 12.1).  ISO 23008-1 Annex A.4 lists 90 000 Hz only as a video convention; the catalog does not infer audio timescales, so leaving the field unset is a catalog error. |
+| `mmtp`    | The `timescale` field, REQUIRED for mmtp tracks (Section 12.1); absence is a catalog error, and the 90 000 `asset_timescale` default of [@!ISO.23008-1] Clause 10.3.9.3 does not apply. |
 | `cmaf`    | The `timescale` field.  [@?I-D.ietf-moq-cmsf] leaves it OPTIONAL, so this document makes it REQUIRED for any cmaf track to which this section applies (a member of a switching set governed by Section 4.4.1); leaving it unset on such a track is a catalog error. |
 | `loc`     | The `timescale` field; when absent, 1 000 000 -- LOC timestamps are expressed in microseconds [@?I-D.ietf-moq-loc]. |
 | (absent or unrecognized `packaging`) | 1 000 000 (microseconds).  This row covers track entries whose `packaging` value is missing or unrecognized; the convention is fixed by this document and does NOT derive from [@!I-D.ietf-moq-transport]. |
@@ -568,19 +530,17 @@ on such tracks will produce group-boundary discontinuities.
 The group duration above describes the cadence of MMTP media groups
 (one MPU per group, Section 4.3).  It does NOT describe whether an MPU
 contains additional keyframes after its required group-start random
-access point.  A subscriber recovering from loss may use the cadence of
-all keyframes to bound how long it must wait for the next decodable
-refresh point before it can, for example, arm a keyframe-loss repair
-timer or decide to request a fresh init.  This document defines an
-OPTIONAL per-track field for that keyframe cadence:
+access point.  This document defines an OPTIONAL per-track field for
+the cadence of all keyframes, which the repair policy of [@!MOQ-FEC]
+Section 11.4.1 uses to classify FEC blocks:
 
 ~~~
 keyframeIntervalMs (OPTIONAL, unsigned integer, milliseconds)
 ~~~
 
 `keyframeIntervalMs` is the interval between consecutive video
-keyframes, in integer milliseconds.  It is ADVISORY and semantically
-DISTINCT from `groupDurationMs`: `groupDurationMs` is the duration of
+keyframes, in integer milliseconds.  It is distinct from
+`groupDurationMs`: `groupDurationMs` is the duration of
 one MPU/group, whereas `keyframeIntervalMs` describes every keyframe,
 including any additional keyframes inside an MPU.  When the only
 keyframes are the required group-start RAPs and group duration is
@@ -588,22 +548,15 @@ constant, the two values are equal; additional RAPs can make the
 keyframe interval shorter.  The field applies to video tracks only; a
 publisher that cannot determine the cadence simply omits it.
 
-Because the field is advisory, its absence is not a catalog error:
-subscribers MUST NOT reject a catalog solely because it is missing, and
-a subscriber that relies on it for refresh scheduling leaves that
-behavior disabled when it is absent.  A receiver applying the repair
-policy of [@!MOQ-FEC] Section 11.4 cannot then exclude a keyframe
-after the group start from any FEC block, so it treats every block of
-the track as keyframe-bearing (fail closed); it MUST NOT substitute a
-locally chosen or observed cadence.  When present,
-`keyframeIntervalMs` MUST be a positive integer; a zero value is a
-catalog error (it would drive a receiver's derived repair timeout to
-zero).
+Its absence is not a catalog error:
+subscribers MUST NOT reject a catalog solely because it is missing,
+and a receiver MUST NOT substitute a locally chosen or observed
+cadence for it.  When present, `keyframeIntervalMs` MUST be a
+positive integer; a zero value is a catalog error.
 
-Advisory describes the field's presence, not its accuracy.  A receiver
-applying that repair policy relies on a published keyframe interval to
-exclude keyframes from part of a group, so when the field is present
-it binds every keyframe of the track: the publisher MUST NOT emit a
+The repair policy of [@!MOQ-FEC] Section 11.4.1 relies on a published
+keyframe interval to exclude keyframes from part of a group, so when
+the field is present it binds every keyframe of the track: the publisher MUST NOT emit a
 keyframe other than at a group start or a whole number of intervals
 after one.  A publisher whose encoder can place keyframes off that
 cadence, for example at scene cuts, omits the field.
@@ -617,13 +570,11 @@ keyframeIntervalTicks (OPTIONAL, unsigned integer)
 ~~~
 
 expressed in the same timescale as `groupDurationTicks` (Section 4.4.2,
-selected by the track's container kind).  If both
+selected by the track's `packaging`).  If both
 `keyframeIntervalMs` and `keyframeIntervalTicks` are present,
-`keyframeIntervalTicks` wins.  A receiver applying the repair policy
-of [@!MOQ-FEC] Section 11.4 treats a `keyframeIntervalMs` whose tick
-conversion is not exact, with no override, as absent.  Unlike
+`keyframeIntervalTicks` wins.  Unlike
 `groupDurationTicks`, this document places NO switching-set agreement
-requirement on the keyframe interval: it is a per-track advisory hint,
+requirement on the keyframe interval: it is a per-track hint,
 and tracks in a switching set MAY carry different keyframe cadences.
 
 ## Init Segment Signaling
@@ -632,9 +583,6 @@ Publishers signal MPU metadata inline as the complete FT=0 object in
 Subgroup 0 of every group (Section 4.3), preceded in that subgroup only
 by the OPTIONAL AL-FEC signaling object of Section 8.  Its data unit contains the
 authored initialization boxes, including `ftyp`, `mmpu`, and `moov`.
-This document defines no separate init-track mode: splitting the
-per-MPU metadata onto another track would lose the ordering contract
-that makes the following FT=1 and FT=2 data units self-contained.
 
 In addition, publishers SHOULD carry decoder initialization data
 directly in the catalog via the per-track field:
@@ -678,10 +626,7 @@ maintaining a running value per subgroup; it MUST NOT assume successive
 objects differ by a fixed nonzero step, nor that an absolute Object ID
 is carried explicitly.
 
-This makes receivers robust both to publishers that emit a constant
-zero delta (relying on a relay to re-sequence Object IDs on egress)
-and to direct publisher-to-subscriber topologies where no relay
-re-sequencing occurs.  Object IDs identify preserved source objects
+Object IDs identify preserved source objects
 within a subgroup; they do not replace the MMTP packet sequence, FI
 countdown, or active-data-unit association required by Sections 5.2
 and 5.3.
@@ -749,12 +694,10 @@ from the authored ISOBMFF metadata carried by FT=0 and FT=1:
 4. Each FT=2 timed DU identifies one sample -- or one producer-authored
    subsample of it -- by `(MPU_sequence_number,
    movie_fragment_sequence_number, sample_number, offset)`.  A
-   whole-sample data unit carries `offset` zero, and its reassembled
-   FT=2 media length MUST equal that sample's authored size.  A
-   subsample data unit (Section 5.2.1) carries the authored byte
-   position of its first media byte within the sample.  Every
-   `(sample, offset)` data unit is admitted at most once, and every
-   described sample is emitted at most once.
+   whole-sample data unit carries `offset` zero; a subsample data unit
+   (Section 5.2.1) carries the authored byte position of its first
+   media byte within the sample.  Section 5.3.3 defines sample
+   completion.
 
 A receiver MUST reject a missing or ambiguous media track, timescale,
 movie-fragment sequence, `tfdt`, or sample identity.  It MUST also
@@ -772,9 +715,7 @@ MMTP Timestamp, packet or MPU counters, MoQ Object IDs, arrival time,
 catalog cadence, codec frame-rate guesses, or previously observed
 samples.
 
-The MMTP Timestamp remains the NTP-short UTC send time used for packet
-delivery and jitter measurement (Sections 3.1 and 10.1).  It is never a
-DTS, PTS, duration, media-clock epoch, or movie-fragment identifier.
+The MMTP Timestamp is a send time, not media time (Section 3.1).
 Any absolute MMT presentation anchor and edit-list offset are applied
 as specified by PI/MPU presentation signalling and ISOBMFF; a receiver
 without the required anchor MUST reject that timeline rather than
@@ -793,35 +734,26 @@ decrement the value by one, and the FI=3 payload MUST carry zero.  The
 counter MUST NOT wrap or repeat within a data unit.
 
 The mfu mapping defined here carries exactly one data unit per MMTP
-payload, so `aggregation_flag` MUST be zero.  An input MMTP flow used
+payload, so `aggregation_flag` MUST be zero.  The upstream MMTP
+packetizer produces conformant data units, and an input MMTP flow used
 by this mapping MUST already satisfy the 256-payload bound for every
-data unit.  A publisher MUST reject a purported data unit that exceeds
-the bound, has an invalid countdown, or uses aggregation.  It MUST NOT
-wrap or extend the counter, divide one data unit's overflow between
-subgroups, or synthesize MoQ Object IDs to make a non-conformant MMTP
-data unit appear valid.  This mapping does not repacketize or
-subdivide an input data unit: the subsample partition of
-Section 5.2.1 is authored by the origin packetizer before this
-mapping applies, never by a relay and never by this mapping itself.
-
-The upstream MMTP packetizer is responsible for producing conformant
-data units.  In this profile an FT=2 timed data unit carries one whole
+data unit.  In this profile an FT=2 timed data unit carries one whole
 sample, or exactly one producer-authored subsample of it
-(Section 5.2.1), fragmented across at most 256 MMTP payloads.  A
-sample whose media exceeds one data unit's capacity MUST be
-partitioned into subsample data units by the origin packetizer per
-Section 5.2.1; it MUST NOT be carried by wrapping or extending the
-counter, silently truncated, or split into a second MPU.  An access
-unit MUST NOT be split across multiple MPUs ([@!ISO.23008-1]
-Section 6.4).
+(Section 5.2.1).  A sample whose media exceeds one data unit's
+capacity MUST be partitioned into subsample data units by the origin
+packetizer per Section 5.2.1, before this mapping applies -- never by
+a relay and never by this mapping, which does not repacketize or
+subdivide an input data unit.  Such a sample MUST NOT be carried by
+wrapping or extending the counter, silently truncated, or split into a
+second MPU, and an access unit MUST NOT be split across multiple MPUs
+([@!ISO.23008-1] Section 6.4).  A publisher MUST reject a purported
+data unit that exceeds the bound, has an invalid countdown, or uses
+aggregation.  It MUST NOT wrap or extend the counter, divide one data
+unit's overflow between subgroups, or synthesize MoQ Object IDs to
+make a non-conformant MMTP data unit appear valid.
 
-Within those bounds, requiring the publisher to reassemble an MFU
-before forming a MoQ object would force every receiver to re-fragment
-it for its own decoder pipeline and would defeat per-fragment FEC and
-prioritization.
-
-Therefore each MMTP packet maps to exactly one MoQ object, and the
-publisher MUST NOT reassemble MFU fragments:
+Each MMTP packet maps to exactly one MoQ object, and the publisher
+MUST NOT reassemble MFU fragments:
 
 1. The publisher MUST publish each MMTP packet of a data unit as a
    separate object within that data unit's subgroup (Section 4.3), preserving the
@@ -833,23 +765,23 @@ publisher MUST NOT reassemble MFU fragments:
 2. The publisher MUST NOT reassemble or reorder fragments based on
    the Fragmentation Indicator.  It routes each packet to (track,
    group, subgroup) by packet_id, MPU boundary, data-unit type, and the
-   strict active-DU state of Section 5.3: a change of MPU sequence number starts the next group
-   (Section 4.3), whose number comes from the formula in
-   Section 4.4.1, and each distinct data unit within the group maps to
-   its own subgroup as defined in Section 5.3.
+   strict active-DU state of Section 5.3: a change of MPU sequence
+   number starts the next group (Section 4.3), and each distinct data
+   unit within the group maps to its own subgroup as defined in
+   Section 5.3.
 3. The receiver MUST reassemble each data unit from the objects of its
-   subgroup before media processing.  The receiver first restores the
-   MMTP packet stream's serial order (including recovered packets), then
-   applies the FI/counter state machine of Section 5.3:
+   subgroup before media processing.  After restoring serial packet
+   order (Section 5.3.3), it applies the FI/counter state machine of
+   Section 5.3:
    - A single object with FI=0 is a complete, unfragmented data unit;
      for FT=2 that data unit is one MFU.
    - FT=2 objects with FI=1 (first), FI=2 (zero or more middle), and FI=3
      (last) reassemble, in that restored MMTP order, into one MFU by
      concatenating each fragment's media bytes, delimited as defined
      below.
-   - The receiver MUST validate the non-wrapping `fragment_counter`
-     countdown defined above.  Any missing, repeated, wrapped, or
-     non-decrementing count invalidates the entire MFU.
+   - The receiver MUST validate the `fragment_counter` countdown with
+     the state machine of Section 5.3.2.  Any missing, repeated,
+     wrapped, or non-decrementing count invalidates the entire MFU.
    - The reassembled MFU's RAP flag is taken from its FI=1 (or FI=0)
      object.
 
@@ -859,11 +791,13 @@ publisher MUST NOT reassemble MFU fragments:
    receiver MUST parse the C and X flags, packet-counter presence, and
    header-extension length to locate the following 8-byte MPU-mode
    payload header; it MUST NOT assume a fixed offset of 12 bytes.  The
-   MPU-mode payload header contains payload_length (16),
-   fragment_type (4), timed_flag (1), fragmentation_indicator (2),
+   MPU-mode payload header contains, by [@!ISO.23008-1]
+   Clause 9.3.2.3 name with this document's alias in parentheses,
+   length (`payload_length`, 16), FT (`fragment_type`, 4), T
+   (`timed_flag`, 1), f_i (`fragmentation_indicator`, 2),
    aggregation_flag (1), fragment_counter (8), and
-   MPU_sequence_number (32) ([@!ISO.23008-1]); both headers are stripped from
-   every fragment.
+   MPU_sequence_number (32); both headers are stripped from every
+   fragment.
 
    The 16-bit `payload_length` field MUST be encoded and interpreted
    as the number of bytes following that field within the MPU payload,
@@ -887,7 +821,7 @@ publisher MUST NOT reassemble MFU fragments:
    bytes, extends beyond the available MPU payload bytes, leaves
    undeclared bytes before the outer trailer, or consumes that trailer.
 
-   The MFU header (the DU header: 14 bytes for
+   The DU header ([@!ISO.23008-1] Figures 12 and 13: 14 bytes for
    timed media -- movie_fragment_sequence_number (32),
    sample_number (32), offset (32), priority (8),
    dep_counter (8) -- or 4 bytes for non-timed media) follows the
@@ -895,9 +829,7 @@ publisher MUST NOT reassemble MFU fragments:
    it is likewise stripped rather than concatenated into the media
    stream.  When the packet's FEC Type is 1, the trailing 4-byte
    Source FEC Payload ID ([@!MOQ-FEC] Section 8.5) is excluded as
-   well.  Concatenating the raw post-packet-header bytes of the
-   fragments would interleave per-fragment payload-header bytes
-   into the reassembled MFU and corrupt it.
+   well.
 4. FT=0 and FT=1 MUST each be unaggregated, complete FI=0 data units
    with `fragment_counter` zero.  Their payload length is six plus the
    metadata octets; they have no DU header.  Fragmented or empty
@@ -907,15 +839,7 @@ publisher MUST NOT reassemble MFU fragments:
    evicting the least recently admitted incomplete record — an open
    data unit or a parked continuation run alike — and admit the new
    one; it rejects only when no such record exists.  A record that has
-   already completed is never a candidate.  The key is admission time
-   and not last use: a stranded continuation run keeps receiving
-   packets, so keying on last use would refresh it indefinitely and
-   make the slow-completing healthy data units the victims instead.
-   Reclaiming by refusal alone is not conformant: a receiver that
-   operates without a timeout has nothing to retire a parked run, so a
-   run that charges a slot no eviction can reclaim makes the bound
-   refuse every later data unit permanently — and Section 5.2.2
-   describes a producer that creates such runs.  An incomplete data
+   already completed is never a candidate.  An incomplete data
    unit is discarded on declared discontinuity or unrecoverable loss
    and is never emitted.
 
@@ -952,17 +876,13 @@ Origin packetizer requirements:
    to the sum of the media lengths of all preceding subsample data
    units of that sample: offsets are strictly increasing, with no gap
    and no overlap.
-3. The subsample data units of one sample MUST be published
-   contiguously on their `packet_id`, in ascending `offset` order,
-   each as its own subgroup per Section 5.3.2.  No other data unit of
-   the same `packet_id` may interleave between them.
+3. Each subsample data unit of one sample MUST be published as its
+   own subgroup per Section 5.3.2, contiguously per Section 5.2.2.
 4. `priority` and `dep_counter` describe the sample and SHOULD be
    identical across its subsample data units.
 
 Relays and this mapping MUST NOT create, merge, or re-partition
-subsample data units.  The prohibition of Section 5.2 is unchanged in
-substance: the entity that authors the bytes authors the partition,
-states it on the wire, and every other entity transports it verbatim.
+subsample data units.
 
 Receiver sample assembly: a subsample-partitioned sample completes
 only when every one of its subsample data units has completed under
@@ -986,84 +906,52 @@ and interleave structure does not depend on data-unit boundaries.
 
 ### Source Contiguity
 
-Section 5.2.1 requires the subsample data units of one sample to be
-published contiguously on their `packet_id`.  This section states the
-corresponding requirement one level down, for the fragments of a
-single data unit, and applies it to every fragmented data unit rather
-than only to subsample-partitioned ones.
-
 [@!ISO.23008-1] does not prohibit a packetizer from emitting an
 unrelated payload of the same `packet_id` between two fragments of one
 data unit.  This profile does prohibit it.
 
-An origin packetizer MUST carry the fragments of one data unit on
-consecutive `packet_sequence_number` values of that data unit's
-`packet_id`, in FI order, with no other payload of that `packet_id`
-between them.  The sequence numbers of the FI=1 fragment, of each FI=2
-fragment, and of the FI=3 fragment MUST be successive values under
+An origin packetizer MUST emit every multi-packet unit on consecutive
+`packet_sequence_number` values of its `packet_id`, in authored order,
+with no other payload of that `packet_id` between its packets: the
+fragments of a data unit in FI order, and the subsample data units of
+one sample (Section 5.2.1) in ascending `offset` order.  The sequence
+numbers of the FI=1 fragment, of each FI=2 fragment, and of the FI=3
+fragment MUST be successive values under
 modulo-2^32 arithmetic.  A data unit of a different `packet_id` MAY be
 emitted at any point, and a further data unit of the same `packet_id`
-MAY be emitted once that data unit's FI=3 fragment has been emitted.
+MAY be emitted once that data unit's FI=3 fragment has been emitted,
+subject to the sample-level contiguity above.
 
 The requirement constrains the packetizer's emission order only.  Loss
 or reordering on the path does not violate it: the receiver restores
-the per-`packet_id` serial packet order, including recovered packets,
-before the state machine of Section 5.3.2 (Section 5.3.3).  Repair
+serial packet order before reassembly (Section 5.3.3).  Repair
 carried on its own flow bears a different `packet_id` and therefore
 cannot interleave.
 
-A producer that violates source contiguity creates a failure its peers
-can neither diagnose nor repair.  In its own output the violation is
-directly visible: on one `packet_id`, between two fragments of the same
-data unit, a `packet_sequence_number` that is not the successor of the
-preceding fragment's `packet_sequence_number`; or, between an FI=1
-fragment and its FI=3, another data unit's FI=0 or FI=1 payload.  The
-consequences at the receiver, which the producer cannot see, are these:
-
-- The data unit never completes.  Its fragments no longer share an
-  active-data-unit address and are held as separate, incomplete state.
-- It is never recovered by a weaker association key.  Per Section 5.3
-  a receiver MUST NOT fall back to (stream, MPU sequence number), the
-  fragment counter alone, an MMTP timestamp, a signaling identifier,
-  or arrival order.  A continuation carries no data-unit identity, so
-  no such fallback can distinguish a continuation of the open data
-  unit from an orphan of a different data unit whose first fragment
-  was lost in the same sequence gap.
-- It consumes two of the receiver's bounded in-flight data-unit
-  records (Section 5.2, item 5) rather than one: the open data unit at
-  the first fragment's address, and the stranded continuations at
-  theirs.  Sustained violation therefore consumes that bound at twice
-  the rate a capacity model predicts.  Eviction by least recently
-  admitted retires the stranded records first, since they never
-  complete and so only age; a healthy data unit is displaced only once
-  it has been open longer than every stranded record — the
-  slow-completing large fragmented frame this profile exists to carry.
-- The loss is silent.  The receiver reclaims the slot by eviction
-  (Section 5.2, item 5) and emits no protocol error; the only
-  observable is its count of evicted incomplete data units.  A
-  violating peer presents to an operator as intermittent quality loss
-  with no error surface.
-
-A receiver MUST NOT relax association in order to tolerate such a
-producer.  Doing so exchanges recoverable loss for unrecoverable
-cross-data-unit corruption: a continuation admitted into the wrong
-data unit corrupts media that would otherwise have been discarded.
-Source contiguity is consequently a property to verify against a
-producer at integration time, not one to defend against at run time.
+A violating data unit never completes at the receiver, which
+associates continuations only through active data-unit state
+(Section 5.3) and evicts the stranded records without a protocol
+error (Section 5.2, item 5).  A receiver MUST NOT relax association to
+tolerate such a producer: a continuation admitted into the wrong data
+unit corrupts media that would otherwise have been discarded.
 
 ## Active Data-Unit Association and Subgroup Derivation
 
 Object IDs are transport coordinates, not an MMTP continuation key.
 A fragment recovered below the MoQ object layer has no Object ID, and
 Object IDs from two delivery paths are not comparable.  The MMTP DU
-header is also not a per-fragment coordinate: ISO/IEC 23008-1 places it
-only on FI=0 and FI=1.  FI=2 and FI=3 continuations carry media bytes
-but no movie-fragment sequence, sample number, or sample offset.
+header is also not a per-fragment coordinate: this profile carries it
+only in the FI=0 or FI=1 payload ([@!ISO.23008-1] Clause 9.3.2 does
+not specify whether FI=2 and FI=3 fragments repeat it).  FI=2 and FI=3
+continuations carry media bytes but no movie-fragment sequence, sample
+number, or sample offset.
 
 Consequently a receiver MUST associate continuations through the
 ordered, bounded active-data-unit state defined here.  It MUST NOT use
-an MMTP Timestamp, MoQ Object ID, packet arrival time, inferred byte
-offset, or a recently completed identity as a fallback association.
+an MMTP Timestamp, MoQ Object ID, signaling identifier, packet arrival
+time or order, inferred byte offset, recently completed identity, or a
+(stream, MPU sequence number) pair or fragment counter alone as a
+fallback association.
 
 ### First-Fragment Identity
 
@@ -1142,13 +1030,14 @@ MMTP-session and MoQ-track scope are part of that ordering state;
 neither mechanism may fabricate a missing transition.
 
 Completion is transactional.  For a whole-sample data unit the
-receiver first validates the full FI chain, exact authored sample
-size, and matching unconsumed FT=1 sample record.  For a
-subsample-partitioned sample it additionally requires every
-constituent subsample data unit to have completed, with the
-byte-adjacency and total-length checks of Section 5.2.1.  Only then
-may it emit the sample and consume that record.  A
-failed check leaves every pre-existing valid state and timing record
+receiver first validates the full FI chain and the matching unconsumed
+FT=1 sample record; the reassembled FT=2 media length MUST equal that
+sample's authored size.  For a subsample-partitioned sample it
+additionally requires every constituent subsample data unit to have
+completed, with the byte-adjacency and total-length checks of
+Section 5.2.1.  Only then may it emit the sample and consume that
+record.  Every `(sample, offset)` data unit is admitted at most once,
+and every described sample is emitted at most once.  A failed check leaves every pre-existing valid state and timing record
 unchanged, except that an explicitly declared discontinuity discards
 the incomplete prior unit.
 
@@ -1168,10 +1057,7 @@ Section 4.3).  Accordingly a receiver:
   roots upon which other access units depend.
 
 On a multicast or AMT leg, [@!MOQ-FEC] Section 11.4 specifies the
-receiver repair policy this implies: an FEC block that carries, or may
-carry, part of a RAP (the RAP MFU or the FT=0 or FT=1 data unit that
-governs it) gets priority unicast repair, and loss confined to other
-data units is concealed without stalling presentation.
+receiver repair policy this implies.
 
 # Subscriber Join and Relay Behavior
 
@@ -1234,19 +1120,13 @@ A subscriber joins a live mmtp-packaged track as follows:
    data unit, or the FT=1 data unit governing its RAP, is lost, since
    the RAP then cannot be admitted (Section 4.3).  On a multicast or
    AMT leg, loss that spares those three data units does not make the
-   track discontinuous for presentation: the subscriber conceals the
-   affected samples and keeps presentation and audio/video
-   synchronization running until the next RAP ([@!MOQ-FEC]
-   Sections 11.4.3 and 11.4.4, the latter for audio).
+   track discontinuous; [@!MOQ-FEC] Section 11.4 specifies its
+   handling.
 
 ## Relay Retention for Late Joiners
 
 A relay that admits subscribers mid-stream SHOULD retain, for each
-track it serves, all objects of the current (most recent) group.  This
-whole-group unit is the minimum retention behavior defined for a
-container-blind relay.  The relay cannot select only FT=1 metadata or a
-RAP-bearing FT=2 subgroup without parsing MMTP, so this document defines
-no FT- or RAP-selective retention subset.
+track it serves, all objects of the current (most recent) group.
 
 When a subscription joins mid-group, the relay SHOULD deliver the
 retained objects of the current group from the group start --
@@ -1269,8 +1149,7 @@ Two completeness rules apply to replayed subgroups:
    and objects in their source order.  Under the positional mapping of
    Section 4.3, this delivers Subgroup 0 and every lower-numbered
    governing metadata subgroup before its FT=2 subgroup without parsing
-   MMTP.  Receivers still enforce logical Subgroup-ID order when
-   concurrent network delivery reorders subgroups.
+   MMTP.  Receivers still enforce Subgroup-ID order (Section 4.3).
 
 Retention of groups older than the current group (for example to
 serve FETCH-based catch-up) is permitted but out of scope for this
@@ -1280,11 +1159,11 @@ boundary, which is the same behavior as a relay that retains nothing.
 
 # FEC Integration
 
-MMT's AL-FEC framework supports multiple FEC schemes including
-RaptorQ [@!RFC6330] and Reed-Solomon [@?RFC5510],
-with parameters signaled via MMTP signaling messages or, in
-ATSC 3.0, via S-TSID (which is part of the ROUTE transport layer).
-For MoQ, RaptorQ is the mandatory-to-implement and only fully
+MMT's AL-FEC framework supports multiple FEC schemes, with the MMT
+FEC codes specified in [@?ISO.23008-10] and parameters signaled via
+MMTP signaling messages or, in ATSC 3.0, via S-TSID (which is part of
+the ROUTE transport layer).  For MoQ, RaptorQ [@!RFC6330] is the
+mandatory-to-implement and only fully
 specified scheme ([@!MOQ-FEC] Section 4.3), and FEC repair uses the
 model defined in [@!MOQ-FEC]:
 
@@ -1298,47 +1177,17 @@ Repair Track: video/repair
 
 ## Interleaving
 
-MMT AL-FEC interleaves source symbols across multiple MFUs:
-
-~~~
-MFU:        0    1    2    3    4    5    6    7
-            |    |    |    |    |    |    |    |
-Block 0:    S0   S1   S2   S3   ----------------->  R0, R1
-Block 1:                        S4   S5   S6   S7 > R2, R3
-~~~
-
-Default interleave window (`interleaveDepthMs`, milliseconds) varies
-by application; the equivalent frame count D follows from the frame
-duration ([@!MOQ-FEC] Section 8.3):
-
-- ATSC 3.0: 1000-2000 ms (30-60 frames at 30fps)
-- ARIB STD-B60: 2000 ms (60 frames at 30fps)
-- Low-latency: 133-267 ms (4-8 frames at 30fps)
+Interleaving and typical interleave windows (`interleaveDepthMs`)
+follow [@!MOQ-FEC] Section 9; the number of groups per block D
+follows from the group duration ([@!MOQ-FEC] Section 5.1).  A typical
+window for ARIB STD-B60 content is 2000 ms.
 
 ## OTI Signaling
 
-The S-TSID table contains RaptorQ OTI (Object Transmission Info):
-
-~~~
-S-TSID {
-  source_filter (S,G address),
-  fec_oti {
-    transfer_length (40 bits),
-    reserved (8 bits),
-    symbol_size (16 bits),
-    num_source_blocks (8 bits),
-    num_sub_blocks (16 bits),
-    alignment (8 bits),
-  }
-}
-~~~
-
-For MoQ, no OTI is required in-session: receivers derive the
-complete RaptorQ OTI from the catalog `fec` fields per
-[@!MOQ-FEC] Section 4.2 (Transfer Length F = K x T, Symbol Size T,
-Z = 1 source block, N = 1 sub-block, Al = 8).  The S-TSID
-`fec_oti` above is an ingest-side input only; Section 12.2 defines
-its conversion to catalog fields.
+The S-TSID carries the RaptorQ OTI of [@!RFC6330] Section 3.3 in its
+`fecOTI` attribute.  MoQ carries no OTI in-session: receivers derive
+it from the catalog `fec` fields per [@!MOQ-FEC] Section 4.2, and
+Section 12.2 converts an ingested `fecOTI` to catalog fields.
 
 # FEC Parameter Signaling
 
@@ -1394,70 +1243,31 @@ follows:
 - **sourceSymbols**: The number of MMTP packets (source symbols)
   per FEC block; on the MMT path the canonical FEC source symbol is
   one whole MMTP packet ([@!MOQ-FEC] Section 7.3)
-- **interleaveDepthMs**: The FEC interleave window in milliseconds --
-  the time span of each FEC block ([@!MOQ-FEC]
-  Section 5.1).  The number of MPU groups per block is derived as
-  D = round(interleaveDepthMs / groupDurationMs), using the
-  `groupDurationMs` field of Section 12.1.  When ingesting broadcast
-  content, set the window to the time span of the original broadcast
-  FEC interleave; convert a source-frame count using the source frame
-  duration before deriving the MPU-group count
-- **OTI**: Not signaled.  Receivers derive the RaptorQ OTI
-  (F = K x T, Z = 1, N = 1, Al = 8) from the catalog fields per
-  [@!MOQ-FEC] Section 4.2
+- **interleaveDepthMs**: Per [@!MOQ-FEC] Section 5.1, whose group
+  duration is the `groupDurationMs` field of Section 12.1.  When
+  ingesting broadcast content, set it to the time span of the
+  original broadcast FEC interleave, converting a source-frame count
+  with the source frame duration
 
 See [@!MOQ-FEC] for the complete catalog field definitions, the
 algorithm registry, and the OTI derivation.
 
-## Repair Track Discovery
+## Repair Tracks
 
-When FEC is enabled, the repair track uses the naming convention
-defined in [@!MOQ-FEC] Section 6.1:
-
-~~~
-Source Track:  [namespace, track_name]
-Repair Track:  [namespace, track_name, "repair"]
-~~~
-
-Subscription to the repair track is selective and optional, per the
-subscription model of [@!MOQ-FEC] Section 6.2 (the normative
-statement of that model): a subscriber that wants FEC protection
-issues its own, separate subscription for the repair track, and
-subscribers are never required to subscribe to it.  The repair
-track uses a lower-precedence priority than the source track it
-protects.  Priorities are expressed in the MoQ Transport scale --
-8-bit values 0-255 where a numerically LOWER value is delivered
-with HIGHER precedence -- so lower precedence means a numerically
-GREATER value (e.g. 240 for the repair track against a source
-track at the default 128; [@!MOQ-FEC] Section 10), and repair
-symbols are dropped first under congestion.
+A source track's repair tracks are the track its `fec.repairTrack`
+names and the tracks that name it in `depends` ([@!MOQ-FEC]
+Section 5.1.1); [@!MOQ-FEC] Section 6.1 gives their conventional
+names.  Subscription to them follows [@!MOQ-FEC] Section 6.2, and
+their priorities [@!MOQ-FEC] Section 10.
 
 ## FEC Signaling for Multicast Delivery
 
 For multicast (SSM/ASM) delivery there is no bidirectional
-signaling channel; this is one of the reasons the catalog is the
-sole normative signaling mechanism.  FEC parameters reach multicast
-receivers via:
+signaling channel.  FEC parameters reach multicast receivers via:
 
 1. **MoQ Catalog Extension** (normative for MoQ receivers):
-   out-of-band delivery via catalog JSON:
-
-~~~ json
-{
-  "tracks": [{
-    "name": "video",
-    "fec": {
-      "algorithm": "raptorq",
-      "sourceSymbols": 32,
-      "repairSymbols": 8,
-      "interleaveDepthMs": 133,
-      "reorderToleranceMs": 40,
-      "symbolSize": 1312,
-      "repairTrack": "video/repair"
-    }
-  }]
-}
-~~~
+   out-of-band delivery in the catalog `fec` object (see the worked
+   catalog of [@!MOQ-FEC] Section 5.1.2).
 
 2. **MMTP AL-FEC Signaling (message_id=0x0203)**: in-band delivery
    per ISO/IEC 23008-1:2023 Amendment 1:2025, for native broadcast
@@ -1472,68 +1282,32 @@ receivers via:
    these packets to a media or repair decoder (Section 3.1;
    [@!MOQ-MULTICAST] Section 5)
 
-With frame-grouped MMTP delivery at 30 fps (33.33 ms per group), the
-133 ms interleave window derives D = round(133 / 33.33) = 4 groups
-per block, each contributing K / D = 32 / 4 = 8 source symbols;
-block capacity is K x T = 32 x 1312 = 41,984 bytes per 133 ms
-(about 2.5 Mbit/s of source data).
-
 # Multicast Integration
 
 MMT content can be delivered via IP multicast (SSM, AMT) and TreeDN
 for scalable distribution.  Platform-specific delivery paths, the
 multicast endpoint catalog extension, and TreeDN/AMT integration are
-defined in [@!MOQ-MULTICAST].
-
-When MMT is delivered over multicast, each UDP datagram carries one
-complete MMTP packet, standard MMTP packet header included.  MoQ relays
-at network edges terminate the multicast path and bridge MMTP
-content into the MoQ application layer via QUIC/WebTransport.
-
-For ATSC 3.0 and ARIB STD-B60 receivers, MMTP over SSM is the
-native delivery path and requires no protocol translation.
+defined in [@!MOQ-MULTICAST], and the multicast packet format in its
+Section 5.
 
 # ARIB STD-B60 Compatibility
 
 ARIB STD-B60 [@?ARIB-B60] (Japan's MMT-based broadcasting standard)
 uses the same ISO 23008-1 foundation as ATSC 3.0.  Publishers SHOULD
 preserve the original FEC parameters when ingesting ARIB STD-B60
-content; ARIB deployments typically use larger source blocks and
-deeper interleaving than ATSC 3.0 (Section 7).
+content.
 
 ## Clock Reference
 
-ARIB STD-B60 uses UTC wallclock timestamps in NTP short format,
-consistent with ISO 23008-1.  The MMTP Timestamp field carries the
-UTC send time of the packet.  MoQ Transport defines no per-object
-timestamp field; the send time remains available to receivers from
-the preserved MMTP packet header (Section 4.2).
-
-The MMTP Timestamp uses NTP short format (32-bit: 16-bit seconds +
-16-bit fractional seconds relative to the NTP epoch):
-
-~~~
-Send time (seconds) = Timestamp upper 16 bits
-                      + (lower 16 bits / 65536)
-~~~
-
-Because the seconds part is 16 bits, the value wraps every 65 536
-seconds (about 18.2 hours): it identifies the send time modulo that
-period and MUST NOT be interpreted as an absolute wallclock time
-without an out-of-band era reference.
-
-Note: This differs from MPEG-2 TS, which uses a 90kHz PTS/DTS clock.
+ARIB STD-B60 uses the MMTP Timestamp of Section 3.1: the UTC send
+time of the packet in NTP short format.
 
 # Transport Hierarchy
 
-Clients SHOULD attempt transports in preference order.  The transport
-hierarchy for native clients (TV, mobile) and browser clients is
-defined in [@!MOQ-MULTICAST] Section 3.
-
-For MMT-specific deployments, AL-FEC (Section 7) is essential on
-SSM/AMT paths since there is no retransmission.  On MoQ/QUIC paths,
-FEC reduces retransmission latency but QUIC provides a reliable
-fallback.
+Clients SHOULD attempt transports in the preference order that
+[@!MOQ-MULTICAST] Section 3 defines for native and browser clients.
+AL-FEC (Section 7) is the loss recovery on SSM/AMT paths, which have
+no retransmission.
 
 # Catalog Signaling
 
@@ -1582,7 +1356,7 @@ Per-track catalog fields for mmtp packaging:
 | `groupDurationMs` | REQUIRED | Number | Group duration, integer ms (Section 4.4.2); defined by this document |
 | `groupDurationTicks` | OPTIONAL | Number | Integer-tick override (Section 4.4.2); defined by this document |
 | `altGroup` | OPTIONAL | Number | Switching-set membership key ([@!I-D.ietf-moq-msf] Section 5.2.12, profiled in Section 4.4) |
-| `keyframeIntervalMs` | OPTIONAL | Number | Keyframe/GOP cadence, integer ms; advisory, video only (Section 4.4.3); defined by this document |
+| `keyframeIntervalMs` | OPTIONAL | Number | Keyframe/GOP cadence, integer ms; video only (Section 4.4.3); defined by this document |
 | `keyframeIntervalTicks` | OPTIONAL | Number | Integer-tick override for the keyframe interval (Section 4.4.3); defined by this document |
 | `initData` | OPTIONAL | String | Base64 ftyp+moov init segment ([@?I-D.ietf-moq-cmsf] Section 3.1, profiled in Section 4.5) |
 | `fec` | OPTIONAL | Object | AL-FEC parameters, defined in [@!MOQ-FEC] Section 5 (Section 8) |
@@ -1596,11 +1370,9 @@ top-level fields of the track object.
 
 `mmtpMode` selects the object layout and MUST be "mfu".  It delivers
 one subgroup per FT=0, FT=1, or FT=2 data unit as defined in Sections
-4.3 and 5.  This document defines no whole-MPU object mode and no
-separate init-track mode.  A subscriber MUST reject a track whose
+4.3 and 5.  A subscriber MUST reject a track whose
 `mmtpMode` is absent or has any other value; the object layout cannot
-be inferred safely from received objects.  Per [@!I-D.ietf-moq-msf]
-Section 5, parsers MUST ignore fields they do not understand.
+be inferred safely from received objects.
 
 Example:
 
@@ -1633,9 +1405,20 @@ any other catalog.
 When ingesting ATSC 3.0 content delivered via ROUTE, generate MoQ
 catalog from the S-TSID signaling table (defined in ATSC A/331
 [@?ATSC-A331] for the ROUTE transport layer).  For MMT-delivered
-content, equivalent parameters are obtained from MMTP signaling
-messages (MPT/MPI).  A complete worked example is given in
+content, equivalent parameters are obtained from the MP table (asset
+locations, [@!ISO.23008-1] Clause 10.3.9) and the AL-FEC message (FEC
+parameters, [@!ISO.23008-1] Annex C.6).  A complete worked example is given in
 Appendix A.
+
+Overhead arithmetic.  `FECParameters@overhead` is an integer
+percentage.  Below, a div b is the integer quotient floor(a / b) of a
+non-negative integer a and a positive integer b.  Export
+(Section 12.3) rounds up, computing ceil(100 x P / K) as
+(100 x P + K - 1) div K; ingest (this section) rounds down, computing
+P = floor(K x overhead / 100) as (K x overhead) div 100.  The two are
+matching inverses: ceil(100 x P / K) <= overhead if and only if
+P <= (K x overhead) div 100, so ingest yields the largest P whose
+exported `@overhead` does not exceed the ingested one.
 
 The `multicast` field in the output uses the multicast endpoint format
 defined in [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
@@ -1652,11 +1435,7 @@ defined in [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   common presentation origin across audio and video and MUST NOT emit
   zero merely because the source offset was unavailable
 - `FECParameters@overhead` -> `fec.repairSymbols`, computed as
-  P = floor(K x overhead / 100) and evaluated in integer arithmetic
-  as (K x overhead) div 100, where a div b is the integer quotient
-  floor(a / b) of a non-negative integer a and a positive integer b:
-  the inverse of the export rule of Section 12.3, whose rounding
-  note and round-trip properties apply
+  P = (K x overhead) div 100 (overhead arithmetic above)
 - `fecOTI` F,T -> `fec.sourceSymbols` (K = ceil(F / T)),
   `fec.symbolSize` (T)
 - `FECParameters@maximumDelay` -> `fec.interleaveDepthMs` (both are
@@ -1676,8 +1455,8 @@ round-trip properties of Section 12.3 assume that the ingested
 to a P below the one it was computed from.
 
 No OTI is carried in the output catalog.  The MoQ-side decoder
-configuration is re-derived from the catalog fields as
-F = K x T, Z = 1, N = 1, Al = 8 ([@!MOQ-FEC] Section 4.2).  When the
+configuration is re-derived from the catalog fields (Section 7.2).
+When the
 ingested F is not a multiple of T, the final source symbol is
 zero-padded to T under the fixed-T construction ([@!MOQ-FEC]
 Section 7.3), and the re-derived transfer length K x T exceeds the
@@ -1699,10 +1478,12 @@ assigns 0, which is reserved for the MMTP signaling flow
 endpoint whose `tracks[]` array lists them all.
 
 `timescale`, `groupDurationMs`, and `mmtpMode` are not carried in
-S-TSID; the converter obtains them from MMTP signaling (asset
-descriptors and MPU presentation duration in the MPT/MPI tables) and
-populates them in the output catalog, since they are REQUIRED
-fields (Section 12.1).
+S-TSID, yet they are REQUIRED fields (Section 12.1).  The converter
+takes `timescale` from `asset_timescale` in the MP table
+([@!ISO.23008-1] Clause 10.3.9.3) and the group duration from
+successive `mpu_presentation_time` values of the MPU timestamp
+descriptor ([@!ISO.23008-1] Clause 10.5.2), and sets `mmtpMode`
+itself.
 
 ## MoQ Catalog to S-TSID Conversion
 
@@ -1711,16 +1492,14 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 
 - `multicast.endpoints[].sourceAddress` -> `RS@sIpAddr`
 - `fec.repairSymbols` (P) and `fec.sourceSymbols` (K) ->
-  `FECParameters@overhead`, computed as ceil(100 x P / K) and
-  evaluated in integer arithmetic as (100 x P + K - 1) div K
+  `FECParameters@overhead`, computed as (100 x P + K - 1) div K
+  (Section 12.2)
 - `fec.interleaveDepthMs` -> `FECParameters@maximumDelay` (both are
   durations in milliseconds; no scaling by frame duration)
-- `fec.sourceSymbols x fec.symbolSize` -> `fecOTI` F, with
-  T = `fec.symbolSize`, Z = 1, N = 1, Al = 8 -- the exported OTI is
-  exactly the derived OTI of [@!MOQ-FEC] Section 4.2
+- `fec.sourceSymbols` and `fec.symbolSize` -> `fecOTI`, exactly the
+  OTI derived from them (Section 7.2)
 
-`FECParameters@overhead` is an integer percentage, so the ratio
-100 x P / K is rounded up: for a catalog whose only FEC instance is
+Because export rounds up, for a catalog whose only FEC instance is
 the source track's own, the exported overhead never understates the
 catalog's repair rate.  That guarantee does not extend to a catalog
 that declares layered repair tracks ([@!MOQ-FEC] Section 6.3) or a
@@ -1732,18 +1511,8 @@ therefore understates its repair rate, and the exported
 `FECParameters` describes the base layer alone, not the catalog's
 full repair capacity.
 
-The rule is stated in integer arithmetic because computing P / K in
-binary floating point first and then scaling by 100 can land just
-above an integer, and the ceiling then overshoots by one: for P = 7
-and K = 100, the IEEE 754 double-precision value of (7 / 100) x 100
-is 7.000000000000001, whose ceiling is 8, not 7.
-
-The ingest rule of Section 12.2, P = (K x overhead) div 100, is the
-matching inverse: ceil(100 x P / K) <= overhead if and only if
-P <= (K x overhead) div 100, so the ingest rule yields the largest P
-whose exported `@overhead` does not exceed the ingested one.  Like
-the rest of this section, the resulting round-trip properties are
-informative:
+Like the rest of this section, the round-trip properties that follow
+from the overhead arithmetic of Section 12.2 are informative:
 
 - catalog -> S-TSID -> catalog always reproduces `repairSymbols` when
   K <= 100.  For larger K, several values of P can share one
@@ -1755,16 +1524,6 @@ informative:
   it yields the largest such value below the ingested one.
 - Either round trip is stable: converting its output again changes
   nothing.
-
-## Multicast Endpoint Catalog Extension
-
-The multicast catalog extension is defined in
-[@!MOQ-MULTICAST] Section 4.
-
-When converting S-TSID to MoQ catalog (Section 12.2), the `multicast`
-field in the output catalog conforms to the multicast endpoint format
-defined in [@!MOQ-MULTICAST] Section 4.1, using the
-`endpoints` array to represent per-TSI multicast groups.
 
 # Security Considerations
 
@@ -1808,6 +1567,17 @@ this suite requests a control-message codepoint.
     <date year='2023'/>
   </front>
   <seriesInfo name='ISO/IEC' value='23008-1:2023'/>
+</reference>
+
+<reference anchor='ISO.23008-10'>
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 10: MPEG media transport forward error correction (FEC) codes</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date/>
+  </front>
+  <seriesInfo name='ISO/IEC' value='23008-10'/>
 </reference>
 
 <reference anchor='MOQ-FEC'>
@@ -1989,9 +1759,9 @@ The FEC fields recompute from the S-TSID as follows:
   (100 x 250 + 1000 - 1) div 1000 = 25, the ingested value
   (Section 12.3)
 - `interleaveDepthMs`: `maximumDelay` = 1000 ms (both are durations)
-- Derived MoQ OTI ([@!MOQ-FEC] Section 4.2):
-  F = K x T = 1000 x 1000 = 1,000,000 bytes, Z = 1, N = 1, Al = 8 --
-  identical to the ingested `fecOTI`, so the round trip is lossless
+- Derived MoQ OTI (Section 7.2): F = K x T = 1000 x 1000 =
+  1,000,000 bytes, identical to the ingested `fecOTI`, so the round
+  trip is lossless
 
 The converted parameters are internally consistent: with
 `groupDurationMs` of 1000, the 1000 ms interleave window derives
