@@ -137,6 +137,9 @@ data, or an item of non-timed media data, within an MPU
 ATSC 3.0 signaling table containing transport and FEC parameters</t>
 <t><strong>SLT</strong>: Service Layer Table - ATSC 3.0 bootstrap signaling</t>
 <t><strong>MPT</strong>: MMT Package Table - signaling table containing MMT asset info</t>
+<t><strong>PA</strong>: Package Access - the signaling message that carries the
+tables a receiver needs to consume a Package, among them the MPT
+(<xref target="ISO.23008-1"></xref> Clause 10.3.2)</t>
 <t><strong>MPI</strong>: Media Presentation Information - signalling table carrying
 the presentation information document (<xref target="ISO.23008-1"></xref> Clause 10.3.8)</t>
 </section>
@@ -178,7 +181,7 @@ the presentation information document (<xref target="ISO.23008-1"></xref> Clause
   Packet ID (16),
   Timestamp (32),
   Packet Sequence Number (32),
-  [Packet Counter (32)],       // Present if C=1
+  [Packet Counter (32)],       // Present if C=1 (never: C=0)
   [Header Extension (..)]      // Present if X=1
 }
 ]]></artwork>
@@ -187,16 +190,24 @@ version(2) | packet_counter_flag(1) | FEC_type(2) | reserved(1) |
 extension_flag(1) | RAP_flag(1); byte 1 is reserved(2) |
 type(6), i.e. the packet type occupies the LOW six bits of
 the second byte (<xref target="ISO.23008-1"></xref> Clause 9.2).</t>
+<t>Every packet of an MMTP packet flow -- media, repair, and signaling
+packets alike, on every delivery path -- MUST set the packet counter
+flag C to 0, so no packet carries the Packet Counter field.
+<xref target="ISO.23008-1"></xref> Clause 9.2.3 requires all packets of an MMTP flow to
+share one setting of C; this profile fixes that setting at 0.  The
+MMTP packet header is therefore 12 bytes unless X = 1 adds a header
+extension.</t>
 <t>Key fields for MoQ mapping:</t>
 
 <ul spacing="compact">
 <li><strong>Packet ID</strong>: Maps to MoQ track within namespace.  This document
 reserves packet_id 0 for the MMTP signaling flow: MMTP packets of
-packet type 0x02 carrying signaling messages, such as the AL-FEC
-signaling message of Section 8.3.  No MoQ track is advertised for
-the signaling flow, but an mmtp source track MAY carry its packets
-as objects (Section 8).  An MMTP packet carrying media (packet
-type 0x00) or a repair symbol (packet type 0x03) MUST NOT use
+packet type 0x02 carrying signaling messages, such as the PA message
+of a multicast endpoint flow (<xref target="MOQ-MULTICAST"></xref> Section 5) and the
+AL-FEC message of Section 8.3.  No MoQ track is advertised for
+the signaling flow, but an mmtp source track MAY carry its AL-FEC
+message as an object (Section 8).  An MMTP packet carrying media
+(packet type 0x00) or a repair symbol (packet type 0x03) MUST NOT use
 packet_id 0; a
 track's packet_id is in the range 1..65535, and on multicast
 delivery it is the <tt>packetId</tt> the endpoint advertises for the
@@ -230,6 +241,27 @@ Source FEC Payload ID trails the packet, <xref target="MOQ-FEC"></xref> Section 
 (mode 1; not used by this mapping)</li>
 <li><strong>RAP Flag</strong>: 1 indicates Random Access Point</li>
 </ul>
+<t>A signaling packet (packet type 0x02, on packet_id 0) MUST carry its
+messages in the signaling message mode of <xref target="ISO.23008-1"></xref>
+Clause 9.3.4: its MMTP payload begins with the 2-byte payload header
+of Clause 9.3.4.2:</t>
+
+<artwork><![CDATA[Signaling Message Payload Header {
+  f_i (2),                    // fragmentation indicator
+  RES (4),                    // reserved, set to 0
+  H (1),                      // 1: each MSG_length is 32 bits
+  A (1),                      // aggregation_flag
+  frag_count (8),             // fragmentation counter
+}
+]]></artwork>
+<t>When A = 1, a MSG_length field of 16 bits, or 32 bits when H = 1,
+precedes each aggregated message; when A = 0 no MSG_length field is
+present.  The signaling message follows (<xref target="ISO.23008-1"></xref>
+Clause 10.2), beginning with its message_id.  A packet that carries
+one complete signaling message without aggregation has f_i = 00,
+A = 0, and frag_count = 0, and has H = 0 because it carries no
+MSG_length, so its payload header is the two bytes 0x00 0x00 and the
+message_id immediately follows them.</t>
 </section>
 </section>
 
@@ -300,10 +332,12 @@ Source FEC Payload ID trails the packet, <xref target="MOQ-FEC"></xref> Section 
 ]]></artwork>
 <t>The one exception is the OPTIONAL AL-FEC signaling object of
 Section 8: its payload is a complete MMTP signaling packet (packet
-type 0x02) on packet_id 0 with FEC Type 0.  It carries a signaling
-message rather than an MPU-mode payload header and data-unit
-fragment, and no Source FEC Payload ID.  No other object on an mmtp
-source track uses packet type 0x02 or packet_id 0.</t>
+type 0x02) on packet_id 0 with FEC Type 0.  Its MMTP payload is the
+signaling message payload header of Section 3.1 followed by one
+complete AL-FEC message (f_i = 00, A = 0), rather than an MPU-mode
+payload header and data-unit fragment, and it carries no Source FEC
+Payload ID.  No other object on an mmtp source track uses packet
+type 0x02 or packet_id 0.</t>
 <t>Throughout this document, &quot;MMTP packet&quot; means the header-included
 wire unit and &quot;MMTP payload&quot; means the bytes that follow the packet
 header, per <xref target="ISO.23008-1"></xref>.  Both MMTP header layers are always
@@ -684,7 +718,7 @@ and 5.3.</t>
 
 <artwork><![CDATA[MFU Mode (one subgroup per MPU data unit):
   Group N:
-   [SG 0 / Obj 0: [MMTP type=0x02 id=0][AL-FEC sig msg]] (Section 8)
+   [SG 0 / Obj 0: [MMTP type=0x02 id=0][SH][AL-FEC msg]] (Section 8)
     SG 0 / next:  [MMTP][PH FT=0 FI=0][ftyp+mmpu+moov]
     SG 1 / Obj 0: [MMTP][PH FT=1 FI=0][moof+mdat prefix]
     SG 2 / Obj 0: [MMTP][PH FT=2 FI=0][DU][sample 1]
@@ -703,10 +737,11 @@ two producer-authored subsample data units:
     SG 4 / Obj 0..j: [MMTP][PH FT=2 FI=1][DU offset=0]  ... FI=3
     SG 5 / Obj 0..k: [MMTP][PH FT=2 FI=1][DU offset=L0] ... FI=3
 
-[MMTP] = variable-length MMTP packet header (Section 3.1); C and X
-         locate the optional packet-counter and extension bytes.
+[MMTP] = MMTP packet header (Section 3.1): 12 bytes, since C = 0,
+         plus a header extension when X = 1.
 [PH]   = MPU-mode payload header, which carries the Fragmentation
          Indicator (FI); the FI is NOT in the MMTP packet header.
+[SH]   = signaling message payload header (Section 3.1).
 [...]  = OPTIONAL signaling object.  When present it is the first
          object of SG 0 and FT=0 is the object after it; when absent,
          FT=0 is the first object of SG 0 (Obj 0).
@@ -1244,10 +1279,10 @@ Section 12.2 converts an ingested <tt>fecOTI</tt> to catalog fields.</t>
 
 <section anchor="fec-parameter-signaling"><name>FEC Parameter Signaling</name>
 <t>FEC parameters for mmtp-packaged tracks are signaled in the catalog
-<tt>fec</tt> object, defined normatively in <xref target="MOQ-FEC"></xref> Section 5 -- the
-sole normative FEC signaling mechanism.  No in-session FEC
-signaling is required: the catalog carries every FEC parameter a
-receiver needs.
+<tt>fec</tt> object, defined normatively in <xref target="MOQ-FEC"></xref> Section 5, which is
+authoritative for MoQ receivers (<xref target="MOQ-FEC"></xref> Section 5.2).  A MoQ
+receiver requires no in-session FEC signaling: the catalog carries
+every FEC parameter it needs.
 This document does not redefine the catalog fields but specifies
 MMT-specific considerations for their use.</t>
 <t>A publisher MAY also carry the MMTP AL-FEC signaling message of
@@ -1256,11 +1291,11 @@ is an MMTP signaling packet on packet_id 0 (Section 3.1).  When
 present, it is published in Subgroup 0 of an MPU group as the object
 immediately before, and in the same subgroup as, that group's FT=0
 object, and a group carries at most one such object (Sections 4.2
-and 4.3).  Such an
-object is a redundant in-band copy of catalog state, not a second
-signaling mechanism: the message MUST NOT signal FEC parameters that
-contradict the track's catalog <tt>fec</tt> object, and where the two
-disagree the catalog governs.  The object carries no media data
+and 4.3).  On a MoQ
+track such an object is a redundant in-band copy of catalog state:
+the message MUST NOT signal FEC parameters that contradict the
+track's catalog <tt>fec</tt> object, and where the two disagree the catalog
+governs.  The object carries no media data
 unit and no repair symbol, so a MoQ receiver MUST NOT deliver it to
 a media or repair decoder (Section 3.1); a receiver that does not
 process MMTP signaling discards it.</t>
@@ -1315,15 +1350,20 @@ their priorities <xref target="MOQ-FEC"></xref> Section 10.</t>
 signaling channel.  FEC parameters reach multicast receivers via:</t>
 
 <ol>
-<li><t><strong>MoQ Catalog Extension</strong> (normative for MoQ receivers):
-out-of-band delivery in the catalog <tt>fec</tt> object (see the worked
-catalog of <xref target="MOQ-FEC"></xref> Section 5.1.2).</t>
+<li><t><strong>MoQ Catalog Extension</strong> (authoritative for MoQ receivers,
+<xref target="MOQ-FEC"></xref> Section 5.2): out-of-band delivery in the catalog
+<tt>fec</tt> object (see the worked catalog of <xref target="MOQ-FEC"></xref>
+Section 5.1.2).</t>
 </li>
 <li><t><strong>MMTP AL-FEC Signaling (message_id=0x0203)</strong>: in-band delivery
-per ISO/IEC 23008-1:2023 Amendment 1:2025, for native broadcast
-(ATSC 3.0, ARIB STD-B60) receivers.  A publisher that sends this
-message MUST carry it in an MMTP signaling packet (packet type
-0x02) on packet_id 0, the MMTP signaling flow (Section 3.1); on
+of the AL-FEC message of <xref target="ISO.23008-1"></xref> Clause C.6, with
+Table C.3 as replaced by ISO/IEC 23008-1:2023 Amendment 1:2025,
+for ISO/IEC 23008-1 receivers that consume the flow without the
+catalog, such as native broadcast (ATSC 3.0, ARIB STD-B60)
+receivers.  A publisher that sends this message MUST carry it in
+an MMTP signaling packet (packet type 0x02) on packet_id 0, the
+MMTP signaling flow, after the signaling message payload header of
+<xref target="ISO.23008-1"></xref> Clause 9.3.4.2 (Section 3.1); on
 multicast delivery it shares the multicast group of the media it
 describes, and on MoQ delivery it MAY be carried as an object of an
 mmtp source track under the rules of Section 8.  No track is
@@ -1579,13 +1619,15 @@ ingested F by exactly the padding length.</t>
 <t><tt>packetId</tt> is assigned per flow, not per <tt>tsi</tt>.  An <tt>LS</tt> (ROUTE
 transport session) carrying both a SrcFlow and its RepairFlow yields
 two <tt>tracks[]</tt> entries, and <tt>packetId</tt> is required to be unique
-within the (sourceAddress, groupAddress, port) tuple by Section 4.1
-of <xref target="MOQ-MULTICAST"></xref>; reusing <tt>tsi</tt> directly would collide for a
-repair flow that shares its source's <tt>tsi</tt>.  The converter assigns
-<tt>packetId</tt>
-sequentially from 1 in <tt>tsi</tt> order, emitting each source flow
-immediately before its repair flow (so <tt>tsi</tt> 1 source -&gt; packetId 1,
-its repair -&gt; packetId 2, <tt>tsi</tt> 2 source -&gt; packetId 3); it never
+across all endpoints of the sending entity by Section 4.1 of
+<xref target="MOQ-MULTICAST"></xref>; reusing <tt>tsi</tt> directly would collide for a
+repair flow that shares its source's <tt>tsi</tt>, and for <tt>LS</tt> elements of
+different <tt>RS</tt> elements that reuse a <tt>tsi</tt>.  The converter assigns
+<tt>packetId</tt> sequentially from 1 across the whole S-TSID, in <tt>RS</tt>
+document order and in <tt>tsi</tt> order within each <tt>RS</tt>, without
+restarting at a new <tt>RS</tt>, and emits each source flow immediately
+before its repair flow (so <tt>tsi</tt> 1 source -&gt; packetId 1, its
+repair -&gt; packetId 2, <tt>tsi</tt> 2 source -&gt; packetId 3); it never
 assigns 0, which is reserved for the MMTP signaling flow
 (<xref target="MOQ-MULTICAST"></xref> Section 4.1).  Flows sharing one
 (sourceAddress, groupAddress, port) tuple collapse into a single
@@ -1680,8 +1722,8 @@ registration of:</t>
 </tr>
 </tbody>
 </table><t>This document requests no MoQ message type registrations.  FEC
-signaling is catalog-only (<xref target="MOQ-FEC"></xref> Section 5); no document in
-this suite requests a control-message codepoint.</t>
+signaling uses no MoQ control message (<xref target="MOQ-FEC"></xref> Section 5.2); no
+document in this suite requests a control-message codepoint.</t>
 </section>
 
 </middle>

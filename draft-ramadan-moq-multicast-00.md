@@ -69,13 +69,20 @@ for ongoing media data.  This ensures that codec configuration is
 available before multicast reception begins.
 
 Exception: MMTP-packaged streams [@!MOQ-MMT] delivered
-via ATSC 3.0 broadcast or native SSM are self-describing and MAY
-operate as unidirectional data streams without a MoQ session.  MMTP
-carries per-packet routing (packet_id), timing (timestamp),
-sequencing (Packet Sequence Number), FEC framing (FEC Type, FEC
-payload IDs), and signaling (PA, MPI messages) natively.  ATSC 3.0 and ARIB
-STD-B60 receivers consume MMTP over SSM as their native delivery
-path.
+via ATSC 3.0 broadcast or native SSM MAY operate as unidirectional
+data streams without a MoQ session.  MMTP carries per-packet routing
+(packet_id), timing (timestamp), sequencing (Packet Sequence Number),
+and FEC framing (FEC Type, FEC payload IDs) natively, and its
+signaling messages identify the Assets in band: every Asset sent to a
+multicast endpoint is named by a PA message on packet_id 0 of its
+flow, whose MP table maps the Asset's packet_id to it (Section 5).  A
+receiver without the catalog
+takes the FEC configuration from the AL-FEC message
+([@!MOQ-MMT] Section 8.3) when the flow carries one.  A receiver
+that holds the catalog takes both from the catalog, which remains
+authoritative for it (Section 4.1; [@!MOQ-FEC] Section 5.2).
+ATSC 3.0 and ARIB STD-B60 receivers consume MMTP over SSM as their
+native delivery path.
 
 # Terminology
 
@@ -237,8 +244,18 @@ Endpoint field definitions:
     packet-level track routing on multicast.  Maps directly to the
     Packet ID field in the MMTP header (Section 3.1 of
     [@!MOQ-MMT]).  The value is an integer in the range 1..65535.
-    Values MUST be unique within an
-    (sourceAddress, groupAddress, port) tuple.  packet_id 0 is
+    A value MUST be unique across all endpoints of the MMT sending
+    entity for the lifetime of the delivery session
+    ([@!ISO.23008-1] Clause 9.2.3), not merely within one
+    (sourceAddress, groupAddress, port) tuple: wherever it appears it
+    names the same MMTP packet sub-flow, one sequence of packets with
+    one packet_sequence_number space.  An endpoint that carries
+    another endpoint's sub-flow packet for packet therefore carries it
+    under the same value, and every other sub-flow takes a value of
+    its own.  The rungs of a ladder never share a value, and a track
+    that the sending entity packetizes separately for several
+    endpoints, such as audio packetized once per rung, takes a
+    distinct value for each copy.  packet_id 0 is
     reserved for the MMTP signaling flow ([@!MOQ-MMT] Section 3.1),
     which, when present, arrives on the same tuple as the media; a
     publisher MUST NOT advertise it for a track.
@@ -405,9 +422,10 @@ and datagrams.  MMTP provides track routing (packet_id), send
 timestamps, sequencing (packet_sequence_number), FEC framing (FEC
 Type and the Source/Repair FEC Payload IDs) and random access
 signaling (RAP flag) in its packet header, and fragmentation (FI) in
-the MPU-mode payload header ([@!MOQ-MMT] Sections 3.1 and 4.2); FEC
-configuration, including the RaptorQ OTI, comes from the catalog
-([@!MOQ-FEC] Section 4.2).
+the MPU-mode payload header ([@!MOQ-MMT] Sections 3.1 and 4.2).
+For a MoQ receiver, FEC configuration, including the RaptorQ OTI,
+comes from the catalog ([@!MOQ-FEC] Sections 4.2 and 5.2); a
+receiver without the catalog relies on the in-band signaling below.
 
 Frame-sized LOC [@?I-D.ietf-moq-loc] or CMAF [@?I-D.ietf-moq-cmsf]
 objects exceed a UDP datagram; the MMTP MPU-mode payload format
@@ -439,6 +457,40 @@ ignored under Section 4.1.  Packets of the MMTP signaling flow
 (packet_id 0) are handled per [@!MOQ-MMT] Section 3.1.  FEC source
 and repair packets are distinguished by the MMTP FEC Type field
 ([@!MOQ-MMT] Section 3.1).
+
+A publisher MUST identify in band the Assets of every MMTP packet
+flow that it sends to a multicast endpoint, whether a receiver
+obtains the flow over native SSM or ASM or through an AMT relay
+(Section 4.2.1), with a PA message (message_id 0x0000;
+[@!ISO.23008-1] Clause 10.3.2, Table 21) on packet_id 0 of the
+endpoint.  The PA message is sent in the signaling message mode of
+[@!MOQ-MMT] Section 3.1 and carries the tables that [@!ISO.23008-1]
+Clause 10.3.1 requires of a PA message, among them a PA table
+(Clause 10.3.7, Table 26) and an MP table (Clause 10.3.9,
+Table 29).  The MP table MUST describe each track the endpoint
+lists, other than a `fec-repair` track ([@!MOQ-FEC] Section 5.1), as
+an Asset located on this flow at the track's `packetId`
+(MMT_general_location_info with location_type 0x00, [@!ISO.23008-1]
+Clause 10.6.1), and MUST NOT locate an Asset on this flow at any
+other packet_id.  Repair flows are not Assets, and the MP table does
+not list them; their in-band signaling is the AL-FEC message of
+[@!MOQ-MMT] Section 8.3.
+
+The publisher MUST send a PA message ahead of the MPU metadata
+(FT=0) data unit of every MPU that it sends to the endpoint, and
+later than the FT=0 data unit of the previous MPU of the same track,
+so that a receiver joining the endpoint at an MPU boundary holds the
+mapping before that MPU's media; [@!ISO.23008-1] Clause 10.3.2.1
+requires a receiver to process a PA message before any other
+signaling message.  An endpoint that lists only `fec-repair` tracks
+(a repair-only endpoint, [@!MOQ-FEC] Section 6.3.6) carries no Asset
+and sends no MPU, so it needs no PA message.
+
+For a receiver that holds the catalog, the endpoint's `packetId`
+values remain authoritative: it routes packets by them as above,
+needs no PA message, and handles packet_id 0 per [@!MOQ-MMT]
+Section 3.1.  A PA message is never carried as a MoQ object
+([@!MOQ-MMT] Section 4.2).
 
 The Multicast QUIC row corresponds to [@?QUIC-MULTICAST], which adds
 QUIC's per-packet AEAD and integrity.  The mapping of MMTP packets
