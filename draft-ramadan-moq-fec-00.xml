@@ -59,9 +59,9 @@ fully configure their decoders</li>
 <li>Compatibility mappings for ATSC 3.0 and ARIB STD-B60 <xref target="ARIB-B60"></xref>
 broadcast systems</li>
 </ol>
-<t>The mechanism protects MMTP-packaged tracks <xref target="MOQ-MMT"></xref> (Section 7.3);
-its relationship to CMAF packaging is described informatively in
-Section 13.</t>
+<t>The mechanism protects MMTP-packaged tracks <xref target="MOQ-MMT"></xref>; Section 7.3
+of this document specifies the protected source symbol, and Section 13
+describes the relationship to CMAF packaging informatively.</t>
 </section>
 
 <section anchor="terminology"><name>Terminology</name>
