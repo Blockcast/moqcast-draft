@@ -601,9 +601,15 @@ of [@!MOQ-FEC] Section 11.4, which repairs a keyframe-bearing block
 by a standalone FETCH [@!I-D.ietf-moq-transport] of the block's
 repair-track group.  That group's ID is the block's SS_Start, from
 the Repair FEC Payload ID of a multicast repair packet of the block,
-extended to 62 bits with the wrap epoch of [@!MOQ-FEC] Section 7.5;
-the receiver establishes that epoch from a repair-track Group ID it
-has received over MoQ.  For lost source packets whose block it has
+extended to 62 bits with the wrap epoch of [@!MOQ-FEC] Section 7.5.
+A receiver that takes its repair from multicast has usually received
+no repair-track Group ID over MoQ, so before its first FETCH it
+establishes that epoch from the Largest Location that a TRACK_STATUS
+request for the repair track reports ([@!I-D.ietf-moq-transport]
+Section 9.13): the Group of the LARGEST_OBJECT parameter in the
+REQUEST_OK (TRACK_STATUS_OK) that answers the request, as
+[@!MOQ-FEC] Section 7.5 specifies, unless it has received such a
+Group ID or has observed the FEC instance from its first block.  For lost source packets whose block it has
 not delimited, because it holds no repair packet of that block, the
 receiver instead fetches the Group range that [@!MOQ-FEC] Section 7.5
 derives from a lost SS_ID.  No other coordinate mapping is needed,

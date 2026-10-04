@@ -1289,7 +1289,8 @@ follows:
   or as specified in MMTP AL-FEC signaling
 - **blockProfile**: "iso-ssbg1-v1" ([@!MOQ-FEC] Section 5.1), the
   ISO 23008-1 Annex C block profile, for which an AL-FEC message
-  carries the coding byte 0x14 (Section 8.3)
+  carries the coding byte 0x14 (Section 8.3); REQUIRED when
+  `algorithm` is not "none"
 - **sourceSymbols**: The largest number of MMTP packets (source
   symbols) that an FEC block may hold; each block holds SSB_length of
   them ([@!MOQ-FEC] Section 7.4).  On the MMT path the canonical FEC
@@ -1572,8 +1573,9 @@ takes `timescale` from `asset_timescale` in the MP table
 ([@!ISO.23008-1] Clause 10.3.9.3) and the group duration from
 successive `mpu_presentation_time` values of the MPU timestamp
 descriptor ([@!ISO.23008-1] Clause 10.5.2), and sets `mmtpMode`
-itself.  Nor does S-TSID carry `fec.blockProfile`, which is REQUIRED
-([@!MOQ-FEC] Section 5.1); the converter sets it to the profile under
+itself.  Nor does S-TSID carry `fec.blockProfile`, which is REQUIRED for a
+track whose `fec.algorithm` is not "none" ([@!MOQ-FEC] Section 5.1);
+for such a track the converter sets it to the profile under
 which the MoQ-side publisher protects the track, "iso-ssbg1-v1".
 
 ## MoQ Catalog to S-TSID Conversion
@@ -1864,7 +1866,7 @@ The FEC fields recompute from the S-TSID as follows:
   (Section 12.3)
 - `interleaveDepthMs`: `maximumDelay` = 1000 ms (both are durations)
 - `blockProfile`: set by the converter (Section 12.2), since S-TSID
-  carries none
+  carries none and the track's `algorithm` is not "none"
 - Derived MoQ OTI of a full block (SSB_length = K, Section 7.2):
   F = K x T = 1000 x 1000 = 1,000,000 bytes, identical to the
   ingested `fecOTI`, so the round trip is lossless

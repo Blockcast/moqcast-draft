@@ -1333,7 +1333,8 @@ follows:</t>
 or as specified in MMTP AL-FEC signaling</li>
 <li><strong>blockProfile</strong>: &quot;iso-ssbg1-v1&quot; (<xref target="MOQ-FEC"></xref> Section 5.1), the
 ISO 23008-1 Annex C block profile, for which an AL-FEC message
-carries the coding byte 0x14 (Section 8.3)</li>
+carries the coding byte 0x14 (Section 8.3); REQUIRED when
+<tt>algorithm</tt> is not &quot;none&quot;</li>
 <li><strong>sourceSymbols</strong>: The largest number of MMTP packets (source
 symbols) that an FEC block may hold; each block holds SSB_length of
 them (<xref target="MOQ-FEC"></xref> Section 7.4).  On the MMT path the canonical FEC
@@ -1680,8 +1681,9 @@ takes <tt>timescale</tt> from <tt>asset_timescale</tt> in the MP table
 (<xref target="ISO.23008-1"></xref> Clause 10.3.9.3) and the group duration from
 successive <tt>mpu_presentation_time</tt> values of the MPU timestamp
 descriptor (<xref target="ISO.23008-1"></xref> Clause 10.5.2), and sets <tt>mmtpMode</tt>
-itself.  Nor does S-TSID carry <tt>fec.blockProfile</tt>, which is REQUIRED
-(<xref target="MOQ-FEC"></xref> Section 5.1); the converter sets it to the profile under
+itself.  Nor does S-TSID carry <tt>fec.blockProfile</tt>, which is REQUIRED for a
+track whose <tt>fec.algorithm</tt> is not &quot;none&quot; (<xref target="MOQ-FEC"></xref> Section 5.1);
+for such a track the converter sets it to the profile under
 which the MoQ-side publisher protects the track, &quot;iso-ssbg1-v1&quot;.</t>
 </section>
 
@@ -1991,7 +1993,7 @@ fields of <xref target="I-D.ietf-moq-msf"></xref> Section 5.2 (Section 12.1).</t
 (Section 12.3)</li>
 <li><tt>interleaveDepthMs</tt>: <tt>maximumDelay</tt> = 1000 ms (both are durations)</li>
 <li><tt>blockProfile</tt>: set by the converter (Section 12.2), since S-TSID
-carries none</li>
+carries none and the track's <tt>algorithm</tt> is not &quot;none&quot;</li>
 <li>Derived MoQ OTI of a full block (SSB_length = K, Section 7.2):
 F = K x T = 1000 x 1000 = 1,000,000 bytes, identical to the
 ingested <tt>fecOTI</tt>, so the round trip is lossless</li>
