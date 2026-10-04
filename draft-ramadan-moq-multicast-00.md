@@ -106,7 +106,8 @@ in all capitals, as shown here.
 **MMT sending entity**: The entity that packetizes media into MMTP
 packets and sends them on one or more multicast endpoints.  It is
 the scope over which Section 4.1 assigns each `packetId` value to
-exactly one MMTP packet sub-flow.
+exactly one MMTP packet sub-flow, and it serves exactly one MoQ
+namespace (Section 4.1).
 
 # Delivery Paths
 
@@ -275,7 +276,8 @@ Endpoint field definitions:
   endpoint in bits per second, defined as the sum of the UDP payload
   bitrates of all tracks carried on the endpoint, including repair
   tracks, plus the MMTP signaling sub-flow on packet_id 0
-  (Section 5); IP/UDP header overhead is excluded.  Publishers SHOULD
+  (Section 5) where the endpoint carries it; IP/UDP header overhead
+  is excluded.  Publishers SHOULD
   include bandwidth to enable capacity-aware join decisions.
   Subscribers SHOULD check available network capacity before joining
   high-bandwidth groups.
@@ -286,7 +288,11 @@ Endpoint field definitions:
 Each (sourceAddress, groupAddress, port) multicast tuple MUST be
 associated with at most one MoQ namespace.  Publishers requiring
 multiple independent streams MUST use distinct multicast groups or
-ports.
+ports.  An MMT sending entity (Section 2) serves exactly one MoQ
+namespace, which is one MMT Package (Section 5); a publisher that
+serves several namespaces acts as several sending entities, each with
+its own endpoints, its own `packetId` assignment and its own
+packet_id 0 signaling sub-flow.
 
 Receivers MUST ignore endpoints whose fields are mutually
 inconsistent -- for example, a `protocol` of "ssm" with
@@ -490,10 +496,23 @@ each track, other than a `fec-repair` track ([@!MOQ-FEC]
 Section 5.1), that any endpoint of the sending entity lists, and MUST
 locate it at each endpoint that carries it, and at no other, by an
 MMT_general_location_info of location_type 0x01 (IPv4) or 0x02 (IPv6)
-that gives the source address the sending entity uses for the
-endpoint, the endpoint's group address and port, and the track's
-`packetId` ([@!ISO.23008-1] Clause 10.6.1).  The PA message is
-therefore identical on every endpoint, and its one version sequence
+that gives the endpoint's group address and port, the track's
+`packetId`, and, as `ipv4_src_addr` or `ipv6_src_addr`, the address
+from which the sending entity transmits that endpoint's flow, which is
+the source address of its IP packets ([@!ISO.23008-1]
+Clause 10.6.1).  On an SSM endpoint that address equals the
+endpoint's `sourceAddress` (Section 4.1); an ASM endpoint, whose
+catalog entry has no `sourceAddress`, still carries the sending
+entity's own address there.  A receiver matches a location by
+destination address, destination port, packet_id and source address:
+on an SSM endpoint the source address is the endpoint's
+`sourceAddress`, and on an ASM endpoint it is the source address of
+the received packets, which tells this sending entity's flow apart
+from any other sender on the group.  A receiver behind an AMT relay
+compares against the encapsulated IP header, which keeps the original
+source address ([@!RFC7450] Section 5.1.6).  Because the sending
+entity knows its own source address for every endpoint, the PA
+message is identical on every endpoint, and its one version sequence
 applies everywhere, so a newer version overrides an older one on all
 endpoints alike ([@!ISO.23008-1] Clauses 10.2.3 and 10.3.9.3).
 Repair flows are not Assets, and the MP table does not list them;

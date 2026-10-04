@@ -1417,11 +1417,12 @@ neither its ISO syntax ([@!ISO.23008-1] Clause 8.3.2) nor the ATSC
 Source FEC Payload ID field, and hint samples travel as MPU-mode data
 units on the Asset's own packet_id ([@?ATSC-A331] Section 7.2.4.2.3),
 that is in asset packets, which A3SA does not sign.  This document
-therefore defines no A3SA-authenticated FEC block assignment.  A
-receiver that requires authenticated FEC block assignment MUST NOT
-treat a trailing Source FEC Payload ID as authenticated unless a
-mechanism other than A3SA signing has authenticated the bytes of the
-packet that carries it, the trailer included.
+therefore defines no A3SA-authenticated FEC block assignment: block
+assignment taken from the trailing Source FEC Payload ID of an A3SA
+verified packet is unauthenticated.  A receiver that requires
+authenticated FEC block assignment MUST obtain it from an integrity
+mechanism, other than A3SA signing, whose coverage includes the
+complete MMTP packet, the trailer included.
 
 For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical block identifier.  QUIC
