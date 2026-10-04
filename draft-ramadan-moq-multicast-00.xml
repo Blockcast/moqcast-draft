@@ -66,8 +66,9 @@ data streams without a MoQ session.  MMTP carries per-packet routing
 (packet_id), timing (timestamp), sequencing (Packet Sequence Number),
 and FEC framing (FEC Type, FEC payload IDs) natively, and its
 signaling messages identify the Assets in band: every Asset sent to a
-multicast endpoint is named by a PA message on packet_id 0 of its
-flow, whose MP table maps the Asset's packet_id to it (Section 5).  A
+multicast endpoint is named by a PA message on its sending entity's
+packet_id 0 signaling sub-flow, whose MP table locates the Asset by
+source address, group address, port and packet_id (Section 5).  A
 receiver without the catalog
 takes the FEC configuration from the AL-FEC message
 (<xref target="MOQ-MMT"></xref> Section 8.3) when the flow carries one.  A receiver

@@ -1205,7 +1205,11 @@ determined that packet's base (SBN, ESI) independently, for instance
 from MoQ transport identifiers (Section 8.3).  Absent that, an overlay
 recovery is usable as media but MUST NOT be counted toward base block
 recovery, and in particular MUST NOT be treated as reducing the
-number of erasures the base decoder still has to solve.
+number of erasures the base decoder still has to solve.  Under the
+mmtp packaging of [@!MOQ-MMT], whose receivers take SS_ID from the
+trailer on every path (Section 8.3), no such independent
+determination exists, so there an overlay recovery never counts
+toward base block recovery.
 
 **Sub-blocks**: When a single source block produces a large number
 of source symbols, RFC 6330 permits dividing each block into N
@@ -1412,7 +1416,7 @@ type 0x03 repair).
 Neither [@!ISO.23008-1] nor [@?ATSC-A331] carries the SS_ID inside
 the A3SA signed region.  In particular the MMT hint sample does not:
 neither its ISO syntax ([@!ISO.23008-1] Clause 8.3.2) nor the ATSC
-`MMTHSampleATSC3` syntax ([@?ATSC-A331] Section 7.2.4.2.2) has a
+`MMTHSampleATSC3` syntax ([@?ATSC-A331] Section 7.2.4.2.2.3) has a
 Source FEC Payload ID field, and hint samples travel as MPU-mode data
 units on the Asset's own packet_id ([@?ATSC-A331] Section 7.2.4.2.3),
 that is in asset packets, which A3SA does not sign.  This document
@@ -1426,8 +1430,9 @@ complete MMTP packet, the trailer included.  The bc-provenance profile
 authenticated bytes exclude transport-variant trailers, the Source
 FEC Payload ID among them.
 
-For MoQ-only receivers (no A3SA verification), the trailing 4-byte
-Source FEC Payload ID remains the canonical block identifier.  QUIC
+For MoQ-only receivers (no A3SA verification), the trailing Source
+FEC Payload ID (L bytes, Section 8.5.1) remains the canonical block
+identifier.  QUIC
 transport encryption provides equivalent integrity protection.
 
 ### Dual Source FEC Payload ID for a Keyframe Overlay

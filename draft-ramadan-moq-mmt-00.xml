@@ -1631,12 +1631,15 @@ within each <tt>RS</tt>, without restarting at a new <tt>RS</tt>, and emits each
 source flow immediately before its repair flow (so <tt>tsi</tt> 1
 source -&gt; packetId 1, its repair -&gt; packetId 2, <tt>tsi</tt> 2
 source -&gt; packetId 3); it never assigns 0, which is reserved for the
-MMTP signaling flow (<xref target="MOQ-MULTICAST"></xref> Section 4.1).  Neither this
-document nor <xref target="MOQ-MULTICAST"></xref> limits an MMT sending entity to one
-S-TSID.  When the converter ingests several S-TSIDs for one MMT
-sending entity, it continues the sequence from one S-TSID to the
-next, in ingestion order, rather than restarting at 1, so that no
-two flows of that sending entity share a value.  Flows sharing one
+MMTP signaling flow (<xref target="MOQ-MULTICAST"></xref> Section 4.1).  The numbering
+scope is the MMT sending entity, which serves exactly one MoQ
+namespace (<xref target="MOQ-MULTICAST"></xref> Section 4.1) but is not limited to one
+S-TSID: when the converter publishes the flows of several S-TSIDs
+under one namespace, it continues the sequence from one S-TSID to
+the next, in ingestion order, rather than restarting at 1, so that no
+two flows of that sending entity share a value.  S-TSIDs published
+under different namespaces belong to different sending entities, and
+each is numbered from 1.  Flows sharing one
 (sourceAddress, groupAddress, port) tuple collapse into a single
 endpoint whose <tt>tracks[]</tt> array lists them all.</t>
 <t><tt>timescale</tt>, <tt>groupDurationMs</tt>, and <tt>mmtpMode</tt> are not carried in
