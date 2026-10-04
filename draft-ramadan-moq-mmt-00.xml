@@ -261,7 +261,9 @@ Clause 10.2), beginning with its message_id.  A packet that carries
 one complete signaling message without aggregation has f_i = 00,
 A = 0, and frag_count = 0, and its sender sets H = 0 (H has no
 effect when A = 0), so its payload header is the two bytes 0x00 0x00
-and the message_id immediately follows them.</t>
+and the message_id immediately follows them.  A receiver ignores H
+when A = 0 and parses the header field by field, never by matching
+those two bytes.</t>
 </section>
 </section>
 

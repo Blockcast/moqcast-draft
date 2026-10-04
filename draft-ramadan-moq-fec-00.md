@@ -1410,17 +1410,18 @@ signing mechanism covers signaling messages and MA3 messages
 (packet type 0x2) but excludes asset packets (type 0x00 MPU and
 type 0x03 repair).
 
-To enable integrity verification of the Source FEC Payload ID within
-the A3SA signed region:
-
-1. The SS_ID SHOULD be carried redundantly in the MMT Hint Track
-   sample (`MMTHSampleATSC3.source_fec_payload_id` per ISO 23008-1).
-   Hint samples are delivered within the same MMTP packet_id as
-   their associated MFU data and fall within the A3SA signed region.
-
-2. Receivers operating in A3SA-verified mode SHOULD derive the FEC
-   block assignment from the signed hint track rather than the
-   trailing Source FEC Payload ID.
+Neither [@!ISO.23008-1] nor [@?ATSC-A331] carries the SS_ID inside
+the A3SA signed region.  In particular the MMT hint sample does not:
+neither its ISO syntax ([@!ISO.23008-1] Clause 8.3.2) nor the ATSC
+`MMTHSampleATSC3` syntax ([@?ATSC-A331] Section 7.2.4.2.2) has a
+Source FEC Payload ID field, and hint samples travel as MPU-mode data
+units on the Asset's own packet_id ([@?ATSC-A331] Section 7.2.4.2.3),
+that is in asset packets, which A3SA does not sign.  This document
+therefore defines no A3SA-authenticated FEC block assignment.  A
+receiver that requires authenticated FEC block assignment MUST NOT
+treat a trailing Source FEC Payload ID as authenticated unless a
+mechanism other than A3SA signing has authenticated the bytes of the
+packet that carries it, the trailer included.
 
 For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical block identifier.  QUIC
@@ -1496,15 +1497,9 @@ construction of Section 7.3, where the removal and the packet sizing
 budget are normative; a RAP packet under an overlay therefore yields
 one T-byte symbol that both instances protect.
 
-The A3SA redundancy mechanism above applies to the base SS_ID only.
-The hint track field `MMTHSampleATSC3.source_fec_payload_id` carries
-one value, so it can carry the base SS_ID or the overlay SS_ID but
-not both.  Implementations MUST carry the base SS_ID in it.  A
-receiver operating in A3SA-verified mode therefore has an
-authenticated base block assignment and an unauthenticated overlay
-one, and SHOULD treat overlay-recovered fragments as it treats
-relay-generated repair: usable, but not a substitute for an
-authenticated base recovery where the deployment requires one.
+Section 8.5 applies to both Source FEC Payload IDs of such a packet:
+A3SA signing authenticates neither, and a receiver that requires
+authenticated block assignment treats each as Section 8.5 requires.
 
 # Interleaving
 
@@ -2223,14 +2218,13 @@ apply:
 
 ## ATSC 3.0 Signed Region (A3SA) Considerations
 
-The Source FEC Payload ID falls outside the A3SA signed region
-(Section 8.5).  An attacker who can modify it without detection could
-redirect source symbols to incorrect FEC blocks, causing recovery
-failures or corrupted output.  Implementations that require
-authenticated FEC block assignment SHOULD use the hint track
-carriage described in Section 8.5.  That carriage is under review and
-may change in a later revision of this document.  On multicast
-networks without A3SA
+The Source FEC Payload ID falls outside the A3SA signed region, and
+neither [@!ISO.23008-1] nor [@?ATSC-A331] provides a carriage of the
+SS_ID inside it (Section 8.5).  An attacker who can modify it without
+detection could redirect source symbols to incorrect FEC blocks,
+causing recovery failures or corrupted output.  A receiver that
+requires authenticated FEC block assignment therefore treats the
+trailer as Section 8.5 requires.  On multicast networks without A3SA
 verification, receivers SHOULD cross-check the SS_ID against the MMTP
 packet_sequence_number to detect obvious tampering (e.g., SS_ID values
 that imply impossible block assignments given the known K and
