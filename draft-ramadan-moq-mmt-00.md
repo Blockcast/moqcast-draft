@@ -217,11 +217,15 @@ Key fields for MoQ mapping:
   It is NOT the MoQ Object ID --
   Object IDs are the per-data-unit packet index within a subgroup
   (Section 4.1), which resets per subgroup.
-- **FEC Type**: 0=no AL-FEC, 1=AL-FEC source packet (a 4-byte
-  Source FEC Payload ID trails the packet, [@!MOQ-FEC] Section 8.5),
-  2=AL-FEC repair packet (ssbg_mode0), 3=AL-FEC repair packet
-  (mode 1; not used by this mapping)
-- **RAP Flag**: 1 indicates Random Access Point
+- **FEC Type**: 0=no AL-FEC, 1=AL-FEC source packet (exactly one
+  4-byte Source FEC Payload ID trails the packet, [@!MOQ-FEC]
+  Section 8.5), 2=AL-FEC repair packet for FEC payload ID mode 0,
+  3=AL-FEC repair packet for FEC payload ID mode 1 (not used by this
+  mapping) ([@!ISO.23008-1] Clause 9.2.3)
+- **RAP Flag**: 1 indicates Random Access Point.  On a track that the
+  catalog protects with a keyframe overlay, a packet with RAP_flag 1
+  also carries the overlay's SS_ID in a header extension of type
+  0x8B01 ([@!MOQ-FEC] Section 8.5.1)
 
 A signaling packet (packet type 0x02, on packet_id 0) MUST carry its
 messages in the signaling message mode of [@!ISO.23008-1]
@@ -1228,8 +1232,9 @@ window for ARIB STD-B60 content is 2000 ms.
 
 The S-TSID carries the RaptorQ OTI of [@!RFC6330] Section 3.3 in its
 `fecOTI` attribute.  MoQ carries no OTI in-session: receivers derive
-it from the catalog `fec` fields per [@!MOQ-FEC] Section 4.2, and
-Section 12.2 converts an ingested `fecOTI` to catalog fields.
+it per block from the catalog `fec` fields and the block's SSB_length
+per [@!MOQ-FEC] Section 4.2, and Section 12.2 converts an ingested
+`fecOTI` to catalog fields.
 
 # FEC Parameter Signaling
 
@@ -1258,14 +1263,14 @@ process MMTP signaling discards it.
 
 The signaling object is not an FEC source symbol.  Its MMTP packet
 has FEC Type 0 and no Source FEC Payload ID; it is not protected by
-any repair symbol, is not counted in `sourceSymbols` (K) or in the
-`symbols_per_group` of [@!MOQ-FEC] Section 8, and has no Encoding
-Symbol ID.  Its Object ID MUST NOT be used as the Object_ID `O` of
-the [@!MOQ-FEC] Section 8 derivation.  Because it occupies an Object
-ID in Subgroup 0, Object IDs on an mmtp source track are not
-positions in the FEC block: a receiver MUST take each source
-symbol's (SBN, ESI) from the Source FEC Payload ID that trails its
-FEC Type 1 packet ([@!MOQ-FEC] Section 8.5), not from its Object ID.
+any repair symbol, is not counted in any FEC block or in
+`sourceSymbols` (K), and has no SS_ID and no Encoding Symbol ID.
+Because it occupies an Object ID in Subgroup 0, Object IDs on an mmtp
+source track are not positions in the FEC block: a receiver MUST take
+each source symbol's SS_ID from the Source FEC Payload ID that trails
+its FEC Type 1 packet ([@!MOQ-FEC] Section 8.5), never from its
+Object ID, and places the symbol in its block by that SS_ID
+([@!MOQ-FEC] Section 8.3).
 
 A MoQ track carries only the
 signaling packets its publisher chose to place on that track, so
@@ -1282,9 +1287,15 @@ follows:
 
 - **algorithm**: Typically "raptorq" for ATSC 3.0 ingest,
   or as specified in MMTP AL-FEC signaling
-- **sourceSymbols**: The number of MMTP packets (source symbols)
-  per FEC block; on the MMT path the canonical FEC source symbol is
-  one whole MMTP packet ([@!MOQ-FEC] Section 7.3)
+- **blockProfile**: "iso-ssbg1-v1" ([@!MOQ-FEC] Section 5.1), the
+  ISO 23008-1 Annex C block profile, for which an AL-FEC message
+  carries the coding byte 0x14 (Section 8.3); REQUIRED when
+  `algorithm` is not "none"
+- **sourceSymbols**: The largest number of MMTP packets (source
+  symbols) that an FEC block may hold; each block holds SSB_length of
+  them ([@!MOQ-FEC] Section 7.4).  On the MMT path the canonical FEC
+  source symbol is one whole MMTP packet, before its Source FEC
+  Payload ID, framed with its length ([@!MOQ-FEC] Section 7.3)
 - **interleaveDepthMs**: Per [@!MOQ-FEC] Section 5.1, whose group
   duration is the `groupDurationMs` field of Section 12.1.  When
   ingesting broadcast content, set it to the time span of the
@@ -1314,7 +1325,7 @@ signaling channel.  FEC parameters reach multicast receivers via:
 
 2. **MMTP AL-FEC Signaling (message_id=0x0203)**: in-band delivery
    of the AL-FEC message of [@!ISO.23008-1] Clause C.6, with
-   Table C.3 as replaced by ISO/IEC 23008-1:2023 Amendment 1:2025,
+   Table C.3 as replaced by [@!ISO.23008-1.AMD1],
    for ISO/IEC 23008-1 receivers that consume the flow without the
    catalog, such as native broadcast (ATSC 3.0, ARIB STD-B60)
    receivers.  A publisher that sends this message MUST carry it in
@@ -1328,6 +1339,31 @@ signaling channel.  FEC parameters reach multicast receivers via:
    ([@!MOQ-MULTICAST] Section 4.1), and a receiver does not deliver
    these packets to a media or repair decoder (Section 3.1;
    [@!MOQ-MULTICAST] Section 5)
+
+Each FEC source flow has one FEC encoded flow ([@!ISO.23008-1]
+Clause C.6.3), so the message describes a source track's flow as one
+entry of the message's `fec_flow_descriptor` naming exactly one repair
+flow,
+the track's layer-0 repair track ([@!MOQ-FEC] Section 6.3).  For a
+track whose `fec.blockProfile` is "iso-ssbg1-v1", that entry carries:
+
+- the coding byte 0x14, that is `fec_coding_structure` 0001
+  (one-stage), `ssbg_mode` 01, `ffsrpts_flag` 0 and
+  `fec_payload_id_mode` 0 ([@!MOQ-FEC] Section 7.3);
+- as its `repair_flow_id`, the packet_id of the layer-0 repair
+  packets.  [@!ISO.23008-1.AMD1] makes this field 16 bits in the
+  one-stage branch, where the 2023 edition of Table C.3 gives it 8
+  bits and so cannot name a repair packet_id above 255; and
+- as its `maximum_k_for_repair_flow`, the track's `fec.sourceSymbols`:
+  like that field, it bounds each block's SSB_length and is not the
+  size of any particular block ([@!MOQ-FEC] Section 7.4).
+
+A publisher MUST NOT describe a repair layer above layer 0, or a
+keyframe overlay, in the message, whether in that entry or in an
+entry of its own: the one-stage coding structure names one repair
+flow per FEC encoded flow, the overlay protects a RAP subset that no
+`packet_id` identifies, and only the catalog declares either
+([@!MOQ-FEC] Sections 6.3, 6.4 and 8.5.1).
 
 # Multicast Integration
 
@@ -1502,12 +1538,12 @@ round-trip properties of Section 12.3 assume that the ingested
 to a P below the one it was computed from.
 
 No OTI is carried in the output catalog.  The MoQ-side decoder
-configuration is re-derived from the catalog fields (Section 7.2).
-When the
-ingested F is not a multiple of T, the final source symbol is
-zero-padded to T under the fixed-T construction ([@!MOQ-FEC]
-Section 7.3), and the re-derived transfer length K x T exceeds the
-ingested F by exactly the padding length.
+configuration is re-derived per block from the catalog fields and the
+block's SSB_length (Section 7.2), and the ingested F does not survive
+conversion: it yields only K = ceil(F / T), the upper bound on a
+block's source symbol count ([@!MOQ-FEC] Section 7.4).  The transfer
+length of a full MoQ-side block, K x T, exceeds the ingested F when F
+is not a multiple of T.
 
 `packetId` is assigned per flow, not per `tsi`.  An `LS` (ROUTE
 transport session) carrying both a SrcFlow and its RepairFlow yields
@@ -1540,7 +1576,10 @@ takes `timescale` from `asset_timescale` in the MP table
 ([@!ISO.23008-1] Clause 10.3.9.3) and the group duration from
 successive `mpu_presentation_time` values of the MPU timestamp
 descriptor ([@!ISO.23008-1] Clause 10.5.2), and sets `mmtpMode`
-itself.
+itself.  Nor does S-TSID carry `fec.blockProfile`, which is REQUIRED for a
+track whose `fec.algorithm` is not "none" ([@!MOQ-FEC] Section 5.1);
+for such a track the converter sets it to the profile under
+which the MoQ-side publisher protects the track, "iso-ssbg1-v1".
 
 ## MoQ Catalog to S-TSID Conversion
 
@@ -1554,7 +1593,8 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 - `fec.interleaveDepthMs` -> `FECParameters@maximumDelay` (both are
   durations in milliseconds; no scaling by frame duration)
 - `fec.sourceSymbols` and `fec.symbolSize` -> `fecOTI`, exactly the
-  OTI derived from them (Section 7.2)
+  OTI of a full block (SSB_length = K) derived from them
+  (Section 7.2)
 
 Because export rounds up, for a catalog whose only FEC instance is
 the source track's own, the exported overhead never understates the
@@ -1624,6 +1664,17 @@ document in this suite requests a control-message codepoint.
     <date year='2023'/>
   </front>
   <seriesInfo name='ISO/IEC' value='23008-1:2023'/>
+</reference>
+
+<reference anchor='ISO.23008-1.AMD1'>
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 1: MPEG media transport (MMT) - Amendment 1: Signalling of adaptive FEC scheme</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year='2025' month='May'/>
+  </front>
+  <seriesInfo name='ISO/IEC' value='23008-1:2023/Amd 1:2025'/>
 </reference>
 
 <reference anchor='ISO.23008-10'>
@@ -1697,7 +1748,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
     xmlns="tag:atsc.org,2016:XMLSchemas/ATSC3/Delivery/S-TSID/1.0/">
   <RS sIpAddr="10.0.0.1" dIpAddr="232.1.1.10" dPort="5000">
     <!-- Video 1080p -->
-    <LS tsi="1" bw="8000000">
+    <LS tsi="1" bw="7984000">
       <SrcFlow rt="true" minBuffSize="8000000">
         <ContentInfo>
           <MediaInfo contentType="video" repId="1080p" lang="en"/>
@@ -1748,10 +1799,11 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
       "width": 1920,
       "height": 1080,
       "framerate": 30,
-      "bitrate": 8000000,
+      "bitrate": 7984000,
       "lang": "en",
       "fec": {
         "algorithm": "raptorq",
+        "blockProfile": "iso-ssbg1-v1",
         "sourceSymbols": 1000,
         "repairSymbols": 250,
         "symbolSize": 1000,
@@ -1816,14 +1868,18 @@ The FEC fields recompute from the S-TSID as follows:
   (100 x 250 + 1000 - 1) div 1000 = 25, the ingested value
   (Section 12.3)
 - `interleaveDepthMs`: `maximumDelay` = 1000 ms (both are durations)
-- Derived MoQ OTI (Section 7.2): F = K x T = 1000 x 1000 =
-  1,000,000 bytes, identical to the ingested `fecOTI`, so the round
-  trip is lossless
+- `blockProfile`: set by the converter (Section 12.2), since S-TSID
+  carries none and the track's `algorithm` is not "none"
+- Derived MoQ OTI of a full block (SSB_length = K, Section 7.2):
+  F = K x T = 1000 x 1000 = 1,000,000 bytes, identical to the
+  ingested `fecOTI`, so the round trip is lossless
 
 The converted parameters are internally consistent: with
 `groupDurationMs` of 1000, the 1000 ms interleave window derives
-D = round(1000 / 1000) = 1, so each MoQ Group is one FEC block and
-SBN = Group_ID ([@!MOQ-FEC] Section 8).  Block capacity
-K x T = 1000 x 1000 = 1,000,000 bytes exactly matches the source
-data per window, `LS@bw` x 1.0 s / 8 = 8,000,000 / 8 = 1,000,000
+D = round(1000 / 1000) = 1, so each MoQ Group is one FEC block
+([@!MOQ-FEC] Section 8.1).  A full block of K = 1000 source symbols
+carries K x (T - 2) = 1000 x 998 = 998,000 bytes of MMTP packets,
+since each source symbol spends two of its T octets on the packet
+length ([@!MOQ-FEC] Section 7.3), and that exactly matches the source
+data per window, `LS@bw` x 1.0 s / 8 = 7,984,000 / 8 = 998,000
 bytes.

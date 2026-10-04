@@ -563,10 +563,11 @@ recovery [@!MOQ-FEC].
 
 When symbols arrive from multiple paths simultaneously, receivers:
 
-1. MUST deduplicate symbols using (SBN, ESI) as the unique key
-   within one FEC instance ([@!MOQ-FEC] Section 6.4.1): a source
-   track's base instance together with all of its repair layers,
-   or its keyframe overlay
+1. MUST deduplicate symbols within one FEC instance ([@!MOQ-FEC]
+   Section 6.4.1) -- a source track's base instance together with all
+   of its repair layers, or its keyframe overlay -- using SS_ID as the
+   unique key of a source symbol and (SS_Start, RS_ID) as that of a
+   repair symbol ([@!MOQ-FEC] Section 8.3)
 2. MAY combine source and repair symbols received on different
    paths in either direction: source symbols via multicast with
    repair symbols via MoQ/QUIC, or source symbols via reliable
@@ -577,8 +578,9 @@ Multicast-to-unicast failover: if multicast reception fails,
 subscribers fall back to MoQ/QUIC unicast by subscribing with the
 Largest Object filter (to resume at the live edge) or the Next Group
 Start filter (to resume at the next group boundary) per
-[@!I-D.ietf-moq-transport].  No coordinate mapping between multicast SBN and MoQ group_id is
-needed -- the relay provides the current position.  Failover replaces
+[@!I-D.ietf-moq-transport].  No coordinate mapping between multicast
+SS_IDs and MoQ Group IDs is needed -- the relay provides the current
+position.  Failover replaces
 the multicast path; it is distinct from per-block unicast repair
 (Section 6.2), which leaves the multicast subscription in place.
 
@@ -597,11 +599,22 @@ repair symbols it receives on its multicast paths.  For a block that
 in-band FEC leaves unrecovered at its FEC deadline, a receiver that
 holds a MoQ session (Section 1.1) applies the receiver repair policy
 of [@!MOQ-FEC] Section 11.4, which repairs a keyframe-bearing block
-by a standalone FETCH [@!I-D.ietf-moq-transport] of the repair-track
-group numbered with the block's SBN.  The receiver derives the SBN
-from the Source FEC Payload IDs of multicast packets, so no
-coordinate mapping is needed, and the returned symbols are
-deduplicated per item 1 of Section 6.  A receiver without a MoQ
+by a standalone FETCH [@!I-D.ietf-moq-transport] of the block's
+repair-track group.  That group's ID is the block's SS_Start, from
+the Repair FEC Payload ID of a multicast repair packet of the block,
+extended to 62 bits with the wrap epoch of [@!MOQ-FEC] Section 7.5.
+A receiver that takes its repair from multicast has usually received
+no repair-track Group ID over MoQ, so before its first FETCH it
+establishes that epoch from the Largest Location that a TRACK_STATUS
+request for the repair track reports ([@!I-D.ietf-moq-transport]
+Section 9.13): the Group of the LARGEST_OBJECT parameter in the
+REQUEST_OK (TRACK_STATUS_OK) that answers the request, as
+[@!MOQ-FEC] Section 7.5 specifies, unless it has received such a
+Group ID or has observed the FEC instance from its first block.  For lost source packets whose block it has
+not delimited, because it holds no repair packet of that block, the
+receiver instead fetches the Group range that [@!MOQ-FEC] Section 7.5
+derives from a lost SS_ID.  No other coordinate mapping is needed,
+and the returned symbols are deduplicated per item 1 of Section 6.  A receiver without a MoQ
 session cannot request unicast repair; it relies on in-band FEC and,
 where published, the keyframe overlay ([@!MOQ-FEC] Section 6.4).
 
@@ -695,14 +708,21 @@ explicitly-configured DVR or replay mode.
 
 ### Authenticated Bytes
 
-The authenticated bytes of an object are the MMTP packet bytes as
-carried in the MoQ object payload -- identical across MoQ unicast,
-multicast UDP, and ROUTE after symbol-level normalization --
-excluding any transport-variant trailers.  This gives cross-path
-verifiability: the same digest validates a symbol regardless of
-which path delivered it, so a symbol received on any path, or
-recovered by FEC decoding, verifies against the same manifest
-entry.
+The authenticated bytes of an object are the bytes of the MMTP
+packet that its MoQ object payload carries, excluding the trailing
+4-byte Source FEC Payload ID that the payload carries when the
+packet's FEC Type is 1 ([@!MOQ-FEC] Section 8.5).  That trailer is
+the only range excluded.  It is excluded because it is not part of
+the protected packet: it is appended after FEC encoding, so a packet
+recovered by FEC decoding carries none ([@!MOQ-FEC] Section 7.3).
+The authenticated bytes are therefore identical across MoQ unicast,
+multicast UDP, and ROUTE, and for a packet recovered by FEC decoding.
+This gives cross-path verifiability: the same digest validates a
+symbol regardless of which path delivered it, so a symbol received on
+any path, or recovered by FEC decoding, verifies against the same
+manifest entry.  It also means that a verified digest authenticates
+the packet but not its FEC block assignment, which the excluded
+trailer carries ([@!MOQ-FEC] Section 8.5).
 
 ### Catalog Signaling
 
