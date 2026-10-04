@@ -1421,7 +1421,10 @@ assignment taken from the trailing Source FEC Payload ID of an A3SA
 verified packet is unauthenticated.  A receiver that requires
 authenticated FEC block assignment MUST obtain it from an integrity
 mechanism, other than A3SA signing, whose coverage includes the
-complete MMTP packet, the trailer included.
+complete MMTP packet, the trailer included.  The bc-provenance profile
+([@!MOQ-MULTICAST] Section 7.2) is not such a mechanism: its
+authenticated bytes exclude transport-variant trailers, the Source
+FEC Payload ID among them.
 
 For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical block identifier.  QUIC
