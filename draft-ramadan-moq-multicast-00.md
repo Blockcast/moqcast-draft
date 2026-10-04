@@ -528,9 +528,16 @@ endpoint at an MPU boundary holds the mapping before that MPU's media
 and other signaling; [@!ISO.23008-1] Clause 10.3.2.1 requires a
 receiver to process a PA message before any other signaling message.
 A receiver joined to several endpoints receives each packet of the
-sub-flow once per endpoint, as identical copies.  An endpoint that
-lists only `fec-repair` tracks (a repair-only endpoint, [@!MOQ-FEC]
-Section 6.3.6) carries no Asset and need not carry the sub-flow.
+sub-flow once per endpoint, as identical copies with the same
+packet_sequence_number; it acts on one copy of each packet, whether a
+PA message or an AL-FEC message, and ignores the rest.  An endpoint
+that lists only `fec-repair` tracks (a repair-only endpoint,
+[@!MOQ-FEC] Section 6.3.6) carries no Asset and need not carry the
+sub-flow.  Its repair flows are still named by the AL-FEC message on
+the sub-flow, which a receiver obtains from the media endpoint it
+holds alongside the repair-only one ([@!MOQ-FEC] Section 6.3.6); the
+sending-entity-wide `packetId` scope (Section 4.1) makes each flow
+that message names unambiguous wherever it arrives.
 
 For a receiver that holds the catalog, the endpoint's `packetId`
 values remain authoritative: it routes packets by them as above,
@@ -606,10 +613,14 @@ repair-track groups is relay policy.
 
 SSM inherently limits traffic to authorized sources via (S,G)
 filtering.  Receivers MAY detect replayed packets by tracking the
-MMTP Packet Sequence Number per packet_id within one (sourceAddress,
-groupAddress, port) tuple and discarding duplicates
-and packets outside a bounded reordering window.  For AMT, trust is
-delegated to the relay per [@!RFC7450].
+MMTP Packet Sequence Number per packet_id within one (source address,
+groupAddress, port) tuple and discarding duplicates and packets
+outside a bounded reordering window.  The source address is that of
+the received packets, the same address Section 5 matches: it equals
+`sourceAddress` on an SSM endpoint and is read from each packet on an
+ASM endpoint, so two sending entities that share an ASM group and
+each use the same packet_id are tracked separately.  For AMT, trust
+is delegated to the relay per [@!RFC7450].
 
 ## Content Authentication
 
