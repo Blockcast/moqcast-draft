@@ -1672,7 +1672,7 @@ type 0x03 repair).
 Neither [@!ISO.23008-1] nor [@?ATSC-A331] carries the SS_ID inside
 the A3SA signed region.  In particular the MMT hint sample does not:
 neither its ISO syntax ([@!ISO.23008-1] Clause 8.3.2) nor the ATSC
-`MMTHSampleATSC3` syntax ([@?ATSC-A331] Section 7.2.4.2.2) has a
+`MMTHSampleATSC3` syntax ([@?ATSC-A331] Section 7.2.4.2.2.3) has a
 Source FEC Payload ID field, and hint samples travel as MPU-mode data
 units on the Asset's own packet_id ([@?ATSC-A331] Section 7.2.4.2.3),
 that is in asset packets, which A3SA does not sign.  This document
@@ -1681,7 +1681,10 @@ assignment taken from the trailing Source FEC Payload ID of an A3SA
 verified packet is unauthenticated.  A receiver that requires
 authenticated FEC block assignment MUST obtain it from an integrity
 mechanism, other than A3SA signing, whose coverage includes the
-complete MMTP packet, the trailer included.
+complete MMTP packet, the trailer included.  The bc-provenance profile
+([@?MOQ-MULTICAST] Section 7.2) is not such a mechanism: its
+authenticated bytes exclude transport-variant trailers, the Source
+FEC Payload ID among them.
 
 For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical identifier by which a
