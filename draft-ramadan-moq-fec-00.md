@@ -1458,9 +1458,9 @@ twice: in the SS_Start of its Repair FEC Payload ID and in its Group
 ID.  The SS_Start is authoritative.  A receiver MUST discard a repair
 object whose Group ID modulo 2^32 differs from its SS_Start and, once
 it has established the wrap epoch, one whose Group ID differs from
-ext(SS_Start), in each case leaving the state of every block
-unchanged.  The Group ID of a discarded repair object is not a
-reference value r.
+ext(SS_Start) or whose SS_Start it cannot extend (below), in each
+case leaving the state of every block unchanged.  The Group ID of a
+discarded repair object is not a reference value r.
 
 A receiver establishes the wrap epoch of an FEC instance in one of
 the following ways, and MUST NOT assume a wrap epoch that it has not
@@ -1468,7 +1468,10 @@ established in one of them:
 
 1. From the Group ID of a repair object of the instance that it has
    received over MoQ and not discarded (above).  That Group ID is the
-   reference value r.
+   reference value r.  The publisher assigns it and MoQ delivers it
+   unaltered, so it stands on the same footing as the Largest
+   Location of way 2: the modulo 2^32 test above screens out an
+   object to discard, and does not verify the epoch.
 
 2. From the Largest Location that a TRACK_STATUS request for a repair
    track of the instance reports ([@!I-D.ietf-moq-transport]
@@ -1682,9 +1685,8 @@ verified packet is unauthenticated.  A receiver that requires
 authenticated FEC block assignment MUST obtain it from an integrity
 mechanism, other than A3SA signing, whose coverage includes the
 complete MMTP packet, the trailer included.  The bc-provenance profile
-([@?MOQ-MULTICAST] Section 7.2) is not such a mechanism: its
-authenticated bytes exclude transport-variant trailers, the Source
-FEC Payload ID among them.
+is not such a mechanism: its authenticated bytes exclude the Source
+FEC Payload ID ([@?MOQ-MULTICAST] Section 7.2.4).
 
 For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical identifier by which a

@@ -708,14 +708,21 @@ explicitly-configured DVR or replay mode.
 
 ### Authenticated Bytes
 
-The authenticated bytes of an object are the MMTP packet bytes as
-carried in the MoQ object payload -- identical across MoQ unicast,
-multicast UDP, and ROUTE after symbol-level normalization --
-excluding any transport-variant trailers.  This gives cross-path
-verifiability: the same digest validates a symbol regardless of
-which path delivered it, so a symbol received on any path, or
-recovered by FEC decoding, verifies against the same manifest
-entry.
+The authenticated bytes of an object are the bytes of the MMTP
+packet that its MoQ object payload carries, excluding the trailing
+4-byte Source FEC Payload ID that the payload carries when the
+packet's FEC Type is 1 ([@!MOQ-FEC] Section 8.5).  That trailer is
+the only range excluded.  It is excluded because it is not part of
+the protected packet: it is appended after FEC encoding, so a packet
+recovered by FEC decoding carries none ([@!MOQ-FEC] Section 7.3).
+The authenticated bytes are therefore identical across MoQ unicast,
+multicast UDP, and ROUTE, and for a packet recovered by FEC decoding.
+This gives cross-path verifiability: the same digest validates a
+symbol regardless of which path delivered it, so a symbol received on
+any path, or recovered by FEC decoding, verifies against the same
+manifest entry.  It also means that a verified digest authenticates
+the packet but not its FEC block assignment, which the excluded
+trailer carries ([@!MOQ-FEC] Section 8.5).
 
 ### Catalog Signaling
 
