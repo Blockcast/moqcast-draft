@@ -533,11 +533,13 @@ packet_sequence_number; it acts on one copy of each packet, whether a
 PA message or an AL-FEC message, and ignores the rest.  An endpoint
 that lists only `fec-repair` tracks (a repair-only endpoint,
 [@!MOQ-FEC] Section 6.3.6) carries no Asset and need not carry the
-sub-flow.  Its repair flows are still named by the AL-FEC message on
-the sub-flow, which a receiver obtains from the media endpoint it
-holds alongside the repair-only one ([@!MOQ-FEC] Section 6.3.6); the
-sending-entity-wide `packetId` scope (Section 4.1) makes each flow
-that message names unambiguous wherever it arrives.
+sub-flow.  A receiver that holds the catalog routes a repair-only
+endpoint's `packetId` values from the catalog ([@!MOQ-FEC]
+Section 6.3.6).  A receiver without the catalog cannot discover a
+repair-only endpoint, because the MP table locates only Assets and
+the AL-FEC message names a repair flow by `packetId` without a
+location, so repair carried on a repair-only endpoint reaches only
+catalog-holding receivers.
 
 For a receiver that holds the catalog, the endpoint's `packetId`
 values remain authoritative: it routes packets by them as above,

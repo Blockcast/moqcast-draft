@@ -1188,8 +1188,7 @@ defines no mapping from an overlay coordinate to a base one: a
 receiver MUST NOT place an
 overlay-recovered symbol into a base source block unless it has
 determined that packet's base (SBN, ESI) independently, for instance
-from a redundant carriage of the base SS_ID (Section 8.5) or from MoQ
-transport identifiers (Section 8.3).  Absent that, an overlay
+from MoQ transport identifiers (Section 8.3).  Absent that, an overlay
 recovery is usable as media but MUST NOT be counted toward base block
 recovery, and in particular MUST NOT be treated as reducing the
 number of erasures the base decoder still has to solve.</t>
