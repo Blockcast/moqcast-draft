@@ -2177,8 +2177,8 @@ or, for a run that the receiver has not delimited, of the Group range
 [max(ext(S_prev) + 1, ext(x) - (K - 1)), ext(x)] that Section 7.5
 derives from a lost SS_ID x of the run, including its lower bound
 when no block that the receiver has delimited precedes the run, and
-with the wrap epoch established as Section 7.5 specifies, by a
-TRACK_STATUS request when the receiver has received no repair-track
+with the wrap epoch established as Section 7.5 specifies, for
+instance by a TRACK_STATUS request when the receiver has received no repair-track
 Group ID over MoQ (Sections 6.3.2 and 6.3.5): on layer 0, and on further layers in layer order where the
 receiver needs more symbols than layer 0 carries.  The FETCH of a
 single group MAY be limited to the object range that covers the
