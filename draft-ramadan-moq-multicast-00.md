@@ -103,6 +103,11 @@ in all capitals, as shown here.
 **MMTP**: MMT Protocol -- the packet layer of MPEG Media Transport
 ([@!ISO.23008-1] Clause 9; [@!MOQ-MMT] Section 3).
 
+**MMT sending entity**: The entity that packetizes media into MMTP
+packets and sends them on one or more multicast endpoints.  It is
+the scope over which Section 4.1 assigns each `packetId` value to
+exactly one MMTP packet sub-flow.
+
 # Delivery Paths
 
 MoQ content can reach receivers via multiple delivery paths depending
@@ -244,12 +249,13 @@ Endpoint field definitions:
     packet-level track routing on multicast.  Maps directly to the
     Packet ID field in the MMTP header (Section 3.1 of
     [@!MOQ-MMT]).  The value is an integer in the range 1..65535.
-    A value MUST be unique across all endpoints of the MMT sending
-    entity for the lifetime of the delivery session
-    ([@!ISO.23008-1] Clause 9.2.3), not merely within one
-    (sourceAddress, groupAddress, port) tuple: wherever it appears it
-    names the same MMTP packet sub-flow, one sequence of packets with
-    one packet_sequence_number space.  An endpoint that carries
+    Each value MUST denote exactly one MMTP packet sub-flow across
+    all endpoints of the MMT sending entity (Section 2) for the
+    lifetime of the delivery session, not merely within one
+    (sourceAddress, groupAddress, port) tuple; two distinct sub-flows
+    MUST NOT share a value ([@!ISO.23008-1] Clause 9.2.3).  A sub-flow
+    is one sequence of packets with one packet_sequence_number space.
+    An endpoint that carries
     another endpoint's sub-flow packet for packet therefore carries it
     under the same value, and every other sub-flow takes a value of
     its own.  The rungs of a ladder never share a value, and a track

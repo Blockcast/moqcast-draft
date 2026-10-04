@@ -2299,8 +2299,10 @@ exposed to injection SHOULD authenticate source and repair packets
 (Section 8.5).  An attacker who can modify it without detection could
 redirect source symbols to incorrect FEC blocks, causing recovery
 failures or corrupted output.  Implementations that require
-authenticated FEC block assignment MUST use the mechanism described
-in Section 8.5.  On multicast networks without A3SA
+authenticated FEC block assignment SHOULD use the hint track
+carriage described in Section 8.5.  That carriage is under review and
+may change in a later revision of this document.  On multicast
+networks without A3SA
 verification, receivers SHOULD cross-check the SS_ID against the MMTP
 packet_sequence_number to detect obvious tampering (e.g., SS_ID values
 that imply impossible block assignments given the known K and

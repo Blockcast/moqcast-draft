@@ -259,9 +259,9 @@ precedes each aggregated message; when A = 0 no MSG_length field is
 present.  The signaling message follows (<xref target="ISO.23008-1"></xref>
 Clause 10.2), beginning with its message_id.  A packet that carries
 one complete signaling message without aggregation has f_i = 00,
-A = 0, and frag_count = 0, and has H = 0 because it carries no
-MSG_length, so its payload header is the two bytes 0x00 0x00 and the
-message_id immediately follows them.</t>
+A = 0, and frag_count = 0, and its sender sets H = 0 (H has no
+effect when A = 0), so its payload header is the two bytes 0x00 0x00
+and the message_id immediately follows them.</t>
 </section>
 </section>
 
@@ -1618,18 +1618,23 @@ Section 7.3), and the re-derived transfer length K x T exceeds the
 ingested F by exactly the padding length.</t>
 <t><tt>packetId</tt> is assigned per flow, not per <tt>tsi</tt>.  An <tt>LS</tt> (ROUTE
 transport session) carrying both a SrcFlow and its RepairFlow yields
-two <tt>tracks[]</tt> entries, and <tt>packetId</tt> is required to be unique
-across all endpoints of the sending entity by Section 4.1 of
-<xref target="MOQ-MULTICAST"></xref>; reusing <tt>tsi</tt> directly would collide for a
-repair flow that shares its source's <tt>tsi</tt>, and for <tt>LS</tt> elements of
-different <tt>RS</tt> elements that reuse a <tt>tsi</tt>.  The converter assigns
-<tt>packetId</tt> sequentially from 1 across the whole S-TSID, in <tt>RS</tt>
-document order and in <tt>tsi</tt> order within each <tt>RS</tt>, without
-restarting at a new <tt>RS</tt>, and emits each source flow immediately
-before its repair flow (so <tt>tsi</tt> 1 source -&gt; packetId 1, its
-repair -&gt; packetId 2, <tt>tsi</tt> 2 source -&gt; packetId 3); it never
-assigns 0, which is reserved for the MMTP signaling flow
-(<xref target="MOQ-MULTICAST"></xref> Section 4.1).  Flows sharing one
+two <tt>tracks[]</tt> entries, and Section 4.1 of <xref target="MOQ-MULTICAST"></xref>
+requires each <tt>packetId</tt> value to denote exactly one sub-flow across
+all endpoints of the MMT sending entity (<xref target="MOQ-MULTICAST"></xref>
+Section 2); reusing <tt>tsi</tt> directly would collide for a repair flow
+that shares its source's <tt>tsi</tt>, and for <tt>LS</tt> elements of different
+<tt>RS</tt> elements that reuse a <tt>tsi</tt>.  The converter assigns <tt>packetId</tt>
+sequentially from 1, in <tt>RS</tt> document order and in <tt>tsi</tt> order
+within each <tt>RS</tt>, without restarting at a new <tt>RS</tt>, and emits each
+source flow immediately before its repair flow (so <tt>tsi</tt> 1
+source -&gt; packetId 1, its repair -&gt; packetId 2, <tt>tsi</tt> 2
+source -&gt; packetId 3); it never assigns 0, which is reserved for the
+MMTP signaling flow (<xref target="MOQ-MULTICAST"></xref> Section 4.1).  Neither this
+document nor <xref target="MOQ-MULTICAST"></xref> limits an MMT sending entity to one
+S-TSID.  When the converter ingests several S-TSIDs for one MMT
+sending entity, it continues the sequence from one S-TSID to the
+next, in ingestion order, rather than restarting at 1, so that no
+two flows of that sending entity share a value.  Flows sharing one
 (sourceAddress, groupAddress, port) tuple collapse into a single
 endpoint whose <tt>tracks[]</tt> array lists them all.</t>
 <t><tt>timescale</tt>, <tt>groupDurationMs</tt>, and <tt>mmtpMode</tt> are not carried in
