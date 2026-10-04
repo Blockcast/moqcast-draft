@@ -562,10 +562,11 @@ recovery [@!MOQ-FEC].
 
 When symbols arrive from multiple paths simultaneously, receivers:
 
-1. MUST deduplicate symbols using (SBN, ESI) as the unique key
-   within one FEC instance ([@!MOQ-FEC] Section 6.4.1): a source
-   track's base instance together with all of its repair layers,
-   or its keyframe overlay
+1. MUST deduplicate symbols within one FEC instance ([@!MOQ-FEC]
+   Section 6.4.1) -- a source track's base instance together with all
+   of its repair layers, or its keyframe overlay -- using SS_ID as the
+   unique key of a source symbol and (SS_Start, RS_ID) as that of a
+   repair symbol ([@!MOQ-FEC] Section 8.3)
 2. MAY combine source and repair symbols received on different
    paths in either direction: source symbols via multicast with
    repair symbols via MoQ/QUIC, or source symbols via reliable
@@ -576,8 +577,9 @@ Multicast-to-unicast failover: if multicast reception fails,
 subscribers fall back to MoQ/QUIC unicast by subscribing with the
 Largest Object filter (to resume at the live edge) or the Next Group
 Start filter (to resume at the next group boundary) per
-[@!I-D.ietf-moq-transport].  No coordinate mapping between multicast SBN and MoQ group_id is
-needed -- the relay provides the current position.  Failover replaces
+[@!I-D.ietf-moq-transport].  No coordinate mapping between multicast
+SS_IDs and MoQ Group IDs is needed -- the relay provides the current
+position.  Failover replaces
 the multicast path; it is distinct from per-block unicast repair
 (Section 6.2), which leaves the multicast subscription in place.
 
@@ -596,11 +598,16 @@ repair symbols it receives on its multicast paths.  For a block that
 in-band FEC leaves unrecovered at its FEC deadline, a receiver that
 holds a MoQ session (Section 1.1) applies the receiver repair policy
 of [@!MOQ-FEC] Section 11.4, which repairs a keyframe-bearing block
-by a standalone FETCH [@!I-D.ietf-moq-transport] of the repair-track
-group numbered with the block's SBN.  The receiver derives the SBN
-from the Source FEC Payload IDs of multicast packets, so no
-coordinate mapping is needed, and the returned symbols are
-deduplicated per item 1 of Section 6.  A receiver without a MoQ
+by a standalone FETCH [@!I-D.ietf-moq-transport] of the block's
+repair-track group.  That group's ID is the block's SS_Start, from
+the Repair FEC Payload ID of a multicast repair packet of the block,
+extended to 62 bits with the wrap epoch of [@!MOQ-FEC] Section 7.5;
+the receiver establishes that epoch from a repair-track Group ID it
+has received over MoQ.  For lost source packets whose block it has
+not delimited, because it holds no repair packet of that block, the
+receiver instead fetches the Group range that [@!MOQ-FEC] Section 7.5
+derives from a lost SS_ID.  No other coordinate mapping is needed,
+and the returned symbols are deduplicated per item 1 of Section 6.  A receiver without a MoQ
 session cannot request unicast repair; it relies on in-band FEC and,
 where published, the keyframe overlay ([@!MOQ-FEC] Section 6.4).
 
