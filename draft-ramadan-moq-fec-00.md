@@ -495,14 +495,16 @@ suffix.
 
 A receiver MUST ignore a track-level or `fec` object key that it does
 not recognize, and MUST NOT treat its presence as an error, so that
-this suite can add fields without a flag day.  Exactly two keys
-defined by this document are exceptions, because ignoring either
+this suite can add fields without a flag day.  Exactly three keys
+defined by this document are exceptions, because ignoring any of them
 would change how the receiver must interpret the packets it receives:
 
 - `fec.enhancementRepair`: a receiver MUST reject a catalog carrying
   it.
 - `scope`: a receiver that does not implement overlays MUST fail
   closed on a catalog carrying it (Section 6.4).
+- `fec.blockProfile`: a receiver MUST NOT apply FEC to a track whose
+  `blockProfile` names a profile it does not implement (Section 5.1).
 
 ### Worked Catalog
 
@@ -1314,9 +1316,10 @@ Recovery yields the block's SSB_length source symbols.  From each, the
 receiver takes the Length octets that follow the Length field as the
 recovered protected packet, and delivers that packet to the MMTP
 parser.  A receiver MUST NOT deliver a recovered symbol whose Length
-points past the end of the symbol or whose Padding octets are not all
-zero: either means that the symbol is not the one the publisher
-encoded.
+is less than 12, the size in bytes of the MMTP packet header
+([@!MOQ-MMT] Section 3.1), or points past the end of the symbol, or
+whose Padding octets are not all zero: each means that the symbol is
+not the one the publisher encoded.
 
 A recovered packet carries no Source FEC Payload ID, of either
 instance: the trailer is appended after FEC encoding and is not part
@@ -1450,12 +1453,22 @@ block's ext(SS_Start) (Section 6.3.2).  Repair Group IDs are
 therefore sparse, one per block at the block's first SS_ID, and
 strictly increasing.
 
+A repair object received over MoQ thus carries its block's start
+twice: in the SS_Start of its Repair FEC Payload ID and in its Group
+ID.  The SS_Start is authoritative.  A receiver MUST discard a repair
+object whose Group ID modulo 2^32 differs from its SS_Start and, once
+it has established the wrap epoch, one whose Group ID differs from
+ext(SS_Start), in each case leaving the state of every block
+unchanged.  The Group ID of a discarded repair object is not a
+reference value r.
+
 A receiver establishes the wrap epoch of an FEC instance in one of
 the following ways, and MUST NOT assume a wrap epoch that it has not
 established in one of them:
 
-1. From a repair-track Group ID of the instance that it has received
-   over MoQ.  That Group ID is the reference value r.
+1. From the Group ID of a repair object of the instance that it has
+   received over MoQ and not discarded (above).  That Group ID is the
+   reference value r.
 
 2. From the Largest Location that a TRACK_STATUS request for a repair
    track of the instance reports ([@!I-D.ietf-moq-transport]
@@ -2148,10 +2161,8 @@ with the priority of Section 11.4.5.  The request is a standalone
 FETCH [@!I-D.ietf-moq-transport], over QUIC, of the block's
 repair-track group, whose Group ID is the block's extended SS_Start,
 or, for a run that the receiver has not delimited, of the Group range
-[max(ext(S_prev) + 1, ext(x) - (K - 1)), ext(x)] that Section 7.5
-derives from a lost SS_ID x of the run, including its lower bound
-when no block that the receiver has delimited precedes the run, and
-with the wrap epoch established as Section 7.5 specifies, for
+that Section 7.5 derives from a lost SS_ID x of the run, with the
+wrap epoch established as Section 7.5 specifies, for
 instance by a TRACK_STATUS request when the receiver has received no repair-track
 Group ID over MoQ (Sections 6.3.2 and 6.3.5): on layer 0, and on further layers in layer order where the
 receiver needs more symbols than layer 0 carries.  The FETCH of a
@@ -2257,14 +2268,19 @@ a track counting as that track's `symbolSize` T (Section 5.1).
   only from the response, and is debited with the repair symbol bytes
   of every Group it returns.
 
-1. A keyframe-bearing block's repair is always within budget: the
-   receiver requests at most one repair-track group per base repair
-   layer for it, that is at most the P_t x T bytes that the block
-   itself credits, or, for a run it has not delimited, the one Group
-   range of Section 7.5 per base repair layer, each of whose Groups is
-   the repair of one block that the receiver had not delimited.  A
-   receiver MUST NOT have more than one repair FETCH outstanding for
-   the same block and repair layer.
+1. A receiver does not withhold a keyframe-bearing block's repair for
+   lack of credit.  For a block that it has delimited, it requests at
+   most one repair-track Group per base repair layer, that is at most
+   the P_t x T bytes that the block itself credits.  For a run of
+   blocks that it has not delimited, it issues the one Group range
+   FETCH of Section 7.5 per base repair layer.  Each Group that FETCH
+   returns is the repair of one block of the run, and every block
+   holds at least one SS_ID of a range that spans at most K SS_IDs
+   (Section 7.5), so these FETCHes cost at most K x P_t x T bytes in
+   all, which can exceed the credit.  A debit that exceeds the remaining credit exhausts it:
+   the budget never falls below zero, and no deficit carries over to a
+   later credit.  A receiver MUST NOT have more than one repair FETCH
+   outstanding for the same block and repair layer.
 
 2. Non-keyframe and audio repair MAY spend only unexpired credit that
    keyframe-bearing blocks left unspent, and a receiver MUST NOT issue
