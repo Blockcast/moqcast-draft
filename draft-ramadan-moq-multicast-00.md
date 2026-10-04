@@ -74,8 +74,9 @@ data streams without a MoQ session.  MMTP carries per-packet routing
 (packet_id), timing (timestamp), sequencing (Packet Sequence Number),
 and FEC framing (FEC Type, FEC payload IDs) natively, and its
 signaling messages identify the Assets in band: every Asset sent to a
-multicast endpoint is named by a PA message on packet_id 0 of its
-flow, whose MP table maps the Asset's packet_id to it (Section 5).  A
+multicast endpoint is named by a PA message on its sending entity's
+packet_id 0 signaling sub-flow, whose MP table locates the Asset by
+source address, group address, port and packet_id (Section 5).  A
 receiver without the catalog
 takes the FEC configuration from the AL-FEC message
 ([@!MOQ-MMT] Section 8.3) when the flow carries one.  A receiver
@@ -106,7 +107,8 @@ in all capitals, as shown here.
 **MMT sending entity**: The entity that packetizes media into MMTP
 packets and sends them on one or more multicast endpoints.  It is
 the scope over which Section 4.1 assigns each `packetId` value to
-exactly one MMTP packet sub-flow.
+exactly one MMTP packet sub-flow, and it serves exactly one MoQ
+namespace (Section 4.1).
 
 # Delivery Paths
 
@@ -258,18 +260,25 @@ Endpoint field definitions:
     An endpoint that carries
     another endpoint's sub-flow packet for packet therefore carries it
     under the same value, and every other sub-flow takes a value of
-    its own.  The rungs of a ladder never share a value, and a track
-    that the sending entity packetizes separately for several
-    endpoints, such as audio packetized once per rung, takes a
-    distinct value for each copy.  packet_id 0 is
-    reserved for the MMTP signaling flow ([@!MOQ-MMT] Section 3.1),
-    which, when present, arrives on the same tuple as the media; a
-    publisher MUST NOT advertise it for a track.
+    its own.  The rungs of a ladder never share a value.  A catalog
+    track denotes one sub-flow: every endpoint that lists a track
+    carries that track's one sub-flow, under one value.  Media that
+    the sending entity packetizes separately for several endpoints,
+    such as audio packetized once per rung, MUST be published as a
+    separate track for each packetization, with its own name, value,
+    `fec` object and repair tracks, because the copies differ in the
+    bytes that FEC protects ([@!MOQ-FEC] Section 7.3).  packet_id 0 is
+    reserved for the sending entity's MMTP signaling sub-flow
+    ([@!MOQ-MMT] Section 3.1; Section 5), which arrives on the same
+    tuples as the media; a publisher MUST NOT advertise it for a
+    track.
 
 **bandwidth** (integer, RECOMMENDED): Aggregate bandwidth of this
   endpoint in bits per second, defined as the sum of the UDP payload
   bitrates of all tracks carried on the endpoint, including repair
-  tracks; IP/UDP header overhead is excluded.  Publishers SHOULD
+  tracks, plus the MMTP signaling sub-flow on packet_id 0
+  (Section 5) where the endpoint carries it; IP/UDP header overhead
+  is excluded.  Publishers SHOULD
   include bandwidth to enable capacity-aware join decisions.
   Subscribers SHOULD check available network capacity before joining
   high-bandwidth groups.
@@ -280,7 +289,11 @@ Endpoint field definitions:
 Each (sourceAddress, groupAddress, port) multicast tuple MUST be
 associated with at most one MoQ namespace.  Publishers requiring
 multiple independent streams MUST use distinct multicast groups or
-ports.
+ports.  An MMT sending entity (Section 2) serves exactly one MoQ
+namespace, which is one MMT Package (Section 5); a publisher that
+serves several namespaces acts as several sending entities, each with
+its own endpoints, its own `packetId` assignment and its own
+packet_id 0 signaling sub-flow.
 
 Receivers MUST ignore endpoints whose fields are mutually
 inconsistent -- for example, a `protocol` of "ssm" with
@@ -467,30 +480,67 @@ and repair packets are distinguished by the MMTP FEC Type field
 A publisher MUST identify in band the Assets of every MMTP packet
 flow that it sends to a multicast endpoint, whether a receiver
 obtains the flow over native SSM or ASM or through an AMT relay
-(Section 4.2.1), with a PA message (message_id 0x0000;
-[@!ISO.23008-1] Clause 10.3.2, Table 21) on packet_id 0 of the
-endpoint.  The PA message is sent in the signaling message mode of
-[@!MOQ-MMT] Section 3.1 and carries the tables that [@!ISO.23008-1]
-Clause 10.3.1 requires of a PA message, among them a PA table
-(Clause 10.3.7, Table 26) and an MP table (Clause 10.3.9,
-Table 29).  The MP table MUST describe each track the endpoint
-lists, other than a `fec-repair` track ([@!MOQ-FEC] Section 5.1), as
-an Asset located on this flow at the track's `packetId`
-(MMT_general_location_info with location_type 0x00, [@!ISO.23008-1]
-Clause 10.6.1), and MUST NOT locate an Asset on this flow at any
-other packet_id.  Repair flows are not Assets, and the MP table does
-not list them; their in-band signaling is the AL-FEC message of
-[@!MOQ-MMT] Section 8.3.
+(Section 4.2.1).  It does so with one MMTP signaling sub-flow per MMT
+sending entity (Section 2): a single sequence of packets on
+packet_id 0, with one packet_sequence_number space, that every
+endpoint listing a track other than a `fec-repair` track carries
+packet for packet, as Section 4.1 requires of any sub-flow carried on
+several endpoints ([@!ISO.23008-1] Clause 9.2.3).  All endpoints of
+the sending entity carry one Package.  The sub-flow carries a PA
+message (message_id 0x0000; [@!ISO.23008-1] Clause 10.3.2,
+Table 21), in the signaling message mode of [@!MOQ-MMT] Section 3.1,
+with the tables that [@!ISO.23008-1] Clause 10.3.1 requires of a PA
+message, among them a PA table (Clause 10.3.7, Table 26) and the
+complete MP table of the Package (table_id 0x20, Clause 10.3.9,
+Table 29), never a subset.  The MP table MUST describe as an Asset
+each track, other than a `fec-repair` track ([@!MOQ-FEC]
+Section 5.1), that any endpoint of the sending entity lists, and MUST
+locate it at each endpoint that carries it, and at no other, by an
+MMT_general_location_info of location_type 0x01 (IPv4) or 0x02 (IPv6)
+that gives the endpoint's group address and port, the track's
+`packetId`, and, as `ipv4_src_addr` or `ipv6_src_addr`, the address
+from which the sending entity transmits that endpoint's flow, which is
+the source address of its IP packets ([@!ISO.23008-1]
+Clause 10.6.1).  On an SSM endpoint that address equals the
+endpoint's `sourceAddress` (Section 4.1); an ASM endpoint, whose
+catalog entry has no `sourceAddress`, still carries the sending
+entity's own address there.  A receiver matches a location by
+destination address, destination port, packet_id and source address:
+on an SSM endpoint the source address is the endpoint's
+`sourceAddress`, and on an ASM endpoint it is the source address of
+the received packets, which tells this sending entity's flow apart
+from any other sender on the group.  A receiver behind an AMT relay
+compares against the encapsulated IP header, which keeps the original
+source address ([@!RFC7450] Section 5.1.6).  Because the sending
+entity knows its own source address for every endpoint, the PA
+message is identical on every endpoint, and its one version sequence
+applies everywhere, so a newer version overrides an older one on all
+endpoints alike ([@!ISO.23008-1] Clauses 10.2.3 and 10.3.9.3).
+Repair flows are not Assets, and the MP table does not list them;
+their in-band signaling is the AL-FEC message of [@!MOQ-MMT]
+Section 8.3, which travels on the same sub-flow.
 
-The publisher MUST send a PA message ahead of the MPU metadata
-(FT=0) data unit of every MPU that it sends to the endpoint, and
-later than the FT=0 data unit of the previous MPU of the same track,
-so that a receiver joining the endpoint at an MPU boundary holds the
-mapping before that MPU's media; [@!ISO.23008-1] Clause 10.3.2.1
-requires a receiver to process a PA message before any other
-signaling message.  An endpoint that lists only `fec-repair` tracks
-(a repair-only endpoint, [@!MOQ-FEC] Section 6.3.6) carries no Asset
-and sends no MPU, so it needs no PA message.
+The publisher MUST send a PA message on the sub-flow ahead of the MPU
+metadata (FT=0) data unit of every MPU of every track that it sends
+to an endpoint, later than the FT=0 data unit of the previous MPU of
+the same track, and ahead of any other signaling message sent for
+that MPU, such as the AL-FEC message, so that a receiver joining any
+endpoint at an MPU boundary holds the mapping before that MPU's media
+and other signaling; [@!ISO.23008-1] Clause 10.3.2.1 requires a
+receiver to process a PA message before any other signaling message.
+A receiver joined to several endpoints receives each packet of the
+sub-flow once per endpoint, as identical copies with the same
+packet_sequence_number; it acts on one copy of each packet, whether a
+PA message or an AL-FEC message, and ignores the rest.  An endpoint
+that lists only `fec-repair` tracks (a repair-only endpoint,
+[@!MOQ-FEC] Section 6.3.6) carries no Asset and need not carry the
+sub-flow.  A receiver that holds the catalog routes a repair-only
+endpoint's `packetId` values from the catalog ([@!MOQ-FEC]
+Section 6.3.6).  A receiver without the catalog cannot discover a
+repair-only endpoint, because the MP table locates only Assets and
+the AL-FEC message names a repair flow by `packetId` without a
+location, so repair carried on a repair-only endpoint reaches only
+catalog-holding receivers.
 
 For a receiver that holds the catalog, the endpoint's `packetId`
 values remain authoritative: it routes packets by them as above,
@@ -566,9 +616,14 @@ repair-track groups is relay policy.
 
 SSM inherently limits traffic to authorized sources via (S,G)
 filtering.  Receivers MAY detect replayed packets by tracking the
-MMTP Packet Sequence Number per packet_id and discarding duplicates
-and packets outside a bounded reordering window.  For AMT, trust is
-delegated to the relay per [@!RFC7450].
+MMTP Packet Sequence Number per packet_id within one (source address,
+groupAddress, port) tuple and discarding duplicates and packets
+outside a bounded reordering window.  The source address is that of
+the received packets, the same address Section 5 matches: it equals
+`sourceAddress` on an SSM endpoint and is read from each packet on an
+ASM endpoint, so two sending entities that share an ASM group and
+each use the same packet_id are tracked separately.  For AMT, trust
+is delegated to the relay per [@!RFC7450].
 
 ## Content Authentication
 
