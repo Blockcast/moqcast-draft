@@ -245,7 +245,9 @@ Clause 10.2), beginning with its message_id.  A packet that carries
 one complete signaling message without aggregation has f_i = 00,
 A = 0, and frag_count = 0, and its sender sets H = 0 (H has no
 effect when A = 0), so its payload header is the two bytes 0x00 0x00
-and the message_id immediately follows them.
+and the message_id immediately follows them.  A receiver ignores H
+when A = 0 and parses the header field by field, never by matching
+those two bytes.
 
 # MoQ Object Mapping
 
@@ -1520,12 +1522,15 @@ within each `RS`, without restarting at a new `RS`, and emits each
 source flow immediately before its repair flow (so `tsi` 1
 source -> packetId 1, its repair -> packetId 2, `tsi` 2
 source -> packetId 3); it never assigns 0, which is reserved for the
-MMTP signaling flow ([@!MOQ-MULTICAST] Section 4.1).  Neither this
-document nor [@!MOQ-MULTICAST] limits an MMT sending entity to one
-S-TSID.  When the converter ingests several S-TSIDs for one MMT
-sending entity, it continues the sequence from one S-TSID to the
-next, in ingestion order, rather than restarting at 1, so that no
-two flows of that sending entity share a value.  Flows sharing one
+MMTP signaling flow ([@!MOQ-MULTICAST] Section 4.1).  The numbering
+scope is the MMT sending entity, which serves exactly one MoQ
+namespace ([@!MOQ-MULTICAST] Section 4.1) but is not limited to one
+S-TSID: when the converter publishes the flows of several S-TSIDs
+under one namespace, it continues the sequence from one S-TSID to
+the next, in ingestion order, rather than restarting at 1, so that no
+two flows of that sending entity share a value.  S-TSIDs published
+under different namespaces belong to different sending entities, and
+each is numbered from 1.  Flows sharing one
 (sourceAddress, groupAddress, port) tuple collapse into a single
 endpoint whose `tracks[]` array lists them all.
 
