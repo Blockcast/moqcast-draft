@@ -46,8 +46,8 @@ environments where burst packet loss is common.</t>
 <t>This document defines:</t>
 
 <ol spacing="compact">
-<li>A catalog extension carrying the complete FEC configuration --
-the sole normative FEC signaling mechanism</li>
+<li>A catalog extension carrying the complete FEC configuration,
+which is authoritative for MoQ receivers</li>
 <li>A normative derivation of the RaptorQ Object Transmission
 Information (OTI) from the catalog fields, so that catalog-only
 receivers (including multicast and sessionless receivers) can
@@ -125,7 +125,8 @@ protection is desired (Section 6.2)</li>
 (Section 4.2) and uses repair symbols to recover any lost source
 symbols</li>
 </ol>
-<t>FEC configuration is signaled only in the catalog (Section 5.2).</t>
+<t>The catalog is the subscriber's authoritative FEC configuration; the
+subscriber needs no other FEC signaling (Section 5.2).</t>
 <t>When source objects are delivered as QUIC datagrams (unreliable), FEC
 recovery is the primary loss mitigation mechanism.  When delivered as
 QUIC stream objects (reliable), QUIC retransmission handles loss and
@@ -477,18 +478,22 @@ and its packets carry RSB_length 32.</t>
 </section>
 
 <section anchor="signaling-model"><name>Signaling Model</name>
-<t>The catalog <tt>fec</tt> object (Section 5.1) is the sole normative FEC
-signaling mechanism.  A receiver that has a track's catalog entry
-has everything needed to discover and subscribe to the repair track
-(Section 6) and to configure its decoder via the derived OTI
-(Section 4.2); no in-session signaling is required.  A packaging
-profile MAY define a redundant in-band copy of the catalog's FEC
-state (for example, the MMTP AL-FEC signaling object of
-<xref target="MOQ-MMT"></xref> Section 8).  Such a copy MUST NOT signal FEC parameters
-that contradict the track's catalog <tt>fec</tt> object; where the two
-disagree the catalog governs, and a receiver MUST NOT require the
-copy in order to configure its decoder.</t>
-<t>This holds uniformly across delivery paths.  In particular, control
+<t>The catalog <tt>fec</tt> object (Section 5.1) is the authoritative FEC
+signaling for MoQ receivers, that is for every receiver that obtains
+the track's catalog entry.  Such a receiver has everything needed to
+discover and subscribe to the repair track (Section 6) and to
+configure its decoder via the derived OTI (Section 4.2); no
+in-session signaling is required.</t>
+<t>A packaging profile MAY also define in-band FEC signaling carried
+with the media, which serves a receiver that consumes a flow without
+the catalog.  For the mmtp packaging this is the AL-FEC message of
+<xref target="ISO.23008-1"></xref> Clause C.6 (<xref target="MOQ-MMT"></xref> Sections 8 and 8.3).
+In-band FEC signaling MUST NOT signal FEC parameters that contradict
+the track's catalog <tt>fec</tt> object.  Where the two disagree the catalog
+governs for a MoQ receiver, and a MoQ receiver MUST NOT require
+in-band signaling in order to configure its decoder.</t>
+<t>The catalog's authority holds uniformly across a MoQ receiver's
+delivery paths, its multicast and AMT legs included.  MoQ control
 messages cannot reach multicast or sessionless receivers at all
 (Section 11), so no control-message mechanism could serve as the
 common signaling path; the catalog can, because it is delivered as
@@ -1080,9 +1085,12 @@ Section C.5.3 for convenience:</t>
 ]]></artwork>
 <t><strong>MMTP Packet Header</strong>: The standard 12-byte MMTP packet header
 (<xref target="MOQ-MMT"></xref> Section 3.1) with packet type 0x03 (repair) and
-FEC Type 2; its <tt>packet_id</tt> routes the repair flow.  Repair packets
-MUST NOT carry the optional packet counter or header extension, so
-the Repair FEC Payload ID always begins at byte offset 12.</t>
+FEC Type 2; its <tt>packet_id</tt> routes the repair flow.  Like every
+packet of its MMTP packet flow, source and signaling packets
+included, a repair packet has the packet counter flag C = 0
+(<xref target="MOQ-MMT"></xref> Section 3.1; <xref target="ISO.23008-1"></xref> Clause 9.2.3).  A repair
+packet MUST NOT carry a header extension (X = 0).  Because C = 0 and
+X = 0, the Repair FEC Payload ID always begins at byte offset 12.</t>
 <t><strong>SS_Start (32 bits)</strong>: The flat SS_ID (Section 8.3) of the FIRST
 source symbol of the protected source block: SS_Start = SBN x K.
 Receivers derive the Source Block Number as
@@ -1386,13 +1394,9 @@ sample (<tt>MMTHSampleATSC3.source_fec_payload_id</tt> per ISO 23008-1).
 Hint samples are delivered within the same MMTP packet_id as
 their associated MFU data and fall within the A3SA signed region.</t>
 </li>
-<li><t>Alternatively, the MMTP header <tt>packet_counter</tt> field (C bit = 1)
-MAY be set equal to SS_ID.  The packet_counter resides within the
-base MMTP header, which is always present in the signed packet.</t>
-</li>
 <li><t>Receivers operating in A3SA-verified mode SHOULD derive the FEC
-block assignment from the signed hint track or packet_counter
-rather than the trailing Source FEC Payload ID.</t>
+block assignment from the signed hint track rather than the
+trailing Source FEC Payload ID.</t>
 </li>
 </ol>
 <t>For MoQ-only receivers (no A3SA verification), the trailing 4-byte
@@ -1461,16 +1465,15 @@ byte of either instance.  This is the L = 8 case of the source symbol
 construction of Section 7.3, where the removal and the packet sizing
 budget are normative; a RAP packet under an overlay therefore yields
 one T-byte symbol that both instances protect.</t>
-<t>The A3SA redundancy mechanisms above apply to the base SS_ID only.
-The hint track field <tt>MMTHSampleATSC3.source_fec_payload_id</tt> and the
-MMTP <tt>packet_counter</tt> each carry one value, so they can carry the base
-SS_ID or the overlay SS_ID but not both.  Implementations MUST carry
-the base SS_ID in them.  A receiver operating in A3SA-verified mode
-therefore has an authenticated base block assignment and an
-unauthenticated overlay one, and SHOULD treat overlay-recovered
-fragments as it treats relay-generated repair: usable, but not a
-substitute for an authenticated base recovery where the deployment
-requires one.</t>
+<t>The A3SA redundancy mechanism above applies to the base SS_ID only.
+The hint track field <tt>MMTHSampleATSC3.source_fec_payload_id</tt> carries
+one value, so it can carry the base SS_ID or the overlay SS_ID but
+not both.  Implementations MUST carry the base SS_ID in it.  A
+receiver operating in A3SA-verified mode therefore has an
+authenticated base block assignment and an unauthenticated overlay
+one, and SHOULD treat overlay-recovered fragments as it treats
+relay-generated repair: usable, but not a substitute for an
+authenticated base recovery where the deployment requires one.</t>
 </section>
 </section>
 </section>
@@ -1712,9 +1715,9 @@ which tracks each endpoint carries, not a protocol constant.</t>
 <ul>
 <li><t><strong>Engineered low-loss segments.</strong>  On managed PON or DOCSIS delivered
 over a provisioned VLAN, steady-state loss is typically far below
-10^-6.  Disabling FEC for such a path is signaled through the catalog
-alone, by omitting the repair track from the tracks that path's
-endpoints carry.  Adding repair symbols
+10^-6.  Disabling FEC for such a path is signaled by omitting the
+repair track from the tracks that path's endpoints carry.  Adding
+repair symbols
 on such a path spends bandwidth to recover losses that do not occur.</t>
 </li>
 <li><t><strong>FEC-capable broadcast PHYs.</strong>  ATSC 3.0, DVB-S2/S2X, and 5G broadcast
@@ -1931,8 +1934,9 @@ timeout.</t>
 repair is outstanding, the receiver MAY hold video presentation for
 it.  The block is unrecoverable when its unicast repair fails or
 completes without recovering it, or when the receiver holds no MoQ
-session through which to request it (for example a sessionless
-receiver of a self-describing stream, <xref target="MOQ-MULTICAST"></xref> Section 1.1).
+session through which to request it (for example a receiver that
+consumes an MMTP stream without a MoQ session, <xref target="MOQ-MULTICAST"></xref>
+Section 1.1).
 If the data of an unrecoverable block that the receiver could not
 recover includes, or may include, any part of a RAP (Section 11.4.1),
 the receiver treats the track as discontinuous, MAY stall video, and
@@ -2295,8 +2299,10 @@ exposed to injection SHOULD authenticate source and repair packets
 (Section 8.5).  An attacker who can modify it without detection could
 redirect source symbols to incorrect FEC blocks, causing recovery
 failures or corrupted output.  Implementations that require
-authenticated FEC block assignment MUST use one of the mechanisms
-described in Section 8.5.  On multicast networks without A3SA
+authenticated FEC block assignment SHOULD use the hint track
+carriage described in Section 8.5.  That carriage is under review and
+may change in a later revision of this document.  On multicast
+networks without A3SA
 verification, receivers SHOULD cross-check the SS_ID against the MMTP
 packet_sequence_number to detect obvious tampering (e.g., SS_ID values
 that imply impossible block assignments given the known K and
@@ -2308,7 +2314,7 @@ interleave depth).</t>
 
 <section anchor="no-control-message-or-extension-header-registrations"><name>No Control Message or Extension Header Registrations</name>
 <t>This document requests no registrations in any MoQ message type or
-extension header registry.  FEC signaling is catalog-only
+extension header registry.  FEC signaling uses no MoQ control message
 (Section 5.2); no document in this suite requests a control-message
 codepoint.</t>
 </section>
