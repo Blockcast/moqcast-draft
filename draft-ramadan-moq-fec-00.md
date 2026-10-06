@@ -608,6 +608,60 @@ messages cannot reach multicast or sessionless receivers at all
 common signaling path; the catalog can, because it is delivered as
 track data or out of band.
 
+## FEC Source Info Object Extension
+
+A publisher that carries FEC source symbols as MoQ objects MUST tag
+each such object with a FEC Source Info object extension header,
+whose type is the odd value 0x11 (Section 15.1).
+
+[@!I-D.ietf-moq-transport] encodes an object extension header as a
+key-value pair whose type parity selects the value encoding: an even
+type carries a single variable-length integer, an odd type carries a
+length-prefixed sequence of bytes.  FEC Source Info is byte-valued,
+so its type is odd, and a receiver or relay that knows nothing of
+this document still steps over the extension correctly by its length
+prefix.  Deployed implementations have used the even value 0x10 for
+this purpose.  That value is not conformant and this document does
+not reserve it: a parser that applies the parity rule reads the
+first bytes of the value as a variable-length integer and
+desynchronizes on the first FEC-tagged object, which is why such
+implementations must special-case the type ahead of the rule to
+interoperate at all.  An implementation of this document MUST NOT
+send 0x10 and MUST NOT accept it.
+
+The extension value is:
+
+~~~
+FEC Source Info {
+  Source Block Number (32),
+  Encoding Symbol ID (32),
+  [Original Object Length (32)],
+}
+~~~
+
+All three fields are unsigned integers in network byte order.
+Source Block Number and Encoding Symbol ID are the SBN and ESI of
+the source symbol the object carries, with the meaning they have in
+the Source FEC Payload ID of Section 8.5.
+
+Original Object Length is present if and only if the extension value
+is 12 bytes, and absent if and only if it is 8 bytes.  A receiver
+MUST determine its presence from the extension's own length prefix,
+and MUST reject an extension whose value has any other length.  When
+present it gives the length in bytes of the object before padding to
+the symbol size, so a receiver that recovers the object can strip
+the padding.
+
+Original Object Length is a fixed 32-bit field rather than a
+variable-length integer because the variable-length integer encoding
+is a property of the session: [@!I-D.ietf-moq-transport] replaced
+that encoding at draft-17, so a length field inside the extension
+value that followed the session encoding would make the same bytes
+decode differently on two drafts.  A publisher and a receiver that
+negotiated different session versions, and a relay that re-encodes
+between them, decode this field identically.  An object of 2^32
+bytes or more cannot carry the field and MUST be sent without it.
+
 ## Relay Extensibility Requirements
 
 Relays conforming to this specification are subject to the following
@@ -2541,15 +2595,28 @@ Section 8.3).
 
 # IANA Considerations
 
-## No Control Message or Extension Header Registrations
+## Object Extension Header Registration
 
-This document requests no registrations in any MoQ message type or
-extension header registry.  FEC signaling uses no MoQ control message
-(Section 5.2); no document in this suite requests a control-message
-codepoint.  The header extension type 0x8B01 of Section 8.5.1 is an
-MMTP value, not a MoQ one; [@!ISO.23008-1] Clause 9.2.3 defines no
-registry of MMTP header extension types, so its use requires no IANA
-action.
+This document requests one registration in the MoQ object extension
+header type registry:
+
+| Value | Name | Reference |
+|-------|------|-----------|
+| 0x11  | FEC Source Info | This document, Section 5.3 |
+
+The value is odd, so under the key-value parity rule of
+[@!I-D.ietf-moq-transport] the extension is length-prefixed and
+byte-valued (Section 5.3).  The even value 0x10, used by deployed
+implementations for this purpose, is deliberately not requested: it
+cannot be parsed by that rule, and reserving it would give a
+non-conformant encoding a codepoint.
+
+This document requests no registration in any MoQ message type
+registry.  FEC signaling uses no MoQ control message (Section 5.2);
+no document in this suite requests a control-message codepoint.  The
+header extension type 0x8B01 of Section 8.5.1 is an MMTP value, not a
+MoQ one; [@!ISO.23008-1] Clause 9.2.3 defines no registry of MMTP
+header extension types, so its use requires no IANA action.
 
 ## FEC Algorithm Registry
 
