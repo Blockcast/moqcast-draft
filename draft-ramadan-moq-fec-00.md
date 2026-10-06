@@ -608,28 +608,43 @@ messages cannot reach multicast or sessionless receivers at all
 common signaling path; the catalog can, because it is delivered as
 track data or out of band.
 
-## FEC Source Info Object Extension
+## FEC Source Info Object Property
 
 A publisher that carries FEC source symbols as MoQ objects MUST tag
-each such object with a FEC Source Info object extension header,
-whose type is the odd value 0x11 (Section 15.1).
+each such object with a FEC Source Info Object Property, whose type
+is the odd value 0x11 (Section 15.1).
 
-[@!I-D.ietf-moq-transport] encodes an object extension header as a
+[@!I-D.ietf-moq-transport] calls these Object Properties; drafts
+before draft-16 called them object extension headers, and the two
+terms name the same wire construct.  It encodes a Property as a
 key-value pair whose type parity selects the value encoding: an even
 type carries a single variable-length integer, an odd type carries a
 length-prefixed sequence of bytes.  FEC Source Info is byte-valued,
 so its type is odd, and a receiver or relay that knows nothing of
-this document still steps over the extension correctly by its length
-prefix.  Deployed implementations have used the even value 0x10 for
-this purpose.  That value is not conformant and this document does
-not reserve it: a parser that applies the parity rule reads the
-first bytes of the value as a variable-length integer and
-desynchronizes on the first FEC-tagged object, which is why such
-implementations must special-case the type ahead of the rule to
-interoperate at all.  An implementation of this document MUST NOT
-send 0x10 and MUST NOT accept it.
+this document still steps over the Property correctly by its length
+prefix.
 
-The extension value is:
+Deployed implementations have used the even value 0x10 for this
+purpose.  That value is not available: [@!I-D.ietf-moq-transport]
+already lists 0x10 as the TIMESTAMP Object Property of
+draft-ietf-moq-loc, in the same Property Type space and at the same
+Object scope.  A 0x10-tagged FEC object is therefore not merely
+unparseable under the parity rule; it is a semantic collision with an
+unrelated Property.  A receiver that implements TIMESTAMP parses the
+FEC Source Info value as a variable-length integer, yields a garbage
+timestamp, and then reads the next Property type out of the middle of
+the FEC Source Info bytes.  The key-value sequence is desynchronized
+from that point on, so the exchange ends in a
+`KEY_VALUE_FORMATTING_ERROR` or `PROTOCOL_VIOLATION` session closure
+rather than in a quietly wrong value.  This is why implementations
+that use 0x10 must special-case the type ahead of the parity rule to
+interoperate at all.  An implementation of this document MUST NOT
+send 0x10.  A receiver cannot reject a 0x10 Property and carry on,
+because the sequence is already desynchronized by the time the value
+has been mis-parsed; it MUST close the session as
+[@!I-D.ietf-moq-transport] requires.
+
+The Property value is:
 
 ~~~
 FEC Source Info {
@@ -644,23 +659,30 @@ Source Block Number and Encoding Symbol ID are the SBN and ESI of
 the source symbol the object carries, with the meaning they have in
 the Source FEC Payload ID of Section 8.5.
 
-Original Object Length is present if and only if the extension value
+Original Object Length is present if and only if the Property value
 is 12 bytes, and absent if and only if it is 8 bytes.  A receiver
-MUST determine its presence from the extension's own length prefix,
-and MUST reject an extension whose value has any other length.  When
-present it gives the length in bytes of the object before padding to
-the symbol size, so a receiver that recovers the object can strip
-the padding.
+MUST determine its presence from the Property's own length prefix.
+A value of any other length does not match the serialization defined
+for this type, so a receiver that implements this document MUST close
+the session with `KEY_VALUE_FORMATTING_ERROR`, as
+[@!I-D.ietf-moq-transport] requires of any Property whose type is
+understood and whose value does not match.  When present it gives the
+length in bytes of the object before padding to the symbol size, so a
+receiver that recovers the object can strip the padding.
 
 Original Object Length is a fixed 32-bit field rather than a
 variable-length integer because the variable-length integer encoding
 is a property of the session: [@!I-D.ietf-moq-transport] replaced
-that encoding at draft-17, so a length field inside the extension
-value that followed the session encoding would make the same bytes
-decode differently on two drafts.  A publisher and a receiver that
-negotiated different session versions, and a relay that re-encodes
-between them, decode this field identically.  An object of 2^32
-bytes or more cannot carry the field and MUST be sent without it.
+that encoding at draft-17 (which renamed the QUIC variable-length
+integer encoding of earlier drafts), so a length field inside the
+Property value that followed the session encoding would make the
+same bytes decode differently on two drafts.  A publisher and a
+receiver that negotiated different session versions, and a relay that
+re-encodes between them, decode this field identically.  An object of
+2^32 bytes or more cannot carry the field and MUST be sent without
+it.  Such an object is not paddable by inspection: a receiver that
+recovers it cannot determine how much padding to strip, so a
+publisher MUST NOT pad an object sent without this field.
 
 ## Relay Extensibility Requirements
 
@@ -672,8 +694,8 @@ requirements:
    recognize.  Such messages MUST be ignored.
 
 2. A relay MUST NOT terminate, reset, or otherwise fail a session
-   in response to an object extension header whose type it does not
-   recognize.  Such extension headers MUST be forwarded unmodified
+   in response to an Object Property whose type it does not
+   recognize.  Such Properties MUST be forwarded unmodified
    to downstream subscribers; a relay MUST NOT strip them.
 
 # Repair Track Convention
@@ -2595,21 +2617,41 @@ Section 8.3).
 
 # IANA Considerations
 
-## Object Extension Header Registration
+## MoQ Registrations
 
-This document requests one registration in the MoQ object extension
-header type registry:
+This document requests one registration in the MOQT Properties
+registry of [@!I-D.ietf-moq-transport]:
 
-| Value | Name | Reference |
-|-------|------|-----------|
-| 0x11  | FEC Source Info | This document, Section 5.3 |
+| Type | Name | Scope | Specification |
+|------|------|-------|---------------|
+| 0x11 | FEC_SOURCE_INFO | Object | This document, Section 5.3 |
 
-The value is odd, so under the key-value parity rule of
-[@!I-D.ietf-moq-transport] the extension is length-prefixed and
-byte-valued (Section 5.3).  The even value 0x10, used by deployed
-implementations for this purpose, is deliberately not requested: it
-cannot be parsed by that rule, and reserving it would give a
-non-conformant encoding a codepoint.
+The type is odd, so under the key-value parity rule of
+[@!I-D.ietf-moq-transport] the Property is length-prefixed and
+byte-valued (Section 5.3).  The scope is Object: FEC Source Info
+describes the individual object it tags, and carries no track-wide
+meaning.
+
+0x11 lies in the range 0x00 to 0x77, for which
+[@!I-D.ietf-moq-transport] states a registration policy of Standards
+Action or IESG Approval.  That policy is not reachable by an
+individual draft, so this document asks for 0x11 as a provisional
+registration in the table [@!I-D.ietf-moq-transport] maintains for
+other active drafts in the MoQ working group, on the same terms as
+the existing entries for draft-ietf-moq-loc and
+draft-ietf-moq-secure-objects.  That ask is contingent on this
+document being adopted.  If 0x11 is not available on those terms,
+an odd value in the range 0x80 to 0x37FF, whose policy is
+Specification Required, is obtainable by this document on its own;
+it costs one additional byte per tagged object and changes nothing
+else in this specification.
+
+The even value 0x10, used by deployed implementations for this
+purpose, is deliberately not requested, and this document could not
+reserve it in any case: [@!I-D.ietf-moq-transport] already lists
+0x10 as the TIMESTAMP Object Property of draft-ietf-moq-loc, at
+Object scope in the same Property Type space.  Section 5.3 gives the
+resulting collision and its consequences.
 
 This document requests no registration in any MoQ message type
 registry.  FEC signaling uses no MoQ control message (Section 5.2);
