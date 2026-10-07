@@ -590,6 +590,13 @@ track data or out of band.</t>
 <t>A publisher that carries FEC source symbols as MoQ objects MUST tag
 each such object with a FEC Source Info Object Property, whose type
 is the odd value 0x11 (Section 15.1).</t>
+<t>0x11 is the value this document requests, and the registration policy
+for the range it lies in is not reachable by an individual draft
+(Section 15.1).  Until that request is resolved, 0x11 is to be read as
+provisional.  If it is not obtainable, Section 15.1 names an odd value
+in the range 0x80 to 0x37FF as the fallback; that value is a 2-byte
+Delta Type, so adopting it changes the bytes on the wire and not only
+the constant in this paragraph.</t>
 <t><xref target="I-D.ietf-moq-transport"></xref> calls these Object Properties; drafts
 before draft-16 called them object extension headers, and the two
 terms name the same wire construct.  It encodes a Property as a
@@ -609,50 +616,70 @@ unrelated Property.  A receiver that implements TIMESTAMP parses the
 FEC Source Info value as a variable-length integer, yields a garbage
 timestamp, and then reads the next Property type out of the middle of
 the FEC Source Info bytes.  The key-value sequence is desynchronized
-from that point on, so the exchange ends in a
-<tt>KEY_VALUE_FORMATTING_ERROR</tt> or <tt>PROTOCOL_VIOLATION</tt> session closure
-rather than in a quietly wrong value.  This is why implementations
+from that point on, so the exchange ends in a session closure rather
+than in a quietly wrong value.  Which closure depends on where the
+desynchronized parse lands: a Delta Type read out of the FEC Source
+Info bytes that overflows 2^64-1, or a Length that exceeds 2^16-1,
+is a <tt>PROTOCOL_VIOLATION</tt>; a type that is understood but whose value
+does not match its serialization is a <tt>KEY_VALUE_FORMATTING_ERROR</tt>.
+This is why implementations
 that use 0x10 must special-case the type ahead of the parity rule to
 interoperate at all.  An implementation of this document MUST NOT
-send 0x10.  A receiver cannot reject a 0x10 Property and carry on,
+send 0x10.  The defence is necessarily publisher-side: a receiver
+cannot detect a 0x10-tagged FEC object as such, because by
+construction it is indistinguishable from a well-formed TIMESTAMP
+until the following Delta Type fails.  A receiver cannot reject a
+0x10 Property and carry on,
 because the sequence is already desynchronized by the time the value
 has been mis-parsed; it MUST close the session as
 <xref target="I-D.ietf-moq-transport"></xref> requires.</t>
 <t>The Property value is:</t>
 
 <artwork><![CDATA[FEC Source Info {
-  Source Block Number (32),
-  Encoding Symbol ID (32),
-  [Original Object Length (32)],
+  SS_ID (32),
 }
 ]]></artwork>
-<t>All three fields are unsigned integers in network byte order.
-Source Block Number and Encoding Symbol ID are the SBN and ESI of
-the source symbol the object carries, with the meaning they have in
-the Source FEC Payload ID of Section 8.5.</t>
-<t>Original Object Length is present if and only if the Property value
-is 12 bytes, and absent if and only if it is 8 bytes.  A receiver
-MUST determine its presence from the Property's own length prefix.
-A value of any other length does not match the serialization defined
-for this type, so a receiver that implements this document MUST close
-the session with <tt>KEY_VALUE_FORMATTING_ERROR</tt>, as
-<xref target="I-D.ietf-moq-transport"></xref> requires of any Property whose type is
-understood and whose value does not match.  When present it gives the
-length in bytes of the object before padding to the symbol size, so a
-receiver that recovers the object can strip the padding.</t>
-<t>Original Object Length is a fixed 32-bit field rather than a
-variable-length integer because the variable-length integer encoding
-is a property of the session: <xref target="I-D.ietf-moq-transport"></xref> replaced
-that encoding at draft-17 (which renamed the QUIC variable-length
-integer encoding of earlier drafts), so a length field inside the
-Property value that followed the session encoding would make the
-same bytes decode differently on two drafts.  A publisher and a
-receiver that negotiated different session versions, and a relay that
-re-encodes between them, decode this field identically.  An object of
-2^32 bytes or more cannot carry the field and MUST be sent without
-it.  Such an object is not paddable by inspection: a receiver that
-recovers it cannot determine how much padding to strip, so a
-publisher MUST NOT pad an object sent without this field.</t>
+<t>SS_ID is an unsigned integer in network byte order.  It is the
+sequence number of the source symbol the object carries (Section 2),
+the same value and the same definition that the Source FEC Payload ID
+trailer of a FEC source packet carries on the MMTP path
+(Section 8.5).  This Property is that trailer's MoQ-path equivalent:
+one identifier, one definition, whichever path the symbol travels.</t>
+<t>A receiver places the symbol in a block by SS_ID (Section 8.3) and
+learns the block's extent from the (SS_Start, SSB_length) of a repair
+object (Section 7.1), exactly as on the MMTP path.  The Property
+carries no block coordinate, and a receiver MUST NOT infer one from
+it: Section 8.3's constraints on delimiting a block apply unchanged to
+a MoQ receiver.</t>
+<t>The value is exactly 4 bytes.  A value of any other length does not
+match the serialization defined for this type, so a receiver that
+implements this document MUST close the session with
+<tt>KEY_VALUE_FORMATTING_ERROR</tt>, as <xref target="I-D.ietf-moq-transport"></xref> requires
+of any Property whose type is understood and whose value does not
+match.</t>
+<t>SS_ID is a fixed 32-bit field rather than a variable-length integer
+for two reasons.  First, <xref target="I-D.ietf-moq-transport"></xref> does not require
+its variable-length integers to be encoded in the minimum number of
+bytes, so one numeric value has several valid encodings that differ in
+length; a varint field inside the Property value would therefore vary
+the Property's own length without varying its meaning.  Second, the
+encoding is a property of the session: <xref target="I-D.ietf-moq-transport"></xref>
+replaced it at draft-16 (#1016) with a leading-1-bits scheme that is
+not the QUIC variable-length integer encoding of earlier drafts and
+does not decode the same bytes to the same values, so a varint field
+following the session encoding would decode differently on two
+drafts.  A fixed width removes both.  A publisher and a receiver that
+negotiated different session versions, and a relay that re-encodes
+between them, decode this field identically.</t>
+<t>This Property carries no object length.  A receiver that recovers an
+object by FEC decoding receives no Properties with it, so a length
+carried here would be absent in exactly the case a recovered length is
+wanted.  The recoverable length is the <tt>Length</tt> field inside the
+source symbol itself (Section 7.3), which is part of the protected
+packet and is therefore recovered with it.  Under the source symbol
+construction of Section 7.3 the padding that completes a symbol is
+applied by the encoder and decoder and is not transmitted, so there is
+no transmitted padding for a receiver to strip.</t>
 </section>
 
 <section anchor="relay-extensibility-requirements"><name>Relay Extensibility Requirements</name>
