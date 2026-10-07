@@ -672,8 +672,19 @@ SS_ID is an unsigned integer in network byte order.  It is the
 sequence number of the source symbol the object carries (Section 2),
 the same value and the same definition that the Source FEC Payload ID
 trailer of a FEC source packet carries on the MMTP path
-(Section 8.5).  This Property is that trailer's MoQ-path equivalent:
+(Section 8.5).  This Property is that trailer's MoQ-layer carrier:
 one identifier, one definition, whichever path the symbol travels.
+
+Where the packaging also delivers the trailer, both carry the same
+value and a publisher MUST make them identical.  On the mmtp
+packaging of [@!MOQ-MMT] that is every source object, because the
+object payload is the whole MMTP packet, trailer included.  The
+Property is wanted there as well: it places the symbol at the MoQ
+layer, reachable by a relay and by a receiver that does not parse
+MMTP, whereas the trailer is what the FEC encoder emitted and what
+recovery reconstructs.  Where the two disagree the trailer prevails
+(Section 8.5); a packet the decoder recovers carries the trailer and
+no Property, for the same reason.
 
 Where a keyframe overlay applies (Section 6.4), an object carrying a
 Random Access Point fragment is a source symbol of two FEC instances,
@@ -703,12 +714,16 @@ accepted a repair object of the block it holds the symbol without
 placing it, as Section 8.3 describes.
 
 An object that carries a source symbol but no FEC Source Info
-Property is not a source symbol a receiver can place: it has no
-SS_ID, and this document defines no derivation of one.  A receiver
-MUST NOT feed such an object to the decoder and MUST NOT count it in
-K or in any block, and MAY still deliver it as media.  This is the
-MoQ-path form of the rule Section 8.5.1 states for the overlay
-extension.
+Property violates the publisher requirement that opens this section.  A receiver that does not
+parse the protected packet has no SS_ID for it -- at the MoQ layer
+the Property is the only carrier -- so it MUST NOT feed such an
+object to the base decoder and MUST NOT count it in K or in any base
+block, and MAY still deliver it as media.  Where the packaging
+delivers the trailer, a receiver that parses the packet MAY take the
+SS_ID from there instead (Section 8.3).  An overlay SS_ID is
+unaffected either way: it travels in the 0x8B01 MMTP header
+extension (Section 8.5.1), which this Property does not carry, and
+Section 8.5.1 alone governs when the overlay decoder may be fed.
 
 The value is exactly 4 bytes.  A value of any other length does not
 match the serialization defined for this type, so a receiver that
@@ -1720,13 +1735,16 @@ last Group.
 ## Source Symbol Location
 
 Under `iso-ssbg1-v1`, every FEC source packet carries a Source FEC
-Payload ID (Section 8.5), and a receiver takes each source symbol's
-SS_ID from that field on every path that delivers the packet with its
-trailer.  Where a packaging profile delivers the protected packet
-without the trailer, the SS_ID is carried alongside it and the
-receiver takes it from there: on the MoQ path of Section 5.3 it is
-the FEC Source Info Object Property, which carries the same value
-under the same definition.  The SS_ID advances by one per
+Payload ID (Section 8.5), and a receiver that parses the packet takes
+each source symbol's SS_ID from that field on every path that
+delivers the packet with its trailer.  The SS_ID is also carried
+alongside the packet where the packaging says so: on the MoQ path
+every object carrying a source symbol carries it in the FEC Source
+Info Object Property (Section 5.3), under the same value and the same
+definition, whether or not that object also delivers the trailer.  A
+receiver that does not parse the protected packet -- a relay, or a
+MoQ receiver with no MMTP parser -- takes the SS_ID from there.  The
+SS_ID advances by one per
 FEC source packet, modulo 2^32, in the order the publisher emits the
 packets ([@!ISO.23008-1] Section C.5.2), and the blocks of an FEC
 instance are consecutive: each starts at the SS_ID that follows the
@@ -1758,8 +1776,9 @@ symbol -- for example, the in-band AL-FEC signaling object of
 counted in K or in any block.  This document defines no derivation
 of a source symbol's position from MoQ Group or Object IDs: on the
 mmtp packaging of [@!MOQ-MMT], Object IDs are not positions in the FEC
-block, and a packaging profile whose source objects carry no Source
-FEC Payload ID needs a block profile of its own (Section 5.1).
+block, and a packaging profile whose source objects carry neither a
+Source FEC Payload ID nor a FEC Source Info Object Property
+(Section 5.3) needs a block profile of its own (Section 5.1).
 
 Every transport path yields the same SS_ID for the same packet,
 because each path carries the same MMTP packet, so receivers MAY
@@ -1830,7 +1849,11 @@ FEC Payload ID ([@?MOQ-MULTICAST] Section 7.2.4).
 For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical identifier by which a
 source packet is placed in its block (Section 8.3).  QUIC transport
-encryption provides equivalent integrity protection.
+encryption provides equivalent integrity protection.  The FEC Source
+Info Object Property of Section 5.3 carries the same value for a
+receiver that does not parse the packet; where an object delivers
+both and they disagree, the trailer is the one that is canonical,
+because it is inside the protected packet and the Property is not.
 
 ### Overlay SS_ID Header Extension
 
