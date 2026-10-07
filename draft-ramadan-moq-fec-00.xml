@@ -645,12 +645,38 @@ the same value and the same definition that the Source FEC Payload ID
 trailer of a FEC source packet carries on the MMTP path
 (Section 8.5).  This Property is that trailer's MoQ-path equivalent:
 one identifier, one definition, whichever path the symbol travels.</t>
+<t>Where a keyframe overlay applies (Section 6.4), an object carrying a
+Random Access Point fragment is a source symbol of two FEC instances,
+whose SS_ID spaces are disjoint (Section 6.4.1), so "the source
+symbol the object carries" names two SS_IDs rather than one.  This
+Property carries the base instance's SS_ID -- the value the Source
+FEC Payload ID trailer carries on the MMTP path (Section 8.5.1) --
+and a publisher MUST NOT place an overlay SS_ID in it.  No second
+Property conveys the overlay SS_ID: it travels in the 0x8B01 MMTP
+header extension, which lies inside the MMTP packet header and is
+therefore part of the protected packet of both instances
+(Section 8.5.1), so it rides inside the object's payload on this path
+as on any other.  A receiver takes an overlay SS_ID from that
+extension and from nothing else, and in particular MUST NOT infer one
+from this Property (Section 8.5.1).</t>
 <t>A receiver places the symbol in a block by SS_ID (Section 8.3) and
 learns the block's extent from the (SS_Start, SSB_length) of a repair
 object (Section 7.1), exactly as on the MMTP path.  The Property
 carries no block coordinate, and a receiver MUST NOT infer one from
-it: Section 8.3's constraints on delimiting a block apply unchanged to
-a MoQ receiver.</t>
+it: the constraints of Section 7.4 on delimiting a block apply
+unchanged to a MoQ receiver, so it MUST NOT infer a block boundary,
+or SSB_length, from a gap in SS_IDs, from a group or MPU boundary --
+which for a MoQ receiver includes a Group boundary -- from elapsed
+time, or from <tt>sourceSymbols</tt>.  Until it has
+accepted a repair object of the block it holds the symbol without
+placing it, as Section 8.3 describes.</t>
+<t>An object that carries a source symbol but no FEC Source Info
+Property is not a source symbol a receiver can place: it has no
+SS_ID, and this document defines no derivation of one.  A receiver
+MUST NOT feed such an object to the decoder and MUST NOT count it in
+K or in any block, and MAY still deliver it as media.  This is the
+MoQ-path form of the rule Section 8.5.1 states for the overlay
+extension.</t>
 <t>The value is exactly 4 bytes.  A value of any other length does not
 match the serialization defined for this type, so a receiver that
 implements this document MUST close the session with
@@ -675,8 +701,8 @@ between them, decode this field identically.</t>
 object by FEC decoding receives no Properties with it, so a length
 carried here would be absent in exactly the case a recovered length is
 wanted.  The recoverable length is the <tt>Length</tt> field inside the
-source symbol itself (Section 7.3), which is part of the protected
-packet and is therefore recovered with it.  Under the source symbol
+source symbol itself (Section 7.3), which is recovered with the
+symbol.  Under the source symbol
 construction of Section 7.3 the padding that completes a symbol is
 applied by the encoder and decoder and is not transmitted, so there is
 no transmitted padding for a receiver to strip.</t>
@@ -1654,7 +1680,12 @@ last Group.</t>
 <section anchor="source-symbol-location"><name>Source Symbol Location</name>
 <t>Under <tt>iso-ssbg1-v1</tt>, every FEC source packet carries a Source FEC
 Payload ID (Section 8.5), and a receiver takes each source symbol's
-SS_ID from that field on every path.  The SS_ID advances by one per
+SS_ID from that field on every path that delivers the packet with its
+trailer.  Where a packaging profile delivers the protected packet
+without the trailer, the SS_ID is carried alongside it and the
+receiver takes it from there: on the MoQ path of Section 5.3 it is
+the FEC Source Info Object Property, which carries the same value
+under the same definition.  The SS_ID advances by one per
 FEC source packet, modulo 2^32, in the order the publisher emits the
 packets (<xref target="ISO.23008-1"></xref> Section C.5.2), and the blocks of an FEC
 instance are consecutive: each starts at the SS_ID that follows the
