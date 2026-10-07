@@ -623,7 +623,7 @@ Delta Type, so adopting it changes the bytes on the wire and not only
 the constant in this paragraph.
 
 [@!I-D.ietf-moq-transport] calls these Object Properties; drafts
-before draft-16 called them object extension headers, and the two
+before draft-17 called them object extension headers, and the two
 terms name the same wire construct.  It encodes a Property as a
 key-value pair whose type parity selects the value encoding: an even
 type carries a single variable-length integer, an odd type carries a
@@ -724,7 +724,7 @@ bytes, so one numeric value has several valid encodings that differ in
 length; a varint field inside the Property value would therefore vary
 the Property's own length without varying its meaning.  Second, the
 encoding is a property of the session: [@!I-D.ietf-moq-transport]
-replaced it at draft-16 (#1016) with a leading-1-bits scheme that is
+replaced it at draft-17 (#1016) with a leading-1-bits scheme that is
 not the QUIC variable-length integer encoding of earlier drafts and
 does not decode the same bytes to the same values, so a varint field
 following the session encoding would decode differently on two
