@@ -678,13 +678,16 @@ one identifier, one definition, whichever path the symbol travels.
 Where the packaging also delivers the trailer, both carry the same
 value and a publisher MUST make them identical.  On the mmtp
 packaging of [@!MOQ-MMT] that is every source object, because the
-object payload is the whole MMTP packet, trailer included.  The
+object payload is the whole FEC source packet, trailer included.  The
 Property is wanted there as well: it places the symbol at the MoQ
 layer, reachable by a relay and by a receiver that does not parse
-MMTP, whereas the trailer is what the FEC encoder emitted and what
-recovery reconstructs.  Where the two disagree the trailer prevails
-(Section 8.5); a packet the decoder recovers carries the trailer and
-no Property, for the same reason.
+MMTP, whereas the trailer is the field the FEC encoder emitted and
+the one Section 8.3 locates the symbol by.  Where the two disagree
+the trailer prevails (Section 8.5).  A packet the decoder recovers
+carries neither (Section 7.3): the Property is not recovered with the
+object, and the trailer is appended after FEC encoding, so a receiver
+that recovers an object determines its SS_ID from the block
+coordinate that recovered it.
 
 Where a keyframe overlay applies (Section 6.4), an object carrying a
 Random Access Point fragment is a source symbol of two FEC instances,
@@ -715,7 +718,7 @@ placing it, as Section 8.3 describes.
 
 An object that carries a source symbol but no FEC Source Info
 Property violates the publisher requirement that opens this section.  A receiver that does not
-parse the protected packet has no SS_ID for it -- at the MoQ layer
+parse the FEC source packet has no SS_ID for it -- at the MoQ layer
 the Property is the only carrier -- so it MUST NOT feed such an
 object to the base decoder and MUST NOT count it in K or in any base
 block, and MAY still deliver it as media.  Where the packaging
@@ -1742,7 +1745,7 @@ alongside the packet where the packaging says so: on the MoQ path
 every object carrying a source symbol carries it in the FEC Source
 Info Object Property (Section 5.3), under the same value and the same
 definition, whether or not that object also delivers the trailer.  A
-receiver that does not parse the protected packet -- a relay, or a
+receiver that does not parse the FEC source packet -- a relay, or a
 MoQ receiver with no MMTP parser -- takes the SS_ID from there.  The
 SS_ID advances by one per
 FEC source packet, modulo 2^32, in the order the publisher emits the
@@ -1776,7 +1779,7 @@ symbol -- for example, the in-band AL-FEC signaling object of
 counted in K or in any block.  This document defines no derivation
 of a source symbol's position from MoQ Group or Object IDs: on the
 mmtp packaging of [@!MOQ-MMT], Object IDs are not positions in the FEC
-block, and a packaging profile whose source objects carry neither a
+block, and a packaging profile that defines source objects carrying neither a
 Source FEC Payload ID nor a FEC Source Info Object Property
 (Section 5.3) needs a block profile of its own (Section 5.1).
 
@@ -1849,11 +1852,14 @@ FEC Payload ID ([@?MOQ-MULTICAST] Section 7.2.4).
 For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical identifier by which a
 source packet is placed in its block (Section 8.3).  QUIC transport
-encryption provides equivalent integrity protection.  The FEC Source
-Info Object Property of Section 5.3 carries the same value for a
-receiver that does not parse the packet; where an object delivers
-both and they disagree, the trailer is the one that is canonical,
-because it is inside the protected packet and the Property is not.
+encryption provides equivalent integrity protection.
+
+Whatever the receiver's verification posture, the FEC Source Info
+Object Property of Section 5.3 carries the same value for a receiver
+that does not parse the packet; where an object delivers both and
+they disagree, the trailer is the one that is canonical, because it
+is the field the FEC encoder emitted and the one Section 8.3 locates
+the symbol by.  The Property restates it at the MoQ layer.
 
 ### Overlay SS_ID Header Extension
 
