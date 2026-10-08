@@ -608,6 +608,160 @@ messages cannot reach multicast or sessionless receivers at all
 common signaling path; the catalog can, because it is delivered as
 track data or out of band.
 
+## FEC Source Info Object Property
+
+A publisher that carries FEC source symbols as MoQ objects MUST tag
+each such object with a FEC Source Info Object Property, whose type
+is the odd value 0x11 (Section 15.1).
+
+0x11 is the value this document requests, and the registration policy
+for the range it lies in is not reachable by an individual draft
+(Section 15.1).  Until that request is resolved, 0x11 is to be read as
+provisional.  If it is not obtainable, Section 15.1 names an odd value
+in the range 0x80 to 0x37FF as the fallback; that value is a 2-byte
+Delta Type, so adopting it changes the bytes on the wire and not only
+the constant in this paragraph.
+
+[@!I-D.ietf-moq-transport] calls these Object Properties; drafts
+before draft-17 called them object extension headers, and the two
+terms name the same wire construct.  It encodes a Property as a
+key-value pair whose type parity selects the value encoding: an even
+type carries a single variable-length integer, an odd type carries a
+length-prefixed sequence of bytes.  FEC Source Info is byte-valued,
+so its type is odd, and a receiver or relay that knows nothing of
+this document still steps over the Property correctly by its length
+prefix.
+
+Deployed implementations have used the even value 0x10 for this
+purpose.  That value is not available: [@!I-D.ietf-moq-transport]
+already lists 0x10 as the TIMESTAMP Object Property of
+draft-ietf-moq-loc, in the same Property Type space and at the same
+Object scope.  A 0x10-tagged FEC object is therefore not merely
+unparseable under the parity rule; it is a semantic collision with an
+unrelated Property.  A receiver that implements TIMESTAMP parses the
+FEC Source Info value as a variable-length integer, yields a garbage
+timestamp, and then reads the next Property type out of the middle of
+the FEC Source Info bytes.  The key-value sequence is desynchronized
+from that point on, so the exchange ends in a session closure rather
+than in a quietly wrong value.  Which closure depends on where the
+desynchronized parse lands: a Delta Type read out of the FEC Source
+Info bytes that overflows 2^64-1, or a Length that exceeds 2^16-1,
+is a `PROTOCOL_VIOLATION`; a type that is understood but whose value
+does not match its serialization is a `KEY_VALUE_FORMATTING_ERROR`.
+This is why implementations
+that use 0x10 must special-case the type ahead of the parity rule to
+interoperate at all.  An implementation of this document MUST NOT
+send 0x10.  The defence is necessarily publisher-side: a receiver
+cannot detect a 0x10-tagged FEC object as such, because by
+construction it is indistinguishable from a well-formed TIMESTAMP
+until the following Delta Type fails.  A receiver cannot reject a
+0x10 Property and carry on,
+because the sequence is already desynchronized by the time the value
+has been mis-parsed; it MUST close the session as
+[@!I-D.ietf-moq-transport] requires.
+
+The Property value is:
+
+~~~
+FEC Source Info {
+  SS_ID (32),
+}
+~~~
+
+SS_ID is an unsigned integer in network byte order.  It is the
+sequence number of the source symbol the object carries (Section 2),
+the same value and the same definition that the Source FEC Payload ID
+trailer of a FEC source packet carries on the MMTP path
+(Section 8.5).  This Property is that trailer's MoQ-layer carrier:
+one identifier, one definition, whichever path the symbol travels.
+
+Where the packaging also delivers the trailer, both carry the same
+value and a publisher MUST make them identical.  On the mmtp
+packaging of [@!MOQ-MMT] that is every source object, because the
+object payload is the whole FEC source packet, trailer included.  The
+Property is wanted there as well: it places the symbol at the MoQ
+layer, reachable by a relay and by a receiver that does not parse
+MMTP, whereas the trailer is the field the FEC encoder emitted and
+the one Section 8.3 locates the symbol by.  Where the two disagree
+the trailer prevails (Section 8.5).  A packet the decoder recovers
+carries neither (Section 7.3): the Property is not recovered with the
+object, and the trailer is appended after FEC encoding, so a receiver
+that recovers a packet determines its SS_ID from the block coordinate
+that recovered it, within that FEC instance's SS_ID space
+(Section 6.4.1); an overlay coordinate does not yield a base SS_ID
+(Section 7.3).
+
+Where a keyframe overlay applies (Section 6.4), an object carrying a
+Random Access Point fragment is a source symbol of two FEC instances,
+whose SS_ID spaces are disjoint (Section 6.4.1), so "the source
+symbol the object carries" names two SS_IDs rather than one.  This
+Property carries the base instance's SS_ID -- the value the Source
+FEC Payload ID trailer carries on the MMTP path (Section 8.5.1) --
+and a publisher MUST NOT place an overlay SS_ID in it.  No second
+Property conveys the overlay SS_ID: it travels in the 0x8B01 MMTP
+header extension, which lies inside the MMTP packet header and is
+therefore part of the protected packet of both instances
+(Section 8.5.1), so it rides inside the object's payload on this path
+as on any other.  A receiver takes an overlay SS_ID from that
+extension and from nothing else, and in particular MUST NOT infer one
+from this Property (Section 8.5.1).
+
+A receiver places the symbol in a block by SS_ID (Section 8.3) and
+learns the block's extent from the (SS_Start, SSB_length) of a repair
+object (Section 7.1), exactly as on the MMTP path.  The Property
+carries no block coordinate, and a receiver MUST NOT infer one from
+it: the constraints of Section 7.4 on delimiting a block apply
+unchanged to a MoQ receiver, so it MUST NOT infer a block boundary,
+or SSB_length, from a gap in SS_IDs, from a group or MPU boundary --
+which for a MoQ receiver includes a Group boundary -- from elapsed
+time, or from `sourceSymbols`.  Until it has
+accepted a repair object of the block it holds the symbol without
+placing it, as Section 8.3 describes.
+
+An object that carries a source symbol but no FEC Source Info
+Property violates the publisher requirement that opens this section.  A receiver that does not
+parse the FEC source packet has no SS_ID for it -- at the MoQ layer
+the Property is the only carrier -- so it MUST NOT feed such an
+object to the base decoder and MUST NOT count it in K or in any base
+block, and MAY still deliver it as media.  Where the packaging
+delivers the trailer, a receiver that parses the packet MAY take the
+SS_ID from there instead (Section 8.3).  An overlay SS_ID is
+unaffected either way: it travels in the 0x8B01 MMTP header
+extension (Section 8.5.1), which this Property does not carry, and
+Section 8.5.1 alone governs when the overlay decoder may be fed.
+
+The value is exactly 4 bytes.  A value of any other length does not
+match the serialization defined for this type, so a receiver that
+implements this document MUST close the session with
+`KEY_VALUE_FORMATTING_ERROR`, as [@!I-D.ietf-moq-transport] requires
+of any Property whose type is understood and whose value does not
+match.
+
+SS_ID is a fixed 32-bit field rather than a variable-length integer
+for two reasons.  First, [@!I-D.ietf-moq-transport] does not require
+its variable-length integers to be encoded in the minimum number of
+bytes, so one numeric value has several valid encodings that differ in
+length; a varint field inside the Property value would therefore vary
+the Property's own length without varying its meaning.  Second, the
+encoding is a property of the session: [@!I-D.ietf-moq-transport]
+replaced it at draft-17 (#1016) with a leading-1-bits scheme that is
+not the QUIC variable-length integer encoding of earlier drafts and
+does not decode the same bytes to the same values, so a varint field
+following the session encoding would decode differently on two
+drafts.  A fixed width removes both.  A publisher and a receiver that
+negotiated different session versions, and a relay that re-encodes
+between them, decode this field identically.
+
+This Property carries no object length.  A receiver that recovers an
+object by FEC decoding receives no Properties with it, so a length
+carried here would be absent in exactly the case a recovered length is
+wanted.  The recoverable length is the `Length` field inside the
+source symbol itself (Section 7.3), which is recovered with the
+symbol.  Under the source symbol
+construction of Section 7.3 the padding that completes a symbol is
+applied by the encoder and decoder and is not transmitted, so there is
+no transmitted padding for a receiver to strip.
+
 ## Relay Extensibility Requirements
 
 Relays conforming to this specification are subject to the following
@@ -618,8 +772,8 @@ requirements:
    recognize.  Such messages MUST be ignored.
 
 2. A relay MUST NOT terminate, reset, or otherwise fail a session
-   in response to an object extension header whose type it does not
-   recognize.  Such extension headers MUST be forwarded unmodified
+   in response to an Object Property whose type it does not
+   recognize.  Such Properties MUST be forwarded unmodified
    to downstream subscribers; a relay MUST NOT strip them.
 
 # Repair Track Convention
@@ -1586,8 +1740,16 @@ last Group.
 ## Source Symbol Location
 
 Under `iso-ssbg1-v1`, every FEC source packet carries a Source FEC
-Payload ID (Section 8.5), and a receiver takes each source symbol's
-SS_ID from that field on every path.  The SS_ID advances by one per
+Payload ID (Section 8.5), and a receiver that parses the packet takes
+each source symbol's SS_ID from that field on every path that
+delivers the packet with its trailer.  The SS_ID is also carried
+alongside the packet where the packaging says so: on the MoQ path
+every object carrying a source symbol carries it in the FEC Source
+Info Object Property (Section 5.3), under the same value and the same
+definition, whether or not that object also delivers the trailer.  A
+receiver that does not parse the FEC source packet -- a relay, or a
+MoQ receiver with no MMTP parser -- takes the SS_ID from there.  The
+SS_ID advances by one per
 FEC source packet, modulo 2^32, in the order the publisher emits the
 packets ([@!ISO.23008-1] Section C.5.2), and the blocks of an FEC
 instance are consecutive: each starts at the SS_ID that follows the
@@ -1619,8 +1781,9 @@ symbol -- for example, the in-band AL-FEC signaling object of
 counted in K or in any block.  This document defines no derivation
 of a source symbol's position from MoQ Group or Object IDs: on the
 mmtp packaging of [@!MOQ-MMT], Object IDs are not positions in the FEC
-block, and a packaging profile whose source objects carry no Source
-FEC Payload ID needs a block profile of its own (Section 5.1).
+block, and a packaging profile that defines source objects carrying neither a
+Source FEC Payload ID nor a FEC Source Info Object Property
+(Section 5.3) needs a block profile of its own (Section 5.1).
 
 Every transport path yields the same SS_ID for the same packet,
 because each path carries the same MMTP packet, so receivers MAY
@@ -1692,6 +1855,13 @@ For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical identifier by which a
 source packet is placed in its block (Section 8.3).  QUIC transport
 encryption provides equivalent integrity protection.
+
+Whatever the receiver's verification posture, the FEC Source Info
+Object Property of Section 5.3 carries the same value for a receiver
+that does not parse the packet; where an object delivers both and
+they disagree, the trailer is the one that is canonical, because it
+is the field the FEC encoder emitted and the one Section 8.3 locates
+the symbol by.  The Property restates it at the MoQ layer.
 
 ### Overlay SS_ID Header Extension
 
@@ -2541,15 +2711,48 @@ Section 8.3).
 
 # IANA Considerations
 
-## No Control Message or Extension Header Registrations
+## MoQ Registrations
 
-This document requests no registrations in any MoQ message type or
-extension header registry.  FEC signaling uses no MoQ control message
-(Section 5.2); no document in this suite requests a control-message
-codepoint.  The header extension type 0x8B01 of Section 8.5.1 is an
-MMTP value, not a MoQ one; [@!ISO.23008-1] Clause 9.2.3 defines no
-registry of MMTP header extension types, so its use requires no IANA
-action.
+This document requests one registration in the MOQT Properties
+registry of [@!I-D.ietf-moq-transport]:
+
+| Type | Name | Scope | Specification |
+|------|------|-------|---------------|
+| 0x11 | FEC_SOURCE_INFO | Object | This document, Section 5.3 |
+
+The type is odd, so under the key-value parity rule of
+[@!I-D.ietf-moq-transport] the Property is length-prefixed and
+byte-valued (Section 5.3).  The scope is Object: FEC Source Info
+describes the individual object it tags, and carries no track-wide
+meaning.
+
+0x11 lies in the range 0x00 to 0x77, for which
+[@!I-D.ietf-moq-transport] states a registration policy of Standards
+Action or IESG Approval.  That policy is not reachable by an
+individual draft, so this document asks for 0x11 as a provisional
+registration in the table [@!I-D.ietf-moq-transport] maintains for
+other active drafts in the MoQ working group, on the same terms as
+the existing entries for draft-ietf-moq-loc and
+draft-ietf-moq-secure-objects.  That ask is contingent on this
+document being adopted.  If 0x11 is not available on those terms,
+an odd value in the range 0x80 to 0x37FF, whose policy is
+Specification Required, is obtainable by this document on its own;
+it costs one additional byte per tagged object and changes nothing
+else in this specification.
+
+The even value 0x10, used by deployed implementations for this
+purpose, is deliberately not requested, and this document could not
+reserve it in any case: [@!I-D.ietf-moq-transport] already lists
+0x10 as the TIMESTAMP Object Property of draft-ietf-moq-loc, at
+Object scope in the same Property Type space.  Section 5.3 gives the
+resulting collision and its consequences.
+
+This document requests no registration in any MoQ message type
+registry.  FEC signaling uses no MoQ control message (Section 5.2);
+no document in this suite requests a control-message codepoint.  The
+header extension type 0x8B01 of Section 8.5.1 is an MMTP value, not a
+MoQ one; [@!ISO.23008-1] Clause 9.2.3 defines no registry of MMTP
+header extension types, so its use requires no IANA action.
 
 ## FEC Algorithm Registry
 
