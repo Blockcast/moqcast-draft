@@ -686,8 +686,10 @@ the one Section 8.3 locates the symbol by.  Where the two disagree
 the trailer prevails (Section 8.5).  A packet the decoder recovers
 carries neither (Section 7.3): the Property is not recovered with the
 object, and the trailer is appended after FEC encoding, so a receiver
-that recovers an object determines its SS_ID from the block
-coordinate that recovered it.
+that recovers a packet determines its SS_ID from the block coordinate
+that recovered it, within that FEC instance's SS_ID space
+(Section 6.4.1); an overlay coordinate does not yield a base SS_ID
+(Section 7.3).
 
 Where a keyframe overlay applies (Section 6.4), an object carrying a
 Random Access Point fragment is a source symbol of two FEC instances,
