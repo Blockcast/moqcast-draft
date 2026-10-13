@@ -197,6 +197,14 @@ flag C to 0, so no packet carries the Packet Counter field.
 share one setting of C; this profile fixes that setting at 0.  The
 MMTP packet header is therefore 12 bytes unless X = 1 adds a header
 extension.</t>
+<t>This document profiles MMTP version 0 (<tt>V = 00</tt>) of
+ISO/IEC 23008-1:2023 as amended by Amd 1:2025.  A packet whose version
+is not <tt>00</tt> MUST be rejected before its <tt>type</tt> field is parsed: version
+1 uses a different type-field layout and is not defined by this
+profile.  The <tt>C = 0</tt> requirement above is also a conformance gate;
+packets with <tt>C = 1</tt> MUST be rejected.  An <tt>X = 1</tt> header extension is
+parsed according to its declared length, but this document defines no
+additional version or packet-counter semantics.</t>
 <t>Key fields for MoQ mapping:</t>
 
 <ul spacing="compact">
@@ -336,6 +344,16 @@ those two bytes.</t>
   [Source FEC Payload ID (32)],   // trails FEC Type=1 packets
 }
 ]]></artwork>
+<t>The object payload begins at byte zero of the preserved MMTP packet
+header.  It has no MoQ-private envelope, length prefix, harness prefix,
+or other undocumented bytes before that header.  For an FEC Type 1
+packet, the Source FEC Payload ID and any profile-defined MMTP header
+extensions remain in their specified wire locations.  No object-layer
+prefix, suffix, or private replacement for those fields is permitted.
+When <xref target="MOQ-FEC"></xref> requires the FEC Source Info Object Property (type
+<tt>0x11</tt>), its value remains the four-byte, network-byte-order <tt>SS_ID</tt>
+defined by that document; the property is object metadata and is not
+inserted into this payload.</t>
 <t>The one exception is the OPTIONAL AL-FEC signaling object of
 Section 8: its payload is a complete MMTP signaling packet (packet
 type 0x02) on packet_id 0 with FEC Type 0.  Its MMTP payload is the
@@ -438,8 +456,13 @@ alternate tracks that MUST be time-aligned per
 <xref target="I-D.ietf-moq-msf"></xref> Section 4.2 (the same construct that
 <xref target="I-D.ietf-moq-cmsf"></xref> Section 3.2 applies to CMAF tracks).  MoQ
 Group numbers MUST be media-time-aligned across all tracks of a
-switching set so that subscribers can switch at group boundaries
-without discontinuity.</t>
+switching set so that subscribers can switch at group boundaries;
+the switch is without discontinuity when the MPUs are closed GOPs.  On
+a join or switch at a Group boundary, leading pictures (Section 4.4.1)
+that reference the preceding Group are not decodable, and presentation
+of the new track begins at its RAP.  If the old track's next MPU has
+leading pictures, neither track has decodable pictures for their
+presentation interval, and the receiver conceals that gap.</t>
 <t>Switching-set membership is declared in the catalog via the
 per-track field:</t>
 
@@ -458,26 +481,27 @@ carries the same <tt>altGroup</tt> value as the track it protects.</t>
 <t>The Group number of every mmtp-packaged track MUST be computed from
 media time by the formula in this section.  This single definition is
 what makes group boundaries align across the renditions of a
-switching set, and what lets the FEC interleave window (Section 7.1)
-map deterministically onto whole groups:</t>
+switching set.  FEC interleave timing is independent of this grouping;
+Section 7.1 does not derive FEC block boundaries or a number of Groups
+per FEC block from this formula:</t>
 
 <artwork><![CDATA[relative_ticks = ticks - presentationAnchorTicks
 group_number = floor(relative_ticks / groupDurationTicks)
-               if relative_ticks >= 0
-group_number = 0 if relative_ticks < 0
 ]]></artwork>
 <t>where:</t>
 
 <ul spacing="compact">
-<li><tt>ticks</tt> is the presentation timestamp of the group's first sample
-in decode order (under B-frame reordering, the first sample in
-decode order -- not the sample with the minimum presentation
-timestamp), expressed in the track's <tt>timescale</tt> (Hz, Section
-4.4.2) as a signed integer.</li>
+<li><tt>ticks</tt> is the presentation timestamp (PTS) of the MPU's first AU in
+decode order, expressed in the track's <tt>timescale</tt> (Hz, Section
+4.4.2) as a signed integer.  That AU is first in the MPU payload, as
+ISO/IEC 23008-1 requires, and is the MPU's RAP (Section 4.3).
+Leading pictures, which follow the RAP in decode order but present
+before it, do not select <tt>ticks</tt>, even when they present within the
+preceding MPU's Group interval.</li>
 <li><tt>groupDurationTicks</tt> is the per-track group duration expressed
 in the same <tt>timescale</tt>, as a positive integer.  The catalog
-signals it per Section 4.4.2, which requires the conversion to be
-exact.</li>
+signals it either directly or through an exact millisecond
+conversion as specified in Section 4.4.2.</li>
 <li><tt>presentationAnchorTicks</tt> is the signed timestamp in this track's
 <tt>timescale</tt> that corresponds to presentation time zero.  It includes
 the publisher's edit-list, encoder-priming, and composition-time
@@ -486,6 +510,18 @@ intended to be rendered with another audio or video track MUST signal
 this field; a track that is not part of a synchronized presentation
 MAY omit it and use zero as its local origin.</li>
 </ul>
+<t>The publisher MUST choose <tt>presentationAnchorTicks</tt> no later than the
+smallest <tt>ticks</tt> value of the MPUs it admits for the track.  If an
+MPU's <tt>ticks</tt> is earlier than the anchor, the publisher MUST reject
+that MPU.  Before the first group is published, the publisher MAY
+instead revise the catalog anchor and validate the complete initial
+input again; after publication, the anchor is immutable for that track
+instance.  It MUST NOT clamp the Group number to zero.  The <tt>floor</tt> in
+the formula is mathematical floor (floor division), not truncation
+towards zero.  With the anchor requirement, every admitted MPU has a
+non-negative <tt>relative_ticks</tt> value.  The requirement binds <tt>ticks</tt>
+only; a leading picture of an admitted MPU can present before the
+anchor.</t>
 <t>Timeline origin: <tt>ticks</tt> is measured on the track's media
 presentation timeline; <tt>presentationAnchorTicks</tt> maps that track to
 the shared presentation timeline.  For every set of audio and video
@@ -503,7 +539,21 @@ timeline after edit-list and priming adjustments.  All tracks of a
 switching set MUST use the same presentation origin as well.  A
 publisher that resets the timeline (a timeline discontinuity) MUST
 reset it identically, at the same media instant, across every affected
-audio, video, and switching-set track.</t>
+audio, video, and switching-set track.  A discontinuity on an existing
+track does not reset its Group number sequence.</t>
+<t>For each track, when the MPU changes, the computed Group number MUST be
+strictly greater than the Group number of the preceding admitted MPU.
+The publisher MUST NOT put two different MPUs in one Group, reuse a
+Group number, or alter authored timestamps to satisfy this rule.  A
+publisher that restarts or declares a discontinuity MUST retain the last
+Group number for the existing track instance and resume with a greater
+number; numeric gaps are allowed.  If it cannot do that while preserving
+the formula and authored timing, it MUST close that track instance and
+start a new track with a distinct (namespace, track name) pair before
+emitting the reset MPU.  That new identity is the Group-number
+scope for the restarted stream; it MUST NOT be presented as a
+continuation of the old track.  Group-number state is transport state;
+this document defines no new catalog field for it.</t>
 <t>For two tracks A and B, a receiver can verify that timestamps describe
 the same presentation instant without floating-point conversion:</t>
 
@@ -516,8 +566,8 @@ same anchor conversion.  Consequently, equal rational values of
 <tt>presentationAnchorTicks</tt> values are what align 30-fps video with
 audio; per-track <tt>timescale</tt> and <tt>groupDurationTicks</tt> values alone do
 not establish synchronization.</t>
-<t>All arithmetic is in integers: <tt>ticks</tt> and <tt>groupDurationTicks</tt> are
-integers, <tt>floor(ticks / groupDurationTicks)</tt> is integer division,
+<t>All arithmetic is in integers: <tt>relative_ticks</tt> and <tt>groupDurationTicks</tt>
+are integers, <tt>floor(relative_ticks / groupDurationTicks)</tt> is integer division,
 and implementations MUST NOT compute the group number in floating
 point or apply any tolerance.  An input held in another unit
 (seconds, milliseconds, a different timescale) MUST be converted to
@@ -525,6 +575,12 @@ an exact integer tick count before the formula is applied; if that
 conversion is not exact, the publisher's timescale or group-duration
 choice is wrong (Section 4.4.2) -- implementations MUST NOT round to
 compensate.</t>
+<t>For ISOBMFF content, authored composition timestamps use the media
+track's <tt>mdhd</tt> timescale.  If that differs from the catalog <tt>timescale</tt>,
+the publisher MUST convert the adjusted composition timestamps by the
+exact ratio <tt>timescale / mdhd.timescale</tt> before applying this formula.
+It MUST reject a timestamp that is not an integer in the selected
+catalog clock; it MUST NOT relabel media ticks as asset-clock ticks.</t>
 <t>Worked example.  A switching set of two video renditions of the same
 content: rendition A with <tt>timescale: 90000</tt>, rendition B with
 <tt>timescale: 44100</tt>, both with <tt>presentationAnchorTicks: 0</tt> and
@@ -543,14 +599,49 @@ B: relative_ticks = 463050 -> floor(463050 /  88200) = 5
 is shared between the two computations -- only the integer results
 agree -- which is exactly the property group-boundary switching
 requires.</t>
+<t>Negative authored timestamps use the same rule and are not clamped.  For
+one 90 kHz track with <tt>groupDurationTicks: 180000</tt>, choose the shared
+presentation anchor <tt>presentationAnchorTicks: -180000</tt>, which is earlier
+than the <tt>ticks</tt> of the first admitted MPU:</t>
+
+<artwork><![CDATA[MPU 0 ticks = -90000: relative_ticks =  90000 -> group 0
+MPU 1 ticks =  90000: relative_ticks = 270000 -> group 1
+]]></artwork>
+<t>The negative authored PTS therefore maps to group 0 through the shared
+earlier anchor.  A catalog with the same samples and
+<tt>presentationAnchorTicks: 0</tt> is invalid for this profile; the publisher
+rejects MPU 0 instead of mapping it to group 0.</t>
+<t>With reordered samples, the first AU in decode order selects the
+Group number.  This example lists the authored PTS values of the first
+three AUs of two consecutive MPUs in decode order.  MPU 0 is a closed
+GOP.  MPU 1 is an open GOP: its RAP presents at 180000, and its two
+leading pictures present before it, inside Group 0's interval:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "timescale": 90000,
+  "presentationAnchorTicks": 0,
+  "groupDurationTicks": 180000,
+  "mpuSamplePtsInDecodeOrder": [
+    [0, 6000, 3000],
+    [180000, 174000, 177000]
+  ],
+  "ticks": [0, 180000],
+  "groupNumbers": [0, 1]
+}
+]]></sourcecode>
+<t><tt>ticks</tt> is the first entry of each MPU's list.  Selecting the minimum
+presented PTS instead would give <tt>ticks</tt> 0 and 174000, both in Group 0,
+which violates the strictly-greater rule above.</t>
 </section>
 
 <section anchor="catalog-signaling-of-group-duration"><name>Catalog Signaling of Group Duration</name>
 <t>For a subscriber to apply the formula in Section 4.4.1, the catalog
 MUST publish the group duration for every mmtp-packaged track.
-This document defines a single per-track field:</t>
+The catalog publishes either the millisecond form or the exact tick
+form defined here:</t>
 
-<artwork><![CDATA[groupDurationMs (REQUIRED, unsigned integer, milliseconds)
+<artwork><![CDATA[groupDurationMs (REQUIRED unless groupDurationTicks is present,
+                positive unsigned integer, milliseconds)
 ]]></artwork>
 <t>The timescale is the MSF <tt>timescale</tt> field (<xref target="I-D.ietf-moq-msf"></xref>
 Section 5.2.21), resolved per the track's <tt>packaging</tt> value
@@ -585,28 +676,57 @@ Section 12.1):</t>
 <td>1 000 000 (microseconds).  This row covers track entries whose <tt>packaging</tt> value is missing or unrecognized; the convention is fixed by this document and does NOT derive from <xref target="I-D.ietf-moq-transport"></xref>.</td>
 </tr>
 </tbody>
-</table><t>Conversion is <tt>groupDurationTicks = groupDurationMs * timescale / 1000</tt>.
-The catalog publisher MUST choose a <tt>groupDurationMs</tt> such that the
-resulting tick count is exact (i.e. <tt>(groupDurationMs * timescale) %
-1000 == 0</tt>).  If this cannot be satisfied, the catalog MUST publish
-ticks directly via the optional override field:</t>
+</table><t>When <tt>groupDurationTicks</tt> is absent, conversion is
+<tt>groupDurationTicks = groupDurationMs * timescale / 1000</tt>.  The
+catalog publisher MUST choose a <tt>groupDurationMs</tt> such that the
+resulting tick count is a positive integer and the conversion is exact
+(i.e. <tt>(groupDurationMs * timescale) % 1000 == 0</tt>).  If this cannot be
+satisfied, or if the intended cadence is not an integer number of
+milliseconds, the catalog MUST publish ticks directly via the exact
+tick field:</t>
 
-<artwork><![CDATA[groupDurationTicks (OPTIONAL, unsigned integer)
+<artwork><![CDATA[groupDurationTicks (OPTIONAL, positive unsigned integer)
 ]]></artwork>
 <t>If both <tt>groupDurationMs</tt> and <tt>groupDurationTicks</tt> are present,
-<tt>groupDurationTicks</tt> wins.  Cases where the override is required
-include:</t>
+<tt>groupDurationTicks</tt> wins and <tt>groupDurationMs</tt> is informational; it is
+not used in the conversion and need not have an exact millisecond
+conversion.  Cases where the override is required include:</t>
 
 <ul spacing="compact">
 <li>An MPU group duration at a 30-per-second cadence
-(<tt>1/30 s = 33.333... ms</tt>) on any timescale: expressing this in integer
-ms is impossible, so publishers set
-<tt>groupDurationTicks: timescale / 30</tt> directly (e.g. <tt>3000</tt> at
-90 000 Hz, <tt>1500</tt> at 45 000 Hz).</li>
+(<tt>1/30 s = 33.333... ms</tt>): expressing this in integer ms is
+impossible.  If the track <tt>timescale</tt> is divisible by 30, publishers
+set <tt>groupDurationTicks: timescale / 30</tt> directly (e.g. <tt>3000</tt> at
+90 000 Hz, <tt>1500</tt> at 45 000 Hz).  A timescale not divisible by 30
+cannot represent this cadence as an integer tick count and MUST be
+changed or rejected for this profile; it MUST NOT be rounded.</li>
 <li>Audio sample-rate timescales not divisible by 1000 Hz, such as
-44 100 Hz: <tt>333 ms x 44 100 / 1000 = 14 685.3</tt> is non-integer; a
-publisher selecting a 333 ms audio group MUST publish ticks.</li>
+44 100 Hz: a 333 ms field would imply
+<tt>333 x 44 100 / 1000 = 14 685.3</tt> ticks.  A publisher whose authored
+cadence is the exact integral cadence of 14 685 ticks MUST publish
+<tt>groupDurationTicks: 14685</tt> (about 332.993 ms); it MUST NOT claim
+that this preserves an exact 333 ms duration.  A publisher that
+requires exactly 333 ms MUST choose a compatible timescale or reject
+that cadence.</li>
 </ul>
+<t>For example, this catalog uses the exact 30-per-second cadence on a
+44 100 Hz track.  It omits <tt>groupDurationMs</tt> because 33.333... ms is
+not an integer millisecond value:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "version": "draft-01",
+  "tracks": [{
+    "name": "video-30fps",
+    "packaging": "mmtp",
+    "mmtpMode": "mfu",
+    "timescale": 44100,
+    "presentationAnchorTicks": 0,
+    "groupDurationTicks": 1470,
+    "codec": "avc1.64001f",
+    "framerate": 30
+  }]
+}
+]]></sourcecode>
 <t>Switching-set agreement: every track in the same switching set MUST
 publish the same effective group duration as a rational number of
 seconds.  Raw <tt>groupDurationTicks</tt> values need not be equal when track
@@ -720,7 +840,8 @@ and 5.3.</t>
 </section>
 
 <section anchor="media-fragment-unit-mfu-mode"><name>Media Fragment Unit (MFU) Mode</name>
-<t>This profile transports each authored MPU data unit without rewriting it:</t>
+<t>This timed-media profile transports each authored MPU data unit without
+rewriting it:</t>
 
 <artwork><![CDATA[MFU Mode (one subgroup per MPU data unit):
   Group N:
@@ -752,6 +873,14 @@ two producer-authored subsample data units:
          object of SG 0 and FT=0 is the object after it; when absent,
          FT=0 is the first object of SG 0 (Obj 0).
 ]]></artwork>
+<t>For conformance, an <tt>mmtp</tt> track in this document carries timed media
+only.  ISO/IEC 23008-1 Clause 9.3.2.3 defines the Timed Flag as
+indicating whether the MPU is timed or non-timed, independently of the
+FT value.  Every MPU-mode packet with FT=0, FT=1, or FT=2 in this
+profile MUST carry <tt>T = 1</tt>; a packet with <tt>T = 0</tt> MUST be rejected.
+Checking only FT=2 would leave metadata packets unchecked.  The ISO
+non-timed DU identity and four-byte header remain outside this profile;
+no <tt>Item_ID</tt>-based mapping is defined here.</t>
 <t>FT=0 initializes the track, FT=1 supplies the authoritative movie
 fragment structure and sample table, and FT=2 supplies the exact bytes
 of each sample.  That order is a decoder contract, not a hint.</t>
@@ -1270,9 +1399,13 @@ Repair Track: video/repair
 
 <section anchor="interleaving"><name>Interleaving</name>
 <t>Interleaving and typical interleave windows (<tt>interleaveDepthMs</tt>)
-follow <xref target="MOQ-FEC"></xref> Section 9; the number of groups per block D
-follows from the group duration (<xref target="MOQ-FEC"></xref> Section 5.1).  A typical
-window for ARIB STD-B60 content is 2000 ms.</t>
+follow <xref target="MOQ-FEC"></xref> Section 9.  A positive <tt>interleaveDepthMs</tt> is the
+elapsed source/repair send-span bound for each actual FEC block; it does not
+select FEC block boundaries, derive a number of groups per block, or
+require a fixed relationship between an FEC block and a media Group.
+Absent and zero values follow <xref target="MOQ-FEC"></xref> Section 5.1 and do not supply
+an elapsed-time deadline.  A typical window for ARIB STD-B60 content is
+2000 ms.</t>
 </section>
 
 <section anchor="oti-signaling"><name>OTI Signaling</name>
@@ -1340,11 +1473,14 @@ symbols) that an FEC block may hold; each block holds SSB_length of
 them (<xref target="MOQ-FEC"></xref> Section 7.4).  On the MMT path the canonical FEC
 source symbol is one whole MMTP packet, before its Source FEC
 Payload ID, framed with its length (<xref target="MOQ-FEC"></xref> Section 7.3)</li>
-<li><strong>interleaveDepthMs</strong>: Per <xref target="MOQ-FEC"></xref> Section 5.1, whose group
-duration is the <tt>groupDurationMs</tt> field of Section 12.1.  When
-ingesting broadcast content, set it to the time span of the
-original broadcast FEC interleave, converting a source-frame count
-with the source frame duration</li>
+<li><strong>interleaveDepthMs</strong>: When positive, the elapsed source/repair send
+span bound of each actual FEC block, as defined by <xref target="MOQ-FEC"></xref>
+Section 5.1; that section also defines absent and zero values.  It is
+independent of <tt>groupDurationMs</tt> and does not imply a block count or
+block boundary from MoQ Groups.  When ingesting broadcast content,
+use the ISO protection-window signaling or a known source/repair
+send-span bound.  A source-frame count alone does not bound the
+actual packet send span (Section 12.2).</li>
 </ul>
 <t>See <xref target="MOQ-FEC"></xref> for the complete catalog field definitions, the
 algorithm registry, and the OTI derivation.</t>
@@ -1513,16 +1649,16 @@ mmtp-packaged track are whole MMTP packets per Section 4.2.</t>
 
 <tr>
 <td><tt>groupDurationMs</tt></td>
-<td>REQUIRED</td>
+<td>Conditional</td>
 <td>Number</td>
-<td>Group duration, integer ms (Section 4.4.2); defined by this document</td>
+<td>REQUIRED without the tick form; positive integer ms (Section 4.4.2); informational when ticks are present</td>
 </tr>
 
 <tr>
 <td><tt>groupDurationTicks</tt></td>
 <td>OPTIONAL</td>
 <td>Number</td>
-<td>Integer-tick override (Section 4.4.2); defined by this document</td>
+<td>Positive exact group duration in track ticks; authoritative when present (Section 4.4.2); defined by this document</td>
 </tr>
 
 <tr>
@@ -1579,6 +1715,7 @@ be inferred safely from received objects.</t>
     "packaging": "mmtp",
     "mmtpMode": "mfu",
     "timescale": 90000,
+    "presentationAnchorTicks": 0,
     "groupDurationMs": 1000,
     "codec": "avc1.64001f",
     "width": 1920,
@@ -1632,10 +1769,20 @@ zero merely because the source offset was unavailable</li>
 P = (K x overhead) div 100 (overhead arithmetic above)</li>
 <li><tt>fecOTI</tt> F,T -&gt; <tt>fec.sourceSymbols</tt> (K = ceil(F / T)),
 <tt>fec.symbolSize</tt> (T)</li>
-<li><tt>FECParameters@maximumDelay</tt> -&gt; <tt>fec.interleaveDepthMs</tt> (both are
-durations in integer milliseconds; the RFC 6330 Z parameter -- the
-number of source blocks -- is unrelated to interleaving and does
-not map to any catalog FEC field)</li>
+<li><tt>FECParameters@maximumDelay</tt> has no direct catalog mapping.  A/331
+defines it as the maximum delivery delay between a source packet and
+its associated repair packet, whereas <tt>fec.interleaveDepthMs</tt> is the
+ISO protection-window send span from the first source or repair
+packet to the last.  The converter MUST NOT copy this attribute into
+<tt>interleaveDepthMs</tt>.  It sets <tt>interleaveDepthMs</tt> only when an ISO
+AL-FEC <tt>protection_window_time</tt> value or an independently known
+source/repair send schedule supplies that first-to-last span, using
+a positive integer millisecond upper bound that covers the complete
+span.  It MUST NOT round a fractional span down.  If the span is
+unknown, or ISO signals zero (the size-based case), the converter
+omits <tt>interleaveDepthMs</tt>.  The RFC 6330 Z parameter -- the number of
+source blocks -- is likewise unrelated to interleaving and does not
+map to any catalog FEC field.</li>
 </ul>
 <t>An ingested <tt>@overhead</tt> with K x overhead &lt; 100 yields P = 0, less
 than one repair symbol per block.  A catalog cannot express that for
@@ -1678,13 +1825,35 @@ under different namespaces belong to different sending entities, and
 each is numbered from 1.  Flows sharing one
 (sourceAddress, groupAddress, port) tuple collapse into a single
 endpoint whose <tt>tracks[]</tt> array lists them all.</t>
-<t><tt>timescale</tt>, <tt>groupDurationMs</tt>, and <tt>mmtpMode</tt> are not carried in
+<t><tt>timescale</tt>, the group-duration field, and <tt>mmtpMode</tt> are not carried in
 S-TSID, yet they are REQUIRED fields (Section 12.1).  The converter
-takes <tt>timescale</tt> from <tt>asset_timescale</tt> in the MP table
-(<xref target="ISO.23008-1"></xref> Clause 10.3.9.3) and the group duration from
-successive <tt>mpu_presentation_time</tt> values of the MPU timestamp
-descriptor (<xref target="ISO.23008-1"></xref> Clause 10.5.2), and sets <tt>mmtpMode</tt>
-itself.  Nor does S-TSID carry <tt>fec.blockProfile</tt>, which is REQUIRED for a
+takes <tt>timescale</tt> from <tt>asset_timescale</tt> in the MP table when
+<tt>asset_timescale_flag</tt> is 1, and uses 90 000 Hz when that flag is 0,
+as specified by <xref target="ISO.23008-1"></xref> Clause 10.3.9.3.  For each timed
+Asset, it obtains the presentation time of each MPU's first AU in
+presentation order from the PI document when PI is present;
+ISO/IEC 23008-1 Clause 10.5.2.1 says that the MPU timestamp
+descriptor is ignored in that case.  Otherwise it decodes each
+descriptor's 64-bit NTP <tt>mpu_presentation_time</tt> value
+(<xref target="ISO.23008-1"></xref> Clause 10.5.2) and MUST NOT treat the encoded NTP
+integer as a media tick count.  It converts those presentation
+instants through the selected asset/media clock, retaining the
+authored media timing when NTP fractional quantization does not land
+on an integer media tick.  That instant is not <tt>ticks</tt>
+(Section 4.4.1) when the MPU has leading pictures: <tt>ticks</tt> is that
+instant plus the difference between the authored composition times
+(Section 5.1) of the MPU's first AU in decode order and its
+earliest-presented AU, converted to the selected timescale as
+Section 4.4.1 requires.</t>
+<t>The converter derives the group duration from the authored MPU/media
+cadence and validates it against those <tt>ticks</tt> values.  It may emit
+<tt>groupDurationMs</tt> only when the conversion to the selected timescale
+is an exact positive integer tick count; when the cadence is exact
+only in ticks it emits <tt>groupDurationTicks</tt>.
+The fixed-cadence profile cannot represent a source whose MPU cadence
+is not one constant positive duration, so conversion MUST fail rather
+than round or invent a cadence.  It sets <tt>mmtpMode</tt> itself.  Nor does
+S-TSID carry <tt>fec.blockProfile</tt>, which is REQUIRED for a
 track whose <tt>fec.algorithm</tt> is not &quot;none&quot; (<xref target="MOQ-FEC"></xref> Section 5.1);
 for such a track the converter sets it to the profile under
 which the MoQ-side publisher protects the track, &quot;iso-ssbg1-v1&quot;.</t>
@@ -1699,8 +1868,13 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:</t>
 <li><tt>fec.repairSymbols</tt> (P) and <tt>fec.sourceSymbols</tt> (K) -&gt;
 <tt>FECParameters@overhead</tt>, computed as (100 x P + K - 1) div K
 (Section 12.2)</li>
-<li><tt>fec.interleaveDepthMs</tt> -&gt; <tt>FECParameters@maximumDelay</tt> (both are
-durations in milliseconds; no scaling by frame duration)</li>
+<li><tt>fec.interleaveDepthMs</tt> has no direct inverse to
+<tt>FECParameters@maximumDelay</tt>: the former is the ISO protection-window
+source/repair send span, while the latter is the maximum delay from a
+source packet to its associated repair packet.  Emit
+<tt>@maximumDelay</tt> only when the target converter separately computes
+that A/331 delivery delay; otherwise omit it rather than copying
+<tt>interleaveDepthMs</tt> (and document that the field was not preserved).</li>
 <li><tt>fec.sourceSymbols</tt> and <tt>fec.symbolSize</tt> -&gt; <tt>fecOTI</tt>, exactly the
 OTI of a full block (SSB_length = K) derived from them
 (Section 7.2)</li>
@@ -1844,9 +2018,9 @@ document in this suite requests a control-message codepoint.</t>
     <author>
       <organization>ATSC</organization>
     </author>
-    <date year="2025" month="February"></date>
+    <date year="2026" month="February"></date>
   </front>
-  <seriesInfo name="ATSC" value="A/331:2025"></seriesInfo>
+  <seriesInfo name="ATSC" value="A/331:2026-02"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
@@ -1935,7 +2109,6 @@ ATSC S-TSID and MoQ catalog for a multi-track service.</t>
         "sourceSymbols": 1000,
         "repairSymbols": 250,
         "symbolSize": 1000,
-        "interleaveDepthMs": 1000,
         "reorderToleranceMs": 40,
         "repairTrack": "video/1080p/repair"
       }
@@ -1994,22 +2167,24 @@ fields of <xref target="I-D.ietf-moq-msf"></xref> Section 5.2 (Section 12.1).</t
 = 250 (Section 12.2); re-exporting gives <tt>@overhead</tt> =
 (100 x 250 + 1000 - 1) div 1000 = 25, the ingested value
 (Section 12.3)</li>
-<li><tt>interleaveDepthMs</tt>: <tt>maximumDelay</tt> = 1000 ms (both are durations)</li>
+<li><tt>interleaveDepthMs</tt>: omitted.  The source S-TSID value
+<tt>maximumDelay=&quot;1000&quot;</tt> describes the maximum delivery delay from a
+source packet to its associated repair packet; it does not provide
+the ISO protection-window send span required by this catalog field.</li>
 <li><tt>blockProfile</tt>: set by the converter (Section 12.2), since S-TSID
 carries none and the track's <tt>algorithm</tt> is not &quot;none&quot;</li>
 <li>Derived MoQ OTI of a full block (SSB_length = K, Section 7.2):
 F = K x T = 1000 x 1000 = 1,000,000 bytes, identical to the
 ingested <tt>fecOTI</tt>, so the round trip is lossless</li>
 </ul>
-<t>The converted parameters are internally consistent: with
-<tt>groupDurationMs</tt> of 1000, the 1000 ms interleave window derives
-D = round(1000 / 1000) = 1, so each MoQ Group is one FEC block
-(<xref target="MOQ-FEC"></xref> Section 8.1).  A full block of K = 1000 source symbols
-carries K x (T - 2) = 1000 x 998 = 998,000 bytes of MMTP packets,
-since each source symbol spends two of its T octets on the packet
-length (<xref target="MOQ-FEC"></xref> Section 7.3), and that exactly matches the source
-data per window, <tt>LS@bw</tt> x 1.0 s / 8 = 7,984,000 / 8 = 998,000
-bytes.</t>
+<t>This S-TSID example supplies no ISO protection-window send span, so the
+converted catalog does not signal <tt>interleaveDepthMs</tt>.  If a publisher
+has that span independently, it may add the field; it still does not
+imply that one MoQ Group is one FEC block or that a block contains a
+fixed number of Groups.  The publisher signals each block's <tt>SS_Start</tt>
+and <tt>SSB_length</tt> in its repair packets (<xref target="MOQ-FEC"></xref> Sections 7.1 and
+7.4).  The full-block OTI calculation above is therefore a catalog
+bound and does not replace that per-block signaling.</t>
 </section>
 </section>
 
