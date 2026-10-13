@@ -6,6 +6,16 @@ references shown as {{...}} are to be wired to the host draft's sections.
 Not yet integrated into a submission draft.
 -->
 
+> **Status: non-normative design note.** This file is not an ISO/IEC or MoQ
+> conformance specification; its RFC 2119 terms describe a proposed extension
+> only. The coordinate table and examples are retained for design history and
+> must not replace the current requirements in
+> [draft-ramadan-moq-mmt-00.md](../draft-ramadan-moq-mmt-00.md), Sections 4–5,
+> or ISO/IEC 23008-1:2023, Clauses 8 and 9.3.2.3. In particular, ISO defines a
+> timed-MFU `offset` inside the referenced sample, a hint-track `offset` from
+> the containing `mdat` in Clause 8.3.3, and no byte-offset field in the
+> non-timed MFU DU header.
+
 # Self-Describing Fragment Reassembly
 
 ## Motivation
