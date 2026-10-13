@@ -430,7 +430,8 @@ count-based processing; it does not supply a millisecond deadline, and
 the receiver MUST NOT assume a media cadence to convert it.  Without an
 elapsed-time deadline, open-block state is bounded only by the local
 policy of Section 9, and on a multicast or AMT leg the receiver
-performs no block classification or unicast repair (Section 11.4).
+performs no block classification or unicast repair (Section 11.4) and
+keeps its repair-layer selection fixed (Section 6.3.6).
 
 Note: the `iso-ssbg1-v1` token is unchanged from an earlier revision of
 this document that derived the number D of Groups per block from this
@@ -1144,7 +1145,14 @@ Hysteresis MUST derive from the FEC block span, that is from
 `interleaveDepthMs` together with `reorderToleranceMs`, and MUST NOT
 come from a fixed timer or a fixed symbol count.  A receiver MUST
 observe at least one full block span at the new layer set before
-making a further layer change. 
+making a further layer change.
+
+That loss measure and this hysteresis both need a block deadline,
+which exists only for a positive `interleaveDepthMs` (Section 9).  On a
+multicast or AMT leg, a receiver of a track whose catalog omits that
+field or sets it to zero MUST NOT add or drop a repair layer of the
+track on block-recovery evidence, and keeps its repair-layer selection
+for the track fixed.
 
 ### Interaction with the Interleave Window
 
@@ -2070,14 +2078,20 @@ with a block that is still unrecovered at that deadline -- unicast
 repair, a stall, or concealment -- is specified in Section 11.4.
 
 A receiver MUST bound the state it holds for open blocks by a
-receiver-local policy, for example evidence of later blocks, a memory
-cap, or a local timeout.  The bound is needed even when no FEC deadline
-exists: a receiver that loses every repair packet of a block never
-learns its SSB_length (Section 7.4).  The policy is not signaled, and a
-receiver MUST keep it separate from the catalog values: it does not
-change `interleaveDepthMs`, `reorderToleranceMs`, or a deadline derived
-from them, and discarding a block under it does not create an FEC
-deadline (Section 11.4).
+receiver-local policy, for example a memory cap, a local timeout, or a
+later block that has itself passed its FEC deadline or local timeout.
+The bound is needed even when no FEC deadline exists: a receiver that
+loses every repair packet of a block never learns its SSB_length
+(Section 7.4).  For a block that has an FEC deadline, the policy MUST
+NOT discard the block before that deadline, or while a unicast repair
+FETCH for it is outstanding (Section 11.4.2), except under a memory
+cap.  A block so discarded is treated from then on as having reached
+its FEC deadline unrecovered and, on a track whose blocks Section
+11.4.1 classifies, of unknown class.  The
+policy is not signaled, and a receiver MUST keep it separate from the
+catalog values: it does not change `interleaveDepthMs`,
+`reorderToleranceMs`, or a deadline derived from them, and discarding
+a block under it does not create an FEC deadline (Section 11.4).
 
 The code is systematic (Section 4.1): a receiver plays source objects
 on arrival, and the window adds latency only when a lossy leg forces
@@ -2443,7 +2457,8 @@ block of unknown class as keyframe-bearing.  In particular:
 
 - A block for which the receiver holds no lower or no upper bounding
   packet at its FEC deadline is of unknown class, as is one for which
-  it cannot determine a decode time that item 3 needs.
+  it cannot determine a decode time that item 3 needs.  So is a block
+  discarded before its FEC deadline under a memory cap (Section 9).
 
 - On a video track whose catalog entry carries no usable keyframe
   interval, the receiver cannot exclude a keyframe after the group

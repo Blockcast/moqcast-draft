@@ -408,8 +408,13 @@ alternate tracks that MUST be time-aligned per
 [@!I-D.ietf-moq-msf] Section 4.2 (the same construct that
 [@?I-D.ietf-moq-cmsf] Section 3.2 applies to CMAF tracks).  MoQ
 Group numbers MUST be media-time-aligned across all tracks of a
-switching set so that subscribers can switch at group boundaries
-without discontinuity.
+switching set so that subscribers can switch at group boundaries;
+the switch is without discontinuity when the MPUs are closed GOPs.  On
+a join or switch at a Group boundary, leading pictures (Section 4.4.1)
+that reference the preceding Group are not decodable, and presentation
+of the new track begins at its RAP.  If the old track's next MPU has
+leading pictures, neither track has decodable pictures for their
+presentation interval, and the receiver conceals that gap.
 
 Switching-set membership is declared in the catalog via the
 per-track field:
@@ -1731,21 +1736,27 @@ S-TSID, yet they are REQUIRED fields (Section 12.1).  The converter
 takes `timescale` from `asset_timescale` in the MP table when
 `asset_timescale_flag` is 1, and uses 90 000 Hz when that flag is 0,
 as specified by [@!ISO.23008-1] Clause 10.3.9.3.  For each timed
-Asset, it obtains the presentation time of the first AU of each MPU
-from the PI document when PI is present; ISO/IEC 23008-1 Clause
-10.5.2.1 says that the MPU timestamp descriptor is ignored in that
-case.  Otherwise it decodes each descriptor's 64-bit NTP
-`mpu_presentation_time` value ([@!ISO.23008-1] Clause 10.5.2) and
-MUST NOT treat the encoded NTP integer as a media tick count.  It
-converts those presentation instants through the selected asset/media
-clock, retaining the authored media timing when NTP fractional
-quantization does not land on an integer media tick.
+Asset, it obtains the presentation time of each MPU's first AU in
+presentation order from the PI document when PI is present;
+ISO/IEC 23008-1 Clause 10.5.2.1 says that the MPU timestamp
+descriptor is ignored in that case.  Otherwise it decodes each
+descriptor's 64-bit NTP `mpu_presentation_time` value
+([@!ISO.23008-1] Clause 10.5.2) and MUST NOT treat the encoded NTP
+integer as a media tick count.  It converts those presentation
+instants through the selected asset/media clock, retaining the
+authored media timing when NTP fractional quantization does not land
+on an integer media tick.  That instant is not `ticks`
+(Section 4.4.1) when the MPU has leading pictures: `ticks` is that
+instant plus the difference between the authored composition times
+(Section 5.1) of the MPU's first AU in decode order and its
+earliest-presented AU, converted to the selected timescale as
+Section 4.4.1 requires.
 
 The converter derives the group duration from the authored MPU/media
-cadence and validates it against the PI or descriptor presentation
-instants.  It may emit `groupDurationMs` only when the conversion to
-the selected timescale is an exact positive integer tick count; when
-the cadence is exact only in ticks it emits `groupDurationTicks`.
+cadence and validates it against those `ticks` values.  It may emit
+`groupDurationMs` only when the conversion to the selected timescale
+is an exact positive integer tick count; when the cadence is exact
+only in ticks it emits `groupDurationTicks`.
 The fixed-cadence profile cannot represent a source whose MPU cadence
 is not one constant positive duration, so conversion MUST fail rather
 than round or invent a cadence.  It sets `mmtpMode` itself.  Nor does
