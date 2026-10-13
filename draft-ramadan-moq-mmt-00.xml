@@ -486,12 +486,13 @@ group_number = floor(relative_ticks / groupDurationTicks)
 <t>where:</t>
 
 <ul spacing="compact">
-<li><tt>ticks</tt> is the presentation timestamp of the group's first AU in
-presentation order, expressed in the track's <tt>timescale</tt> (Hz,
-Section 4.4.2) as a signed integer.  The first AU in an MPU payload
-is still required by ISO/IEC 23008-1 to be first in decode order;
-that payload-order rule does not choose <tt>ticks</tt> when presentation
-order differs because of composition timing.</li>
+<li><tt>ticks</tt> is the presentation timestamp (PTS) of the MPU's first AU in
+decode order, expressed in the track's <tt>timescale</tt> (Hz, Section
+4.4.2) as a signed integer.  That AU is first in the MPU payload, as
+ISO/IEC 23008-1 requires, and is the MPU's RAP (Section 4.3).
+Leading pictures, which follow the RAP in decode order but present
+before it, do not select <tt>ticks</tt>, even when they present within the
+preceding MPU's Group interval.</li>
 <li><tt>groupDurationTicks</tt> is the per-track group duration expressed
 in the same <tt>timescale</tt>, as a positive integer.  The catalog
 signals it either directly or through an exact millisecond
@@ -505,16 +506,17 @@ this field; a track that is not part of a synchronized presentation
 MAY omit it and use zero as its local origin.</li>
 </ul>
 <t>The publisher MUST choose <tt>presentationAnchorTicks</tt> no later than the
-earliest first-AU presentation timestamp of the MPUs it admits for
-the track.  If an MPU has a first-AU timestamp earlier than the
-anchor, the publisher MUST reject that MPU.  Before the first group is
-published, the publisher MAY instead revise the catalog anchor and
-validate the complete initial input again; after publication, the
-anchor is immutable for that track instance.  It MUST NOT clamp the
-Group number to zero.  The <tt>floor</tt> in the formula is mathematical floor
-(floor division), not truncation towards zero.  With the anchor
-requirement, every admitted MPU has a non-negative <tt>relative_ticks</tt>
-value.</t>
+smallest <tt>ticks</tt> value of the MPUs it admits for the track.  If an
+MPU's <tt>ticks</tt> is earlier than the anchor, the publisher MUST reject
+that MPU.  Before the first group is published, the publisher MAY
+instead revise the catalog anchor and validate the complete initial
+input again; after publication, the anchor is immutable for that track
+instance.  It MUST NOT clamp the Group number to zero.  The <tt>floor</tt> in
+the formula is mathematical floor (floor division), not truncation
+towards zero.  With the anchor requirement, every admitted MPU has a
+non-negative <tt>relative_ticks</tt> value.  The requirement binds <tt>ticks</tt>
+only; a leading picture of an admitted MPU can present before the
+anchor.</t>
 <t>Timeline origin: <tt>ticks</tt> is measured on the track's media
 presentation timeline; <tt>presentationAnchorTicks</tt> maps that track to
 the shared presentation timeline.  For every set of audio and video
@@ -595,29 +597,36 @@ requires.</t>
 <t>Negative authored timestamps use the same rule and are not clamped.  For
 one 90 kHz track with <tt>groupDurationTicks: 180000</tt>, choose the shared
 presentation anchor <tt>presentationAnchorTicks: -180000</tt>, which is earlier
-than the first admitted MPU:</t>
+than the <tt>ticks</tt> of the first admitted MPU:</t>
 
-<artwork><![CDATA[MPU 0 first PTS = -90000: relative_ticks =  90000 -> group 0
-MPU 1 first PTS =  90000: relative_ticks = 270000 -> group 1
+<artwork><![CDATA[MPU 0 ticks = -90000: relative_ticks =  90000 -> group 0
+MPU 1 ticks =  90000: relative_ticks = 270000 -> group 1
 ]]></artwork>
 <t>The negative authored PTS therefore maps to group 0 through the shared
 earlier anchor.  A catalog with the same samples and
 <tt>presentationAnchorTicks: 0</tt> is invalid for this profile; the publisher
 rejects MPU 0 instead of mapping it to group 0.</t>
-<t>With reordered samples, the first AU in presentation order selects the
-Group number.  This example lists authored PTS values in decode order;
-<tt>ticks</tt> is the minimum presented PTS, not the first array entry:</t>
+<t>With reordered samples, the first AU in decode order selects the
+Group number.  This example lists the authored PTS values of the first
+three AUs of two consecutive MPUs in decode order.  MPU 0 is a closed
+GOP.  MPU 1 is an open GOP: its RAP presents at 180000, and its two
+leading pictures present before it, inside Group 0's interval:</t>
 
 <sourcecode type="json"><![CDATA[{
   "timescale": 90000,
   "presentationAnchorTicks": 0,
   "groupDurationTicks": 180000,
-  "samplePtsInDecodeOrder": [180000, 174000, 177000],
-  "ticks": 174000,
-  "groupNumber": 0
+  "mpuSamplePtsInDecodeOrder": [
+    [0, 6000, 3000],
+    [180000, 174000, 177000]
+  ],
+  "ticks": [0, 180000],
+  "groupNumbers": [0, 1]
 }
 ]]></sourcecode>
-<t>Selecting the first decoded AU would incorrectly produce Group 1.</t>
+<t><tt>ticks</tt> is the first entry of each MPU's list.  Selecting the minimum
+presented PTS instead would give <tt>ticks</tt> 0 and 174000, both in Group 0,
+which violates the strictly-greater rule above.</t>
 </section>
 
 <section anchor="catalog-signaling-of-group-duration"><name>Catalog Signaling of Group Duration</name>

@@ -427,7 +427,16 @@ zero as a zero-duration span or use it to derive a block count, and has
 no elapsed-time FEC deadline from this field.  If an applicable ISO
 packet-count window is accepted in-band, it governs separate
 count-based processing; it does not supply a millisecond deadline, and
-the receiver MUST NOT assume a media cadence to convert it.
+the receiver MUST NOT assume a media cadence to convert it.  Without an
+elapsed-time deadline, open-block state is bounded only by the local
+policy of Section 9, and on a multicast or AMT leg the receiver
+performs no block classification or unicast repair (Section 11.4).
+
+Note: the `iso-ssbg1-v1` token is unchanged from an earlier revision of
+this document that derived the number D of Groups per block from this
+field and read an absent or zero value as one group duration (D = 1),
+so receivers implementing that derivation must change in lockstep with
+producers.
 
 **reorderToleranceMs** (number, OPTIONAL): A receiver-local allowance
 for packet reordering, network jitter, and local processing variance,
@@ -2060,6 +2069,16 @@ its buffering model.  What a receiver of a multicast or AMT leg does
 with a block that is still unrecovered at that deadline -- unicast
 repair, a stall, or concealment -- is specified in Section 11.4.
 
+A receiver MUST bound the state it holds for open blocks by a
+receiver-local policy, for example evidence of later blocks, a memory
+cap, or a local timeout.  The bound is needed even when no FEC deadline
+exists: a receiver that loses every repair packet of a block never
+learns its SSB_length (Section 7.4).  The policy is not signaled, and a
+receiver MUST keep it separate from the catalog values: it does not
+change `interleaveDepthMs`, `reorderToleranceMs`, or a deadline derived
+from them, and discarding a block under it does not create an FEC
+deadline (Section 11.4).
+
 The code is systematic (Section 4.1): a receiver plays source objects
 on arrival, and the window adds latency only when a lossy leg forces
 it to wait for recovery.  The `interleaveDepthMs` value is the
@@ -2321,6 +2340,20 @@ reliable MoQ/QUIC leg relies on transport retransmission (Section 3)
 and does not need it, and nothing in this section adds a deadline or
 a timer to such a leg.
 
+Every step of this section is keyed on a block's FEC deadline, which
+exists only when the track's catalog carries a positive
+`interleaveDepthMs` (Section 9).  On a multicast or AMT leg, this
+section therefore requires a positive `interleaveDepthMs`: a receiver
+of a track whose catalog omits it or sets it to zero MUST disable the
+block classification and unicast repair of this section for that
+track.  The receiver still decodes in-band FEC from the symbols that
+arrive (Section 8.3), with open-block state bounded by the local
+policy of Section 9.  Media still missing at its presentation time is
+lost: the loss of a RAP, or of a data unit that governs one, is
+handled as for an unrecoverable keyframe-bearing block
+(Section 11.4.2), and other loss is concealed as in Sections 11.4.3
+and 11.4.4.
+
 Every block receives in-band FEC processing.  A receiver MUST attempt
 to recover every block, whatever its class, from the source and repair
 symbols received on its multicast and AMT paths, together with any it
@@ -2361,9 +2394,9 @@ catalog-authored timing of the track, that is its group structure,
 one MPU per group of the catalog group duration ([@!MOQ-MMT]
 Sections 4.3 and 4.4.2), and its keyframe interval ([@!MOQ-MMT]
 Section 4.4.3).  The block's SS_Start and SSB_length, once known
-(Section 7.4), fix which SS_IDs belong to the block, and
-   A positive `interleaveDepthMs` with `reorderToleranceMs` fixes the
-   elapsed-time deadline at which the class is taken (Section 9).
+(Section 7.4), fix which SS_IDs belong to the block, and a positive
+`interleaveDepthMs` with `reorderToleranceMs` fixes the elapsed-time
+deadline at which the class is taken (Section 9).
 
 The receiver first bounds what the block's missing source symbols can
 carry.  The lower bounding packet is the last source packet it holds,

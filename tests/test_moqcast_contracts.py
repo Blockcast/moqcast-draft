@@ -122,8 +122,8 @@ class PublishedExamples(unittest.TestCase):
         part = self.sec(text, "Negative authored timestamps use", "### Catalog Signaling")
         anchor = int(re.search(r"presentationAnchorTicks:\s*(-?\d+)", part).group(1))
         duration = int(re.search(r"groupDurationTicks:\s*(\d+)", part).group(1))
-        row_block = next(raw for _, raw in fences(part) if "first PTS" in raw)
-        rows = [tuple(map(int, row)) for row in re.findall(r"first PTS =\s*(-?\d+): relative_ticks =\s*(-?\d+)\s*-> group (-?\d+)", row_block)]
+        row_block = next(raw for _, raw in fences(part) if "relative_ticks" in raw)
+        rows = [tuple(map(int, row)) for row in re.findall(r"MPU \d+ ticks =\s*(-?\d+): relative_ticks =\s*(-?\d+)\s*-> group (-?\d+)", row_block)]
         self.assertEqual((anchor, duration), (-180000, 180000))
         self.assertEqual(rows, [(-90000, 90000, 0), (90000, 270000, 1)])
         for pts, relative, group in rows:
@@ -132,7 +132,7 @@ class PublishedExamples(unittest.TestCase):
         normalized = " ".join(part.split())
         self.assertIn("`presentationAnchorTicks: 0` is invalid", part)
         self.assertIn("publisher rejects MPU 0 instead of mapping it to group 0", normalized)
-        policy = self.sec(text, "The publisher MUST choose `presentationAnchorTicks`", "Timeline origin:")
+        policy = " ".join(self.sec(text, "The publisher MUST choose `presentationAnchorTicks`", "Timeline origin:").split())
         self.assertIn("MUST reject that MPU", policy)
         self.assertIn("MUST NOT clamp", policy)
         self.assertIn("computed Group number MUST be strictly greater than the Group number", " ".join(text.split()))
@@ -148,29 +148,30 @@ class PublishedExamples(unittest.TestCase):
         for k, capacity, total in re.findall(r"= (\d+) x (\d+) = ([\d,]+)` bytes", budget):
             self.assertEqual(int(total.replace(",", "")), int(k) * int(capacity))
 
-    def test_mmt_published_bframe_and_tick_only_examples(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-00.md").read_text(encoding="utf-8")
-
-        bframe = next(
-            (json.loads(raw) for _, raw in fences(text, "json") if '"samplePtsInDecodeOrder"' in raw),
+    def decode_order_vector(self, text: str):
+        vector = next(
+            (json.loads(raw) for _, raw in fences(text, "json") if '"mpuSamplePtsInDecodeOrder"' in raw),
             None,
         )
-        self.assertIsNotNone(bframe, "B-frame presentation-order JSON example is missing")
-        self.assertEqual(
-            (bframe["timescale"], bframe["presentationAnchorTicks"], bframe["groupDurationTicks"]),
-            (90000, 0, 180000),
-        )
-        pts = bframe["samplePtsInDecodeOrder"]
-        self.assertEqual(bframe["ticks"], min(pts))
-        self.assertEqual(
-            bframe["groupNumber"],
-            (bframe["ticks"] - bframe["presentationAnchorTicks"]) // bframe["groupDurationTicks"],
-        )
-        self.assertNotEqual(pts[0], bframe["ticks"])
-        self.assertEqual(
-            (pts[0] - bframe["presentationAnchorTicks"]) // bframe["groupDurationTicks"],
-            bframe["groupNumber"] + 1,
-        )
+        self.assertIsNotNone(vector, "open-GOP decode-order JSON example is missing")
+        anchor, duration = vector["presentationAnchorTicks"], vector["groupDurationTicks"]
+        self.assertEqual((vector["timescale"], anchor, duration), (90000, 0, 180000))
+        return vector, (lambda ticks: (ticks - anchor) // duration)
+
+    def test_mmt_published_bframe_and_tick_only_examples(self):
+        text = (ROOT / "draft-ramadan-moq-mmt-00.md").read_text(encoding="utf-8")
+        definition = " ".join(self.sec(text, "- `ticks` is", "- `groupDurationTicks`").split())
+        self.assertIn("first AU in decode order", definition)
+        self.assertNotIn("presentation order", definition)
+
+        # Mutation control: `ticks` is the first decoded AU (the RAP), not the minimum presented PTS.
+        vector, group = self.decode_order_vector(text)
+        mpus = vector["mpuSamplePtsInDecodeOrder"]
+        self.assertEqual(vector["ticks"], [pts[0] for pts in mpus])
+        self.assertEqual(vector["groupNumbers"], [group(ticks) for ticks in vector["ticks"]])
+        reordered = mpus[1]
+        self.assertNotEqual(min(reordered), reordered[0])
+        self.assertEqual(group(min(reordered)), group(reordered[0]) - 1)
 
         tick_catalog = next(
             (json.loads(raw) for _, raw in fences(text, "json") if '"video-30fps"' in raw),
@@ -185,6 +186,19 @@ class PublishedExamples(unittest.TestCase):
         self.assertNotIn("groupDurationMs", track)
         self.assertEqual(track["groupDurationTicks"], track["timescale"] // track["framerate"])
         self.assertEqual((track["timescale"], track["groupDurationTicks"]), (44100, 1470))
+
+    def test_mmt_open_gop_leading_pictures_yield_increasing_groups(self):
+        text = (ROOT / "draft-ramadan-moq-mmt-00.md").read_text(encoding="utf-8")
+        vector, group = self.decode_order_vector(text)
+        closed, open_gop = vector["mpuSamplePtsInDecodeOrder"]
+        self.assertEqual(closed[0], min(closed))  # closed GOP: both selections agree
+        self.assertTrue(any(pts < open_gop[0] for pts in open_gop[1:]))  # leading pictures before the RAP
+        decode_first = [group(closed[0]), group(open_gop[0])]
+        presentation_min = [group(min(closed)), group(min(open_gop))]
+        self.assertEqual(decode_first, [0, 1])
+        self.assertEqual(vector["groupNumbers"], decode_first)
+        self.assertLess(decode_first[0], decode_first[1])
+        self.assertEqual(presentation_min, [0, 0])  # violates the strictly-greater rule
 
     def test_fec_published_json_vectors_compute_blocks_and_short_tail(self):
         text = (ROOT / "draft-ramadan-moq-fec-00.md").read_text(encoding="utf-8")
