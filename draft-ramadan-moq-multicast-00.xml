@@ -886,6 +886,10 @@ fields, so they are bound without depending on a canonical JSON form:</t>
     || lp16(fecAlgorithm) || u32(sourceSymbols) || u32(repairSymbols)
     || u32(symbolSize) || u32(interleaveDepthMs))
 ]]></artwork>
+<t>An absent <tt>interleaveDepthMs</tt> is encoded as u32(0), so it and an
+explicit zero yield the same <tt>params_hash</tt>.  The two are equivalent for
+this binding: both mean that the catalog signals no elapsed-time FEC
+deadline (<xref target="MOQ-FEC"></xref> Section 5.1).</t>
 <t><strong>Manifest object.</strong> The object carried on the manifest track
 (Section 7.2.1) is:</t>
 
