@@ -190,6 +190,9 @@ version(2) | packet_counter_flag(1) | FEC_type(2) | reserved(1) |
 extension_flag(1) | RAP_flag(1); byte 1 is reserved(2) |
 type(6), i.e. the packet type occupies the LOW six bits of
 the second byte (<xref target="ISO.23008-1"></xref> Clause 9.2).</t>
+<t>Senders MUST set all reserved bits in the MMTP packet header to zero.
+Receivers MUST ignore their values after validating the header; they
+MUST NOT assign private semantics to reserved bits.</t>
 <t>Every packet of an MMTP packet flow -- media, repair, and signaling
 packets alike, on every delivery path -- MUST set the packet counter
 flag C to 0, so no packet carries the Packet Counter field.
