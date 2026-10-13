@@ -323,7 +323,8 @@ wishes to deliver raw ISOBMFF fragments without MMTP encapsulation
 publishes the track with CMAF packaging [@?I-D.ietf-moq-cmsf]
 instead.  In this profile an MPU can contain one or more ISOBMFF movie
 fragments: FT=1 carries one movie fragment's metadata and each FT=2
-data unit carries one sample.
+data unit carries one whole sample or one producer-authored subsample
+of a sample (Section 5.2.1).
 
 ## Group Boundaries
 
@@ -352,10 +353,10 @@ align with MPU data-unit boundaries:
   (Section 5.2.1), one subgroup per subsample data unit, in ascending
   `offset` order.  Section 5.2 defines the only permitted
   fragmentation state machine.
-- A timed MPU MUST publish FT=0 before every FT=1 and FT=2 data unit;
-  only the OPTIONAL signaling object of Section 8 may precede it.  It
-  then MUST publish each FT=1
-  data unit before every FT=2 sample that references that movie
+- A timed MPU MUST publish its single FT=0 metadata data unit before
+  any FT=1 or FT=2 data unit; only the OPTIONAL signaling object of
+  Section 8 may precede FT=0.  It then MUST publish each FT=1
+  data unit before every FT=2 sample or subsample that references that movie
   fragment.  If an MPU contains multiple movie fragments, the sequence
   repeats as FT=1 followed by its FT=2 samples.  A receiver MUST
   validate and process subgroups in ascending Subgroup ID, not network
@@ -501,6 +502,13 @@ publisher that resets the timeline (a timeline discontinuity) MUST
 reset it identically, at the same media instant, across every affected
 audio, video, and switching-set track.  A discontinuity on an existing
 track does not reset its Group number sequence.
+
+This Group anchor is a MoQ scheduling and switching key only.  ISO/IEC
+23008-1 presentation timing remains authoritative: the presentation time
+of an MPU is signaled by the presentation information (or the
+`mpu_timestamp_descriptor` when no presentation information is present),
+with any applicable `elst` offset, and is not rewritten by this Group
+number calculation.
 
 For each track, when the MPU changes, the computed Group number MUST be
 strictly greater than the Group number of the preceding admitted MPU.
