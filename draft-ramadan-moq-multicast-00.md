@@ -923,6 +923,11 @@ params_hash = BLAKE3("BCPV1-params"
     || u32(symbolSize) || u32(interleaveDepthMs))
 ~~~
 
+An absent `interleaveDepthMs` is encoded as u32(0), so it and an
+explicit zero yield the same `params_hash`.  The two are equivalent for
+this binding: both mean that the catalog signals no elapsed-time FEC
+deadline ([@!MOQ-FEC] Section 5.1).
+
 **Manifest object.** The object carried on the manifest track
 (Section 7.2.1) is:
 
