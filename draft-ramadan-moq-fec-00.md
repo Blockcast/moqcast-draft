@@ -136,10 +136,12 @@ its own repair track, declared with `"scope": "keyframe"`
 (Section 6.4).  An overlay is not a repair layer and carries no layer
 index.
 
-**Interleave Depth**: The complete time span, in milliseconds, of one
-FEC source/repair packet block, signaled as `interleaveDepthMs`
-(Section 5.1); the catalog form of `protection_window_time` in
-[@!ISO.23008-1] Sections 11.2 and C.6.3.
+**Interleave Depth**: When positive, the complete time span, in
+milliseconds, of one FEC source/repair packet block, signaled as
+`interleaveDepthMs` (Section 5.1); the catalog form of
+`protection_window_time` in [@!ISO.23008-1] Sections 11.2 and C.6.3.
+Zero selects the ISO packet-count alternative and is not a millisecond
+span.
 
 **Object Transmission Information (OTI)**: Parameters required to
 configure a RaptorQ decoder, as defined in [@!RFC6330].
@@ -292,20 +294,37 @@ is carried at the track level:
 
 ~~~ json
 {
-  "tracks": [{
-    "name": "video",
-    "packaging": "cmaf",
-    "fec": {
-      "algorithm": "raptorq",
-      "blockProfile": "iso-ssbg1-v1",
-      "sourceSymbols": 625,
+  "tracks": [
+    {
+      "name": "video",
+      "packaging": "mmtp",
+      "mmtpMode": "mfu",
+      "timescale": 90000,
+      "presentationAnchorTicks": 0,
+      "groupDurationMs": 1000,
+      "codec": "avc1.64001f",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 30,
+      "fec": {
+        "algorithm": "raptorq",
+        "blockProfile": "iso-ssbg1-v1",
+        "sourceSymbols": 625,
+        "repairSymbols": 125,
+        "symbolSize": 1000,
+        "interleaveDepthMs": 1000,
+        "reorderToleranceMs": 40,
+        "repairTrack": "video/repair"
+      }
+    },
+    {
+      "name": "video/repair",
+      "packaging": "fec-repair",
+      "depends": ["video"],
       "repairSymbols": 125,
-      "symbolSize": 1000,
-      "interleaveDepthMs": 1000,
-      "reorderToleranceMs": 40,
-      "repairTrack": "video/repair"
+      "priority": 240
     }
-  }]
+  ]
 }
 ~~~
 
@@ -376,42 +395,39 @@ packet of up to T - 2 bytes is protected -- and is not otherwise
 carried in the catalog.  For "raptorq", T is a multiple of 8, the
 fixed Symbol Alignment of the derived OTI (Section 4.2).
 
-**interleaveDepthMs** (integer, OPTIONAL): The complete FEC source/
-repair packet block span in milliseconds.  It is the catalog form of
-`protection_window_time` in [@!ISO.23008-1] Sections 11.2 and C.6.3:
-the actual elapsed time from sending the first source or repair packet
-to sending the last source or repair packet of the same block MUST NOT
-exceed this value.  It is a duration, never a count of frames,
+**interleaveDepthMs** (integer, OPTIONAL): When present, its value MUST
+be a non-negative integer.  A value greater than zero is the complete
+FEC source/repair packet send span in milliseconds.  It is the catalog
+form of `protection_window_time` in
+[@!ISO.23008-1] Sections 11.2 and C.6.3: the actual elapsed time from
+sending the first source or repair packet of a block to sending the
+last source or repair packet of that block MUST NOT exceed this value.
+For a positive value it is a duration, never a count of frames, groups,
 samples, or symbols, and never a per-symbol interval.
-The number of groups per block is derived, never signaled, as
-D = max(1, round(interleaveDepthMs / group_duration_ms)), where
-group_duration_ms is the track's group duration (for mmtp-packaged
-tracks, its `groupDurationMs` signaled per [@!MOQ-MMT] Section 12.1)
-and round() is nearest-integer with ties away from zero; an absent
-or zero interleaveDepthMs is treated as equal to the group duration,
-meaning no interleaving: D = 1 and each Group forms its own source
-block.  D is therefore always >= 1, and a window below half a group
-also gives D = 1.  The nearest-integer round() is normative:
-interleaveDepthMs is itself rounded to the nearest millisecond when derived from a fractional
-media-unit cadence, so round() is the exact inverse whenever the
-media-unit duration exceeds 1 ms: signaling as m = round(D * u)
-bounds the quantization error to half a millisecond, and
-round(m / u) recovers D exactly while that error stays below half a
-media unit.  A ceiling would mis-derive such
-cadences -- at 59.94 fps, D = 4 units spans 66.73 ms and is signaled
-as 67 ms, and ceil(67 / 16.683) yields 5 where round() recovers the
-sender's 4.  A ratio that falls exactly halfway
-(interleaveDepthMs / group_duration_ms = N + 0.5, for integer N) rounds
-to N + 1 (round half away from zero).  Using milliseconds
-rather than frame/group counts decouples FEC from frame rate --
-30fps video and 46.875fps audio can share the same interleaveDepthMs
-value.
 
-Publishers SHOULD choose interleaveDepthMs so that
-interleaveDepthMs / group_duration_ms is clearly above 1 and away
-from a half-integer; where the packaging provides an exact integer
-group duration (for example `groupDurationTicks` on the MMT path),
-deriving the window from it avoids rounding ambiguity.
+This field does not select FEC block boundaries, the number of source
+symbols in a block, the number of blocks in a MoQ Group, or the number
+of groups a block spans.  Those are determined by the consecutive
+source `SS_ID` values and the `(SS_Start, SSB_length)` carried by the
+block's repair packets (Sections 7.4 and 8.3).  A block MAY contain
+part of a Group, one Group, or several Groups, and a Group MAY contain
+more than one block.
+
+Thus `interleaveDepthMs` and `groupDurationMs` are not inputs to block
+assignment; Section 8.3 specifies the source-symbol range and repair
+packet fields that assign a source symbol to a block.
+
+When present with a value greater than zero, a publisher chooses this
+value to cover the actual source/repair send span of every block.  An
+absent field supplies no catalog-signaled span.  A value of zero has
+the ISO meaning of using `protection_window_size` instead of a time
+window [@!ISO.23008-1] Clause C.6.3; this catalog profile carries no
+packet-count window.  A catalog-only receiver therefore MUST NOT treat
+zero as a zero-duration span or use it to derive a block count, and has
+no elapsed-time FEC deadline from this field.  If an applicable ISO
+packet-count window is accepted in-band, it governs separate
+count-based processing; it does not supply a millisecond deadline, and
+the receiver MUST NOT assume a media cadence to convert it.
 
 **reorderToleranceMs** (number, OPTIONAL): A receiver-local allowance
 for packet reordering, network jitter, and local processing variance,
@@ -421,19 +437,25 @@ explicit value of zero means that no additional allowance is required.
 An omitted field means that the publisher did not signal an allowance;
 receivers MUST preserve that distinction from an explicit zero.
 
-For a receiver that uses this field, the FEC block deadline is the
-receiver-local timestamp of the first accepted packet plus the complete
-block span and this allowance:
+For a receiver that uses a positive `interleaveDepthMs`, the FEC block
+deadline is the receiver-local timestamp of the first accepted packet
+plus the complete block span.  When `reorderToleranceMs` is present,
+its catalog allowance is then added:
 
 ~~~
-deadline = firstAcceptedAtMs + interleaveDepthMs + reorderToleranceMs
+base_deadline = firstAcceptedAtMs + interleaveDepthMs
+deadline = base_deadline + reorderToleranceMs  // when present
 ~~~
 
-The allowance is added exactly once and MUST NOT be silently invented
-when the field is absent.  A receiver whose FEC
-deadline API requires a signaled allowance MUST reject or disable FEC
-for a track that omits this field; a receiver that applies an explicit
-local policy MUST keep that policy separate from the catalog value.
+The catalog allowance is added exactly once when present.  Its absence
+is not equivalent to an explicitly signaled zero; a receiver that
+applies an explicit local policy MUST keep that policy separate from
+the catalog value.  When `interleaveDepthMs` is absent or zero, this
+formula supplies no elapsed-time FEC deadline; an applicable ISO
+packet-count window, if accepted in-band, remains separate count-based
+processing and is not converted to milliseconds.  A receiver whose
+FEC deadline API requires a signaled allowance MUST reject or disable
+FEC for a track that omits `reorderToleranceMs`.
 
 **repairTrack** (string, REQUIRED): Track name for repair symbols,
 following the convention in Section 6.1.
@@ -516,6 +538,14 @@ Three repair layers and one keyframe overlay on one source track:
     {
       "name": "video",
       "packaging": "mmtp",
+      "mmtpMode": "mfu",
+      "timescale": 90000,
+      "presentationAnchorTicks": 0,
+      "groupDurationMs": 1000,
+      "codec": "avc1.64001f",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 30,
       "fec": {
         "algorithm": "raptorq",
         "blockProfile": "iso-ssbg1-v1",
@@ -744,7 +774,7 @@ bytes, so one numeric value has several valid encodings that differ in
 length; a varint field inside the Property value would therefore vary
 the Property's own length without varying its meaning.  Second, the
 encoding is a property of the session: [@!I-D.ietf-moq-transport]
-replaced it at draft-17 (#1016) with a leading-1-bits scheme that is
+replaced it at draft-17 (transport issue 1016) with a leading-1-bits scheme that is
 not the QUIC variable-length integer encoding of earlier drafts and
 does not decode the same bytes to the same values, so a varint field
 following the session encoding would decode differently on two
@@ -1517,11 +1547,13 @@ ssbg_mode1 without sub-blocks, and never ssbg_mode2.
 
 ## Short Source Blocks
 
-A publisher MAY close a source block before it holds K source
-symbols, for example at a media-unit boundary so that the block's
-span stays within `interleaveDepthMs` (Section 5.1).  Such a block is
-a short source block, and it is a block with a smaller source symbol
-count: every block holds SSB_length source symbols,
+A publisher MUST close a source block when it has assigned K source
+symbols to it.  It MAY close a source block earlier, for example at an
+access-unit, media-unit, or MoQ Group boundary, or to keep the actual
+source/repair send span within a positive `interleaveDepthMs` when that
+field is present (Section 5.1).  Such a block is a short source block, and it
+is a block with a smaller source symbol count: every block holds
+SSB_length source symbols,
 1 <= SSB_length <= K ([@!ISO.23008-1] Section C.5.3), and K -- the catalog
 `sourceSymbols`, carried in band as `maximum_k_for_repair_flow` -- is an upper bound on SSB_length, not the size of any particular
 block.  A short block differs from a full one only in SSB_length:
@@ -1701,41 +1733,44 @@ document, outside [@!ISO.23008-1].
 
 # Block and Group Alignment
 
-Throughout this section, D is the derived group count of Section 5.1;
-it is never signaled, and only the window (Interleave Depth, in
-milliseconds) is carried in the catalog.
+FEC blocks are partitions of the source-packet sequence, independent
+of MoQ Group boundaries.  The publisher assigns consecutive `SS_ID`
+values to source packets and chooses each block's `SSB_length` subject
+to `1 <= SSB_length <= K` (Section 7.4).  It signals the chosen
+partition in the `(SS_Start, SSB_length)` fields of the block's repair
+packets.  A block MAY end at an access-unit, media-unit, or Group
+boundary, MAY span Groups, and MAY end because it reaches K.  K
+exhaustion closes a block.  A Group MAY contain more than one block.
+A positive `interleaveDepthMs` limits the elapsed source/repair send
+span; it does not change this partitioning rule.
 
-## Single-Group Blocks (D = 1)
+## Blocks Within a Group
 
-When D (Section 5.1) is 1, the FEC source packets of each MoQ Group
-of the source track, in SS_ID order, form one FEC block:
+For example, a source Group can contain two consecutive blocks:
 
 ~~~
-Group G:    SS_ID s   .. s+a-1      ->  FEC block, SS_Start = s
-Group G+1:  SS_ID s+a .. s+a+b-1    ->  FEC block, SS_Start = s+a
+Group G:    SS_ID s   .. s+a-1      -> block A, SS_Start = s
+            SS_ID s+a .. s+a+b-1    -> block B, SS_Start = s+a
+Group G+1:  SS_ID s+a+b ..          -> next block or continuation
 ...
 ~~~
 
-A Group whose FEC source packets number more than K spans more than
-one block (Section 7.4).  A block's repair objects form the
-repair-track Group whose Group ID is the block's extended SS_Start
-(Section 7.5), a number space unrelated to the source track's Group
-IDs.
+## Blocks Across Groups
 
-## Multi-Group Blocks (D > 1)
-
-When the derived group count D is greater than 1, each FEC block
-spans D consecutive Groups:
+A block can also span a Group boundary:
 
 ~~~
-Groups 0-3 (D=4):  ->  FEC block, SS_Start = s
-Groups 4-7 (D=4):  ->  FEC block, SS_Start = s + L
+Group G:    SS_ID s   .. s+a-1      -> block A, still open
+Group G+1:  SS_ID s+a .. s+L-1     -> block A completes
+            SS_ID s+L ..            -> next block
 ...
 ~~~
 
-where L is the SSB_length of the first block.  A block's repair
-objects are published after the last source object of the block's
-last Group.
+A block's repair objects form the repair-track Group whose Group ID is
+the block's extended SS_Start (Section 7.5), a number space unrelated
+to the source track's Group IDs.  No fixed number of MoQ Groups is
+required for a block, and no Group boundary can be used to infer
+`SSB_length`.
 
 ## Source Symbol Location
 
@@ -1794,34 +1829,37 @@ deduplicates source symbols by SS_ID and repair symbols by
 
 ## Encoder Constraints
 
-For FEC block alignment to be deterministic, encoders MUST:
+For FEC block alignment and timing to be deterministic, encoders MUST:
 
-1. Use a fixed keyframe interval (constant GOP duration) within
-   each FEC block.  Variable GOP sizes (scene-cut adaptive
-   keyframes) break the constant group duration from which the group
-   count D of Section 5.1 is derived, and with it the block windows
-   of Sections 8.1 and 8.2.
+1. Assign consecutive `SS_ID` values in source-packet emission order,
+   close a block at K source symbols or earlier as permitted by
+   Section 7.4, and publish the resulting `(SS_Start, SSB_length)` in
+   every repair packet for that block.  A publisher MAY close at an
+   access-unit, media-unit, or Group boundary, but MUST NOT use any
+   boundary or elapsed-time observation as a substitute for that
+   wire signaling.
 
-2. Signal the actual GOP duration and frame rate in the MoQ catalog:
-   for mmtp-packaged tracks, the group duration in `groupDurationMs`
-   (or `groupDurationTicks` where an exact tick count is needed), the
-   keyframe cadence in `keyframeIntervalMs` (or
-   `keyframeIntervalTicks`), and the frame rate in the `framerate`
-   field ([@!MOQ-MMT] Sections 4.4.2, 4.4.3 and 12.1).  The
-   ISO 23008-1 AL-FEC message has no field for either value
-   ([@!ISO.23008-1] Table C.3), so an encoder signals neither there,
-   and a receiver takes neither from it.
+2. Signal the catalog-authored group duration and frame rate in the MoQ
+   catalog: for mmtp-packaged tracks, publish a positive duration as
+   `groupDurationMs` when its integer-millisecond form is exact, or as
+   the exact positive `groupDurationTicks`; when both are present,
+   `groupDurationTicks` wins and `groupDurationMs` is informational.
+   Signal the keyframe cadence in `keyframeIntervalMs` (or
+   `keyframeIntervalTicks`), and the frame rate in the `framerate` field
+   ([@!MOQ-MMT] Sections 4.4.2, 4.4.3 and 12.1).  The ISO 23008-1
+   AL-FEC message has no field for either value ([@!ISO.23008-1]
+   Table C.3), so an encoder signals neither there, and a receiver
+   takes neither from it.
 
 3. If frame rate or GOP size changes mid-session, update the MoQ
    catalog and signal a manifest discontinuity for DASH/HLS.
 
-4. Signal an interleave window that derives the intended group
-   count: that is, an interleaveDepthMs for which Section 5.1 yields
-   the intended D.  The convention is
-   interleaveDepthMs = round(D * group_duration_ms), which keeps the
-   signaled value an integer even when the group duration is not an
-   integer number of milliseconds (with one group per frame at
-   30 fps, D = 4 is signaled as round(4 x 33.33) = 133 ms).
+4. When `interleaveDepthMs` is positive, choose it so that the actual
+   elapsed send span from the first source or repair packet of every
+   block to its last does not exceed the signaled value.  A zero value
+   is usable only with the ISO `protection_window_size` alternative
+   described in Section 5.1.  The value is not derived from a group
+   count, frame count, or per-symbol interval.
 
 ## Source FEC Payload ID and ATSC 3.0 Signed Region
 
@@ -1949,23 +1987,24 @@ authenticated block assignment treats each as Section 8.5 requires.
 
 Interleaving spreads source symbols across time to protect against
 burst loss.  The interleave window (Interleave Depth, in
-milliseconds) sets the time span of each source block; the number of
-consecutive groups in one block follows as D (Section 5.1).  With
-D = 4, symbols from 4 consecutive groups are grouped into one source
-block:
+milliseconds) bounds the elapsed send span of a source block when the
+field is positive.  It does not define the block's membership or imply
+a number of Groups.  Block membership is the consecutive `SS_ID` range
+identified by `(SS_Start, SSB_length)` (Sections 7.4 and 8.3).
 
 ~~~
-Groups:         M0   M1   M2   M3   M4   M5   M6   M7
-                 |    |    |    |    |    |    |    |
-D=4:            [--- Block 0 ---]  [--- Block 1 ---]
-                 S0   S1   S2   S3   S4   S5   S6   S7
-                                |                    |
-                        Block 0 Repair:      Block 1 Repair:
-                           R0, R1               R2, R3
+Groups:         M0             M1             M2
+                 |              |              |
+Blocks:       [Block 0] [Block 1] [Block 2] [Block 3]
+SS_ID:           S0  S1  S2  S3  S4  S5  S6  S7  ...
+                 |       |       |       |
+Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 ~~~
 
-A burst loss affecting M1-M2 loses symbols S1,S2 from Block 0.  With
-P >= 2 repair symbols, Block 0 can still be recovered.
+A burst loss can therefore erase symbols from several adjacent blocks;
+each block is recovered with the repair symbols identified by its own
+`SS_Start` and `SSB_length`.  With P repair symbols for a block, the
+usual RaptorQ recovery condition applies independently to that block.
 
 Publishers SHOULD choose the interleave window based on:
 
@@ -1983,44 +2022,116 @@ block whose first packet the receiver did not receive is one that it
 first learns of from a later signal -- a later source or repair
 packet of the block, a packet of a successor block, or a FETCH
 response that covers the block (Section 7.5) -- and its `ts` is the
-arrival time of that signal.  The base FEC deadline is:
+arrival time of that signal.  When `interleaveDepthMs` is positive,
+the base FEC deadline is:
 
 ~~~
 base_deadline = ts + interleaveDepthMs
 ~~~
 
-Here `interleaveDepthMs` is the complete first-to-last block span of
-Section 5.1, which already bounds source and repair production at the
-media cadence and their serialization.
+Here a positive `interleaveDepthMs` is the complete first-to-last
+source/repair send span of the block, which bounds source and repair
+production at the media cadence and their serialization.  An absent
+value supplies no elapsed-time base deadline.  A zero value invokes the
+ISO `protection_window_size` alternative; this catalog profile supplies
+no packet-count window, so a catalog-only receiver has no elapsed-time
+base deadline from that value.  If an applicable count window is
+accepted in-band, it governs separate count-based processing and is not
+converted to milliseconds without an independently defined time
+mapping.
 
-Implementations MUST NOT derive a full-block span or FEC deadline from
-K, from D, from a per-symbol interval, or by a multiplier: the block
-span is `interleaveDepthMs`, and a deadline adds `interleaveDepthMs`
-and, where used, `reorderToleranceMs`, each exactly once.
+The block assignment rule in Section 8.3 means that implementations do
+not derive a full-block span or an FEC deadline from K, a Group count, a
+per-symbol interval, or by a multiplier.  When the field is positive, a
+deadline adds `interleaveDepthMs` and, where used,
+`reorderToleranceMs`, each exactly once.
 
 A receiver uses the catalog `reorderToleranceMs` allowance, when
 present, for network jitter, one-way delay, reordering, and local
 processing before abandoning the block.  That allowance is additive to
-the base span and MUST be applied exactly once.  If the field is
-absent, Section 5.1 applies.  At the resulting deadline, the
-receiver moves the block onward and attempts FEC processing according to
+the base span and MUST be applied exactly once.  If
+`interleaveDepthMs` is absent or zero, no elapsed-time deadline is
+derived from this FEC window.  An applicable ISO packet-count window
+accepted in-band governs separate count-based processing; it does not
+become a millisecond deadline without an independently defined time
+mapping.  When an elapsed-time deadline exists, the receiver moves the
+block onward at that deadline and attempts FEC processing according to
 its buffering model.  What a receiver of a multicast or AMT leg does
 with a block that is still unrecovered at that deadline -- unicast
 repair, a stall, or concealment -- is specified in Section 11.4.
 
 The code is systematic (Section 4.1): a receiver plays source objects
 on arrival, and the window adds latency only when a lossy leg forces
-it to wait for recovery.  The "Recovery Latency" column below is that
-worst-case budget.
+it to wait for recovery.  The `interleaveDepthMs` value is the
+worst-case source/repair send-span budget when it is present.
 
-Typical values (D follows from the group duration):
+Typical values are deployment choices for that send-span budget:
 
-| Application | interleaveDepthMs | Group duration | D (groups per block) | Recovery Latency |
-|-------------|---------------------|----------------|----------------------|------------------|
-| Interactive (gaming, WebRTC) | 33-133 | 33.33 ms (per-frame, 30fps) | 1-4 | 33-133ms |
-| Low-latency live | 1000-2000 | 1000 ms (1s GOP) | 1-2 | 1-2s |
-| Broadcast | 4000 | 1000 ms (1s GOP) | 4 | 4s |
-| ATSC 3.0 default | 8000 | 1000 ms (1s GOP) | 8 | 8s |
+| Application | interleaveDepthMs | Meaning | Recovery Latency |
+|-------------|---------------------|---------|------------------|
+| Interactive (gaming, WebRTC) | 33-133 | Short source/repair span | 33-133ms |
+| Low-latency live | 1000-2000 | One-to-two second span | 1-2s |
+| Broadcast | 4000 | Four-second burst-spreading span | 4s |
+| ATSC 3.0 default | 8000 | Eight-second burst-spreading span | 8s |
+
+**Conformance cases.**
+
+These cases exercise the boundary rules without deriving a block from a
+Group count:
+
+The first case uses this numeric vector:
+
+~~~ json
+{
+  "fps": 30,
+  "gopFrames": 30,
+  "groupDurationMs": 1000,
+  "accessUnitsPerBlock": 4,
+  "accessUnitStartMs": [0, 33.333, 66.667, 100.0],
+  "sourcePacketsPerAccessUnit": [2, 3, 1, 4],
+  "K": 16,
+  "SSB_length": 10,
+  "interleaveDepthMs": 133,
+  "firstSourceOrRepairMs": 0,
+  "lastSourceOrRepairMs": 133,
+  "sourceRepairSpanMs": 133
+}
+~~~
+
+1. A 30 fps track with a 30-frame (1000 ms) GOP may close a block after
+   four access units (a four-frame access-unit interval).  With the send
+   schedule in the vector, `interleaveDepthMs = 133`.  An access unit
+   can produce multiple source packets, so the block is closed after
+   those access units, not after an assumed packet count.  For this
+   concrete vector, the four access
+   units begin at 0, 33.333, 66.667, and 100 ms, produce 2, 3, 1, and
+   4 source packets respectively, and therefore have `SSB_length = 10
+   <= K = 16` as shown above:
+
+   The publisher sends the last source or repair packet for that block
+   by 133 ms; a later send would require a larger signaled window.  The
+   one MoQ Group containing the GOP can therefore contain several such
+   blocks.  Each repair packet still carries the actual
+   `(SS_Start, SSB_length)`; the 133 ms value does not mean four MoQ
+   Groups per block and is not a rounded four-frame duration.
+2. With `K = 4`, one Group containing three source packets followed by
+   a Group containing three source packets may be encoded as blocks of
+   lengths 3 and 3, or as a block of length 4 spanning the Group
+   boundary followed by a block of length 2.  Both are valid; the
+   repair fields identify which partition was used.
+
+   ~~~ json
+   {
+     "K": 4,
+     "groupPacketCounts": [3, 3],
+     "blockPartitions": [[3, 3], [4, 2]],
+     "SS_Starts": [[0, 3], [0, 4]]
+   }
+   ~~~
+
+3. If the stream ends with two source packets in the current block, the
+   publisher sends a short block with `SSB_length = 2`, `F = 2 x T`,
+   and no padding or skipped `SS_ID`.  There is no following block.
 
 # Priority and Congestion
 
@@ -2251,8 +2362,8 @@ one MPU per group of the catalog group duration ([@!MOQ-MMT]
 Sections 4.3 and 4.4.2), and its keyframe interval ([@!MOQ-MMT]
 Section 4.4.3).  The block's SS_Start and SSB_length, once known
 (Section 7.4), fix which SS_IDs belong to the block, and
-`interleaveDepthMs` with `reorderToleranceMs` fixes the deadline at
-which the class is taken (Section 9).
+   A positive `interleaveDepthMs` with `reorderToleranceMs` fixes the
+   elapsed-time deadline at which the class is taken (Section 9).
 
 The receiver first bounds what the block's missing source symbols can
 carry.  The lower bounding packet is the last source packet it holds,
@@ -2306,13 +2417,10 @@ block of unknown class as keyframe-bearing.  In particular:
   start from any span, so every block of the track is keyframe-bearing
   or of unknown class.
 
-- Where every block spans at least one whole group, as in the model
-  of Sections 8.1 and 8.2, every block contains a group start and is
-  keyframe-bearing.  The non-keyframe class arises only where the
-  source symbols of one group span several blocks, as on an
-  mmtp-packaged track whose blocks the span bound of
-  `interleaveDepthMs` (Section 5.1) closes before the group ends
-  (Section 7.4).
+- A block's keyframe classification uses its actual source-packet
+  range.  A block MAY contain a complete Group, span a Group boundary,
+  or close inside a Group; none of those shapes is inferred from
+  `interleaveDepthMs` or from the catalog's group duration.
 
 A receiver MUST NOT classify a block from any input other than those
 this section names; in particular, the absence of `RAP_flag` on the
@@ -2521,7 +2629,7 @@ This specification is designed for interoperability with ATSC A/331
 | `<RepairFlow>` | Repair track subscription |
 | `fecOTI` (in S-TSID) | Derived OTI (Section 4.2) |
 | Source TOI range | Group ID range per Section 8 |
-| `maximumDelay` | Interleave Depth ([@!MOQ-MMT] Sections 12.2-12.3) |
+| `maximumDelay` | No direct mapping to `interleaveDepthMs`; calculate the source-to-associated-repair delivery delay from the ROUTE schedule ([@!MOQ-MMT] Sections 12.2-12.3) |
 | `overhead` | From P and K ([@!MOQ-MMT] Sections 12.2-12.3) |
 
 `overhead` is not carried in the catalog; it is converted to and from
@@ -2550,13 +2658,14 @@ Number of Sub-Blocks field of the explicitly signaled OTI.
 
 When sub-blocks are used:
 
-1. `interleaveDepthMs` keeps its Section 5.1 meaning, the span of the
-   FULL block.  A sub-block's own span can be estimated as
-   `interleaveDepthMs * K_sub / K` for partial-recovery scheduling;
+1. When positive, `interleaveDepthMs` keeps its Section 5.1 meaning,
+   the span of the FULL block.  A sub-block's own span can be estimated
+   as `interleaveDepthMs * K_sub / K` for partial-recovery scheduling;
    the estimate never replaces the full-block field or deadline
-   (Section 9).  This enables faster partial recovery at the cost of
-   higher repair overhead (P repair symbols per sub-block instead of
-   per block).
+   (Section 9).  A zero value uses the ISO packet-count alternative and
+   supplies no millisecond span.  This enables faster partial recovery
+   at the cost of higher repair overhead (P repair symbols per
+   sub-block instead of per block).
 
 2. The receiver tracks source symbol arrivals per sub-block (keyed
    by the block's SS_Start and the sub-block index) and can emit
@@ -2574,19 +2683,19 @@ where full-block recovery latency exceeds acceptable limits.
 This section is informative.
 
 This specification's signaling (Section 5) is container-agnostic,
-and a repair track can sit alongside a CMAF-packaged source track
-in the same namespace:
+and a repair track can sit alongside a source track carrying CMAF
+content in MMTP packaging in the same namespace:
 
 ~~~
 +-------------------------------------------------+
 |              MoQ Track Namespace                |
 +-------------------------------------------------+
 |                                                 |
-|  Source Track (CMAF packaged)                   |
+|  Source Track (CMAF content, MMTP packaged)     |
 |  +-----------------------------------------+    |
-|  | Object 0: CMAF Header (ftyp, moov)      |    |
-|  | Object 1: CMAF Chunk (moof + mdat)      |    |
-|  | Object 2: CMAF Chunk (moof + mdat)      |    |
+|  | Object 0: MMTP packet carrying FT=0     |    |
+|  | Object 1: MMTP packet carrying FT=1     |    |
+|  | Object 2: MMTP packet carrying FT=2     |    |
 |  | ...                                     |    |
 |  +-----------------------------------------+    |
 |                                                 |
@@ -2612,11 +2721,12 @@ relationship only.  A CMAF deployment wanting FEC protection
 carries the media as mmtp-packaged tracks (an MPU corresponds to a
 CMAF Fragment; see [@!MOQ-MMT]).
 
-A segment duration equal to interleaveDepthMs would align each
-segment boundary with a FEC block boundary, so that a segment holds
-exactly one block's worth of source symbols and a CDN relay could
-perform FEC recovery at the segment level before forwarding to
-FEC-unaware HLS/DASH clients.
+A publisher MAY choose a segment duration equal to `interleaveDepthMs`
+and close blocks at segment boundaries, so that a segment holds one
+chosen block's source symbols and a CDN relay can perform FEC recovery
+at the segment level before forwarding to FEC-unaware HLS/DASH clients.
+The boundary is an explicit publisher choice; the duration alone does
+not create or identify a block.
 
 # Security Considerations
 
@@ -2855,9 +2965,9 @@ for that format, this document requests registration of:
     <author>
       <organization>ATSC</organization>
     </author>
-    <date year='2025' month='February'/>
+    <date year='2026' month='February'/>
   </front>
-  <seriesInfo name='ATSC' value='A/331:2025'/>
+  <seriesInfo name='ATSC' value='A/331:2026-02'/>
 </reference>
 
 <reference anchor='ARIB-B60'>
@@ -2918,19 +3028,19 @@ Publisher                              Subscriber
 ~~~
 
 In this flow the track is mmtp-packaged with a one-second group
-duration (one MPU per MoQ Group, [@!MOQ-MMT] Section 4.3), so, as in
-Appendix B, the 1000 ms interleave window derives D = 1: the FEC
-source packets of each Group form one FEC block of at most K = 32
-source symbols, and its P = 8 repair objects form one repair-track
-Group.  The flow's first SS_ID is 0, so the first block's repair
-Group is its extended SS_Start, 0 (Section 7.5); after a full first
-block, the next block's repair Group is 32.  The subscriber's decoder
-configuration is derived from the catalog fields and each block's
-SSB_length (Section 4.2): for a full block (SSB_length = K = 32),
-Transfer Length F = SSB_length x T = 32 x 1312 = 41,984 bytes, Symbol Size
-T = 1312, Z = 1, N = 1, Al = 8.  No in-session message is required,
-and this track carries no AL-FEC signaling object ([@!MOQ-MMT]
-Section 8).
+duration (one MPU per MoQ Group, [@!MOQ-MMT] Section 4.3).  That group
+duration describes the MoQ grouping; it does not derive an FEC block.
+For example, if the first block starts at SS_ID 0 and is full, its
+repair Group is its extended SS_Start, 0 (Section 7.5), the next block
+starts at SS_ID 32, and its repair Group is 32.  A publisher MAY choose
+shorter blocks inside a Group or a block that crosses the Group
+boundary; each repair packet carries the actual `SSB_length`.  The
+subscriber's decoder configuration is derived from the catalog fields
+and each block's `SSB_length` (Section 4.2): for a full block
+(`SSB_length = K = 32`), Transfer Length F = SSB_length x T = 32 x
+1312 = 41,984 bytes, Symbol Size T = 1312, Z = 1, N = 1, Al = 8.  No
+in-session message is required, and this track carries no AL-FEC
+signaling object ([@!MOQ-MMT] Section 8).
 
 # Catalog Example
 
@@ -2942,7 +3052,11 @@ Complete catalog with FEC and multicast configuration:
   "tracks": [
     {
       "name": "video",
-      "packaging": "cmaf",
+      "packaging": "mmtp",
+      "mmtpMode": "mfu",
+      "timescale": 90000,
+      "presentationAnchorTicks": 0,
+      "groupDurationMs": 1000,
       "codec": "avc1.64001f",
       "width": 1920,
       "height": 1080,
@@ -2962,11 +3076,17 @@ Complete catalog with FEC and multicast configuration:
     {
       "name": "video/repair",
       "packaging": "fec-repair",
+      "depends": ["video"],
+      "repairSymbols": 125,
       "priority": 240
     },
     {
       "name": "audio",
-      "packaging": "cmaf",
+      "packaging": "mmtp",
+      "mmtpMode": "mfu",
+      "timescale": 48000,
+      "presentationAnchorTicks": 0,
+      "groupDurationMs": 1000,
       "codec": "mp4a.40.2",
       "samplerate": 48000,
       "channelConfig": "2",
@@ -2985,6 +3105,8 @@ Complete catalog with FEC and multicast configuration:
     {
       "name": "audio/repair",
       "packaging": "fec-repair",
+      "depends": ["audio"],
+      "repairSymbols": 8,
       "priority": 240
     }
   ],
@@ -3004,19 +3126,45 @@ Complete catalog with FEC and multicast configuration:
 }
 ~~~
 
-Parameter consistency: both tracks use 1-second CMAF segments (one
-MoQ Group per segment), so the 1000 ms interleave window derives
-D = round(1000 / 1000) = 1 -- one FEC block per segment, of at most K
-source symbols:
+Parameter consistency: both tracks use one-second MMTP groups (one
+MPU per MoQ Group), and each has a 1000 ms source/repair send-span
+budget.  The group duration does not determine the FEC partition.  A
+worked capacity check must include the MMTP and MPU-mode headers, not
+only the media bitrate.  With no MMTP header extension, a timed FT=2
+packet has the following media capacity, depending on whether it
+starts a data unit ([@!MOQ-MMT] Section 5.2):
 
-- Video: 4,990,000 bit/s x 1.0 s / 8 = 623,750 bytes of source data
-  per block; block capacity K x (T - 2) = 625 x 998 = 623,750 bytes
-  (exact), since each source symbol spends two of its T octets on the
-  packet length (Section 7.3).  Repair overhead P / K = 125 / 625 =
-  20%.
-- Audio: 128,000 bit/s x 1.0 s / 8 = 16,000 bytes of source data per
-  block; block capacity K x (T - 2) = 32 x 510 = 16,320 bytes
-  >= 16,000.  Repair overhead P / K = 8 / 32 = 25%.
+~~~
+FI=0 or FI=1: T - 2 (length) - 12 (MMTP) - 8 (MPU) - 14 (DU) = T - 36
+FI=2 or FI=3: T - 2 (length) - 12 (MMTP) - 8 (MPU)           = T - 22
+~~~
+
+The source packet also carries a 4-byte Source FEC Payload ID on the
+wire, outside the protected packet and therefore outside these symbol
+budgets.  FT=0/FT=1 metadata consumes source packets but does not carry
+sample bytes, and any MMTP extension consumes additional space.  Every
+protected MMTP packet still MUST fit within `T - 2`.  Using the larger
+continuation capacity gives a media ceiling, not a packetization plan:
+
+- Video: 4,990,000 bit/s x 1.0 s / 8 = 623,750 bytes of media per
+  one-second group.  `K x (T - 22) = 625 x 978 = 611,250` bytes is
+  an upper bound on the media capacity of one full block.  The media
+  therefore needs at least
+  `ceil(623,750 / 978) = 638` source packets and at least two K=625
+  blocks; MMTP metadata, fragmentation, and authored packet boundaries
+  can require more.  Repair overhead is `P / K = 125 / 625 = 20%`.
+- Audio: 128,000 bit/s x 1.0 s / 8 = 16,000 bytes of media per group;
+  the upper-bound capacity of one full block is
+  `K x (T - 22) = 32 x 490 = 15,680` bytes.  The media therefore
+  needs at least `ceil(16,000 / 490) = 33` source packets and at least
+  two K=32 blocks; packetization and metadata can require more.  Repair
+  overhead is `P / K = 8 / 32 = 25%`.
+
+The publisher MUST choose the actual source-packet count and block
+boundaries so that every packet, including FT=0 and FT=1 metadata,
+fits the selected symbol size and every block's repair fields describe
+the actual `(SS_Start, SSB_length)` partition.  These calculations are
+capacity examples, not a rule that one FEC block equals one Group.
 
 The catalog envelope is the MSF root ([@!I-D.ietf-moq-msf]
 Section 5.1); track entries carry the flat base track fields of
