@@ -5,11 +5,9 @@ The canonical source branch is `main`. On 14 October 2026, the three individual
 [`e21fcd50ede3ac0f08c2e58817ef50373052f02f`](https://github.com/Blockcast/moqcast-draft/tree/e21fcd50ede3ac0f08c2e58817ef50373052f02f).
 Only the three standalone XML files were uploaded.
 
-All three passed Datatracker validation and reached `auth` (Awaiting Submitter
-Authentication). Datatracker sent confirmation emails to `omar@blockcast.net`.
-Publication remains pending until the author follows those links and Datatracker
-reports the submissions as posted. This record does not claim RFC publication,
-working group adoption, or implementation conformance.
+All three passed Datatracker validation, were authenticated by the author, and are
+now posted as revision `-00`. This record does not claim RFC publication, working
+group adoption, or implementation conformance.
 
 These are correctly submitted as individual Internet-Drafts in the MoQ context.
 Each XML has `workgroup=moq`, while the individual `draft-ramadan-moq-*` name
@@ -17,11 +15,11 @@ and the Datatracker status “Individual Submission” reflect that the MoQ work
 group has not adopted them. MoQ chair approval/adoption is the later step that
 would move an adopted document to the `draft-ietf-moq-*` naming convention.
 
-| Draft | Submission receipt | Publication URL (pending) |
+| Draft | Submission receipt | Published document |
 | --- | --- | --- |
-| `draft-ramadan-moq-mmt-00` | [170369](https://datatracker.ietf.org/submit/status/170369/) | [MMT](https://datatracker.ietf.org/doc/draft-ramadan-moq-mmt/00/) |
-| `draft-ramadan-moq-multicast-00` | [170370](https://datatracker.ietf.org/submit/status/170370/) | [Multicast](https://datatracker.ietf.org/doc/draft-ramadan-moq-multicast/00/) |
-| `draft-ramadan-moq-fec-00` | [170371](https://datatracker.ietf.org/submit/status/170371/) | [FEC](https://datatracker.ietf.org/doc/draft-ramadan-moq-fec/00/) |
+| `draft-ramadan-moq-mmt-00` | [170369](https://datatracker.ietf.org/submit/status/170369/) | [MMT document](https://datatracker.ietf.org/doc/draft-ramadan-moq-mmt/) · [XML](https://www.ietf.org/archive/id/draft-ramadan-moq-mmt-00.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-moq-mmt-00.txt) |
+| `draft-ramadan-moq-multicast-00` | [170370](https://datatracker.ietf.org/submit/status/170370/) | [Multicast document](https://datatracker.ietf.org/doc/draft-ramadan-moq-multicast/) · [XML](https://www.ietf.org/archive/id/draft-ramadan-moq-multicast-00.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-moq-multicast-00.txt) |
+| `draft-ramadan-moq-fec-00` | [170371](https://datatracker.ietf.org/submit/status/170371/) | [FEC document](https://datatracker.ietf.org/doc/draft-ramadan-moq-fec/) · [XML](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-00.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-00.txt) |
 
 ## Uploaded XML checksums
 
@@ -71,5 +69,6 @@ submission:
 - <https://datatracker.ietf.org/api/submission/170370/status>
 - <https://datatracker.ietf.org/api/submission/170371/status>
 
-After authentication, verify the three document pages and published XML, then
-update this record and [the publication issue](https://paperclip.blockcast.net/BLO/issues/BLO-10812).
+The three document pages and archive XML were verified after authentication; the
+archive XML is byte-identical to the submitted source hashes above. Track future
+revisions through the same Datatracker process and update [the publication issue](https://paperclip.blockcast.net/BLO/issues/BLO-10812).
