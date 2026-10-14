@@ -5,6 +5,7 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
+date = "2026-10-14T00:00:00Z"
 keyword = ["MMT", "MMTP", "MoQ", "ATSC 3.0", "FEC"]
 
 [seriesInfo]

@@ -6,7 +6,7 @@
 <title abbrev="MoQ Multicast">Multicast Delivery and Endpoint Discovery for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-multicast-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date/>
+</address></author><date year="2026" month="October" day="14"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>multicast</keyword>
