@@ -11,6 +11,12 @@ Publication remains pending until the author follows those links and Datatracker
 reports the submissions as posted. This record does not claim RFC publication,
 working group adoption, or implementation conformance.
 
+These are correctly submitted as individual Internet-Drafts in the MoQ context.
+Each XML has `workgroup=moq`, while the individual `draft-ramadan-moq-*` name
+and the Datatracker status “Individual Submission” reflect that the MoQ working
+group has not adopted them. MoQ chair approval/adoption is the later step that
+would move an adopted document to the `draft-ietf-moq-*` naming convention.
+
 | Draft | Submission receipt | Publication URL (pending) |
 | --- | --- | --- |
 | `draft-ramadan-moq-mmt-00` | [170369](https://datatracker.ietf.org/submit/status/170369/) | [MMT](https://datatracker.ietf.org/doc/draft-ramadan-moq-mmt/00/) |
