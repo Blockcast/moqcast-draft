@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>APPLICATION-2-BROADCAST-BRIDGE</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="patent-style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">APPLICATION-2-BROADCAST-BRIDGE</h1>
+</header>
+<h1 id="provisional-patent-application">PROVISIONAL PATENT
+APPLICATION</h1>
+<h2
+id="broadcast-to-unicast-media-bridge-with-fec-preservation-and-hierarchical-fec-catalog-signaling">BROADCAST-TO-UNICAST
+MEDIA BRIDGE WITH FEC PRESERVATION AND HIERARCHICAL FEC CATALOG
+SIGNALING</h2>
+<h3 id="inventors">Inventor(s)</h3>
+<p>Omar Ramadan</p>
+<h3 id="assignee">Assignee</h3>
+<p>Blockcast, Inc.</p>
+<h3 id="filing-date">Filing Date</h3>
+<p>To be assigned upon USPTO submission (package finalized July
+2026)</p>
+<hr />
+<h2 id="field-of-the-invention">FIELD OF THE INVENTION</h2>
+<p>The present invention relates to media delivery systems that bridge
+broadcast television infrastructure to unicast streaming protocols, and
+to methods for signaling forward error correction parameters in media
+streaming catalogs with hierarchical configuration.</p>
+<hr />
+<h2 id="background-of-the-invention">BACKGROUND OF THE INVENTION</h2>
+<h3 id="broadcast-television-and-mmtp">Broadcast Television and
+MMTP</h3>
+<p>ATSC 3.0 (Advanced Television Systems Committee) is the
+next-generation broadcast television standard used in the Americas and
+South Korea. ARIB STD-B60 is the equivalent standard used in Japan. Both
+standards use MPEG Media Transport Protocol (MMTP, ISO 23008-1) for
+media delivery over broadcast networks.</p>
+<p>Broadcast media is transmitted via Source-Specific Multicast (SSM)
+using MMTP packets that carry application-layer FEC metadata, including
+Source FEC Payload IDs for source symbols and Repair FEC Payload IDs for
+repair symbols. FEC parameters are signaled via the S-TSID
+(Service-based Transport Session Instance Description), an XML document
+containing FECParameters elements with RaptorQ OTI (Object Transmission
+Information), symbol sizes, and block configurations.</p>
+<h3 id="media-over-quic-moq">Media over QUIC (MoQ)</h3>
+<p>Media over QUIC (MoQ) is an emerging IETF protocol for real-time
+media delivery using a publish/subscribe model over QUIC and
+WebTransport. MoQ uses JSON-based catalogs to describe available media
+tracks, codecs, and configurations. Subscribers fetch catalogs to
+discover available content before establishing subscriptions.</p>
+<h3 id="fec-signaling-in-prior-art">FEC Signaling in Prior Art</h3>
+<p>Existing FEC signaling methods include:</p>
+<ul>
+<li><p><strong>SDP (RFC 6364):</strong> Session Description Protocol
+attributes for FEC Framework configuration. Requires SIP or RTSP session
+establishment. Per-flow configuration without hierarchical
+defaults.</p></li>
+<li><p><strong>ATSC S-TSID (A/331):</strong> XML-based signaling with
+per-RepairFlow FEC parameters. Not hierarchical. Not accessible via
+HTTP.</p></li>
+<li><p><strong>DASH MPD:</strong> Has hierarchical structure (Period,
+AdaptationSet, Representation) with property inheritance, but defines NO
+FEC-specific properties.</p></li>
+<li><p><strong>MoQ Catalog (I-D.ietf-moq-catalogformat):</strong>
+JSON-based catalog for MoQ track discovery. Contains ZERO provisions for
+FEC parameter signaling.</p></li>
+</ul>
+<h3 id="limitations-of-prior-art">Limitations of Prior Art</h3>
+<ol type="1">
+<li><p><strong>No broadcast-to-MoQ bridge exists.</strong> ATSC 3.0
+gateways (e.g., ADTH, HDHomeRun) convert broadcast to local network
+streaming but do not output MoQ tracks, do not preserve FEC parameters,
+and do not convert S-TSID to MoQ catalog format.</p></li>
+<li><p><strong>No S-TSID to MoQ catalog conversion.</strong> S-TSID
+(XML) and MoQ catalog (JSON) are structurally different. No standard or
+known system defines a bidirectional conversion between them.</p></li>
+<li><p><strong>No hierarchical FEC catalog.</strong> FEC parameters in
+streaming manifests are either session-level (SDP), per-flow (S-TSID),
+or absent (DASH, MoQ). No system provides top-level FEC defaults with
+per-track overrides in a hierarchically structured catalog.</p></li>
+<li><p><strong>No pre-subscription FEC discovery.</strong> In SDP-based
+systems, FEC parameters are exchanged during session negotiation.
+Subscribers cannot discover FEC availability before committing to a
+session.</p></li>
+</ol>
+<hr />
+<h2 id="summary-of-the-invention">SUMMARY OF THE INVENTION</h2>
+<p>The present invention provides two interrelated systems:</p>
+<ol type="1">
+<li><p>An end-to-end broadcast-to-unicast bridge that receives broadcast
+media via SSM multicast, performs FEC recovery, converts broadcast
+signaling (S-TSID) to streaming catalog (MoQ JSON), and re-publishes
+media as MoQ tracks — enabling subscribers without broadcast receiver
+hardware, MMTP decoders, or FEC processing capability to consume
+broadcast content.</p></li>
+<li><p>A hierarchical FEC catalog signaling method where FEC parameters
+are specified at top-level (defaults) and per-track (overrides) in a
+JSON catalog, discoverable via HTTP before subscription, with in-band
+control message override and support for per-track algorithm selection
+including a “none” mode with jitter buffering.</p></li>
+</ol>
+<hr />
+<h2 id="detailed-description-of-the-invention">DETAILED DESCRIPTION OF
+THE INVENTION</h2>
+<h3 id="first-embodiment-broadcast-to-unicast-bridge">First Embodiment:
+Broadcast-to-Unicast Bridge</h3>
+<p>FIG. 1 illustrates the broadcast-to-unicast bridge architecture.</p>
+<p><strong>Component 101 - Broadcast Transmitter:</strong> An ATSC 3.0
+or ARIB STD-B60 broadcast transmitter emitting MMTP packets via SSM
+multicast. The transmitter generates AL-FEC repair symbols using RaptorQ
+(RFC 6330) and transmits both source and repair MMTP packets on the
+multicast group.</p>
+<p><strong>Component 102 - S-TSID Signaling:</strong> The broadcast
+system distributes S-TSID signaling containing: - Logical Stream (LS)
+elements describing media tracks - FECParameters elements with:
+fecSchemeID, symbolSize, maxSourceBlockLength (K), maxNumberEncSymbols
+(K+P) - RepairFlow elements mapping repair data to source streams - RS
+(Receiving Station) elements with multicast group addresses</p>
+<p><strong>Component 103 - Bridge Gateway:</strong> The bridge gateway
+performs:</p>
+<p><strong>Step 103a - Multicast Reception:</strong> The gateway joins
+the SSM multicast group and receives MMTP packets (both source and
+repair).</p>
+<p><strong>Step 103b - FEC Recovery:</strong> The gateway performs
+RaptorQ or Reed-Solomon FEC decoding on received blocks. For blocks
+where all K source symbols arrived cleanly, no decoding is necessary.
+For blocks with missing source symbols, the gateway uses available
+repair symbols to recover the missing data.</p>
+<p><strong>Step 103c - S-TSID to Catalog Conversion:</strong> The
+gateway converts broadcast signaling to a MoQ JSON catalog using the
+following field mapping:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>S-TSID Field</th>
+<th>MoQ Catalog Field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LS (Logical Stream)</td>
+<td><code>tracks[]</code> entry</td>
+</tr>
+<tr>
+<td>LS.tsi (Transport Session ID)</td>
+<td><code>tracks[].name</code></td>
+</tr>
+<tr>
+<td>FECParameters.fecSchemeID</td>
+<td><code>tracks[].fec.algorithm</code> (scheme 6 -&gt; “raptorq”)</td>
+</tr>
+<tr>
+<td>FECParameters.symbolSize</td>
+<td><code>tracks[].fec.symbolSize</code></td>
+</tr>
+<tr>
+<td>FECParameters.maxSourceBlockLength</td>
+<td><code>tracks[].fec.sourceSymbols</code></td>
+</tr>
+<tr>
+<td>FECParameters.maxNumberEncSymbols - maxSourceBlockLength</td>
+<td><code>tracks[].fec.repairSymbols</code></td>
+</tr>
+<tr>
+<td>RepairFlow.tsi</td>
+<td><code>tracks[].fec.repairTrack</code> (gateway assigns track
+name)</td>
+</tr>
+<tr>
+<td>FECParameters.maximumDelay</td>
+<td><code>tracks[].fec.interleaveDepth</code> (converted to ms)</td>
+</tr>
+<tr>
+<td>RS.source_address</td>
+<td><code>multicast.endpoints[].sourceAddress</code></td>
+</tr>
+<tr>
+<td>RS.group_address</td>
+<td><code>multicast.endpoints[].groupAddress</code></td>
+</tr>
+<tr>
+<td>RS.port</td>
+<td><code>multicast.endpoints[].port</code></td>
+</tr>
+</tbody>
+</table>
+<p>The reverse conversion (MoQ catalog to S-TSID) uses the inverse
+mapping, enabling MoQ-originated content to be retransmitted via
+broadcast infrastructure.</p>
+<p><strong>Step 103d - MoQ Publication:</strong> The gateway publishes
+FEC-recovered source media as MoQ tracks over QUIC/WebTransport. Each
+MMTP source track becomes a MoQ track. The gateway may optionally: -
+Re-publish both source and repair tracks (for subscribers wanting FEC
+protection on the unicast path) - Re-package MMTP media into CMAF (fMP4)
+segments for compatibility with HLS/DASH clients - Strip MMTP headers
+and deliver raw codec bitstream</p>
+<p><strong>Component 104 - MoQ Subscribers:</strong> Subscribers receive
+media via standard MoQ subscription without requiring MMTP decoders, FEC
+processing, or broadcast receiver hardware. They interact with the
+bridge gateway as they would with any MoQ publisher.</p>
+<p><strong>Step 103e - Bidirectional Operation:</strong> The reverse
+path enables MoQ publishers to reach broadcast infrastructure: 1. MoQ
+subscriber sends media to the bridge gateway 2. Gateway converts MoQ
+catalog to S-TSID 3. Gateway packages media as MMTP packets with AL-FEC
+4. Gateway transmits via SSM multicast</p>
+<h3 id="second-embodiment-hierarchical-fec-catalog-signaling">Second
+Embodiment: Hierarchical FEC Catalog Signaling</h3>
+<p>FIG. 2 illustrates the hierarchical FEC catalog structure and
+precedence model.</p>
+<p><strong>Level 1 - Top-Level Defaults (201):</strong> The catalog JSON
+document contains a top-level <code>fec</code> object specifying default
+FEC parameters:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;fec&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;algorithm&quot;</span><span class="fu">:</span> <span class="st">&quot;raptorq&quot;</span><span class="fu">,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;sourceSymbols&quot;</span><span class="fu">:</span> <span class="dv">32</span><span class="fu">,</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;repairSymbols&quot;</span><span class="fu">:</span> <span class="dv">8</span><span class="fu">,</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;symbolSize&quot;</span><span class="fu">:</span> <span class="dv">1312</span><span class="fu">,</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;interleaveDepth&quot;</span><span class="fu">:</span> <span class="dv">133</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;tracks&quot;</span><span class="fu">:</span> <span class="ot">[</span> <span class="er">...</span> <span class="ot">]</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>These defaults apply to all tracks that do not specify their own FEC
+configuration.</p>
+<p><strong>Level 2 - Per-Track Overrides (202):</strong> Individual
+tracks may override specific fields from the top-level defaults:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;tracks&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;video&quot;</span><span class="fu">,</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;fec&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;repairTrack&quot;</span><span class="fu">:</span> <span class="st">&quot;video/repair&quot;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;audio&quot;</span><span class="fu">,</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;fec&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;algorithm&quot;</span><span class="fu">:</span> <span class="st">&quot;none&quot;</span><span class="fu">,</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;jitterBufferMs&quot;</span><span class="fu">:</span> <span class="dv">50</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>The video track inherits all top-level FEC parameters and adds its
+repair track name. The audio track overrides the algorithm to “none”
+with a jitter buffer, indicating no FEC encoding is applied and the
+receiver should use a 50ms reorder buffer.</p>
+<p><strong>Level 3 - In-Band Override (203):</strong> After subscription
+establishment, an in-band FEC_CONFIG control message may be sent from
+publisher to subscriber. This message carries authoritative FEC
+parameters that override both per-track and top-level catalog
+values.</p>
+<p><strong>Precedence Order:</strong> FEC_CONFIG message &gt; per-track
+catalog &gt; top-level catalog defaults</p>
+<p><strong>Step 204 - HTTP Pre-Discovery:</strong> The catalog is
+fetchable via HTTP (e.g., GET /catalog.json) before establishing a MoQ
+session. This enables subscribers to: - Discover whether FEC is
+available for a track - Determine the FEC algorithm and parameters -
+Decide whether to subscribe to repair tracks - Estimate bandwidth
+overhead (repairSymbols / sourceSymbols)</p>
+<p>All before committing to a QUIC connection or subscription.</p>
+<p><strong>Step 205 - “None” Algorithm:</strong> The algorithm value
+“none” (registry value 0x00) indicates no FEC encoding. When present,
+source data is delivered without repair symbols. The optional
+<code>jitterBufferMs</code> field specifies a receiver-side reorder
+buffer in milliseconds, providing tolerance for out-of-order packet
+delivery without FEC overhead.</p>
+<p>Use cases for “none”: - Audio tracks where codec-level Packet Loss
+Concealment (PLC) adequately handles gaps - Ultra-low-latency (ULL)
+applications where any FEC latency is unacceptable (e.g., financial data
+feeds) - Reliable QUIC stream delivery where retransmission is
+sufficient</p>
+<p><strong>Step 206 - Per-Track Algorithm Selection:</strong> Different
+media types within the same session can use different FEC
+algorithms:</p>
+<table>
+<thead>
+<tr>
+<th>Media Type</th>
+<th>Recommended Algorithm</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Video</td>
+<td>raptorq</td>
+<td>Large keyframes expensive to lose</td>
+</tr>
+<tr>
+<td>Audio</td>
+<td>none</td>
+<td>Small frames, PLC handles gaps</td>
+</tr>
+<tr>
+<td>Subtitles</td>
+<td>none</td>
+<td>Reliable QUIC sufficient</td>
+</tr>
+</tbody>
+</table>
+<p>This minimizes total FEC overhead by applying protection only where
+recovery provides significant benefit.</p>
+<p><strong>Step 207 - Deferred Configuration Merging:</strong> In
+implementation, FEC parameters may be set before track renditions exist
+in the catalog (e.g., when the encoder signals FEC configuration before
+the first media frame). The system maintains a pending FEC configuration
+that is merged incrementally: 1.
+<code>set_repair_track("video/repair")</code> sets repair_track in
+pending 2. <code>set_fec_config("raptorq", 32, 8, 1312, 133)</code>
+merges algorithm, K, P, T, depth into pending WITHOUT overwriting
+repair_track 3. When a track rendition is created, the pending
+configuration is cloned to the rendition</p>
+<p>This ordering-independent merge ensures that parameters set by
+different system components at different times are correctly
+combined.</p>
+<hr />
+<h2 id="claims">CLAIMS</h2>
+<h3 id="independent-claim-1">Independent Claim 1</h3>
+<p>A system for bridging broadcast media to unicast streaming,
+comprising:</p>
+<ol type="a">
+<li><p>a broadcast gateway receiving media packets with
+application-layer forward error correction via source-specific multicast
+from a broadcast transmitter;</p></li>
+<li><p>said gateway performing FEC decoding on received packets to
+recover media lost during broadcast transmission;</p></li>
+<li><p>said gateway converting broadcast signaling from a first format
+to a streaming catalog in a second format, wherein said conversion
+maps:</p>
+<ul>
+<li>stream elements to catalog track entries;</li>
+<li>FEC parameters to catalog FEC extension fields, including mapping a
+scheme identifier to an algorithm string, a symbol size to a symbolSize
+integer, a source block length to a sourceSymbols integer, and a
+difference between total encoding symbols and source block length to a
+repairSymbols integer;</li>
+<li>repair flow elements to catalog repair track entries;</li>
+</ul></li>
+<li><p>said gateway publishing recovered source media as tracks in a
+publish/subscribe session over a reliable transport protocol;</p></li>
+<li><p>one or more subscribers receiving said tracks without requiring
+capability to decode said media packets in their original format,
+without requiring FEC processing, and without requiring broadcast
+receiver hardware.</p></li>
+</ol>
+<h3 id="dependent-claim-2">Dependent Claim 2</h3>
+<p>The system of Claim 1, wherein said first format is S-TSID XML
+conforming to ATSC A/331 and said second format is JSON conforming to a
+MoQ catalog format.</p>
+<h3 id="dependent-claim-3">Dependent Claim 3</h3>
+<p>The system of Claim 1, further comprising the reverse conversion from
+said second format to said first format, enabling content originated in
+the publish/subscribe system to be retransmitted via broadcast
+infrastructure.</p>
+<h3 id="dependent-claim-4">Dependent Claim 4</h3>
+<p>The system of Claim 1, wherein said gateway re-packages recovered
+media from a first container format to a second container format,
+producing segments compatible with HTTP adaptive streaming
+protocols.</p>
+<h3 id="dependent-claim-5">Dependent Claim 5</h3>
+<p>The system of Claim 1, wherein said gateway selectively publishes
+both source and repair tracks for subscribers that request FEC
+protection, while publishing source-only tracks for subscribers that do
+not.</p>
+<h3 id="dependent-claim-6">Dependent Claim 6</h3>
+<p>The system of Claim 1, wherein said gateway is deployed at an ISP
+edge router with inline multicast tunneling capability, forming a
+hierarchical distribution node that receives broadcast via tunnel and
+re-publishes to local subscribers.</p>
+<h3 id="independent-claim-7">Independent Claim 7</h3>
+<p>A method for forward error correction parameter signaling in a media
+streaming system, comprising:</p>
+<ol type="a">
+<li><p>providing a catalog document containing:</p>
+<ul>
+<li>a top-level FEC configuration object specifying default parameters
+including an algorithm identifier, a source symbol count, a repair
+symbol count, a symbol size, and an interleave depth;</li>
+<li>one or more per-track FEC configuration objects, each capable of
+overriding specific fields from said top-level defaults, wherein fields
+not specified in a per-track object inherit values from said top-level
+object;</li>
+</ul></li>
+<li><p>making said catalog document available via HTTP prior to
+establishment of a streaming session, enabling subscribers to discover
+FEC parameters before subscription;</p></li>
+<li><p>after subscription establishment, optionally sending an in-band
+control message carrying authoritative FEC parameters;</p></li>
+<li><p>applying a precedence order wherein said in-band control message
+overrides per-track catalog values, which override top-level catalog
+defaults.</p></li>
+</ol>
+<h3 id="dependent-claim-8">Dependent Claim 8</h3>
+<p>The method of Claim 7, wherein said algorithm identifier includes a
+“none” value indicating no FEC encoding, and said per-track FEC
+configuration object for a track with algorithm “none” includes a
+jitterBufferMs field specifying a receiver-side reorder buffer in
+milliseconds.</p>
+<h3 id="dependent-claim-9">Dependent Claim 9</h3>
+<p>The method of Claim 7, wherein different tracks within the same
+catalog specify different algorithm identifiers, enabling per-media-type
+FEC selection within a single streaming session.</p>
+<h3 id="dependent-claim-10">Dependent Claim 10</h3>
+<p>The method of Claim 7, further comprising maintaining a deferred FEC
+configuration that is merged incrementally as track renditions are
+created, wherein parameters set by separate configuration operations at
+different times are combined without overwriting previously set
+fields.</p>
+<h3 id="dependent-claim-11">Dependent Claim 11</h3>
+<p>The method of Claim 7, wherein said interleave depth is expressed in
+milliseconds, decoupling the FEC block span from media frame rate and
+enabling the same catalog value to apply to media types with different
+frame rates.</p>
+<h3 id="dependent-claim-12">Dependent Claim 12</h3>
+<p>The method of Claim 7, wherein for multicast delivery where no
+back-channel exists for said in-band control message, said catalog FEC
+parameters serve as the sole authoritative configuration source.</p>
+<hr />
+<h2 id="abstract">ABSTRACT</h2>
+<p>A system and method for bridging broadcast television (ATSC 3.0, ARIB
+STD-B60) to unicast streaming (MoQ/WebTransport) with forward error
+correction preservation. A gateway receives MMTP broadcast media via SSM
+multicast, performs FEC recovery, converts broadcast signaling (S-TSID
+XML) to a streaming catalog (MoQ JSON) with algorithmic field mapping,
+and re-publishes recovered media as publish/subscribe tracks.
+Subscribers consume content without requiring broadcast hardware, MMTP
+decoders, or FEC capability. A hierarchical FEC catalog signaling method
+provides top-level defaults with per-track overrides in a JSON catalog,
+HTTP-accessible before subscription, with in-band control message
+override. Per-track algorithm selection supports mixed FEC schemes
+(e.g., video=raptorq, audio=none) and a “none” mode with receiver-side
+jitter buffering.</p>
+<hr />
+<h2 id="figures">FIGURES</h2>
+<p><strong>FIG. 1:</strong> Broadcast-to-unicast bridge architecture
+showing broadcast transmitter, SSM multicast path, bridge gateway (with
+FEC recovery, S-TSID conversion, MoQ publication), and MoQ
+subscribers.</p>
+<figure>
+<img src="figures/APP2-FIG1-broadcast-bridge.png"
+alt="FIG. 1 — Broadcast-to-Unicast Bridge" />
+<figcaption aria-hidden="true">FIG. 1 — Broadcast-to-Unicast
+Bridge</figcaption>
+</figure>
+<p><strong>FIG. 2:</strong> Hierarchical FEC catalog structure showing
+three precedence levels (top-level defaults, per-track overrides,
+in-band FEC_CONFIG message) with inheritance arrows and override
+semantics.</p>
+<figure>
+<img src="figures/APP2-FIG2-hierarchical-catalog.png"
+alt="FIG. 2 — Hierarchical FEC Catalog" />
+<figcaption aria-hidden="true">FIG. 2 — Hierarchical FEC
+Catalog</figcaption>
+</figure>
+<p><strong>FIG. 3:</strong> S-TSID to MoQ catalog conversion field
+mapping diagram showing XML elements mapped to JSON fields.</p>
+<figure>
+<img src="figures/APP2-FIG3-stsid-conversion.png"
+alt="FIG. 3 — S-TSID to Catalog Conversion" />
+<figcaption aria-hidden="true">FIG. 3 — S-TSID to Catalog
+Conversion</figcaption>
+</figure>
+<p><strong>FIG. 4:</strong> Deferred FEC configuration merge sequence
+showing three configuration calls and their cumulative effect on pending
+and rendition FEC state.</p>
+<figure>
+<img src="figures/APP2-FIG4-deferred-merge.png"
+alt="FIG. 4 — Deferred Configuration Merge" />
+<figcaption aria-hidden="true">FIG. 4 — Deferred Configuration
+Merge</figcaption>
+</figure>
+</body>
+</html>

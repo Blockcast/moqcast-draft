@@ -1,0 +1,31 @@
+---
+title: "FIG. 4 — Hybrid Source Arbitration State Machine"
+---
+stateDiagram-v2
+    [*] --> UNICAST_ONLY
+
+    UNICAST_ONLY: State 401<br/>Rendering unicast media<br/>Initiate multicast join
+    JOINING: State 402<br/>Unicast rendering continues<br/>Multicast packets buffered<br/>Repair injection active
+    MULTICAST_PRIMARY: State 403<br/>Multicast is primary source<br/>Unicast suppressed<br/>Monitor reception quality
+    FAILING_BACK: State 404<br/>Re-subscribe unicast<br/>LatestGroup delivery pref
+    MULTICAST_STALLED: State 405<br/>High loss rate<br/>FEC recovery attempted<br/>Unicast fallback prepared
+
+    UNICAST_ONLY --> JOINING: Multicast join initiated
+    JOINING --> MULTICAST_PRIMARY: Video keyframe received\nvia multicast (402a)
+    JOINING --> UNICAST_ONLY: Join timeout expired
+    MULTICAST_PRIMARY --> MULTICAST_STALLED: Loss detected\nbut not sustained
+    MULTICAST_PRIMARY --> FAILING_BACK: Sustained loss\nexceeds threshold (403a)
+    MULTICAST_STALLED --> MULTICAST_PRIMARY: Loss clears\n(hysteresis)
+    MULTICAST_STALLED --> FAILING_BACK: Loss persists
+    FAILING_BACK --> UNICAST_ONLY: Unicast data arrives
+
+    note right of JOINING
+        Step 402c: FEC repair symbols
+        from unicast injected into
+        multicast FEC blocks
+    end note
+
+    note right of JOINING
+        Step 402b: Audio activates
+        independently on separate timer
+    end note

@@ -1,0 +1,53 @@
+---
+title: "FIG. 1 — System Architecture"
+---
+graph TB
+    subgraph Publisher["Publisher (101)"]
+        ENC[Media Encoder]
+        FEC_ENC[FEC Encoder<br/>K source + P repair]
+    end
+
+    subgraph Relay["Pub/Sub Relay (102)"]
+        REL_PUB[Publish Handler]
+        REL_SUB[Subscribe Handler]
+        REL_MC[Multicast Tx]
+    end
+
+    subgraph Sub_UC["Unicast Subscriber (104)"]
+        MoQ_RX_B[Unicast Receiver]
+        DEC_B[Media Decoder]
+    end
+
+    subgraph Sub_Hybrid["Hybrid Subscriber (103)"]
+        MoQ_RX_A[Unicast Receiver<br/>Reliable or Unreliable]
+        MC_RX[Multicast Receiver<br/>UDP]
+        DEDUP["Deduplication<br/>(SBN, ESI) key"]
+        FEC_DEC[FEC Decoder]
+        DEC_A[Media Decoder]
+    end
+
+    subgraph Gateway["Gateway (106)"]
+        GW_MC[Multicast Rx]
+        GW_FEC[FEC Recovery]
+        GW_PUB[Pub/Sub Publisher]
+    end
+
+    ENC --> FEC_ENC
+    FEC_ENC -->|"Source + Repair<br/>Unicast Transport"| REL_PUB
+    REL_PUB --> REL_SUB
+    REL_PUB --> REL_MC
+
+    REL_SUB -->|"Path A: Unicast<br/>(G, O) coords"| MoQ_RX_A
+    REL_MC -->|"Path B: Multicast<br/>SS_ID coords"| MC_RX
+    REL_SUB -->|"Unicast"| MoQ_RX_B
+
+    MoQ_RX_A -->|"Derive (SBN, ESI)<br/>from (G, O)"| DEDUP
+    MC_RX -->|"Derive (SBN, ESI)<br/>from SS_ID"| DEDUP
+    DEDUP --> FEC_DEC
+    FEC_DEC --> DEC_A
+    MoQ_RX_B --> DEC_B
+
+    REL_MC -->|"Multicast UDP"| GW_MC
+    GW_MC --> GW_FEC
+    GW_FEC --> GW_PUB
+    GW_PUB -->|"Unicast"| REL_PUB

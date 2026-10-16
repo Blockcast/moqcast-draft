@@ -1,0 +1,36 @@
+---
+title: "FIG. 5 — FEC Block Lifecycle State Machine"
+---
+stateDiagram-v2
+    [*] --> ACCUMULATING: First source symbol received
+
+    ACCUMULATING: State 504<br/>Counting source symbols<br/>Timer T running
+    DECODING: State 505<br/>FEC decoder invoked<br/>Awaiting sufficient symbols
+    CLEAN: State 501 ✓<br/>All K source arrived<br/>No FEC needed
+    RECOVERED: State 502 ✓<br/>FEC decode succeeded<br/>< K source + repair >= K
+    FAILED: State 503 ✗<br/>Timeout expired<br/>Insufficient symbols
+
+    ACCUMULATING --> CLEAN: K source symbols\nreceived (504b)
+    ACCUMULATING --> DECODING: Repair symbol arrives\nwith < K source (504c)
+    ACCUMULATING --> FAILED: Timer T expires (505a)
+    DECODING --> RECOVERED: Decode succeeds\nsource + repair >= K
+    DECODING --> FAILED: Timer T expires (505a)
+
+    note right of ACCUMULATING
+        Timer T = (D / fps) * safety_multiplier * 1000 ms
+        D = interleave depth in frames
+        fps = detected frame rate
+        safety_multiplier = 3.0 (default)
+    end note
+
+    note left of CLEAN
+        Terminal states add SBN to
+        completed-blocks set.
+        Late symbols for completed
+        blocks are discarded.
+    end note
+
+    note right of FAILED
+        greenFillFrames++
+        Error concealment applied
+    end note

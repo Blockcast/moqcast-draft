@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Application 3 — Wallet-Rooted Device Certificate Issuance</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="patent-style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Application 3 — Wallet-Rooted Device Certificate
+Issuance</h1>
+</header>
+<h1 id="provisional-patent-application">PROVISIONAL PATENT
+APPLICATION</h1>
+<h2
+id="wallet-rooted-device-certificate-issuance-with-offline-claim-verification-and-threshold-signature-custody">WALLET-ROOTED
+DEVICE CERTIFICATE ISSUANCE WITH OFFLINE CLAIM VERIFICATION AND
+THRESHOLD-SIGNATURE CUSTODY</h2>
+<h3 id="inventors">Inventor(s)</h3>
+<p>Omar Ramadan</p>
+<h3 id="assignee">Assignee</h3>
+<p>Blockcast, Inc.</p>
+<h3 id="filing-date">Filing Date</h3>
+<p>To be assigned upon USPTO submission (package finalized July
+2026)</p>
+<hr />
+<h2 id="field-of-the-invention">FIELD OF THE INVENTION</h2>
+<p>The invention relates to public key infrastructure (PKI) for
+distributed device networks, and more particularly to methods for
+authorizing X.509 device certificate issuance using blockchain wallet
+signatures verified offline, binding wallet-derived identifiers into
+certificates whose subject keys are distinct device keys, and to
+client-authenticated TLS from browser-sandboxed devices using
+non-extractable keys.</p>
+<h2 id="background">BACKGROUND</h2>
+<p>Decentralized physical infrastructure networks (DePIN) enroll gateway
+devices operated by third parties. Two identity roots must be
+reconciled: (a) the operator’s blockchain wallet (e.g., a Solana Ed25519
+account), which anchors economic identity, rewards, and on-chain name
+claims; and (b) the device’s transport identity used for mutually
+authenticated TLS (mTLS) to control-plane services.</p>
+<p>Prior decentralized-PKI approaches either place the wallet key
+directly in the certificate (making the high-value wallet key the
+routinely exercised TLS key — a custody downgrade), or require the
+certificate authority to query a blockchain at issuance time (adding
+availability and latency coupling to chain RPC). Separately,
+browser-sandboxed devices (e.g., Isolated Web Apps) cannot present TLS
+client certificates: platform fetch and WebTransport APIs provide no
+client-certificate attachment, and in-browser TLS stacks compiled to
+WebAssembly have provided server-side roles only.</p>
+<h2 id="summary-of-the-invention">SUMMARY OF THE INVENTION</h2>
+<p>A two-layer identity architecture in which a blockchain wallet
+AUTHORIZES certificate issuance but never becomes the certified key:</p>
+<ol type="1">
+<li>A registration authority (RA) verifies a wallet signature over a
+canonical claim message and mints a compact, expiring claim token
+(EdDSA-signed JWT) attesting the wallet’s name claim.</li>
+<li>The device places the claim token in a certificate signing request
+(CSR) attribute alongside a proof of possession of a distinct device key
+(Ed25519).</li>
+<li>The certifier verifies the claim token OFFLINE against the RA’s
+public key — no blockchain RPC at issuance — verifies the device
+attestation, and issues a short-lived certificate over the DEVICE public
+key, binding a wallet-derived identifier as an ADDITIVE subject
+alternative name of the form {logical_id}.{wallet_slug}.{suffix}, where
+wallet_slug = base32(truncate(sha256(wallet_pubkey), 10)).</li>
+<li>Because every wallet-signature verification site in the protocol is
+a pure function of (public key, message, signature), a threshold /
+multi-party-computation (MPC) signer producing byte-identical Ed25519
+signatures substitutes transparently: custody of the wallet key can be
+upgraded to threshold custody with zero protocol change. The MPC signer
+signs the 32-byte SHA-256 digest of the challenge (plain Ed25519, not
+the pre-hashed Ed25519ph variant).</li>
+<li>Device-key loss is recoverable through a wallet-signature-gated
+re-binding path: a fail-closed guard rejects a changed device key for a
+bound installation identifier, and an upsert re-bind is authorized only
+by a fresh wallet signature, rooting key rotation in the wallet.</li>
+<li>For browser-sandboxed devices, client-authenticated TLS is achieved
+by a WebAssembly TLS client whose CertificateVerify signature is
+produced through a signing callback into the platform cryptography API
+(crypto.subtle.sign) over a NON-EXTRACTABLE key, transported over a raw
+TCP socket (Direct Sockets API) from a privileged web application —
+client-certificate mTLS on a platform that natively cannot attach client
+certificates, with key custody equivalent to a hardware-backed store
+(the private key never exists in exportable form).</li>
+</ol>
+<h2 id="detailed-description">DETAILED DESCRIPTION</h2>
+<h3 id="two-layer-identity-and-enrollment-flow-implemented">1. Two-layer
+identity and enrollment flow (implemented)</h3>
+<p>Layer 1 (wallet / authorization): the operator’s wallet signs a
+canonical claim message CanonicalClaim(wallet, network, expiry, nonce).
+The RA verifies via ed25519.Verify(wallet_pubkey, message, signature) —
+base58 public key, base64 detached signature, no key material beyond the
+public key — and mints a claim token: an EdDSA JWT signed by the RA’s
+claim signing key, carrying the wallet public key, the derived slug (“w”
++ base32(sha256(wallet_pubkey)[:10])), and an expiry.</p>
+<p>Layer 2 (device / transport): the device generates an Ed25519 key
+pair and a PKCS#10 CSR (RFC 8410 Ed25519 subject key). The CSR carries
+the claim token as an attribute (implemented as CSR.wallet_claim_token
+in the certifier protocol). Device attestation is challenge-response:
+the certifier issues a nonce; the device returns Ed25519(SHA256(nonce));
+verification is again pure (pubkey, digest, signature) with key type
+SOFTWARE_ED25519_SHA256.</p>
+<p>Issuance: the certifier verifies the claim token offline against the
+RA public key (no chain access), verifies the challenge signature, and
+signs a certificate over the DEVICE public key. The wallet contributes
+only an additive DNS-form SAN {logical_id}.{wallet_slug}.{suffix}.
+Certificates are short-lived (on the order of 97 hours); renewal is
+re-bootstrap with the same device key. The binding chain is:
+wallet_pubkey → (SIWS account auth) → author_id → gateway_id →
+{install_id (hardware UUID), device challenge key, operator key}, with
+wallet and device key meeting only at author_id — the wallet key is
+never on the TLS path and the TLS key never appears on chain.</p>
+<h3 id="threshold-signature-mpc-transparency">2. Threshold-signature
+(MPC) transparency</h3>
+<p>All five wallet-signature verification sites in the deployed system
+(sign-in-with-Solana session auth; operator name-claim mint; user wallet
+verification; relay upgrade authorization; verified-supply attestation)
+verify a detached Ed25519 signature against a public key and message
+with no access to secret material. A t-of-n threshold Ed25519 signer
+producing standard signatures is therefore indistinguishable to the
+protocol. The only integration point that touches the wallet key is the
+RA name-claim mint. Dependent method: the enrollment challenge is signed
+as a 32-byte SHA-256 digest so that MPC nodes exchange only the digest,
+never the challenge plaintext.</p>
+<h3 id="wallet-gated-device-key-rotation-and-recovery">3. Wallet-gated
+device-key rotation and recovery</h3>
+<p>A registration guard fails closed when a known installation
+identifier presents a different device key (“install_id already bound to
+different challengeKey”), preventing silent device-key substitution. The
+underlying binding store supports authorized re-binding (upsert on
+conflict). The rotation method: the operator’s wallet signs a rotation
+authorization naming the installation identifier and the new device
+public key; the RA verifies it exactly as a name claim; the guard admits
+the re-bind only with a valid wallet rotation authorization. Idempotent
+re-registration with the SAME device key requires no authorization
+(fresh token issuance for the same binding).</p>
+<h3 id="browser-sandboxed-mtls-client-with-non-extractable-keys">4.
+Browser-sandboxed mTLS client with non-extractable keys</h3>
+<p>The device may be an Isolated Web App. Platform networking cannot
+attach client certificates. The invention provides: - a WebAssembly TLS
+1.3 client (rustls with a client-certificate resolver) configured with
+the issued device certificate chain; - a signing-callback certificate
+resolver: instead of holding the private key, the resolver invokes
+crypto.subtle.sign over a WebCrypto CryptoKey generated NON-EXTRACTABLE,
+so the CertificateVerify signature is computed inside the browser’s key
+store and the private key never exists in serialized form (a software
+analog of a TEE-held key); - transport over the Direct Sockets TCPSocket
+API from the privileged application context, with HTTP/1.1 or HTTP/2
+framed above the WASM TLS session; - an enrollment-transport seam such
+that the same client performs both RFC 7030 EST (/cacerts,
+/simpleenroll) and proprietary bootstrap protocols. An alternative
+embodiment holds the device key extractable (PKCS#8 in origin-private
+storage) during a migration period, with paragraph-4 custody as the
+target state.</p>
+<h3 id="embodiments-and-variations">5. Embodiments and variations</h3>
+<ul>
+<li>The blockchain may be any Ed25519-account chain (Solana described);
+RSA/ECDSA wallets with corresponding verifiers are equivalent.</li>
+<li>The claim token may be any offline-verifiable signed assertion (JWT,
+CWT, SD-JWT).</li>
+<li>The wallet-derived SAN may be a URI SAN (e.g.,
+spiffe://{domain}/wallet/{pubkey}) in place of or in addition to the
+DNS-form slug; a raw-public-key embodiment includes the wallet public
+key itself in a subject attribute.</li>
+<li>The certifier and RA may be co-located or separate; the RA may be a
+network operator portal; the certifier may be an EST server.</li>
+<li>Devices include set-top firmware, mobile SDKs, and browser
+IWAs.</li>
+</ul>
+<h2 id="appendix-claim-sketch-for-the-non-provisional">APPENDIX — CLAIM
+SKETCH (for the non-provisional)</h2>
+<p>Independent (method): issuing a device certificate in a network where
+operators hold blockchain wallet keys, comprising: verifying, at an RA,
+a wallet signature over a canonical claim; minting an expiring signed
+claim token; receiving a CSR comprising (i) a device public key distinct
+from the wallet public key, (ii) the claim token, and (iii) a device
+attestation; verifying the claim token offline against the RA public key
+without blockchain access; and issuing a certificate over the device
+public key including a wallet-derived identifier as an additional
+subject alternative name.</p>
+<p>Dependents: slug derivation by truncated hash + base32;
+threshold-Ed25519 wallet custody with byte-identical signatures (no
+protocol change); digest-only MPC signing; short-lived certificate +
+re-bootstrap renewal; fail-closed installation binding with
+wallet-signature-gated device-key re-bind; SIWS-authenticated account
+chain wallet→author→gateway→device.</p>
+<p>Independent (system/CRM): the browser-sandboxed mTLS client of §4
+(WASM TLS client + non-extractable-key signing callback + raw-socket
+transport), independently and in combination with the issuance
+method.</p>
+<h2 id="cross-reference">CROSS-REFERENCE</h2>
+<p>Related applications by the same inventor filed 2026-07-10:
+64/109,453 (FEC methods for publish/subscribe media transport);
+64/109,460 (broadcast-to-unicast media bridge). The present disclosure
+is an independent invention family (device identity/PKI); the certified
+device identity of this disclosure authenticates the transport sessions
+over which the media of the related applications is delivered.</p>
+</body>
+</html>

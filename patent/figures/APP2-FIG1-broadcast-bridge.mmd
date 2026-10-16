@@ -1,0 +1,30 @@
+---
+title: "FIG. 1 — Broadcast-to-Unicast Bridge Architecture"
+---
+graph LR
+    subgraph Broadcast["Broadcast (101)"]
+        TX["ATSC 3.0 / ARIB<br/>Transmitter"]
+        STSID["S-TSID<br/>Signaling (102)"]
+    end
+
+    subgraph Gateway["Bridge Gateway (103)"]
+        MC_RX["Step 103a<br/>Multicast Rx<br/>SSM Join"]
+        FEC_REC["Step 103b<br/>FEC Recovery<br/>RaptorQ Decode"]
+        CONV["Step 103c<br/>S-TSID → Catalog<br/>XML → JSON"]
+        MoQ_PUB["Step 103d<br/>MoQ Publisher<br/>QUIC/WebTransport"]
+    end
+
+    subgraph Subscribers["MoQ Subscribers (104)"]
+        SUB1["Web Browser<br/>No MMTP needed<br/>No FEC needed"]
+        SUB2["Mobile App<br/>Standard MoQ client"]
+        SUB3["Smart TV<br/>MoQ + optional<br/>direct multicast"]
+    end
+
+    TX -->|"SSM Multicast UDP<br/>MMTP + AL-FEC"| MC_RX
+    STSID -->|"XML signaling"| CONV
+    MC_RX --> FEC_REC
+    FEC_REC -->|"Recovered source"| MoQ_PUB
+    CONV -->|"JSON catalog"| MoQ_PUB
+    MoQ_PUB -->|"QUIC"| SUB1
+    MoQ_PUB -->|"QUIC"| SUB2
+    MoQ_PUB -->|"QUIC"| SUB3
