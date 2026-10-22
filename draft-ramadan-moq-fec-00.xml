@@ -936,11 +936,34 @@ repair symbol with RS_ID = O_i + j.</t>
 <section anchor="why-raptorq-only"><name>Why RaptorQ Only</name>
 <t>Repair layers and the overlay are defined only for <tt>raptorq</tt>: a
 publisher MUST NOT signal either under any other algorithm, and a
-receiver rejects such a catalog (Section 6.3.4, rule 7).  Layering
-relies on RaptorQ's open Encoding Symbol ID space, in which repair
+receiver rejects such a catalog (Section 6.3.4, rule 7).</t>
+<t>Layering needs a code whose repair symbols are identified by ESI
+alone and whose repair symbol for a given ESI does not depend on how
+many repair symbols the block generates in total.  Only then do repair
 symbols from disjoint ESI ranges on separate tracks remain symbols of
-one code; a block code such as Reed-Solomon fixes n = K + P at
-encoding time, so its symbols for one P are not valid for another.</t>
+one code, and only then can a receiver add a layer without the
+publisher re-encoding.  RaptorQ has this property by construction,
+through its open Encoding Symbol ID space (<xref target="RFC6330"></xref>).  The property
+is not particular to fountain codes.  A systematic Reed-Solomon code
+whose generator matrix is Vandermonde-derived (<xref target="RFC5510"></xref>
+Section 8.2.1) or Cauchy-derived has it too: each repair symbol is one
+fixed column of that matrix, independent of n, and the field size is
+the only bound, K + totalP at most 2^m - 1 over GF(2^m) for the
+<xref target="RFC5510"></xref> construction and at most 2^m for a Cauchy one.  A
+Reed-Solomon code in generator-polynomial form lacks it: its parity is
+the remainder modulo a polynomial of degree n - K, so its symbols for
+one P are not valid for another.</t>
+<t>This document specifies no algorithm other than <tt>raptorq</tt>
+(Section 4.3), the AL-FEC scheme of ATSC 3.0 (<xref target="ATSC-A331"></xref>,
+Section 12), so the restriction above is one of specification, not
+of the codes.  A companion specification for another algorithm MAY
+admit repair layers and the overlay only if it establishes this
+property for the construction it specifies, states how each layer's
+RS_ID range maps to that code's symbol index (for <xref target="RFC5510"></xref>, the
+Encoding Symbol ID, whose Max-Number-of-Encoding-Symbols then covers
+K + totalP over all layers), and bounds K + totalP by that
+construction's limit, alongside rules 4 and 5 of Section 6.3.4; rule 6
+is particular to RaptorQ.</t>
 </section>
 
 <section anchor="catalog-rules-and-fail-closed-validation"><name>Catalog Rules and Fail-Closed Validation</name>
