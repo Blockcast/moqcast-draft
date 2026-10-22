@@ -21,6 +21,14 @@ fullname = "Omar Ramadan"
 organization = "Blockcast"
   [author.address]
   email = "omar@blockcast.net"
+
+[[author]]
+initials = "M. E."
+surname = "Fiuczynski"
+fullname = "Marc E. Fiuczynski"
+organization = "Rutgers University"
+  [author.address]
+  email = "marc@fiuczynski.com"
 %%%
 
 .# Abstract
