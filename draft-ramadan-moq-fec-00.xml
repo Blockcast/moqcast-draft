@@ -6,6 +6,8 @@
 <title abbrev="MoQ FEC">Forward Error Correction for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
+</address></author><author initials="M. E." surname="Fiuczynski" fullname="Marc E. Fiuczynski"><organization>Rutgers University</organization><address><postal><street></street>
+</postal><email>marc@fiuczynski.com</email>
 </address></author><date year="2026" month="October" day="14"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
@@ -936,11 +938,41 @@ repair symbol with RS_ID = O_i + j.</t>
 <section anchor="why-raptorq-only"><name>Why RaptorQ Only</name>
 <t>Repair layers and the overlay are defined only for <tt>raptorq</tt>: a
 publisher MUST NOT signal either under any other algorithm, and a
-receiver rejects such a catalog (Section 6.3.4, rule 7).  Layering
-relies on RaptorQ's open Encoding Symbol ID space, in which repair
+receiver rejects such a catalog (Section 6.3.4, rule 7).</t>
+<t>Layering needs a code whose repair symbols are identified by ESI
+alone and whose repair symbol for a given ESI does not depend on how
+many repair symbols the block generates in total.  Only then do repair
 symbols from disjoint ESI ranges on separate tracks remain symbols of
-one code; a block code such as Reed-Solomon fixes n = K + P at
-encoding time, so its symbols for one P are not valid for another.</t>
+one code, and only then can a receiver add a layer without the
+publisher re-encoding.  RaptorQ has this property by construction,
+through its open Encoding Symbol ID space (<xref target="RFC6330"></xref>).  The property
+is not particular to fountain codes.  A systematic Reed-Solomon code
+whose generator matrix is Vandermonde-derived (<xref target="RFC5510"></xref>
+Section 8.2.1) or Cauchy-derived has it too, provided the field
+element that defines each repair column is fixed by the repair index
+alone and never by P: <xref target="RFC5510"></xref> fixes it as alpha^j for column j,
+and a Cauchy construction must fix its y_j per index j likewise.  Each
+repair symbol is then one fixed column of that matrix, independent of
+n, and the field size is the only bound, K + totalP at most 2^m - 1
+over GF(2^m) for the <xref target="RFC5510"></xref> construction and at most 2^m for a
+Cauchy one.  A
+Reed-Solomon code in generator-polynomial form lacks it: its parity is
+the remainder modulo a polynomial of degree n - K, so its symbols for
+one P are not valid for another.</t>
+<t>This document specifies no algorithm other than <tt>raptorq</tt>
+(Section 4.3), the AL-FEC scheme of ATSC 3.0 <xref target="ATSC-A331"></xref> that
+Section 12 of this document maps to, so the restriction above is one
+of specification, not of the codes.  A companion specification for
+another algorithm MAY admit repair layers and the overlay only if it
+(a) establishes this property for the construction it specifies,
+including that each repair column's field element is fixed by repair
+index alone, (b) states how each layer's RS_ID range maps to that
+code's symbol index (for <xref target="RFC5510"></xref>, the Encoding Symbol ID, whose
+Max-Number-of-Encoding-Symbols then covers K + totalP over all
+layers), (c) bounds K + totalP by that construction's limit, alongside
+rules 4 and 5 of Section 6.3.4, and (d) updates rule 7 of
+Section 6.3.4, since a receiver of this document otherwise rejects
+such a catalog.  Rule 6 is particular to RaptorQ.</t>
 </section>
 
 <section anchor="catalog-rules-and-fail-closed-validation"><name>Catalog Rules and Fail-Closed Validation</name>
