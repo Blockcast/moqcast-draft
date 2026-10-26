@@ -69,12 +69,16 @@ over MoQ [@!I-D.ietf-moq-transport], enabling:
 
 This specification complements existing MoQ packaging formats:
 
-| Format | Container | Primary Use Case | FEC Support |
-|--------|-----------|------------------|-------------|
-| MSF (LOC) | WebCodecs chunks | Low-latency unicast | No |
-| CMSF | CMAF fMP4 | Adaptive streaming | No |
-| CARP | CMAF fMP4 | ABR delivery | No |
-| This spec (MMT) | MMTP + MPU (ISOBMFF) | Broadcast bridge | Yes |
+| Format | Container | Primary Use Case | FEC Block Profile |
+|--------|-----------|------------------|-------------------|
+| MSF (LOC) | WebCodecs chunks | Low-latency unicast | "moq-object-v1" |
+| CMSF | CMAF fMP4 | Adaptive streaming | "moq-object-v1" |
+| This spec (MMT) | MMTP + MPU (ISOBMFF) | Broadcast bridge | "iso-ssbg1-v1" |
+
+The last column names the block profile under which [@!MOQ-FEC]
+protects tracks of each packaging.  Under "iso-ssbg1-v1" each MMTP
+packet is a source symbol.  Under "moq-object-v1" each loc or cmaf
+object occupies whole source symbols.
 
 MMT packaging is RECOMMENDED when:
 
@@ -83,7 +87,7 @@ MMT packaging is RECOMMENDED when:
 - Hybrid broadcast/unicast architectures are deployed
 - Interoperability with broadcast receivers is needed
 
-CMAF packaging (CMSF/CARP) is RECOMMENDED when:
+CMAF packaging (CMSF) is RECOMMENDED when:
 
 - Content originates as DASH/HLS
 - No multicast delivery is planned
@@ -228,9 +232,8 @@ Key fields for MoQ mapping:
 - **Packet Sequence Number**: per-`packet_id`, incremented by one modulo
   2^32 across the flow ([@!ISO.23008-1] Clause 9.2.3); carried inside
   the object payload for wrap-aware MMTP-layer loss/ordering detection.
-  It is NOT the MoQ Object ID --
-  Object IDs are the per-data-unit packet index within a subgroup
-  (Section 4.1), which resets per subgroup.
+  It is NOT the MoQ Object ID.  Object IDs number the objects of a
+  group in source order, starting at zero in each group (Section 4.6).
 - **FEC Type**: 0=no AL-FEC, 1=AL-FEC source packet (exactly one
   4-byte Source FEC Payload ID trails the packet, [@!MOQ-FEC]
   Section 8.5), 2=AL-FEC repair packet for FEC payload ID mode 0,
@@ -280,9 +283,19 @@ An MMT stream maps to MoQ tracks as follows:
 | Asset, by Packet ID (audio) | Track "audio" |
 | MPU (one MPU per group) | Group; number derived from media time (Section 4.4.1) |
 | MPU data unit (FT=0, FT=1, or FT=2) | Subgroup ID |
-| MMTP packet (fragment) within a data unit | Object ID |
+| MMTP packet (fragment) within a data unit | Object; Object IDs count the group's objects from 0 in source order (Section 4.6) |
 | AL-FEC signaling message (OPTIONAL, packet_id 0) | Object in Subgroup 0 immediately before FT=0 (Section 8) |
 | AL-FEC repair | Track "video/repair" |
+
+[@!I-D.ietf-moq-msf] Section 6 maps each MOQT Object to a new
+stream.  An mmtp track does not follow that rule.  It maps each MPU
+data unit to one subgroup (Section 4.3), and the objects of a
+subgroup share one stream ([@!I-D.ietf-moq-transport] Section 2.2),
+so each data unit's fragments travel in order on one stream.  An mmtp
+track keeps the Group and Object numbering of [@!I-D.ietf-moq-msf]
+Sections 6.1 and 6.2: Group numbers are unique and increase
+monotonically (Section 4.4.1), and Object IDs start at zero in each
+group and increase by one (Section 4.6).
 
 ## Object Payload
 
@@ -416,9 +429,12 @@ alternate tracks that MUST be time-aligned per
 Group boundaries MUST be media-time-aligned across all tracks of a
 switching set so that subscribers can switch at group boundaries.
 Tracks with equal group durations MUST carry the same Group number for the
-same media interval; where the intra-only exception of Section 4.4.2
-permits unequal durations, that section defines the Group number
-mapping.  The switch is without discontinuity when the MPUs are closed GOPs.  On
+same media interval.  Only an intra-only mmtp track can have a
+shorter group duration than the other tracks, under the exception of
+Section 4.4.2, which also defines its Group number mapping.  A cmaf
+member keeps equal group durations and the Group number alignment
+that [@?I-D.ietf-moq-cmsf] Section 3.2 requires.  The switch is
+without discontinuity when the MPUs are closed GOPs.  On
 a join or switch at a Group boundary, leading pictures (Section 4.4.1)
 that reference the preceding Group are not decodable, and presentation
 of the new track begins at its RAP.  If the old track's next MPU has
@@ -644,8 +660,8 @@ Section 12.1):
 | `packaging` | Timescale source |
 |-----------|------------------|
 | `mmtp`    | The `timescale` field, REQUIRED for mmtp tracks (Section 12.1); absence is a catalog error, and the 90 000 `asset_timescale` default of [@!ISO.23008-1] Clause 10.3.9.3 does not apply. |
-| `cmaf`    | The `timescale` field.  [@?I-D.ietf-moq-cmsf] leaves it OPTIONAL, so this document makes it REQUIRED for any cmaf track to which this section applies (a member of a switching set governed by Section 4.4.1); leaving it unset on such a track is a catalog error. |
-| `loc`     | The `timescale` field; when absent, 1 000 000 -- LOC timestamps are expressed in microseconds [@?I-D.ietf-moq-loc]. |
+| `cmaf`    | The `timescale` field.  [@!I-D.ietf-moq-msf] Section 5.2.21 makes it optional, so this document makes it REQUIRED for any cmaf track to which this section applies (a member of a switching set governed by Section 4.4.1); leaving it unset on such a track is a catalog error. |
+| `loc`     | The `timescale` field; when absent, the track's TIMESCALE Property ([@?I-D.ietf-moq-loc] Section 2.3.1.2) if present, else 1 000 000, the microsecond unit that LOC timestamps use without that Property ([@?I-D.ietf-moq-loc] Section 2.3.1.1).  When the field and the Property are both present they MUST be equal, and a receiver treats a mismatch as a catalog error. |
 | (absent or unrecognized `packaging`) | 1 000 000 (microseconds).  This row covers track entries whose `packaging` value is missing or unrecognized; the convention is fixed by this document and does NOT derive from [@!I-D.ietf-moq-transport]. |
 
 When `groupDurationTicks` is absent, conversion is
@@ -713,9 +729,9 @@ A.groupDurationTicks * B.timescale ==
     B.groupDurationTicks * A.timescale
 ~~~
 
-One exception applies.  A track is intra-only when its `framerate`
-field is present and its group duration is one frame period at that
-rate:
+One exception applies, to mmtp tracks only.  An mmtp track is
+intra-only when its `framerate` field is present and its group
+duration is one frame period at that rate:
 
 ~~~
 groupDurationTicks * framerate == timescale
@@ -723,9 +739,13 @@ groupDurationTicks * framerate == timescale
 
 Because `framerate` need not be an integer (29.97), this comparison is
 made within a relative tolerance of 10^-3 of `timescale`; a GOP track
-misses it by a factor of at least two.  Every other track in the
-switching set is a GOP track.  Exact equality above is required between
-all GOP tracks.  An intra-only track I MAY instead publish a shorter
+misses it by a factor of at least two.  The tolerance only classifies
+a track as intra-only.  It never enters Group number arithmetic: the
+remainder test below, the quotient n, and every Group number use
+exact integers, and Section 4.4.1 forbids any tolerance there.  Every
+other track in the switching set, including every track whose
+`packaging` is not `mmtp`, is a GOP track.  Exact equality above is
+required between all GOP tracks.  An intra-only track I MAY instead publish a shorter
 group duration that divides that of the GOP tracks a whole number of
 times.  For every GOP track G in the switching set:
 
@@ -739,7 +759,10 @@ group boundary is also one of its group boundaries, and switching
 remains group-aligned.  With quotient
 `n = (G.groupDurationTicks * I.timescale) / (I.groupDurationTicks *
 G.timescale)` and a shared presentation anchor, Group g of G starts at
-the same instant as Group g * n of I.  A subscriber can therefore switch
+the same instant as Group g * n of I.  This mapping is the alternate
+mechanism that [@!I-D.ietf-moq-msf] Section 4.2 requires for
+time-aligned tracks whose Group IDs differ at the same instant.  A
+subscriber can therefore switch
 from G to I at any G group boundary.  It can switch from I to G only at
 an I group whose number is a multiple of n.  Each intra-only track is
 checked only against the GOP tracks, so switching between two
@@ -748,7 +771,7 @@ track group boundaries.  The exception does not
 apply to a switching set with no GOP track: intra-only tracks with no
 GOP peer still require exact equality.
 
-For example, a 15 fps intra-only base track with `timescale: 90000` and
+For example, an mmtp 15 fps intra-only base track with `timescale: 90000` and
 `groupDurationTicks: 6000` may share a switching set with a 15 fps GOP
 track with `timescale: 1000000` and `groupDurationTicks: 1000000`,
 because `1000000 * 90000 = 15 * (6000 * 1000000)`.  With
@@ -821,50 +844,65 @@ Subgroup 0 of every group (Section 4.3), preceded in that subgroup only
 by the OPTIONAL AL-FEC signaling object of Section 8.  Its data unit contains the
 authored initialization boxes, including `ftyp`, `mmpu`, and `moov`.
 
-In addition, publishers SHOULD carry decoder initialization data
-directly in the catalog via the per-track field:
-
-~~~
-initData (OPTIONAL, string)
-~~~
-
-`initData` is the base64 encoding of an ISOBMFF initialization
+In addition, publishers SHOULD carry decoder initialization data in
+the catalog, using the mechanism of the base catalog that
+[@?I-D.ietf-moq-cmsf] Section 3.1 also uses for CMAF headers.  The
+data is an entry of the root `initDataList` array
+([@!I-D.ietf-moq-msf] Section 5.1.7) whose `type` is "inline" and
+whose `data` is the base64 encoding of an ISOBMFF initialization
 segment (`ftyp` + `moov`) sufficient to initialize the decoder for
 the track (including the codec configuration record, e.g. avcC or
-hvcC).  The field name and carriage -- a base64 string in the
-track's catalog entry -- are those of the `initData` field defined
-by [@?I-D.ietf-moq-cmsf] Section 3.1 for CMAF headers; this
-document applies the same field to mmtp-packaged tracks and
-constrains its decoded content as below.  (The base catalog
-[@!I-D.ietf-moq-msf] Sections 5.1.7 and 5.2.13 additionally define
-an indirected `initDataList`/`initRef` mechanism; this document
-does not use the indirection -- mmtp tracks carry `initData`
-inline.)  It lets a subscriber initialize its decoder at
-catalog load,
-before the first FT=0 MPU metadata object arrives,
-removing one delivery round trip from the join path (Section 6.1).
+hvcC).  The track's `initRef` field ([@!I-D.ietf-moq-msf]
+Section 5.2.13) holds that entry's `id`.  This lets a subscriber
+initialize its decoder at catalog load, before the first FT=0 MPU
+metadata object arrives, removing one delivery round trip from the
+join path (Section 6.1).  A receiver ignores an `initRef` that names
+no entry, or names an entry whose `type` is not "inline", and joins
+without catalog initialization data.
 
-`initData` is a join optimization, not a replacement for in-band
-metadata: the per-group FT=0 MPU metadata remains
+Catalog initialization data is a join optimization, not a replacement
+for in-band metadata: the per-group FT=0 MPU metadata remains
 authoritative, and a receiver MUST adopt in-band metadata when it
-differs from `initData`.  Catalog content is untrusted input; a
-receiver MUST validate that decoded `initData` is a well-formed
-`ftyp` + `moov` sequence before passing it to a decoder, and MUST
-discard it otherwise.
+differs from the catalog's initialization data.  Catalog content is
+untrusted input; a receiver MUST validate that the decoded `data` is
+a well-formed `ftyp` + `moov` sequence before passing it to a
+decoder, and MUST discard it otherwise.
 
-## Object Identifier Reconstruction
+Implementations of draft-ramadan-moq-mmt-00 carried the same bytes
+in a per-track string field, `initData`, which the current base
+catalog does not define.  A receiver MAY accept `initData` on an
+mmtp track from such an implementation and validates it in the same
+way.  When a track carries both `initRef` and `initData`, the
+receiver uses `initRef`.
 
-Within a subgroup, MoQ Object IDs increase monotonically, but the
-increment between successive objects is not guaranteed to be one;
-depending on the transport encoding an object's ID may be carried as a
-delta from the previous object rather than as an explicit absolute
-value.  A receiver MUST reconstruct each object's absolute Object ID by
-maintaining a running value per subgroup; it MUST NOT assume successive
-objects differ by a fixed nonzero step, nor that an absolute Object ID
-is carried explicitly.
+## Object Identifier Assignment and Reconstruction
+
+The publisher numbers the objects of each group in source order, as
+[@!I-D.ietf-moq-msf] Section 6.2 requires.  The first object of the
+group has Object ID 0.  It is the AL-FEC signaling object when the
+group carries one (Section 8), and the FT=0 object otherwise.  Each
+later object, in whichever subgroup, has the Object ID of the object
+before it plus one.  An Object ID therefore identifies one object of
+its group, as [@!I-D.ietf-moq-transport] Section 2.1 requires, and
+the Subgroup ID still identifies the data unit (Section 4.3).  The
+packetizer emits each data unit's packets contiguously
+(Section 5.2.2), and Subgroup IDs follow source order
+(Section 5.3.2), so ascending Object ID order within a group is also
+ascending Subgroup ID order.  A FETCH or fill fetch stream, which
+sends a group's objects in Object ID order
+([@!I-D.ietf-moq-transport] Section 3.2.1), therefore delivers them
+in the order that Section 4.3 requires.
+
+MOQT carries Object IDs as deltas on the wire
+([@!I-D.ietf-moq-transport] Sections 11.3.1 and 11.4.1.1), and the
+objects of every subgroup other than Subgroup 0 have Object IDs
+greater than zero.  A receiver MUST reconstruct each object's
+absolute Object ID from that encoding.  It MUST NOT assume that a
+subgroup's first Object ID is zero, that successive objects differ by
+a fixed step, or that an absolute Object ID is carried explicitly.
 
 Object IDs identify preserved source objects
-within a subgroup; they do not replace the MMTP packet sequence, FI
+within a group; they do not replace the MMTP packet sequence, FI
 countdown, or active-data-unit association required by Sections 5.2
 and 5.3.
 
@@ -877,32 +915,34 @@ rewriting it:
 MFU Mode (one subgroup per MPU data unit):
   Group N:
    [SG 0 / Obj 0: [MMTP type=0x02 id=0][SH][AL-FEC msg]] (Section 8)
-    SG 0 / next:  [MMTP][PH FT=0 FI=0][ftyp+mmpu+moov]
-    SG 1 / Obj 0: [MMTP][PH FT=1 FI=0][moof+mdat prefix]
-    SG 2 / Obj 0: [MMTP][PH FT=2 FI=0][DU][sample 1]
-    SG 3 / Obj 0: [MMTP][PH FT=2 FI=0][DU][sample 2]
+    SG 0 / Obj s:   [MMTP][PH FT=0 FI=0][ftyp+mmpu+moov]
+    SG 1 / Obj s+1: [MMTP][PH FT=1 FI=0][moof+mdat prefix]
+    SG 2 / Obj s+2: [MMTP][PH FT=2 FI=0][DU][sample 1]
+    SG 3 / Obj s+3: [MMTP][PH FT=2 FI=0][DU][sample 2]
   ...
 
 Fragmented FT=2 sample (Section 5.2):
   Group N, SG 2:
-    Obj 0: [MMTP][PH FT=2 FI=1][DU][sample part 1]
-    Obj 1: [MMTP][PH FT=2 FI=2][sample part 2]
-    Obj 2: [MMTP][PH FT=2 FI=3][sample part 3]
+    Obj s+2: [MMTP][PH FT=2 FI=1][DU][sample part 1]
+    Obj s+3: [MMTP][PH FT=2 FI=2][sample part 2]
+    Obj s+4: [MMTP][PH FT=2 FI=3][sample part 3]
 
-Subsample-partitioned FT=2 sample (Section 5.2.1) -- one sample,
+Subsample-partitioned FT=2 sample (Section 5.2.1): one sample,
 two producer-authored subsample data units:
   Group N:
-    SG 4 / Obj 0..j: [MMTP][PH FT=2 FI=1][DU offset=0]  ... FI=3
-    SG 5 / Obj 0..k: [MMTP][PH FT=2 FI=1][DU offset=L0] ... FI=3
+    SG 4 / Obj a..b:   [MMTP][PH FT=2 FI=1][DU offset=0]  ... FI=3
+    SG 5 / Obj b+1..c: [MMTP][PH FT=2 FI=1][DU offset=L0] ... FI=3
 
 [MMTP] = MMTP packet header (Section 3.1): 12 bytes, since C = 0,
          plus a header extension when X = 1.
 [PH]   = MPU-mode payload header, which carries the Fragmentation
          Indicator (FI); the FI is NOT in the MMTP packet header.
 [SH]   = signaling message payload header (Section 3.1).
-[...]  = OPTIONAL signaling object.  When present it is the first
-         object of SG 0 and FT=0 is the object after it; when absent,
-         FT=0 is the first object of SG 0 (Obj 0).
+[...]  = OPTIONAL signaling object.  When present it is Object 0,
+         the first object of SG 0, and FT=0 is the object after it.
+s      = 1 when the signaling object is present, 0 when it is
+         absent.  Object IDs count the group's objects in source
+         order across subgroups (Section 4.6).
 ~~~
 
 For conformance, an `mmtp` track in this document carries timed media
@@ -1008,8 +1048,8 @@ MUST NOT reassemble MFU fragments:
    MMTP packet header and the MPU-mode payload header.  Those headers
    carry the Fragmentation Indicator
    and MPU sequence number.  Object IDs identify the preserved source
-   packets within the subgroup but are not MFU identities or media
-   timestamps.
+   packets within the group (Section 4.6) but are not MFU identities
+   or media timestamps.
 2. The publisher MUST NOT reassemble or reorder fragments based on
    the Fragmentation Indicator.  It routes each packet to (track,
    group, subgroup) by packet_id, MPU boundary, data-unit type, and the
@@ -1309,13 +1349,12 @@ receiver repair policy this implies.
 
 # Subscriber Join and Relay Behavior
 
-This section defines the join procedure for subscribers and the
-retention behavior relays apply so that late joiners reach first
-frame without waiting for the next group boundary.  The retention
-rules in
-Section 6.2 are purely positional (group, subgroup, and object
-identifiers plus the Subgroup 0 convention of Section 4.3), so relays
-remain container-blind and never parse MMTP.
+This section defines the join procedure for subscribers.  A
+subscriber reaches its first decodable frame without waiting for the
+next group boundary by joining at the start of the current group
+with the fill mechanism of [@!I-D.ietf-moq-transport] Section 3.5.
+The join needs no relay behavior beyond [@!I-D.ietf-moq-transport],
+and relays never parse MMTP (Section 6.2).
 
 ## Subscriber Join Procedure
 
@@ -1328,24 +1367,40 @@ A subscriber joins a live mmtp-packaged track as follows:
    MUST NOT issue SUBSCRIBE for a track whose catalog entry fails
    validation.
 
-2. **Decoder initialization.** If the track carries `initData`
-   (Section 4.5) and it validates, initialize the decoder from it
-   immediately.  In all cases the subscriber MUST accept the
+2. **Decoder initialization.** If the catalog provides
+   initialization data for the track (Section 4.5) and that data
+   validates, initialize the decoder from it immediately.  In all
+   cases the subscriber MUST accept the
    authoritative FT=0 object in Subgroup 0 before admitting this
    group's FT=1 or FT=2 data units.  An AL-FEC signaling object that
    precedes FT=0 in Subgroup 0 (Section 8) is not decoder
    initialization and does not satisfy this step.
 
-3. **Subscribe at a group boundary.** Issue SUBSCRIBE requesting
-   delivery from the start of the newest available group, not from
-   the latest object.  The group start carries FT=0 initialization
-   (Subgroup 0), the FT=1 metadata governing the first samples, and
-   the RAP-bearing first FT=2 subgroup
-   (Section 4.3); a mid-group start position yields objects that
-   cannot be decoded until the next group.  Where the relay retains
-   the current group (Section 6.2), starting at the newest group
-   boundary gives immediate decodability; otherwise the subscriber
-   waits for the next group boundary.
+3. **Subscribe at a group boundary.** Join at the start of the
+   current group, as [@!I-D.ietf-moq-transport] Section 3.5
+   describes.  Send SUBSCRIBE with a LOCATION_FILTER of type 0x05
+   (Next Object) and a FILL_PARAMETERS parameter whose
+   LOCATION_FILTER has type 0x01 (Relative Start) and StartGroup = 1
+   ([@!I-D.ietf-moq-transport] Sections 3.4, 9.20.9, and 9.20.15).
+   The publisher sends the current group, from its start up to the
+   Largest Object, on a fill fetch stream, and every later object on
+   the subscription, so each object arrives once.  The group start
+   carries FT=0 initialization (Subgroup 0), the FT=1 metadata
+   governing the first samples, and the RAP-bearing first FT=2
+   subgroup (Section 4.3); a subscription that starts mid-group
+   without a fill yields objects that cannot be decoded until the
+   next group.  A data unit that was still open at the join arrives
+   partly on the fill fetch stream and partly on its subgroup stream,
+   and the receiver combines the two before reassembly (Section 5.2).
+   If the fill fails or leaves a gap, the subscriber waits for the
+   next group, which the subscription delivers from its start.  To
+   wait for the next group instead, the subscriber sends SUBSCRIBE
+   with a LOCATION_FILTER of type 0x01 and StartGroup = 0.  A
+   NEW_GROUP_REQUEST ([@!I-D.ietf-moq-transport] Section 9.20.19)
+   cannot shorten that wait: Group numbers of an mmtp track follow
+   media time (Section 4.4.1), so its publisher cannot begin a group
+   early, and it leaves the DYNAMIC_GROUPS Track Property
+   ([@!I-D.ietf-moq-transport] Section 10.6) at its default of 0.
 
 4. **Repair track.** If the subscriber wants FEC protection and the
    catalog signals FEC for the track, it SHOULD subscribe to the
@@ -1373,47 +1428,31 @@ A subscriber joins a live mmtp-packaged track as follows:
 
 ## Relay Retention for Late Joiners
 
-A relay that admits subscribers mid-stream SHOULD retain, for each
-track it serves, all objects of the current (most recent) group.
-
-When a subscription joins mid-group, the relay SHOULD deliver the
-retained objects of the current group from the group start --
-including objects of subgroups that were already complete or still
-open at join time -- in subgroup and object order, ahead of or
-interleaved with newly arriving objects.  A relay that holds earlier
-objects of the current group MUST NOT deliver only objects published
-after the join; doing so strands the subscriber until the next group
-boundary and defeats retention.
-
-Two completeness rules apply to replayed subgroups:
-
-1. The relay MUST track which retained subgroups are finalized
-   (closed by the publisher) and, when replaying a finalized
-   subgroup, MUST deliver it completely; replaying a partial prefix
-   of a finalized subgroup and silently omitting the remainder
-   produces an MFU the receiver can never reassemble and is
-   indistinguishable from network loss.
-2. The relay SHOULD deliver retained subgroups in ascending Subgroup ID
-   and objects in their source order.  Under the positional mapping of
-   Section 4.3, this delivers Subgroup 0 and every lower-numbered
-   governing metadata subgroup before its FT=2 subgroup without parsing
-   MMTP.  Receivers still enforce Subgroup-ID order (Section 4.3).
+This section is informative.  A relay serves the fill fetch stream of
+Section 6.1 from its cache, and fetches from upstream the objects it
+does not hold ([@!I-D.ietf-moq-transport] Sections 3.2.3 and 3.4).  A
+relay that caches the current group of each track it serves can
+therefore start a late joiner without an upstream round trip.  The
+join needs no mmtp-specific relay behavior.  A fill fetch stream
+sends a group's objects in Object ID order, which is source order on
+an mmtp track (Section 4.6), so it delivers Subgroup 0 and each
+metadata subgroup before the FT=2 subgroups that depend on them, and
+the relay does not parse MMTP.
 
 Retention of groups older than the current group (for example to
 serve FETCH-based catch-up) is permitted but out of scope for this
-document.  Under cache pressure a relay MAY evict retained objects;
-eviction converts a late join into a wait for the next group
-boundary, which is the same behavior as a relay that retains nothing.
+document.
 
 # FEC Integration
 
 MMT's AL-FEC framework supports multiple FEC schemes, with the MMT
-FEC codes specified in [@?ISO.23008-10] and parameters signaled via
+FEC codes specified in [@!ISO.23008-10] and parameters signaled via
 MMTP signaling messages or, in ATSC 3.0, via S-TSID (which is part of
 the ROUTE transport layer).  For MoQ, RaptorQ [@!RFC6330] is the
-mandatory-to-implement and only fully
-specified scheme ([@!MOQ-FEC] Section 4.3), and FEC repair uses the
-model defined in [@!MOQ-FEC]:
+mandatory-to-implement scheme ([@!MOQ-FEC] Section 4.3).
+[@!MOQ-FEC] also fully specifies an OPTIONAL scheme, "reed-solomon":
+the Reed-Solomon code of [@!ISO.23008-10] Clause 6.  FEC repair uses
+the model defined in [@!MOQ-FEC]:
 
 ~~~
 Source Track: video
@@ -1471,8 +1510,9 @@ The signaling object is not an FEC source symbol.  Its MMTP packet
 has FEC Type 0 and no Source FEC Payload ID; it is not protected by
 any repair symbol, is not counted in any FEC block or in
 `sourceSymbols` (K), and has no SS_ID and no Encoding Symbol ID.
-Because it occupies an Object ID in Subgroup 0, Object IDs on an mmtp
-source track are not positions in the FEC block: a receiver MUST take
+Because it occupies an Object ID (Object ID 0 of its group,
+Section 4.6), Object IDs on an mmtp source track are not positions
+in the FEC block: a receiver MUST take
 each source symbol's SS_ID from the Source FEC Payload ID that trails
 its FEC Type 1 packet ([@!MOQ-FEC] Section 8.5), never from its
 Object ID, and places the symbol in its block by that SS_ID
@@ -1491,8 +1531,9 @@ behind such a gap.
 When used with MMT packaging, the catalog `fec` fields map as
 follows:
 
-- **algorithm**: Typically "raptorq" for ATSC 3.0 ingest,
-  or as specified in MMTP AL-FEC signaling
+- **algorithm**: Typically "raptorq" for ATSC 3.0 ingest, or the
+  value whose code point the MMTP AL-FEC message carries in
+  `fec_code_id_for_repair_flow` (Section 8.3)
 - **blockProfile**: "iso-ssbg1-v1" ([@!MOQ-FEC] Section 5.1), the
   ISO 23008-1 Annex C block profile, for which an AL-FEC message
   carries the coding byte 0x14 (Section 8.3); REQUIRED when
@@ -1559,6 +1600,10 @@ track whose `fec.blockProfile` is "iso-ssbg1-v1", that entry carries:
 - the coding byte 0x14, that is `fec_coding_structure` 0001
   (one-stage), `ssbg_mode` 01, `ffsrpts_flag` 0 and
   `fec_payload_id_mode` 0 ([@!MOQ-FEC] Section 7.3);
+- as its `fec_code_id_for_repair_flow`, the code point that
+  [@!ISO.23008-10] Table 1 assigns to the code that the track's
+  `fec.algorithm` names: 3, the "6330 code" (RaptorQ), for "raptorq",
+  and 1, the Reed-Solomon code, for "reed-solomon";
 - as its `repair_flow_id`, the packet_id of the layer-0 repair
   packets.  [@!ISO.23008-1.AMD1] makes this field 16 bits in the
   one-stage branch, where the 2023 edition of Table C.3 gives it 8
@@ -1619,7 +1664,7 @@ adds the per-track `fec` object and the `fec-repair` packaging
 value, and [@!MOQ-MULTICAST] adds the root-level `multicast`
 member.  Every catalog field this suite uses is defined either by
 [@!I-D.ietf-moq-msf] or locally by a document of this suite (with
-`cmaf` tracks and `initData` per [@?I-D.ietf-moq-cmsf]); no field
+`cmaf` tracks per [@?I-D.ietf-moq-cmsf]); no field
 is defined by any other catalog specification.
 
 ## Packaging Value and Track Fields
@@ -1650,7 +1695,7 @@ Per-track catalog fields for mmtp packaging:
 | `altGroup` | OPTIONAL | Number | Switching-set membership key ([@!I-D.ietf-moq-msf] Section 5.2.12, profiled in Section 4.4) |
 | `keyframeIntervalMs` | OPTIONAL | Number | Keyframe/GOP cadence, integer ms; video only (Section 4.4.3); defined by this document |
 | `keyframeIntervalTicks` | OPTIONAL | Number | Integer-tick override for the keyframe interval (Section 4.4.3); defined by this document |
-| `initData` | OPTIONAL | String | Base64 ftyp+moov init segment ([@?I-D.ietf-moq-cmsf] Section 3.1, profiled in Section 4.5) |
+| `initRef` | OPTIONAL | String | `id` of the root `initDataList` entry, of type "inline", that holds the base64 ftyp+moov init segment ([@!I-D.ietf-moq-msf] Sections 5.1.7 and 5.2.13, profiled in Section 4.5) |
 | `fec` | OPTIONAL | Object | AL-FEC parameters, defined in [@!MOQ-FEC] Section 5 (Section 8) |
 
 All other base track fields of [@!I-D.ietf-moq-msf] Section 5.2
@@ -1666,7 +1711,7 @@ one subgroup per FT=0, FT=1, or FT=2 data unit as defined in Sections
 `mmtpMode` is absent or has any other value; the object layout cannot
 be inferred safely from received objects.
 
-Example:
+Example, with the `data` value shortened:
 
 ~~~ json
 {
@@ -1680,7 +1725,13 @@ Example:
     "codec": "avc1.64001f",
     "width": 1920,
     "height": 1080,
-    "framerate": 30
+    "framerate": 30,
+    "initRef": "video-init"
+  }],
+  "initDataList": [{
+    "id": "video-init",
+    "type": "inline",
+    "data": "AAAAIGZ0eXBpc29t..."
   }]
 }
 ~~~
@@ -2132,3 +2183,56 @@ fixed number of Groups.  The publisher signals each block's `SS_Start`
 and `SSB_length` in its repair packets ([@!MOQ-FEC] Sections 7.1 and
 7.4).  The full-block OTI calculation above is therefore a catalog
 bound and does not replace that per-block signaling.
+
+# Changes Since draft-ramadan-moq-mmt-00
+
+This appendix is informative.  It is to be removed before
+publication as an RFC.
+
+- Object IDs are numbered per group: 0 for the first object of a
+  group and one more for each later object in source order, across
+  subgroups, as [@!I-D.ietf-moq-msf] Section 6.2 requires.  In -00
+  they restarted at 0 in each subgroup, so several objects of one
+  group shared an Object ID, which [@!I-D.ietf-moq-transport]
+  Section 2.1 does not allow (Sections 3.1, 4.1, 4.6, 5, 5.2, and 8).
+- Section 4.1 states that an mmtp track maps one data unit, not one
+  object, to a stream, unlike [@!I-D.ietf-moq-msf] Section 6, and
+  keeps the Group and Object numbering of its Sections 6.1 and 6.2.
+- The join (Section 6.1, step 3) uses the current-group join of
+  [@!I-D.ietf-moq-transport] Section 3.5: SUBSCRIBE with a Next
+  Object LOCATION_FILTER and FILL_PARAMETERS with StartGroup = 1.
+  Section 6.2 is now an informative note.  The relay replay and
+  completeness requirements of -00 are removed, because a publisher
+  must not send objects outside the requested range
+  ([@!I-D.ietf-moq-transport] Section 3.3.1).
+- Section 6.1 notes that NEW_GROUP_REQUEST cannot shorten a wait for
+  the next group on an mmtp track, whose Group numbers follow media
+  time.
+- Catalog initialization data uses the `initDataList` and `initRef`
+  fields of [@!I-D.ietf-moq-msf] in place of the per-track `initData`
+  field, which the current revisions of [@!I-D.ietf-moq-msf] and
+  [@?I-D.ietf-moq-cmsf] do not define.  A receiver may still accept
+  `initData` from -00 implementations (Sections 4.5, 6.1, 12, and
+  12.1).
+- Switching sets (Sections 4.4 and 4.4.2): an intra-only mmtp track
+  may use a group duration that divides that of the GOP tracks a
+  whole number of times.  The exception applies to mmtp tracks only,
+  so cmaf members keep the Group number alignment of
+  [@?I-D.ietf-moq-cmsf] Section 3.2.  The g * n Group mapping is the
+  alternate mechanism of [@!I-D.ietf-moq-msf] Section 4.2, and the
+  10^-3 tolerance only classifies a track as intra-only.
+- Section 4.4.2, Table 3: the optional `timescale` field of cmaf
+  tracks is attributed to [@!I-D.ietf-moq-msf] Section 5.2.21, not to
+  [@?I-D.ietf-moq-cmsf].  A loc track without a catalog `timescale`
+  uses its LOC TIMESCALE Property when present.
+- Section 8.3: the AL-FEC message carries in
+  `fec_code_id_for_repair_flow` the [@!ISO.23008-10] Table 1 code
+  point of the track's algorithm: 3 for "raptorq" and 1 for
+  "reed-solomon".  Sections 7 and 8.1 follow [@!MOQ-FEC], which now
+  fully specifies "reed-solomon" as an OPTIONAL scheme.
+  [@!ISO.23008-10] is now a normative reference.
+- Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
+  has expired, and its content continues as [@?I-D.ietf-moq-cmsf].
+  The FEC column names the [@!MOQ-FEC] block profile for each
+  packaging, including "moq-object-v1" for loc and cmaf tracks.
+- References to the companion drafts point to their -01 revisions.
