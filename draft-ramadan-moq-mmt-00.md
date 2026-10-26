@@ -413,9 +413,12 @@ media (e.g., an ABR ladder), they form a switching set: a set of
 alternate tracks that MUST be time-aligned per
 [@!I-D.ietf-moq-msf] Section 4.2 (the same construct that
 [@?I-D.ietf-moq-cmsf] Section 3.2 applies to CMAF tracks).  MoQ
-Group numbers MUST be media-time-aligned across all tracks of a
-switching set so that subscribers can switch at group boundaries;
-the switch is without discontinuity when the MPUs are closed GOPs.  On
+Group boundaries MUST be media-time-aligned across all tracks of a
+switching set so that subscribers can switch at group boundaries.
+Tracks with equal group durations MUST carry the same Group number for the
+same media interval; where the intra-only exception of Section 4.4.2
+permits unequal durations, that section defines the Group number
+mapping.  The switch is without discontinuity when the MPUs are closed GOPs.  On
 a join or switch at a Group boundary, leading pictures (Section 4.4.1)
 that reference the preceding Group are not decodable, and presentation
 of the new track begins at its RAP.  If the old track's next MPU has
@@ -709,6 +712,49 @@ equality with integer arithmetic:
 A.groupDurationTicks * B.timescale ==
     B.groupDurationTicks * A.timescale
 ~~~
+
+One exception applies.  A track is intra-only when its `framerate`
+field is present and its group duration is one frame period at that
+rate:
+
+~~~
+groupDurationTicks * framerate == timescale
+~~~
+
+Because `framerate` need not be an integer (29.97), this comparison is
+made within a relative tolerance of 10^-3 of `timescale`; a GOP track
+misses it by a factor of at least two.  Every other track in the
+switching set is a GOP track.  Exact equality above is required between
+all GOP tracks.  An intra-only track I MAY instead publish a shorter
+group duration that divides that of the GOP tracks a whole number of
+times.  For every GOP track G in the switching set:
+
+~~~
+(G.groupDurationTicks * I.timescale) %
+    (I.groupDurationTicks * G.timescale) == 0
+~~~
+
+Since an intra-only track has a group boundary at every frame, each GOP
+group boundary is also one of its group boundaries, and switching
+remains group-aligned.  With quotient
+`n = (G.groupDurationTicks * I.timescale) / (I.groupDurationTicks *
+G.timescale)` and a shared presentation anchor, Group g of G starts at
+the same instant as Group g * n of I.  A subscriber can therefore switch
+from G to I at any G group boundary.  It can switch from I to G only at
+an I group whose number is a multiple of n.  Each intra-only track is
+checked only against the GOP tracks, so switching between two
+intra-only tracks of one switching set is group-aligned only at GOP
+track group boundaries.  The exception does not
+apply to a switching set with no GOP track: intra-only tracks with no
+GOP peer still require exact equality.
+
+For example, a 15 fps intra-only base track with `timescale: 90000` and
+`groupDurationTicks: 6000` may share a switching set with a 15 fps GOP
+track with `timescale: 1000000` and `groupDurationTicks: 1000000`,
+because `1000000 * 90000 = 15 * (6000 * 1000000)`.  With
+`groupDurationTicks: 1050000` on the GOP track the remainder is non-zero
+and the catalog is invalid.  Two GOP tracks with group durations of 2 s
+and 1 s are invalid even though one nests in the other.
 
 Subscribers SHOULD validate this at catalog load and, on disagreement,
 SHOULD reject the catalog and signal a catalog-validation error to the
