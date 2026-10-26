@@ -169,38 +169,46 @@ for TLS certificate and SNI validation and MUST use a bounded attempt
 for each candidate.  A candidate is healthy only after the QUIC
 handshake, supported MoQ ALPN negotiation, MoQ session setup, and the
 capability or catalog check needed by the requested service have
-succeeded.  Receivers SHOULD race a bounded number of candidates in
-parallel (or use an equivalent bounded strategy), select the first
-healthy candidate, and cancel the losing attempts.  A candidate that
+succeeded.  Receivers MUST bound both the number of concurrent candidate
+attempts and the duration of each attempt.  They SHOULD race a bounded
+batch of candidates in parallel (or use an equivalent bounded strategy),
+select the first healthy candidate, and cancel the losing attempts.  A candidate that
 completes QUIC but fails MoQ setup or capability validation MUST NOT
 prevent another candidate from being tried.
 
 For an AMT relay, a receiver MUST complete the AMT Discovery,
-Advertisement, Request, and Membership Query exchange (as applicable
-to the AMT version) and receive the first data packet for the requested
-source and group before selecting the candidate.  A relay that answers
-DNS or sends an Advertisement but does not complete this validation is
-not healthy.  After selection, the receiver MUST use bounded liveness
-and membership-refresh timers and MUST repeat DNS resolution and the
-candidate race after tunnel failure or liveness expiry.
+Advertisement, Request, and Membership Query exchange when those
+messages are used, and MUST wait for either the first data packet for
+the requested source and group or a configured finite post-Membership-
+Query/Update wait to expire.  A receiver MUST NOT wait indefinitely for
+data: for a source declared sparse or idle by local policy, expiry of
+that wait MAY permit selection after the control-plane exchange, but
+the result is control-plane health rather than proof of data-plane
+delivery.  A relay that answers DNS or sends an Advertisement but does
+not complete the exchange is not healthy.  After selection, the
+receiver MUST use bounded liveness and membership-refresh timers and
+MUST repeat DNS resolution and the candidate race after tunnel failure
+or liveness expiry.
 
 Receivers SHOULD honor DNS TTLs for new connection attempts and SHOULD
 apply only bounded negative caching.  An established connection MAY
 continue after its DNS answer expires, but a reconnect MUST NOT pin a
 previous address indefinitely.  Retries MUST use bounded backoff and
-MUST cancel stale attempts before starting an unbounded accumulation of
-candidate connections.  If no candidate becomes healthy, the receiver
-uses the next permitted delivery path or remains in retry state
-according to local policy; it MUST NOT declare a path healthy solely
-because DNS returned an answer.
+MUST cancel stale attempts before starting another bounded batch; at no
+time may candidate attempts accumulate without a bound.  If no candidate
+becomes healthy, the receiver uses the next permitted delivery path or
+remains in retry state according to local policy; it MUST NOT declare a
+path healthy solely because DNS returned an answer.
 
 This procedure applies equally to service hostnames obtained from
-configuration, Traffic Operations, or a multicast catalog.  A catalog
-MUST NOT be interpreted as an authority to bypass protocol health
-validation.  A literal IP address is permitted for an explicitly
-configured static deployment, but it does not provide DNS locality
-steering and is not the preferred form for a service that has multiple
-upstreams.
+configuration, an operator provisioning system, or a multicast catalog.
+An operator provisioning system is a control-plane service that publishes
+the service hostname, transport metadata, and policy; it is not a
+substitute for receiver-side protocol health validation.  A catalog MUST
+NOT be interpreted as an authority to bypass that validation.  A literal
+IP address is permitted for an explicitly configured static deployment,
+but it does not provide DNS locality steering and is not the preferred
+form for a service that has multiple upstreams.
 
 # Multicast Catalog Extension
 
@@ -270,8 +278,8 @@ audio/video groups) use multiple elements:
     ],
     "networkSource": [{
       "type": "amt",
-      "discovery": "driad",
-      "relay": "amt.example.com"
+      "relay": "amt.example.com",
+      "discovery": "dns"
     }]
   }
 }
@@ -423,11 +431,12 @@ Defined types:
 }
 ~~~
 
-**relay** (string, OPTIONAL): AMT relay service name.  A hostname is
-the preferred form and identifies the service for DNS resolution and
-TLS or other protocol identity checks; its A and AAAA answers are
-candidate addresses.  A literal IP address is a static-deployment
-form and does not provide DNS locality steering.
+**relay** (string, OPTIONAL): AMT relay service name.  With `dns`, it
+MUST be a hostname whose A and AAAA answers are candidate addresses.
+With `manual`, it MUST be the literal address of the explicitly
+configured relay.  It MUST be omitted with `driad`, because DRIAD
+supplies the relay candidates.  A literal address does not provide DNS
+locality steering.
 
 **port** (integer, OPTIONAL): UDP port on which the AMT relay
   accepts requests.  When absent, the IANA-assigned AMT port (2268,
@@ -441,26 +450,38 @@ form and does not provide DNS locality steering.
     available.
   - "driad": DNS Reverse IP AMT Discovery per [@!RFC8777].
     Subscribers query the source IP's reverse DNS for AMT relay
-    records.  Each discovered relay is still a candidate and MUST be
-    validated with the AMT protocol before selection.
+    records; `relay` MUST be omitted.  Each discovered relay is still a
+    candidate and MUST be validated with the AMT protocol before
+    selection.
   - "manual": Relay address is provided in the `relay` field.
     This is intended for explicitly configured static deployments.
 
 For `dns`, subscribers MUST resolve the hostname at each connection
-and reconnect attempt, race bounded AMT validation attempts for the
-returned A and AAAA candidates, and select only a candidate that
-completes Discovery, Advertisement, Request, Membership Query, and
-first `(S,G)` data validation, as applicable to the AMT version.
-Receivers MUST cancel losing attempts.  DNS answer order is not a
-health signal.
+and reconnect attempt, bound both the number and duration of AMT
+validation attempts, and race a bounded batch for the returned A and
+AAAA candidates.  The receiver MUST wait for either first `(S,G)` data
+or the configured finite post-Membership-Query/Update wait.  It MUST
+select only a candidate that completes the AMT control-plane exchange;
+for a sparse or idle source, selection after the wait expires records
+control-plane health without claiming data-plane proof.  DNS answer
+order is not a health signal.
+
+When cancelling a losing AMT attempt that has reached the Query/Update
+state, the receiver MUST send a Membership Update carrying the IGMP/MLD
+leave (withdrawal) for the requested `(S,G)` [@!RFC7450] Section 5.1.5,
+then close that candidate's socket.  An attempt that has not reached
+that state is cancelled by closing its socket; a failed cancellation is
+bounded and MUST NOT keep the candidate attempt alive.
 
 Subscribers SHOULD attempt AMT discovery in this order:
 
 1. Use receiver-owned DNS candidate discovery when `discovery` is
-   "dns" or when `relay` is a hostname and `discovery` is omitted.
+   "dns", or when `discovery` is omitted and `relay` is a hostname.
 2. Use DRIAD discovery on the SSM source IP when `discovery` is
-   "driad" or when DNS service discovery is unavailable.
-3. Use a literal `relay` directly only for `manual` or an explicitly
+   "driad", or when both `discovery` and `relay` are omitted and the
+   source IP has DRIAD records.
+3. Use a literal `relay` directly when `discovery` is "manual", or when
+   `discovery` is omitted and `relay` is a literal under an explicitly
    permitted static-deployment policy.
 4. Fall back to MoQ/QUIC unicast.
 
@@ -509,7 +530,7 @@ When a stream is available via multiple delivery technologies, the
 ~~~ json
 {
   "networkSource": [
-    { "type": "amt", "relay": "198.51.100.1", "discovery": "driad" },
+    { "type": "amt", "discovery": "driad" },
     { "type": "atsc3", "frequency": 533000, "plpId": 0 }
   ]
 }

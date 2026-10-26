@@ -76,11 +76,28 @@ class PublishedExamples(unittest.TestCase):
             self.assertIn("DNS answer order", text)
             self.assertIn("MUST NOT", text)
             self.assertIn("cancel", text)
+            self.assertIn("bounded batch", text)
             self.assertIn("Discovery", text)
             self.assertIn("Advertisement", text)
             self.assertIn("Request", text)
             self.assertIn("Membership Query", text)
-            self.assertIn("first", text)
+            self.assertIn("post-Membership", text)
+            self.assertIn("Membership Update", text)
+            self.assertIn("leave", text)
+            self.assertIn("operator provisioning system", text)
+
+    def test_amt_discovery_combinations_are_unambiguous(self):
+        for name in ("draft-ramadan-moq-multicast-01.md", "draft-ramadan-moq-multicast-01.xml"):
+            text = (ROOT / name).read_text(encoding="utf-8")
+            self.assertIn('"relay": "amt.example.com"', text)
+            self.assertIn('"discovery": "dns"', text)
+            self.assertIn('"discovery": "driad"', text)
+            self.assertNotIn('"discovery": "driad",\n      "relay":', text)
+            if name.endswith(".md"):
+                self.assertIn("**relay** (string, OPTIONAL)", text)
+        markdown = (ROOT / "draft-ramadan-moq-multicast-01.md").read_text(encoding="utf-8")
+        self.assertIn("discovery` is omitted and `relay` is a hostname", markdown)
+        self.assertIn("discovery` is omitted and `relay` is a literal", markdown)
 
     def test_iso_catalogs_have_required_fields_and_repair_references(self):
         required = {"algorithm", "blockProfile", "sourceSymbols", "repairSymbols", "symbolSize", "repairTrack"}
