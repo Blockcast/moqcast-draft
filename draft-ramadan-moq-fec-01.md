@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-10-14T00:00:00Z"
+date = "2026-10-26T00:00:00Z"
 keyword = ["FEC", "RaptorQ", "MoQ", "Reed-Solomon", "ATSC 3.0"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-moq-fec-00"
+value = "draft-ramadan-moq-fec-01"
 stream = "IETF"
 status = "standard"
 
@@ -2994,7 +2994,7 @@ for that format, this document requests registration of:
     </author>
     <date year='2026'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-01'/>
 </reference>
 
 <reference anchor='MOQ-MULTICAST'>
@@ -3005,7 +3005,7 @@ for that format, this document requests registration of:
     </author>
     <date year='2026'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-01'/>
 </reference>
 
 <reference anchor='QUIC-MULTICAST' target='https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/'>

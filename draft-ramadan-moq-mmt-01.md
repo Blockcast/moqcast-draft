@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-10-14T00:00:00Z"
+date = "2026-10-26T00:00:00Z"
 keyword = ["MMT", "MMTP", "MoQ", "ATSC 3.0", "FEC"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-moq-mmt-00"
+value = "draft-ramadan-moq-mmt-01"
 stream = "IETF"
 status = "standard"
 
@@ -1944,7 +1944,7 @@ document in this suite requests a control-message codepoint.
     </author>
     <date year='2026'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-01'/>
 </reference>
 
 <reference anchor='MOQ-MULTICAST'>
@@ -1955,7 +1955,7 @@ document in this suite requests a control-message codepoint.
     </author>
     <date year='2026'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-01'/>
 </reference>
 
 <reference anchor='ATSC-A331' target='https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/'>

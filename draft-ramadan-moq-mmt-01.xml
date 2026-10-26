@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
-<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-mmt-00" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-mmt-01" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
 <front>
-<title abbrev="MMT for MoQ">MPEG Media Transport (MMT) Packaging for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-mmt-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<title abbrev="MMT for MoQ">MPEG Media Transport (MMT) Packaging for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-mmt-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="October" day="14"></date>
+</address></author><date year="2026" month="October" day="26"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>MMT</keyword>
@@ -2035,7 +2035,7 @@ document in this suite requests a control-message codepoint.</t>
     </author>
     <date year="2026"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MULTICAST" target="">
   <front>
@@ -2045,7 +2045,7 @@ document in this suite requests a control-message codepoint.</t>
     </author>
     <date year="2026"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-01"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.6330.xml"/>
