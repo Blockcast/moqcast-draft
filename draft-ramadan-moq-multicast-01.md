@@ -57,8 +57,16 @@ signaling of QUIC:
 4. **Multi-path delivery**: Combining MoQ unicast and multicast for
    seamless failover and FEC symbol deduplication
 
-MoQ relays MAY operate as TreeDN [@?RFC9706] nodes for hierarchical
-distribution.
+These mechanisms follow TreeDN [@?RFC9706], which gives an
+incremental path to native multicast.  A network that supports
+multicast delivers the stream to its receivers as native SSM.  A
+receiver on a unicast-only network reaches the same stream through an
+AMT relay [@!RFC7450] that it finds with DRIAD [@!RFC8777]
+(Section 4.2.1).  Each network can therefore turn on multicast when
+it is ready, and its receivers use AMT until then.  An AMT relay can
+replicate packets in router forwarding hardware or in a kernel data
+plane, so relay fan-out does not cost a server per receiver.  MoQ
+relays MAY operate as TreeDN nodes for hierarchical distribution.
 
 ## Multicast as Supplement to MoQ Unicast
 
@@ -247,7 +255,10 @@ Endpoint field definitions:
   Each element is an object with the following fields:
 
   - **name** (string, REQUIRED): Track name corresponding to the
-    track identifier used in the MoQ catalog.
+    track identifier used in the MoQ catalog.  The named track MUST
+    be a track whose `packaging` is `mmtp` ([@!MOQ-MMT] Section 12.1)
+    or a `fec-repair` track that repairs such a track ([@!MOQ-FEC]
+    Section 5.1.1).
   - **packetId** (integer, REQUIRED): MMTP packet_id used for
     packet-level track routing on multicast.  Maps directly to the
     Packet ID field in the MMTP header (Section 3.1 of
@@ -302,7 +313,21 @@ inconsistent -- for example, a `protocol` of "ssm" with
 of "asm", or a `groupAddress` outside the multicast address space.
 Receivers MUST likewise ignore an endpoint that lists a track
 `packetId` outside the range 1..65535, including 0, the MMTP
-signaling flow.
+signaling flow.  They MUST also ignore an endpoint that lists a track
+that the `name` field does not permit.
+
+This document defines multicast carriage only for mmtp tracks
+(Section 5).  To offer a track packaged as loc [@?I-D.ietf-moq-loc]
+or cmaf [@?I-D.ietf-moq-cmsf] on multicast, a publisher also
+publishes an mmtp rendition of the same media: a separate track whose
+`packaging` is `mmtp`, with its own name, `packetId`, `fec` object
+and repair tracks, in the same `altGroup` as the loc or cmaf track
+(Section 6.1).  The endpoint lists the mmtp rendition track.  A
+receiver that holds the loc or cmaf track over MoQ receives the mmtp
+rendition track on multicast in its place.  The two tracks are
+separate FEC instances ([@!MOQ-FEC] Section 6.4.1), so symbols of
+one never repair the other, and the multi-path combining of
+Section 6 applies within the mmtp rendition track only.
 
 Subscribers receiving a catalog with multicast endpoints MAY
 auto-connect to the multicast group when multicast APIs are
@@ -323,7 +348,9 @@ MoQ/QUIC unicast (Section 6).
 
 During multicast join (which may take 1-3 seconds for IGMP/MLD),
 subscribers SHOULD continue receiving via MoQ/QUIC.  Once multicast
-data arrives, subscribers switch to the multicast path.
+data arrives, subscribers switch to the multicast path.  Once
+multicast delivery is verified, they pause or end the unicast
+subscriptions that the multicast path replaces (Section 6.3).
 
 If multicast reception fails or degrades, subscribers fall back
 to MoQ/QUIC unicast per Section 6.
@@ -448,10 +475,12 @@ comes from the catalog ([@!MOQ-FEC] Sections 4.2 and 5.2); a
 receiver without the catalog relies on the in-band signaling below.
 
 Frame-sized LOC [@?I-D.ietf-moq-loc] or CMAF [@?I-D.ietf-moq-cmsf]
-objects exceed a UDP datagram; the MMTP MPU-mode payload format
+objects exceed a UDP datagram, while the MMTP MPU-mode payload format
 fragments media into MTU-sized packets ([@!ISO.23008-1]
-Clause 9.3.2; [@!MOQ-MMT] Section 5.2), so multicast carriage uses
-MMTP regardless of a track's unicast packaging.
+Clause 9.3.2; [@!MOQ-MMT] Section 5.2).  Multicast carriage therefore
+uses MMTP: an endpoint lists only mmtp tracks and their repair
+tracks, and a loc or cmaf track reaches multicast through an mmtp
+rendition track (Section 4.1).
 
 No additional multicast framing, encapsulation, or header format is
 needed.  The MMTP packet format is defined in [@!ISO.23008-1]
@@ -575,15 +604,31 @@ When symbols arrive from multiple paths simultaneously, receivers:
    MoQ/QUIC with repair symbols via lossy multicast -- skipping
    FEC decoding when all source symbols arrive reliably
 
-Multicast-to-unicast failover: if multicast reception fails,
-subscribers fall back to MoQ/QUIC unicast by subscribing with the
-Largest Object filter (to resume at the live edge) or the Next Group
-Start filter (to resume at the next group boundary) per
-[@!I-D.ietf-moq-transport].  No coordinate mapping between multicast
-SS_IDs and MoQ Group IDs is needed -- the relay provides the current
-position.  Failover replaces
-the multicast path; it is distinct from per-block unicast repair
-(Section 6.2), which leaves the multicast subscription in place.
+Multicast-to-unicast failover: if multicast reception fails, a
+subscriber falls back to MoQ/QUIC unicast.  It resumes a unicast
+subscription that it paused when it switched to multicast, as
+Section 6.3 describes.  Otherwise it subscribes again, with a
+SUBSCRIBE whose LOCATION_FILTER parameter ([@!I-D.ietf-moq-transport]
+Section 9.20.9) sets where delivery starts, using one of the joins of
+[@!I-D.ietf-moq-transport] Section 3.5:
+
+- Next Object (Location Filter Type 0x05) starts at the live edge.
+  Delivery can begin in the middle of a group.
+- Next Object together with a FILL_PARAMETERS parameter
+  ([@!I-D.ietf-moq-transport] Section 9.20.15) whose LOCATION_FILTER
+  is Relative Start (0x01) with StartGroup 1 also delivers the
+  current group from its start, on a fill fetch stream
+  ([@!I-D.ietf-moq-transport] Section 3.4).  This is the join of
+  [@!MOQ-MMT] Section 6.1, and the one to use when the receiver
+  cannot decode from the middle of a group.
+- Relative Start (0x01) with StartGroup 0 starts at the next group.
+
+No coordinate mapping between multicast SS_IDs and MoQ Group IDs is
+needed, because the publisher resolves each of these filters against
+its Largest Object ([@!I-D.ietf-moq-transport] Section 3.1.4).
+Failover replaces the multicast path; it is distinct from per-block
+unicast repair (Section 6.2), which leaves the multicast subscription
+in place.
 
 ## Packaging Negotiation
 
@@ -600,29 +645,74 @@ repair symbols it receives on its multicast paths.  For a block that
 in-band FEC leaves unrecovered at its FEC deadline, a receiver that
 holds a MoQ session (Section 1.1) applies the receiver repair policy
 of [@!MOQ-FEC] Section 11.4, which repairs a keyframe-bearing block
-by a standalone FETCH [@!I-D.ietf-moq-transport] of the block's
-repair-track group.  That group's ID is the block's SS_Start, from
-the Repair FEC Payload ID of a multicast repair packet of the block,
-extended to 62 bits with the wrap epoch of [@!MOQ-FEC] Section 7.5.
+by a FETCH [@!I-D.ietf-moq-transport] of the block's repair-track
+group.  That group's ID is the block's extended SS_Start
+([@!MOQ-FEC] Section 7.5): the SS_Start from the Repair FEC Payload
+ID of a multicast repair packet of the block, extended with the wrap
+epoch to a value in [0, 2^62).  MOQT Group IDs range up to 2^64 - 1
+([@!I-D.ietf-moq-transport] Section 8.1); repair Group IDs use only
+[0, 2^62), as [@!MOQ-FEC] Section 7.5 specifies.
 A receiver that takes its repair from multicast has usually received
 no repair-track Group ID over MoQ, so before its first FETCH it
-establishes that epoch from the Largest Location that a TRACK_STATUS
+establishes that epoch from the Largest Object
+([@!I-D.ietf-moq-transport] Section 3.1.4) that a TRACK_STATUS
 request for the repair track reports ([@!I-D.ietf-moq-transport]
-Section 9.13): the Group of the LARGEST_OBJECT parameter in the
+Section 9.13): the Group of the Location in the LARGEST_OBJECT
+parameter ([@!I-D.ietf-moq-transport] Section 9.20.17) of the
 REQUEST_OK (TRACK_STATUS_OK) that answers the request, as
 [@!MOQ-FEC] Section 7.5 specifies, unless it has received such a
-Group ID or has observed the FEC instance from its first block.  For lost source packets whose block it has
-not delimited, because it holds no repair packet of that block, the
-receiver instead fetches the Group range that [@!MOQ-FEC] Section 7.5
-derives from a lost SS_ID.  No other coordinate mapping is needed,
-and the returned symbols are deduplicated per item 1 of Section 6.  A receiver without a MoQ
-session cannot request unicast repair; it relies on in-band FEC and,
-where published, the keyframe overlay ([@!MOQ-FEC] Section 6.4).
+Group ID or has observed the FEC instance from its first block.  For
+lost source packets whose block it has not delimited, because it
+holds no repair packet of that block, the receiver instead fetches
+the Group range that [@!MOQ-FEC] Section 7.5 derives from a lost
+SS_ID.  No other coordinate mapping is needed, and the returned
+symbols are deduplicated per item 1 of Section 6.  A receiver without
+a MoQ session cannot request unicast repair; it relies on in-band FEC
+and, where published, the keyframe overlay ([@!MOQ-FEC] Section 6.4).
 
 A FETCH for a repair-track group that the relay no longer retains
 fails or returns none of the group's objects, and the receiver then
 treats the block as unrecoverable.  How long a relay retains
 repair-track groups is relay policy.
+
+## Unicast Subscriptions After a Switch to Multicast
+
+After a receiver switches to multicast (Section 4.1), it still holds
+the unicast subscriptions that delivered the same media before the
+switch: to the tracks it now receives on multicast, or to their loc
+or cmaf alternatives (Section 4.1), and to their repair tracks.
+While these subscriptions forward objects, the receiver gets the
+media twice, and the network still carries the unicast copy that the
+multicast path replaces.  Once multicast delivery of a track is
+verified, for example by the receipt on multicast of a complete group
+or a complete FEC block of the track, the receiver SHOULD pause these
+subscriptions or end them:
+
+- To pause a subscription, the receiver sends a REQUEST_UPDATE with
+  the FORWARD parameter set to 0 ([@!I-D.ietf-moq-transport]
+  Sections 3.1.1 and 9.20.18).  The subscription stays Established,
+  and the publisher sends no objects on it.  Failback then needs no
+  new SUBSCRIBE.
+- To end a subscription, the receiver sends STOP_SENDING
+  ([@!I-D.ietf-moq-transport] Section 3.1).
+
+The receiver keeps unpaused its subscriptions to tracks that it does
+not receive on multicast, such as the catalog track and any manifest
+track (Section 7.2.1).
+
+On failback (Section 6), the receiver resumes a paused subscription
+with a REQUEST_UPDATE that sets FORWARD to 1.  FILL_PARAMETERS
+carried while a subscription is paused opens no fill fetch stream,
+and resuming without re-sending FILL_PARAMETERS opens none either
+([@!I-D.ietf-moq-transport] Section 3.4.1).  A receiver that needs
+the current group from its start therefore sends FILL_PARAMETERS, as
+in the join of Section 6, in a further REQUEST_UPDATE after it
+receives the REQUEST_UPDATE_OK for the update that resumed the
+subscription.  A receiver that ended its subscriptions subscribes
+again as Section 6 describes.
+
+Pausing or ending these subscriptions does not affect per-block
+unicast repair (Section 6.2), which uses FETCH.
 
 # Security Considerations
 
@@ -834,8 +924,10 @@ is needed.
 
 For broadcast-only receivers, manifest objects are carried in the
 ROUTE signaling carousel, and each source block additionally
-carries the signed group digest in an ALC/LCT EXT_AUTH header
-extension per [@?RFC5775].
+carries the signed group digest in an EXT_AUTH header extension
+(HET 1, [@?RFC5651] Section 5.2.1) of its ALC/LCT packets
+[@?RFC5775].  The extension identifies this profile by its ASID field
+([@?RFC6584] Section 2), whose value the session description assigns.
 
 ### Canonical Encoding
 
@@ -1140,3 +1232,40 @@ The full manifest object (198 octets) carried on the manifest track:
 179971c4e4e9b04ada879d5a96f4980351e2c6e90a1e29f7c2363d959dd974e2
 75a88b0cef7c66d8c38910499282d1bad710bc1cae4c62043978c11506f26c0e
 ~~~
+
+# Changes Since draft-ramadan-moq-multicast-00
+
+This appendix is informative.
+
+- Section 1: added a paragraph on TreeDN [@?RFC9706] as an incremental
+  path to native multicast, with AMT relays found by DRIAD serving
+  unicast-only networks.
+- Section 4.1: an endpoint lists only mmtp tracks and the
+  `fec-repair` tracks that repair them, and a receiver ignores an
+  endpoint that lists any other track.  A loc or cmaf track reaches
+  multicast through an mmtp rendition track in its `altGroup`.
+- Section 4.1: once multicast delivery is verified, a receiver pauses
+  or ends the unicast subscriptions that the multicast path replaces
+  (Section 6.3).
+- Section 5: the paragraph on LOC and CMAF objects now refers to the
+  mmtp rendition rule of Section 4.1.  It no longer says that
+  multicast carriage uses MMTP "regardless of a track's unicast
+  packaging".
+- Section 6: failover uses the joins of [@!I-D.ietf-moq-transport]
+  Section 3.5 (LOCATION_FILTER Next Object or Relative Start, and
+  FILL_PARAMETERS for the current group).  These replace the "Largest
+  Object filter" and "Next Group Start filter", which that document no
+  longer defines.  A paused unicast subscription is resumed instead
+  of subscribing again.
+- Section 6.2: "standalone FETCH" is now FETCH, and "Largest Location"
+  is now Largest Object, with the LARGEST_OBJECT parameter cited.  The
+  text now says that repair Group IDs use only [0, 2^62) of the MOQT
+  Group ID range, which goes up to 2^64 - 1.
+- New Section 6.3: after a switch to multicast, a receiver pauses its
+  unicast subscriptions with REQUEST_UPDATE (FORWARD 0) or ends them
+  with STOP_SENDING, and resumes paused ones on failback.
+- Section 7.2.8: EXT_AUTH is now cited to [@?RFC5651] Section 5.2.1,
+  and its ASID field to [@?RFC6584] Section 2.  [@?RFC5775] alone was
+  cited before.
+- References: [@!MOQ-MMT] and [@!MOQ-FEC] now name their -01
+  revisions.
