@@ -390,8 +390,8 @@ Subscribers query the source IP's reverse DNS for AMT relay
 records.  It is the RECOMMENDED value of this field.</li>
 <li>&quot;manual&quot;: Relay address is provided in the <tt>relay</tt> field.</li>
 </ul>
-<t>Subscribers SHOULD look for a relay in the order of <xref target="RFC8777"></xref>
-Section 3.1.2:</t>
+<t>Subscribers SHOULD look for a relay in the preference order of
+<xref target="RFC8777"></xref> Section 3.1.2, and try the <tt>relay</tt> field ahead of DRIAD:</t>
 
 <ol spacing="compact">
 <li>Look for a relay in the subscriber's own network, with DNS-based
@@ -1311,10 +1311,11 @@ embedded-RP groups.  IGMPv3 and MLDv2 are cited to <xref target="RFC9776"></xref
 <li>Section 4.1: points to Section 6.3, under which a receiver SHOULD
 pause or end the unicast subscriptions that the multicast path
 replaces once multicast delivery is verified.</li>
-<li>Section 4.2.1: relay discovery follows the order of <xref target="RFC8777"></xref>
-Section 3.1.2, so a relay in the subscriber's own network, found
-with DNS-SD or the AMT anycast addresses, comes before the <tt>relay</tt>
-field and DRIAD.  The claim that DRIAD relay addresses are typically
+<li>Section 4.2.1: relay discovery follows the preference order of
+<xref target="RFC8777"></xref> Section 3.1.2, so a relay in the subscriber's own
+network, found with DNS-SD or the AMT anycast addresses, comes
+before the <tt>relay</tt> field and DRIAD.  That order has no <tt>relay</tt>
+field, and the section tries it ahead of DRIAD.  The claim that DRIAD relay addresses are typically
 anycast is removed.  The <tt>port</tt> field now says that a value other
 than 2268 departs from <xref target="RFC7450"></xref> and never applies to a relay
 found by DRIAD.</li>

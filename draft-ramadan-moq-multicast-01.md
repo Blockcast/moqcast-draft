@@ -413,8 +413,8 @@ Defined types:
     records.  It is the RECOMMENDED value of this field.
   - "manual": Relay address is provided in the `relay` field.
 
-Subscribers SHOULD look for a relay in the order of [@!RFC8777]
-Section 3.1.2:
+Subscribers SHOULD look for a relay in the preference order of
+[@!RFC8777] Section 3.1.2, and try the `relay` field ahead of DRIAD:
 
 1. Look for a relay in the subscriber's own network, with DNS-based
    Service Discovery (DNS-SD) [@!RFC6763] for `_amt._udp` and then
@@ -1345,10 +1345,11 @@ as an RFC.
 - Section 4.1: points to Section 6.3, under which a receiver SHOULD
   pause or end the unicast subscriptions that the multicast path
   replaces once multicast delivery is verified.
-- Section 4.2.1: relay discovery follows the order of [@!RFC8777]
-  Section 3.1.2, so a relay in the subscriber's own network, found
-  with DNS-SD or the AMT anycast addresses, comes before the `relay`
-  field and DRIAD.  The claim that DRIAD relay addresses are typically
+- Section 4.2.1: relay discovery follows the preference order of
+  [@!RFC8777] Section 3.1.2, so a relay in the subscriber's own
+  network, found with DNS-SD or the AMT anycast addresses, comes
+  before the `relay` field and DRIAD.  That order has no `relay`
+  field, and the section tries it ahead of DRIAD.  The claim that DRIAD relay addresses are typically
   anycast is removed.  The `port` field now says that a value other
   than 2268 departs from [@!RFC7450] and never applies to a relay
   found by DRIAD.
