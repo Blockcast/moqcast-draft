@@ -26,12 +26,12 @@ organization = "Blockcast"
 .# Abstract
 
 This document specifies the use of MPEG Media Transport (MMT) as a
-container format for Media over QUIC (MoQ).  MMT provides a unified
-framework for streaming media over heterogeneous networks including
-broadcast (ATSC 3.0, ARIB STD-B60), multicast (SSM), and unicast
-(QUIC/WebTransport).  This specification defines the mapping of MMT
-packets to MoQ objects, interaction with Application-Layer FEC,
-bidirectional conversion between S-TSID and MoQ catalogs, and
+container format for Media over QUIC (MoQ).  MMT carries media over
+broadcast (ATSC 3.0, ARIB STD-B60), multicast, and unicast
+(QUIC/WebTransport) networks.  This specification defines the mapping
+of MMT packets to MoQ objects, interaction with Application-Layer FEC,
+bidirectional conversion between the ATSC 3.0 Service-based Transport
+Session Instance Description (S-TSID) and MoQ catalogs, and
 compatibility considerations for both ATSC 3.0 and ARIB STD-B60
 systems.
 
@@ -46,8 +46,9 @@ broadcast television (Americas, South Korea) alongside the primary
 ROUTE/DASH transport, and is the basis for ARIB STD-B60 (Japan).
 MMT provides native support for:
 
-- Media Processing Units (MPU, branded "mpuf" in ISOBMFF) as the
-  media container, with structural similarities to fMP4
+- Media Processing Units (MPU, branded "mpuf" in the ISO Base Media
+  File Format (ISOBMFF) [@!ISO.14496-12]) as the media container,
+  with structural similarities to fMP4
 - Application-Layer FEC (AL-FEC) supporting multiple schemes
   including RaptorQ and Reed-Solomon
 - Cross-layer signaling for adaptive streaming
@@ -58,16 +59,20 @@ over MoQ [@!I-D.ietf-moq-transport], enabling:
 
 1. **Broadcast-to-Unicast bridging**: Content from ATSC 3.0 or ARIB STD-B60
    broadcasts can be relayed to MoQ subscribers without transcoding
-2. **Unified FEC**: MMT's AL-FEC integrates with MoQ FEC repair tracks
+2. **FEC**: MMT's AL-FEC integrates with MoQ FEC repair tracks
    per [@!MOQ-FEC]
-3. **Multicast promotion**: MoQ clients can receive SSM multicast
-   directly when available, per [@!MOQ-MULTICAST]
+3. **Multicast promotion**: MoQ clients can receive Source-Specific
+   Multicast (SSM) directly when available, per [@!MOQ-MULTICAST]
 4. **Bidirectional signaling**: Convert between S-TSID (ATSC) and MoQ
-   catalogs for seamless interoperability
+   catalogs
 
 ## Relationship to Other MoQ Media Formats
 
-This specification complements existing MoQ packaging formats:
+This specification complements existing MoQ packaging formats.  The
+MOQT Streaming Format (MSF) [@!I-D.ietf-moq-msf] carries media
+packaged with the Low Overhead Media Container (LOC)
+[@!I-D.ietf-moq-loc], and CMSF [@?I-D.ietf-moq-cmsf] carries media
+packaged in the Common Media Application Format (CMAF):
 
 | Format | Container | Primary Use Case | FEC Block Profile |
 |--------|-----------|------------------|-------------------|
@@ -76,18 +81,19 @@ This specification complements existing MoQ packaging formats:
 | This spec (MMT) | MMTP + MPU (ISOBMFF) | Broadcast bridge | "iso-ssbg1-v1" |
 
 The last column names the block profile under which [@!MOQ-FEC]
-protects tracks of each packaging.  Under "iso-ssbg1-v1" each MMTP
-packet is a source symbol.  Under "moq-object-v1" each loc or cmaf
-object occupies whole source symbols.
+protects tracks of each packaging.  Under "iso-ssbg1-v1" each FEC
+source packet (FEC Type 1) is one source symbol.  Under
+"moq-object-v1" each loc or cmaf object whose Object Status is Normal
+occupies whole source symbols.
 
-MMT packaging is RECOMMENDED when:
+MMT packaging fits these cases:
 
 - Ingesting ATSC 3.0 or ARIB STD-B60 broadcasts
 - FEC protection is required for multicast delivery
 - Hybrid broadcast/unicast architectures are deployed
 - Interoperability with broadcast receivers is needed
 
-CMAF packaging (CMSF) is RECOMMENDED when:
+CMAF packaging (CMSF) fits these cases:
 
 - Content originates as DASH/HLS
 - No multicast delivery is planned
@@ -111,6 +117,8 @@ data, or an item of non-timed media data, within an MPU
 ([@!ISO.23008-1] Clause 9.3.1)
 
 **AL-FEC**: Application-Layer Forward Error Correction
+
+**AU**: Access Unit
 
 **S-TSID**: Service-based Transport Session Instance Description -
 ATSC 3.0 signaling table containing transport and FEC parameters
@@ -174,7 +182,7 @@ MMTP Header (12 bytes minimum) {
 The fixed fields sum to 96 bits (three 32-bit words).  Byte 0 is
 version(2) | packet_counter_flag(1) | FEC_type(2) | reserved(1) |
 extension_flag(1) | RAP_flag(1); byte 1 is reserved(2) |
-type(6), i.e. the packet type occupies the LOW six bits of
+type(6), i.e. the packet type occupies the low six bits of
 the second byte ([@!ISO.23008-1] Clause 9.2).
 
 Senders MUST set all reserved bits in the MMTP packet header to zero.
@@ -218,21 +226,22 @@ Key fields for MoQ mapping:
   signaling reads it as a signaling message, and any other receiver
   discards it ([@!MOQ-MULTICAST] Section 5 states the same rule for
   every unlisted packet_id on multicast)
-- **Timestamp**: UTC wallclock send time in NTP short format (32
-  bits: 16-bit seconds and 16-bit fraction, relative to the NTP
-  epoch), carried inside the object payload.  MoQ Transport defines
-  no per-object timestamp field; receivers needing the send time read
+- **Timestamp**: UTC wallclock send time in the NTP short format of
+  [@?RFC5905] Section 6 (32 bits: 16-bit seconds and 16-bit fraction,
+  relative to the NTP epoch), carried inside the object payload.  MoQ
+  Transport defines no per-object timestamp field; receivers needing the send time read
   it from the preserved MMTP packet header.  Because the seconds part
   is 16 bits, the value wraps every 65 536 seconds (about 18.2
   hours): it identifies the send time modulo that period and MUST NOT
   be interpreted as an absolute wallclock time without an out-of-band
   era reference.  It is used for packet delivery and jitter
-  measurement and is never media time: not a DTS, PTS, duration,
-  media-clock epoch, or movie-fragment identifier
+  measurement and is never media time: not a decoding timestamp,
+  presentation timestamp, duration, media-clock epoch, or
+  movie-fragment identifier
 - **Packet Sequence Number**: per-`packet_id`, incremented by one modulo
   2^32 across the flow ([@!ISO.23008-1] Clause 9.2.3); carried inside
   the object payload for wrap-aware MMTP-layer loss/ordering detection.
-  It is NOT the MoQ Object ID.  Object IDs number the objects of a
+  It is not the MoQ Object ID.  Object IDs number the objects of a
   group in source order, starting at zero in each group (Section 4.6).
 - **FEC Type**: 0=no AL-FEC, 1=AL-FEC source packet (exactly one
   4-byte Source FEC Payload ID trails the packet, [@!MOQ-FEC]
@@ -287,8 +296,8 @@ An MMT stream maps to MoQ tracks as follows:
 | AL-FEC signaling message (OPTIONAL, packet_id 0) | Object in Subgroup 0 immediately before FT=0 (Section 8) |
 | AL-FEC repair | Track "video/repair" |
 
-[@!I-D.ietf-moq-msf] Section 6 maps each MOQT Object to a new
-stream.  An mmtp track does not follow that rule.  It maps each MPU
+[@!I-D.ietf-moq-msf] Section 6 maps each object to a new stream.  An
+mmtp track does not follow that rule.  It maps each MPU
 data unit to one subgroup (Section 4.3), and the objects of a
 subgroup share one stream ([@!I-D.ietf-moq-transport] Section 2.2),
 so each data unit's fragments travel in order on one stream.  An mmtp
@@ -393,7 +402,7 @@ align with MPU data-unit boundaries:
 
 The MPU sequence number remains present in-band (in the MMTP payload
 header of every MPU fragment) and delimits which packets belong to the
-same group, but it is NOT the MoQ Group number.  Publishers MUST NOT
+same group, but it is not the MoQ Group number.  Publishers MUST NOT
 copy the MPU sequence number into the Group number, and subscribers
 MUST NOT derive media time or switching decisions from it.  (The MPU
 sequence number is a per-Asset counter.  It starts at zero for the first
@@ -413,17 +422,21 @@ authored movie fragment without synthesizing box fields, sample timing,
 or media bytes (Section 5.1).
 
 Mapping each data unit to its own subgroup makes a complete metadata
-unit or sample the unit of in-order delivery, loss, and FEC.  Relays MAY
-deliver subgroups concurrently.  Under unrecoverable congestion a relay
-MAY drop a subgroup;
-the resulting gap invalidates the affected movie fragment rather than
+unit or sample the unit of in-order delivery, loss, and FEC.  A
+publisher MUST send the objects of an mmtp track in subgroups, not as
+datagrams: a datagram object belongs to no subgroup
+([@!I-D.ietf-moq-transport] Section 2.2) and cannot carry this
+mapping.  Subgroups can be delivered concurrently, and a subgroup can
+still be lost, for example when its stream is reset on a delivery
+timeout ([@!I-D.ietf-moq-transport] Sections 5.2 and 11.3.2); the
+resulting gap invalidates the affected movie fragment rather than
 authorizing inferred metadata, timing, or cadence.
 
 ## Switching Sets
 
 When multiple tracks represent alternative renditions of the same
-media (e.g., an ABR ladder), they form a switching set: a set of
-alternate tracks that MUST be time-aligned per
+media (e.g., an adaptive bitrate (ABR) ladder), they form a
+switching set: a set of alternate tracks that MUST be time-aligned per
 [@!I-D.ietf-moq-msf] Section 4.2 (the same construct that
 [@?I-D.ietf-moq-cmsf] Section 3.2 applies to CMAF tracks).  MoQ
 Group boundaries MUST be media-time-aligned across all tracks of a
@@ -434,8 +447,8 @@ shorter group duration than the other tracks, under the exception of
 Section 4.4.2, which also defines its Group number mapping.  A cmaf
 member keeps equal group durations and the Group number alignment
 that [@?I-D.ietf-moq-cmsf] Section 3.2 requires.  The switch is
-without discontinuity when the MPUs are closed GOPs.  On
-a join or switch at a Group boundary, leading pictures (Section 4.4.1)
+without discontinuity when the MPUs are closed groups of pictures
+(GOPs).  On a join or switch at a Group boundary, leading pictures (Section 4.4.1)
 that reference the preceding Group are not decodable, and presentation
 of the new track begins at its RAP.  If the old track's next MPU has
 leading pictures, neither track has decodable pictures for their
@@ -454,8 +467,12 @@ another.  Two tracks are members of the same switching set if and only if both
 carry the `altGroup` field and the values are equal.  A track that
 omits `altGroup` is a member of no switching set, and the
 switching-set requirements of this section do not bind it.  A repair
-track (Section 8.2) protecting a member track
-carries the same `altGroup` value as the track it protects.
+track (Section 8.2) carries no `altGroup`.  It is not an alternate
+rendition, and its Groups are FEC blocks ([@!MOQ-FEC] Section 7.5),
+not media-time-aligned Groups.  A subscriber finds the repair tracks
+of the rendition it selects through that rendition's
+`fec.repairTrack` and the `depends` fields of [@!MOQ-FEC]
+Section 5.1.1.
 
 ### Group Number Formula
 
@@ -540,13 +557,21 @@ The publisher MUST NOT put two different MPUs in one Group, reuse a
 Group number, or alter authored timestamps to satisfy this rule.  A
 publisher that restarts or declares a discontinuity MUST retain the last
 Group number for the existing track instance and resume with a greater
-number; numeric gaps are allowed.  If it cannot do that while preserving
-the formula and authored timing, it MUST close that track instance and
+number; numeric gaps are allowed.  The publisher SHOULD signal the
+skipped numbers with the PRIOR_GROUP_ID_GAP Object Property
+([@!I-D.ietf-moq-transport] Section 10.8), as [@!I-D.ietf-moq-msf]
+Section 6.1 recommends.  If it cannot resume with a greater number
+while preserving the formula and authored timing, it MUST close that
+track instance and
 start a new track with a distinct (namespace, track name) pair before
 emitting the reset MPU.  That new identity is the Group-number
 scope for the restarted stream; it MUST NOT be presented as a
 continuation of the old track.  Group-number state is transport state;
 this document defines no new catalog field for it.
+
+Because its Group numbers follow media time, an mmtp publisher cannot
+start a Group early.  It MUST NOT set the DYNAMIC_GROUPS Track
+Property ([@!I-D.ietf-moq-transport] Section 10.6) to 1.
 
 For two tracks A and B, a receiver can verify that timestamps describe
 the same presentation instant without floating-point conversion:
@@ -661,8 +686,8 @@ Section 12.1):
 |-----------|------------------|
 | `mmtp`    | The `timescale` field, REQUIRED for mmtp tracks (Section 12.1); absence is a catalog error, and the 90 000 `asset_timescale` default of [@!ISO.23008-1] Clause 10.3.9.3 does not apply. |
 | `cmaf`    | The `timescale` field.  [@!I-D.ietf-moq-msf] Section 5.2.21 makes it optional, so this document makes it REQUIRED for any cmaf track to which this section applies (a member of a switching set governed by Section 4.4.1); leaving it unset on such a track is a catalog error. |
-| `loc`     | The `timescale` field; when absent, the track's TIMESCALE Property ([@?I-D.ietf-moq-loc] Section 2.3.1.2) if present, else 1 000 000, the microsecond unit that LOC timestamps use without that Property ([@?I-D.ietf-moq-loc] Section 2.3.1.1).  When the field and the Property are both present they MUST be equal, and a receiver treats a mismatch as a catalog error. |
-| (absent or unrecognized `packaging`) | 1 000 000 (microseconds).  This row covers track entries whose `packaging` value is missing or unrecognized; the convention is fixed by this document and does NOT derive from [@!I-D.ietf-moq-transport]. |
+| `loc`     | The `timescale` field.  As for cmaf, this document makes it REQUIRED for any loc track to which this section applies; leaving it unset on such a track is a catalog error.  When the publisher also sends the TIMESCALE Property ([@!I-D.ietf-moq-loc] Section 2.3.1.2) on such a track, its value MUST equal the field. |
+| (unrecognized `packaging`) | 1 000 000 (microseconds).  This row covers track entries whose `packaging` value is unrecognized; the convention is fixed by this document and does not derive from [@!I-D.ietf-moq-transport].  A track entry without `packaging` is malformed ([@!I-D.ietf-moq-msf] Section 5.2.4) and fails catalog validation (Section 6.1, step 1). |
 
 When `groupDurationTicks` is absent, conversion is
 `groupDurationTicks = groupDurationMs * timescale / 1000`.  The
@@ -708,12 +733,14 @@ not an integer millisecond value:
   "tracks": [{
     "name": "video-30fps",
     "packaging": "mmtp",
+    "isLive": true,
     "mmtpMode": "mfu",
     "timescale": 44100,
     "presentationAnchorTicks": 0,
     "groupDurationTicks": 1470,
     "codec": "avc1.64001f",
-    "framerate": 30
+    "framerate": 30,
+    "bitrate": 2000000
   }]
 }
 ~~~
@@ -788,7 +815,7 @@ on such tracks will produce group-boundary discontinuities.
 ### Catalog Signaling of Keyframe Interval
 
 The group duration above describes the cadence of MMTP media groups
-(one MPU per group, Section 4.3).  It does NOT describe whether an MPU
+(one MPU per group, Section 4.3).  It does not describe whether an MPU
 contains additional keyframes after its required group-start random
 access point.  This document defines an OPTIONAL per-track field for
 the cadence of all keyframes, which the repair policy of [@!MOQ-FEC]
@@ -833,7 +860,7 @@ expressed in the same timescale as `groupDurationTicks` (Section 4.4.2,
 selected by the track's `packaging`).  If both
 `keyframeIntervalMs` and `keyframeIntervalTicks` are present,
 `keyframeIntervalTicks` wins.  Unlike
-`groupDurationTicks`, this document places NO switching-set agreement
+`groupDurationTicks`, this document places no switching-set agreement
 requirement on the keyframe interval: it is a per-track hint,
 and tracks in a switching set MAY carry different keyframe cadences.
 
@@ -868,11 +895,10 @@ untrusted input; a receiver MUST validate that the decoded `data` is
 a well-formed `ftyp` + `moov` sequence before passing it to a
 decoder, and MUST discard it otherwise.
 
-Implementations of draft-ramadan-moq-mmt-00 carried the same bytes
-in a per-track string field, `initData`, which the current base
-catalog does not define.  A receiver MAY accept `initData` on an
-mmtp track from such an implementation and validates it in the same
-way.  When a track carries both `initRef` and `initData`, the
+Some implementations carry the same bytes in a per-track string
+field, `initData`, which [@!I-D.ietf-moq-msf] does not define.  A
+receiver MAY accept `initData` on an mmtp track and validates it in
+the same way.  When a track carries both `initRef` and `initData`, the
 receiver uses `initRef`.
 
 ## Object Identifier Assignment and Reconstruction
@@ -893,7 +919,7 @@ sends a group's objects in Object ID order
 ([@!I-D.ietf-moq-transport] Section 3.2.1), therefore delivers them
 in the order that Section 4.3 requires.
 
-MOQT carries Object IDs as deltas on the wire
+MoQ Transport carries Object IDs as deltas on the wire
 ([@!I-D.ietf-moq-transport] Sections 11.3.1 and 11.4.1.1), and the
 objects of every subgroup other than Subgroup 0 have Object IDs
 greater than zero.  A receiver MUST reconstruct each object's
@@ -936,7 +962,7 @@ two producer-authored subsample data units:
 [MMTP] = MMTP packet header (Section 3.1): 12 bytes, since C = 0,
          plus a header extension when X = 1.
 [PH]   = MPU-mode payload header, which carries the Fragmentation
-         Indicator (FI); the FI is NOT in the MMTP packet header.
+         Indicator (FI); the FI is not in the MMTP packet header.
 [SH]   = signaling message payload header (Section 3.1).
 [...]  = OPTIONAL signaling object.  When present it is Object 0,
          the first object of SG 0, and FT=0 is the object after it.
@@ -1074,7 +1100,7 @@ MUST NOT reassemble MFU fragments:
      object.
 
    The bytes concatenated are each fragment's media (data unit)
-   bytes only -- NOT everything after the MMTP packet header.  Every
+   bytes only -- not everything after the MMTP packet header.  Every
    fragment begins with a 12-or-more-byte MMTP packet header.  The
    receiver MUST parse the C and X flags, packet-counter presence, and
    header-extension length to locate the following 8-byte MPU-mode
@@ -1124,9 +1150,9 @@ MUST NOT reassemble MFU fragments:
    metadata is rejected by this profile.
 5. The receiver MUST bound both in-flight data-unit memory and pending
    FT=1 sample records.  At either bound it MUST reclaim a slot by
-   evicting the least recently admitted incomplete record — an open
-   data unit or a parked continuation run alike — and admit the new
-   one; it rejects only when no such record exists.  A record that has
+   evicting the least recently admitted incomplete record (an open
+   data unit or a parked continuation run) and admit the new one; it
+   rejects only when no such record exists.  A record that has
    already completed is never a candidate.  An incomplete data
    unit is discarded on declared discontinuity or unrecoverable loss
    and is never emitted.
@@ -1183,8 +1209,9 @@ invalidates the sample; the receiver MUST NOT emit a partial sample or
 synthesize missing bytes.  Completion is a protocol event -- every
 constituent subgroup complete -- and on reliable transport a receiver
 MUST NOT substitute timers, cadence, buffer occupancy, or successor
-arrival for it.  On lossy datagram paths the existing per-data-unit
-deadline derivation applies to each subsample data unit unchanged; no
+arrival for it.  On lossy paths each subsample data unit completes,
+possibly after FEC recovery ([@!MOQ-FEC] Section 9), or is discarded
+as incomplete (Section 5.2, item 5), like any other data unit; no
 additional sample-level timer is defined or permitted.
 
 The sample's RAP flag is the RAP flag of the FI=0 or FI=1 object of
@@ -1344,8 +1371,9 @@ Section 4.3).  Accordingly a receiver:
   [@!ISO.23008-1] Section 9.3.2.3), since these are decode-order
   roots upon which other access units depend.
 
-On a multicast or AMT leg, [@!MOQ-FEC] Section 11.4 specifies the
-receiver repair policy this implies.
+On a multicast or Automatic Multicast Tunneling (AMT) leg,
+[@!MOQ-FEC] Section 11.4 specifies the receiver repair policy this
+implies.
 
 # Subscriber Join and Relay Behavior
 
@@ -1360,12 +1388,15 @@ and relays never parse MMTP (Section 6.2).
 
 A subscriber joins a live mmtp-packaged track as follows:
 
-1. **Catalog.** Fetch and validate the catalog (the track named
-   `catalog`, Section 12).  Validation includes
-   the per-track REQUIRED fields of Section 12.1 and the
-   switching-set agreement check of Section 4.4.2.  A subscriber
-   MUST NOT issue SUBSCRIBE for a track whose catalog entry fails
-   validation.
+1. **Catalog.** Subscribe to the catalog track (the track named
+   `catalog`, Section 12) as [@!I-D.ietf-moq-msf] Section 5 requires,
+   joining at the start of its current group
+   ([@!I-D.ietf-moq-transport] Section 3.5), and validate the
+   catalog.  Validation includes the per-track REQUIRED fields of
+   Section 12.1.  A subscriber MUST NOT issue SUBSCRIBE for a track
+   whose catalog entry fails validation.  It also applies the
+   switching-set agreement check of Section 4.4.2 and handles a
+   disagreement as that section specifies.
 
 2. **Decoder initialization.** If the catalog provides
    initialization data for the track (Section 4.5) and that data
@@ -1393,14 +1424,11 @@ A subscriber joins a live mmtp-packaged track as follows:
    partly on the fill fetch stream and partly on its subgroup stream,
    and the receiver combines the two before reassembly (Section 5.2).
    If the fill fails or leaves a gap, the subscriber waits for the
-   next group, which the subscription delivers from its start.  To
-   wait for the next group instead, the subscriber sends SUBSCRIBE
-   with a LOCATION_FILTER of type 0x01 and StartGroup = 0.  A
+   next group, which the subscription delivers from its start.  A
+   subscriber that does not want the current group sends SUBSCRIBE
+   with a LOCATION_FILTER of type 0x01 and StartGroup = 0 instead.  A
    NEW_GROUP_REQUEST ([@!I-D.ietf-moq-transport] Section 9.20.19)
-   cannot shorten that wait: Group numbers of an mmtp track follow
-   media time (Section 4.4.1), so its publisher cannot begin a group
-   early, and it leaves the DYNAMIC_GROUPS Track Property
-   ([@!I-D.ietf-moq-transport] Section 10.6) at its default of 0.
+   cannot shorten that wait (Section 4.4.1).
 
 4. **Repair track.** If the subscriber wants FEC protection and the
    catalog signals FEC for the track, it SHOULD subscribe to the
@@ -1475,9 +1503,9 @@ an elapsed-time deadline.  A typical window for ARIB STD-B60 content is
 
 ## OTI Signaling
 
-The S-TSID carries the RaptorQ OTI of [@!RFC6330] Section 3.3 in its
-`fecOTI` attribute.  MoQ carries no OTI in-session: receivers derive
-it per block from the catalog `fec` fields and the block's SSB_length
+The S-TSID carries the RaptorQ Object Transmission Information (OTI)
+of [@!RFC6330] Section 3.3 in its `fecOTI` attribute.  MoQ carries no
+OTI in-session: receivers derive it per block from the catalog `fec` fields and the block's SSB_length
 per [@!MOQ-FEC] Section 4.2, and Section 12.2 converts an ingested
 `fecOTI` to catalog fields.
 
@@ -1565,8 +1593,9 @@ their priorities [@!MOQ-FEC] Section 10.
 
 ## FEC Signaling for Multicast Delivery
 
-For multicast (SSM/ASM) delivery there is no bidirectional
-signaling channel.  FEC parameters reach multicast receivers via:
+For SSM and Any-Source Multicast (ASM) delivery there is no
+bidirectional signaling channel.  FEC parameters reach multicast
+receivers via:
 
 1. **MoQ Catalog Extension** (authoritative for MoQ receivers,
    [@!MOQ-FEC] Section 5.2): out-of-band delivery in the catalog
@@ -1622,7 +1651,7 @@ flow per FEC encoded flow, the overlay protects a RAP subset that no
 # Multicast Integration
 
 MMT content can be delivered via IP multicast (SSM, AMT) and TreeDN
-for scalable distribution.  Platform-specific delivery paths, the
+[@?RFC9706].  Platform-specific delivery paths, the
 multicast endpoint catalog extension, and TreeDN/AMT integration are
 defined in [@!MOQ-MULTICAST], and the multicast packet format in its
 Section 5.
@@ -1715,17 +1744,20 @@ Example, with the `data` value shortened:
 
 ~~~ json
 {
+  "version": "draft-01",
   "tracks": [{
     "name": "video",
     "packaging": "mmtp",
+    "isLive": true,
     "mmtpMode": "mfu",
     "timescale": 90000,
     "presentationAnchorTicks": 0,
     "groupDurationMs": 1000,
-    "codec": "avc1.64001f",
+    "codec": "avc1.640028",
     "width": 1920,
     "height": 1080,
     "framerate": 30,
+    "bitrate": 6000000,
     "initRef": "video-init"
   }],
   "initDataList": [{
@@ -1754,15 +1786,20 @@ locations, [@!ISO.23008-1] Clause 10.3.9) and the AL-FEC message (FEC
 parameters, [@!ISO.23008-1] Annex C.6).  A complete worked example is given in
 Appendix A.
 
-Overhead arithmetic.  `FECParameters@overhead` is an integer
-percentage.  Below, a div b is the integer quotient floor(a / b) of a
-non-negative integer a and a positive integer b.  Export
-(Section 12.3) rounds up, computing ceil(100 x P / K) as
-(100 x P + K - 1) div K; ingest (this section) rounds down, computing
-P = floor(K x overhead / 100) as (K x overhead) div 100.  The two are
-matching inverses: ceil(100 x P / K) <= overhead if and only if
-P <= (K x overhead) div 100, so ingest yields the largest P whose
-exported `@overhead` does not exceed the ingested one.
+Repair-ratio arithmetic.  `FECParameters@percentRepair` is the
+maximum ratio of repair symbols to source symbols, as an integer
+percentage from 0 to 200 ([@?ATSC-A331] Table A.4.1).  Below, a div b
+is the integer quotient floor(a / b) of a non-negative integer a and
+a positive integer b.  Export (Section 12.3) rounds up, computing
+ceil(100 x P / K) as (100 x P + K - 1) div K; ingest (this section)
+rounds down, computing P = floor(K x percentRepair / 100) as
+(K x percentRepair) div 100.  The two are matching inverses:
+ceil(100 x P / K) <= percentRepair if and only if
+P <= (K x percentRepair) div 100, so ingest yields the largest P whose
+exported `@percentRepair` does not exceed the ingested one.
+`FECParameters@overhead` is not that ratio: A/331 defines it as the
+size of the AL-FEC fields of a repair packet relative to the packet,
+and it has no catalog mapping.
 
 The `multicast` field in the output uses the multicast endpoint format
 defined in [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
@@ -1773,46 +1810,61 @@ defined in [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
 - each `LS` SrcFlow and RepairFlow -> a distinct
   `multicast.endpoints[].tracks[]` entry, with `packetId` assigned per
   the rule below
-- `LS@bw` -> `bitrate` ([@!I-D.ietf-moq-msf] Section 5.2.22)
+- `LS@bw` -> `bitrate` ([@!I-D.ietf-moq-msf] Section 5.2.22), as
+  1000 x `LS@bw`.  A/331 gives `@bw` in kilobits per second, counting
+  IP, UDP and ROUTE headers, and repair when the `LS` also carries a
+  RepairFlow, so the result is an upper bound.  When `@bw` is absent,
+  the converter takes the `bitrate` of an audio or video track from
+  another source, or the conversion of that track fails.
+- `SrcFlow@rt` = "true" (real-time content) -> `isLive` = true
+  ([@!I-D.ietf-moq-msf] Section 5.2.7) on the flow's track and on its
+  repair track, which the converter publishes while it ingests the
+  live service
 - the source composition/edit-list origin for each synchronized media
-  track -> `presentationAnchorTicks`; a converter MUST preserve one
-  common presentation origin across audio and video and MUST NOT emit
-  zero merely because the source offset was unavailable
-- `FECParameters@overhead` -> `fec.repairSymbols`, computed as
-  P = (K x overhead) div 100 (overhead arithmetic above)
-- `fecOTI` F,T -> `fec.sourceSymbols` (K = ceil(F / T)),
-  `fec.symbolSize` (T)
+  track -> `presentationAnchorTicks`; a converter preserves one
+  common presentation origin across audio and video, and does not
+  emit zero merely because the source offset was unavailable
+- `FECParameters@percentRepair` -> `fec.repairSymbols`, computed as
+  P = (K x percentRepair) div 100 (repair-ratio arithmetic above)
+- `fecOTI` F, T and Z -> `fec.sourceSymbols` and `fec.symbolSize`:
+  K = ceil(ceil(F / T) / Z), the symbol count of the largest source
+  block ([@!RFC6330] Section 4.4.1.2), and T.  For streaming content
+  A/331 lets F be all zeroes; such an S-TSID gives no K, and its
+  conversion fails unless the converter has K from another source.
+- the RepairFlow's FEC scheme -> `fec.algorithm` "raptorq", since an
+  A/331 repair flow uses RaptorQ ([@?ATSC-A331] Annex A.4)
 - `FECParameters@maximumDelay` has no direct catalog mapping.  A/331
   defines it as the maximum delivery delay between a source packet and
   its associated repair packet, whereas `fec.interleaveDepthMs` is the
   ISO protection-window send span from the first source or repair
-  packet to the last.  The converter MUST NOT copy this attribute into
+  packet to the last.  The converter does not copy this attribute into
   `interleaveDepthMs`.  It sets `interleaveDepthMs` only when an ISO
   AL-FEC `protection_window_time` value or an independently known
   source/repair send schedule supplies that first-to-last span, using
   a positive integer millisecond upper bound that covers the complete
-  span.  It MUST NOT round a fractional span down.  If the span is
+  span.  It does not round a fractional span down.  If the span is
   unknown, or ISO signals zero (the size-based case), the converter
   omits `interleaveDepthMs`.  The RFC 6330 Z parameter -- the number of
-  source blocks -- is likewise unrelated to interleaving and does not
-  map to any catalog FEC field.
+  source blocks -- is likewise unrelated to interleaving; it enters
+  only the computation of K above.
 
-An ingested `@overhead` with K x overhead < 100 yields P = 0, less
-than one repair symbol per block.  A catalog cannot express that for
-a flow that has a RepairFlow (`repairSymbols` is at least 1 when a
-repair track is published, [@!MOQ-FEC] Section 5.1), so the
-conversion of such an S-TSID fails: the converter neither rounds P
-up nor emits the source flow without its RepairFlow.  The
-round-trip properties of Section 12.3 assume that the ingested
-`@overhead` was rounded up as that section specifies; an
-`@overhead` that its producer rounded down or to nearest can ingest
-to a P below the one it was computed from.
+An ingested `@percentRepair` with K x percentRepair < 100 yields
+P = 0, less than one repair symbol per block.  A catalog cannot
+express that for a flow that has a RepairFlow (`repairSymbols` is at
+least 1 when a repair track is published, [@!MOQ-FEC] Section 5.1), so
+the conversion of such an S-TSID fails: the converter neither rounds P
+up nor emits the source flow without its RepairFlow.  A RepairFlow
+without `@percentRepair` gives no P, and its conversion fails in the
+same way.  The round-trip properties of Section 12.3 assume that the
+ingested `@percentRepair` was rounded up as that section specifies; a
+`@percentRepair` that its producer rounded down or to nearest can
+ingest to a P below the one it was computed from.
 
 No OTI is carried in the output catalog.  The MoQ-side decoder
 configuration is re-derived per block from the catalog fields and the
 block's SSB_length (Section 7.2), and the ingested F does not survive
-conversion: it yields only K = ceil(F / T), the upper bound on a
-block's source symbol count ([@!MOQ-FEC] Section 7.4).  The transfer
+conversion: it yields only K, the upper bound on a block's source
+symbol count ([@!MOQ-FEC] Section 7.4).  With Z = 1, the transfer
 length of a full MoQ-side block, K x T, exceeds the ingested F when F
 is not a multiple of T.
 
@@ -1841,8 +1893,14 @@ each is numbered from 1.  Flows sharing one
 (sourceAddress, groupAddress, port) tuple collapse into a single
 endpoint whose `tracks[]` array lists them all.
 
+S-TSID carries no `networkSource` ([@!MOQ-MULTICAST] Section 4.2).
+A converter that adds an AMT network source advertises "driad"
+discovery only for a source address whose reverse DNS zone carries an
+AMT relay record, and otherwise gives the relay address in `relay`
+([@!MOQ-MULTICAST] Section 4.2.1).
+
 `timescale`, the group-duration field, and `mmtpMode` are not carried in
-S-TSID, yet they are REQUIRED fields (Section 12.1).  The converter
+S-TSID, yet they are required fields (Section 12.1).  The converter
 takes `timescale` from `asset_timescale` in the MP table when
 `asset_timescale_flag` is 1, and uses 90 000 Hz when that flag is 0,
 as specified by [@!ISO.23008-1] Clause 10.3.9.3.  For each timed
@@ -1851,7 +1909,7 @@ presentation order from the PI document when PI is present;
 ISO/IEC 23008-1 Clause 10.5.2.1 says that the MPU timestamp
 descriptor is ignored in that case.  Otherwise it decodes each
 descriptor's 64-bit NTP `mpu_presentation_time` value
-([@!ISO.23008-1] Clause 10.5.2) and MUST NOT treat the encoded NTP
+([@!ISO.23008-1] Clause 10.5.2) and does not treat the encoded NTP
 integer as a media tick count.  It converts those presentation
 instants through the selected asset/media clock, retaining the
 authored media timing when NTP fractional quantization does not land
@@ -1868,9 +1926,9 @@ cadence and validates it against those `ticks` values.  It may emit
 is an exact positive integer tick count; when the cadence is exact
 only in ticks it emits `groupDurationTicks`.
 The fixed-cadence profile cannot represent a source whose MPU cadence
-is not one constant positive duration, so conversion MUST fail rather
-than round or invent a cadence.  It sets `mmtpMode` itself.  Nor does
-S-TSID carry `fec.blockProfile`, which is REQUIRED for a
+is not one constant positive duration, so conversion fails rather
+than rounding or inventing a cadence.  It sets `mmtpMode` itself.  Nor
+does S-TSID carry `fec.blockProfile`, which is required for a
 track whose `fec.algorithm` is not "none" ([@!MOQ-FEC] Section 5.1);
 for such a track the converter sets it to the profile under
 which the MoQ-side publisher protects the track, "iso-ssbg1-v1".
@@ -1882,8 +1940,11 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
 
 - `multicast.endpoints[].sourceAddress` -> `RS@sIpAddr`
 - `fec.repairSymbols` (P) and `fec.sourceSymbols` (K) ->
-  `FECParameters@overhead`, computed as (100 x P + K - 1) div K
-  (Section 12.2)
+  `FECParameters@percentRepair`, computed as (100 x P + K - 1) div K
+  (Section 12.2).  A/331 limits the attribute to 200, so a catalog
+  whose P exceeds 2 x K has no `@percentRepair` value; the converter
+  omits the attribute and documents that the repair rate was not
+  preserved.
 - `fec.interleaveDepthMs` has no direct inverse to
   `FECParameters@maximumDelay`: the former is the ISO protection-window
   source/repair send span, while the latter is the maximum delay from a
@@ -1893,41 +1954,49 @@ S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
   `interleaveDepthMs` (and document that the field was not preserved).
 - `fec.sourceSymbols` and `fec.symbolSize` -> `fecOTI`, exactly the
   OTI of a full block (SSB_length = K) derived from them
-  (Section 7.2)
+  (Section 7.2), as the 12 octets in hexBinary that A/331 requires
+
+These FEC rules apply to a track whose `fec.algorithm` is "raptorq".
+A/331 defines no ROUTE RepairFlow for "reed-solomon" ([@!MOQ-FEC]
+Sections 4.5 and 12), so the converter emits such a track's SrcFlow
+without a RepairFlow and documents that its FEC was not preserved.
 
 Because export rounds up, for a catalog whose only FEC instance is
-the source track's own, the exported overhead never understates the
-catalog's repair rate.  That guarantee does not extend to a catalog
-that declares layered repair tracks ([@!MOQ-FEC] Section 6.3) or a
+the source track's own, the exported `@percentRepair` never
+understates the catalog's repair rate.  That guarantee does not extend
+to a catalog that declares layered repair tracks ([@!MOQ-FEC] Section 6.3) or a
 keyframe overlay ([@!MOQ-FEC] Section 6.4).  There `fec.repairSymbols`
 is P_0, the base layer only; layers i >= 1 and the overlay carry
-repair symbols of their own, and a single `FECParameters@overhead`
-cannot represent them.  Converting such a catalog with this rule
-therefore understates its repair rate, and the exported
+repair symbols of their own, and a single
+`FECParameters@percentRepair` cannot represent them.  Converting such
+a catalog with this rule therefore understates its repair rate, and the exported
 `FECParameters` describes the base layer alone, not the catalog's
 full repair capacity.
 
 Like the rest of this section, the round-trip properties that follow
-from the overhead arithmetic of Section 12.2 are informative:
+from the repair-ratio arithmetic of Section 12.2 are informative:
 
 - catalog -> S-TSID -> catalog always reproduces `repairSymbols` when
-  K <= 100.  For larger K, several values of P can share one
-  whole-percent `@overhead`, and the round trip yields the largest of
-  them.
-- S-TSID -> catalog -> S-TSID always reproduces `@overhead` when
-  K >= 100.  For smaller K it reproduces `@overhead` if and only if
-  the ingested value equals ceil(100 x P / K) for some P; otherwise
+  K <= 100 and P <= 2 x K.  For larger K, several values of P can
+  share one whole-percent `@percentRepair`, and the round trip yields
+  the largest of them.
+- S-TSID -> catalog -> S-TSID always reproduces `@percentRepair` when
+  K >= 100.  For smaller K it reproduces `@percentRepair` if and only
+  if the ingested value equals ceil(100 x P / K) for some P; otherwise
   it yields the largest such value below the ingested one.
 - Either round trip is stable: converting its output again changes
   nothing.
 
 # Security Considerations
 
-MMT content protection uses Common Encryption (CENC) which is
-preserved through MoQ transport.  The MMTP packet and payload
-headers are not encrypted by CENC, allowing relays and receivers to
-inspect packet type, sequence, and fragmentation metadata without
-accessing media sample content.
+MMT content protection uses Common Encryption (CENC) [@?ISO.23001-7]
+which is preserved through MoQ transport.  The MMTP packet and
+payload headers are not encrypted by CENC, so receivers, and MMTP
+gateways outside MoQ, can inspect packet type, sequence, and
+fragmentation metadata without accessing media sample content.  A MoQ
+relay treats the object payload, MMTP headers included, as opaque
+([@!I-D.ietf-moq-transport] Section 7.8) and never parses MMTP
+(Section 6.2).
 
 ## Multicast Security
 
@@ -1938,7 +2007,7 @@ replay protection, AMT relay trust) are defined in
 # IANA Considerations
 
 This document defines the catalog `packaging` value "mmtp"
-(Section 12.1), extending the allowed packaging values of the MoQ
+(Section 12.1), extending the allowed packaging values of the MOQT
 Streaming Format [@!I-D.ietf-moq-msf] Section 5.2.4 in the same
 manner as [@?I-D.ietf-moq-cmsf].  If a registry of packaging
 values is established for that format, this document requests
@@ -1982,9 +2051,31 @@ document in this suite requests a control-message codepoint.
     <author>
       <organization>ISO/IEC</organization>
     </author>
-    <date/>
+    <date year='2015'/>
   </front>
-  <seriesInfo name='ISO/IEC' value='23008-10'/>
+  <seriesInfo name='ISO/IEC' value='23008-10:2015'/>
+</reference>
+
+<reference anchor='ISO.14496-12'>
+  <front>
+    <title>Information technology - Coding of audio-visual objects - Part 12: ISO base media file format</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year='2026'/>
+  </front>
+  <seriesInfo name='ISO/IEC' value='14496-12:2026'/>
+</reference>
+
+<reference anchor='ISO.23001-7'>
+  <front>
+    <title>Information technology - MPEG systems technologies - Part 7: Common encryption in ISO base media file format files</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year='2023'/>
+  </front>
+  <seriesInfo name='ISO/IEC' value='23001-7:2023'/>
 </reference>
 
 <reference anchor='MOQ-FEC'>
@@ -1993,7 +2084,10 @@ document in this suite requests a control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026'/>
+    <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
+      <organization>Rutgers University</organization>
+    </author>
+    <date year='2026' month='October' day='26'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-01'/>
 </reference>
@@ -2004,7 +2098,7 @@ document in this suite requests a control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026'/>
+    <date year='2026' month='October' day='26'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-01'/>
 </reference>
@@ -2045,9 +2139,9 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
 <?xml version="1.0" encoding="UTF-8"?>
 <S-TSID
     xmlns="tag:atsc.org,2016:XMLSchemas/ATSC3/Delivery/S-TSID/1.0/">
-  <RS sIpAddr="10.0.0.1" dIpAddr="232.1.1.10" dPort="5000">
+  <RS sIpAddr="198.51.100.10" dIpAddr="232.1.1.10" dPort="5000">
     <!-- Video 1080p -->
-    <LS tsi="1" bw="7984000">
+    <LS tsi="1" bw="7984">
       <SrcFlow rt="true" minBuffSize="8000000">
         <ContentInfo>
           <MediaInfo contentType="video" repId="1080p" lang="en"/>
@@ -2057,11 +2151,11 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
             <File Content-Location="video/1080p/init.mp4" TOI="1"/>
           </FDT-Instance>
         </EFDT>
-        <Payload codePoint="128" formatId="2" srcFecPayloadId="6"/>
+        <Payload codePoint="128" formatId="2"/>
       </SrcFlow>
       <RepairFlow>
-        <FECParameters maximumDelay="1000" overhead="25"
-                       fecOTI="F=1000000;T=1000;Z=1;N=1;Al=8">
+        <FECParameters maximumDelay="1000" percentRepair="25"
+                       fecOTI="00000F42400003E801000108">
           <ProtectedObject tsi="1">
             <SourceTOI x="0" y="65535"/>
           </ProtectedObject>
@@ -2069,7 +2163,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
       </RepairFlow>
     </LS>
     <!-- Audio Stereo -->
-    <LS tsi="2" bw="128000">
+    <LS tsi="2" bw="128">
       <SrcFlow rt="true">
         <ContentInfo>
           <MediaInfo contentType="audio" repId="stereo" lang="en"/>
@@ -2090,11 +2184,12 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
     {
       "name": "video/1080p",
       "packaging": "mmtp",
+      "isLive": true,
       "mmtpMode": "mfu",
       "timescale": 90000,
       "presentationAnchorTicks": 0,
       "groupDurationMs": 1000,
-      "codec": "avc1.64001f",
+      "codec": "avc1.640028",
       "width": 1920,
       "height": 1080,
       "framerate": 30,
@@ -2113,11 +2208,13 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
     {
       "name": "video/1080p/repair",
       "packaging": "fec-repair",
+      "isLive": true,
       "priority": 240
     },
     {
       "name": "audio/stereo",
       "packaging": "mmtp",
+      "isLive": true,
       "mmtpMode": "mfu",
       "timescale": 48000,
       "presentationAnchorTicks": 0,
@@ -2132,7 +2229,7 @@ ATSC S-TSID and MoQ catalog for a multi-track service.
   "multicast": {
     "endpoints": [{
       "protocol": "ssm",
-      "sourceAddress": "10.0.0.1",
+      "sourceAddress": "198.51.100.10",
       "groupAddress": "232.1.1.10",
       "port": 5000,
       "tracks": [
@@ -2156,15 +2253,25 @@ namespace derived from the ingested service, and the track entries
 inherit that namespace from the catalog track
 ([@!I-D.ietf-moq-msf] Section 5.2.2).  Rendition parameters
 (`codec`, `width`, `bitrate`, `lang`, ...) are the flat base track
-fields of [@!I-D.ietf-moq-msf] Section 5.2 (Section 12.1).
+fields of [@!I-D.ietf-moq-msf] Section 5.2 (Section 12.1).  Each
+`bitrate` is 1000 x `LS@bw`, and every track has `isLive` true
+because its source flow is real-time (Section 12.2).  The converter
+adds the `networkSource` entry itself.  Its "driad" discovery assumes
+that the reverse DNS zone of the source address carries an AMT relay
+record (Section 12.2).
 
 The FEC fields recompute from the S-TSID as follows:
 
-- `sourceSymbols`: K = ceil(F / T) = ceil(1,000,000 / 1,000) = 1000
-- `repairSymbols`: P = (K x overhead) div 100 = (1000 x 25) div 100
-  = 250 (Section 12.2); re-exporting gives `@overhead` =
-  (100 x 250 + 1000 - 1) div 1000 = 25, the ingested value
-  (Section 12.3)
+- `algorithm`: "raptorq", the code of an A/331 repair flow
+  (Section 12.2)
+- `sourceSymbols`: the `fecOTI` value 00000F42400003E801000108 encodes
+  F = 1,000,000, T = 1000, Z = 1, N = 1 and Al = 8 ([@!RFC6330]
+  Sections 3.3.2 and 3.3.3), so K = ceil(ceil(F / T) / Z) =
+  ceil(ceil(1,000,000 / 1,000) / 1) = 1000
+- `repairSymbols`: P = (K x percentRepair) div 100 =
+  (1000 x 25) div 100 = 250 (Section 12.2); re-exporting gives
+  `@percentRepair` = (100 x 250 + 1000 - 1) div 1000 = 25, the
+  ingested value (Section 12.3)
 - `interleaveDepthMs`: omitted.  The source S-TSID value
   `maximumDelay="1000"` describes the maximum delivery delay from a
   source packet to its associated repair packet; it does not provide
@@ -2195,6 +2302,8 @@ publication as an RFC.
   they restarted at 0 in each subgroup, so several objects of one
   group shared an Object ID, which [@!I-D.ietf-moq-transport]
   Section 2.1 does not allow (Sections 3.1, 4.1, 4.6, 5, 5.2, and 8).
+  Section 4.6 is retitled "Object Identifier Assignment and
+  Reconstruction".
 - Section 4.1 states that an mmtp track maps one data unit, not one
   object, to a stream, unlike [@!I-D.ietf-moq-msf] Section 6, and
   keeps the Group and Object numbering of its Sections 6.1 and 6.2.
@@ -2205,9 +2314,27 @@ publication as an RFC.
   completeness requirements of -00 are removed, because a publisher
   must not send objects outside the requested range
   ([@!I-D.ietf-moq-transport] Section 3.3.1).
-- Section 6.1 notes that NEW_GROUP_REQUEST cannot shorten a wait for
-  the next group on an mmtp track, whose Group numbers follow media
-  time.
+- Section 4.4.1: an mmtp publisher, whose Group numbers follow media
+  time, does not set the DYNAMIC_GROUPS Track Property to 1, and
+  Section 6.1 notes that NEW_GROUP_REQUEST cannot shorten a wait for
+  the next group.  A publisher that skips Group numbers on a restart
+  signals the gap with PRIOR_GROUP_ID_GAP, as [@!I-D.ietf-moq-msf]
+  Section 6.1 recommends.
+- Section 6.1, step 1: the catalog is read through a subscription
+  that joins its current group, as [@!I-D.ietf-moq-msf] Section 5
+  requires, and a switching-set disagreement is handled as
+  Section 4.4.2 specifies.
+- Section 4.3: objects of an mmtp track are sent in subgroups, not as
+  datagrams.  The permission for a relay to drop a subgroup under
+  congestion is removed; [@!I-D.ietf-moq-transport] Section 5.2
+  governs when objects go undelivered.  Section 5.2.1 no longer refers
+  to datagram paths: on a lossy path a subsample data unit completes,
+  possibly after FEC recovery, or is discarded as incomplete, like any
+  other data unit.
+- Section 4.4: a repair track carries no `altGroup`, so it is not a
+  member of a switching set.  In -00 it carried the `altGroup` of the
+  track it protects, although its Groups are FEC blocks, not
+  media-time-aligned Groups.
 - Catalog initialization data uses the `initDataList` and `initRef`
   fields of [@!I-D.ietf-moq-msf] in place of the per-track `initData`
   field, which the current revisions of [@!I-D.ietf-moq-msf] and
@@ -2223,16 +2350,48 @@ publication as an RFC.
   10^-3 tolerance only classifies a track as intra-only.
 - Section 4.4.2, Table 3: the optional `timescale` field of cmaf
   tracks is attributed to [@!I-D.ietf-moq-msf] Section 5.2.21, not to
-  [@?I-D.ietf-moq-cmsf].  A loc track without a catalog `timescale`
-  uses its LOC TIMESCALE Property when present.
+  [@?I-D.ietf-moq-cmsf].  A loc switching-set member, like a cmaf
+  one, carries a catalog `timescale`, which a TIMESCALE Property on
+  the track must equal, so [@!I-D.ietf-moq-loc] is now a normative
+  reference.  A track entry without `packaging` is malformed.
 - Section 8.3: the AL-FEC message carries in
   `fec_code_id_for_repair_flow` the [@!ISO.23008-10] Table 1 code
   point of the track's algorithm: 3 for "raptorq" and 1 for
   "reed-solomon".  Sections 7 and 8.1 follow [@!MOQ-FEC], which now
-  fully specifies "reed-solomon" as an OPTIONAL scheme.
+  fully specifies "reed-solomon" as an optional scheme.
   [@!ISO.23008-10] is now a normative reference.
 - Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
   has expired, and its content continues as [@?I-D.ietf-moq-cmsf].
   The FEC column names the [@!MOQ-FEC] block profile for each
-  packaging, including "moq-object-v1" for loc and cmaf tracks.
+  packaging, including "moq-object-v1" for loc and cmaf tracks.  The
+  section names MSF, LOC and CMSF with their references, and the cases
+  that suit each packaging are no longer stated with BCP 14 keywords.
+- Sections 12.2 and 12.3 and Appendix A: the repair rate maps to
+  `FECParameters@percentRepair`, the ratio A/331 defines, instead of
+  `@overhead`, which has no catalog mapping.  A RepairFlow without
+  `@percentRepair` fails conversion, and export omits the attribute
+  when P exceeds 2 x K, since A/331 limits it to 200.  K accounts for
+  the number of source blocks Z, an all-zero transfer length fails
+  conversion, a RepairFlow converts to `fec.algorithm` "raptorq",
+  `bitrate` is 1000 x `LS@bw`, `isLive` is set, and only "raptorq"
+  tracks export a RepairFlow.  A converter that adds an AMT network
+  source advertises "driad" discovery only where the source address
+  has an AMT relay record in reverse DNS.  The converter rules no
+  longer use BCP 14 keywords, since those sections are informative.
+  The example S-TSID uses a hexBinary `fecOTI`, no reserved
+  `srcFecPayloadId`, and `@bw` in kilobits per second.
+- Sections 4.4.2 and 12.1 and Appendix A: the example catalogs carry
+  the fields that [@!I-D.ietf-moq-msf] requires.
+- Section 13: a MoQ relay treats MMTP headers as opaque object
+  payload.
+- Editorial: abbreviations such as S-TSID, ISOBMFF, SSM, ASM, AMT,
+  ABR, GOP and OTI are expanded, and Section 2 defines AU.  Section 1
+  says "FEC" instead of "Unified FEC".  Capitalized words that are not
+  BCP 14 keywords (NOT, LOW, NO) are lowercased.  Section 3.1 cites
+  [@?RFC5905] for the NTP short format, Section 9 cites [@?RFC9706]
+  for TreeDN, and Section 13 cites [@?ISO.23001-7] for Common
+  Encryption.  Section 14 uses the name "MOQT Streaming Format".  The
+  examples of Appendix A use a documentation address.
+- [@!ISO.14496-12] (ISOBMFF) is a normative reference, and
+  [@!ISO.23008-10] is dated.
 - References to the companion drafts point to their -01 revisions.
