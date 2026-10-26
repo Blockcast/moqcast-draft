@@ -41,12 +41,14 @@ Information that requires no in-session messages -- conventions for
 repair track naming, the format of repair objects, and two block
 profiles that fix how source symbols and FEC blocks are formed and
 identified: an ISO/IEC 23008-1 profile for MMTP-packaged tracks, and an
-object profile for tracks packaged as LOC or CMAF.  RaptorQ
-(RFC 6330) is the mandatory-to-implement and only fully specified
-FEC scheme; an algorithm registry provides extension points for
-additional schemes.  FEC enables receivers to recover from packet
-loss without retransmission latency.  The MMTP profile is designed for
-compatibility with ATSC 3.0 (A/331) and ARIB STD-B60 broadcast systems.
+object profile for tracks packaged as LOC or CMAF.  It fully specifies
+two FEC schemes: RaptorQ (RFC 6330), which is mandatory to implement,
+and an optional systematic Reed-Solomon code over GF(2^8), the
+Reed-Solomon code of ISO/IEC 23008-10.  An algorithm registry provides
+extension points for additional schemes.  FEC enables receivers to
+recover from packet loss without retransmission latency.  The MMTP
+profile is designed for compatibility with ATSC 3.0 (A/331) and ARIB
+STD-B60 broadcast systems.
 
 {mainmatter}
 
@@ -68,7 +70,8 @@ This document defines:
 1. A catalog extension carrying the complete FEC configuration,
    which is authoritative for MoQ receivers
 2. A normative derivation of the RaptorQ Object Transmission
-   Information (OTI) from the catalog fields and the Repair FEC
+   Information (OTI), and of the parameters of an optional
+   Reed-Solomon code, from the catalog fields and the Repair FEC
    Payload ID of each block, so that catalog-only receivers
    (including multicast and sessionless receivers) can fully
    configure their decoders
@@ -116,11 +119,12 @@ an ISO AL-FEC message names for the source track's FEC encoded flow
 SSB_length is the block's source symbol count (Section 7.1) and K the
 track's `sourceSymbols` (Section 5.1); under `iso-ssbg1-v1`, the ISO
 source symbol block
-(3.1.34), generated from a source packet block (3.1.32).  A block of
-SSB_length source symbols is an [@!RFC6330] source block whose K, in
-the notation of [@!RFC6330], is SSB_length; this document's K is the
-catalog bound instead.  The extension of that source block to K'
-symbols by padding ([@!RFC6330] Section 5.3.1) happens inside the
+(3.1.34), generated from a source packet block (3.1.32).  Under
+`raptorq`, a block of SSB_length source symbols is an [@!RFC6330]
+source block whose K, in the notation of [@!RFC6330], is SSB_length;
+this document's K is the catalog bound instead.  The extension of
+that source block to K' symbols by padding ([@!RFC6330]
+Section 5.3.1) happens inside the
 encoder and the decoder and is not visible on the wire, and this
 document defines no K' of its own.
 
@@ -202,8 +206,8 @@ The protocol operates as follows (Appendix A.1 shows the exchange):
    protection is desired (Section 6.2)
 5. Publisher sends source objects and repair objects
 6. Subscriber configures its decoder from the catalog fields and the
-   Repair FEC Payload ID of each block (Section 4.2) and uses repair
-   symbols to recover any lost source symbols
+   Repair FEC Payload ID of each block (Sections 4.2 and 4.5) and uses
+   repair symbols to recover any lost source symbols
 
 The catalog is the subscriber's authoritative FEC configuration; the
 subscriber needs no other FEC signaling (Section 5.2).
@@ -223,7 +227,8 @@ parameters that constitute a track's FEC configuration, which is
 signaled in the catalog (Section 5.2); for RaptorQ, the full RFC 6330
 Object Transmission Information is
 derived from the catalog fields (Section 4.2) rather than carried
-on the wire.
+on the wire, and for Reed-Solomon, Section 4.4 fixes the code and its
+parameters are derived in the same way (Section 4.5).
 
 ## FEC Algorithms
 
@@ -232,12 +237,22 @@ registry (Section 15.2); the catalog (Section 5.1) carries the
 corresponding string identifiers.
 
 **RaptorQ (0x01)**: RaptorQ fountain code per [@!RFC6330].  Can recover
-from loss of any symbols as long as K symbols (source or repair) are
-received.  It is the mandatory-to-implement scheme (Section 4.3).
+from loss of any symbols as long as SSB_length symbols (source or
+repair), plus a small decoding overhead (Section 6.3.2), are received.
+It is the mandatory-to-implement scheme (Section 4.3).
 
-**Reed-Solomon (0x02)**: Reed-Solomon erasure code over GF(2^8) per
-[@?RFC5510]; an extension point not specified by this document
-(Section 4.3).
+**Reed-Solomon (0x02)**: The systematic Reed-Solomon erasure code over
+GF(2^8) of [@!ISO.23008-10] Clause 6, restated in Section 4.4.  It
+recovers a block from any SSB_length of its distinct source and repair
+symbols.  An FEC instance under it holds at most 255 source and repair
+symbols per block (Section 4.5).  It is OPTIONAL (Section 4.3).
+
+Both codes are systematic: the source symbols of a block are among its
+encoding symbols, so a receiver uses the source symbols it receives as
+they arrive.  The two values correspond to the FEC code points 3 (the
+"6330 code") and 1 (the RS code) of [@!ISO.23008-10] Table 1, which an
+AL-FEC message carries in `fec_code_id_for_repair_flow` ([@!MOQ-MMT]
+Section 8.3).
 
 ## RaptorQ Object Transmission Information
 
@@ -292,26 +307,220 @@ track's catalog `fec` object requires no additional signaling to
 configure its decoder (Section 5.2).  Its one per-block input, SSB_length, travels in the Repair FEC Payload ID of every repair packet of the
 block, so a receiver holding any repair symbol of a block holds the block's SSB_length.
 
-## Other FEC Algorithms
+## Algorithm Requirements
 
 RaptorQ is the mandatory-to-implement FEC scheme: an implementation
 that performs FEC decoding under this specification MUST support
-"raptorq".  It is also the only algorithm this document fully
-specifies.
+"raptorq".  "reed-solomon" is fully specified by Sections 4.4 and 4.5
+and is OPTIONAL.
+
+RaptorQ is the mandatory scheme for two reasons.  First, it serves
+every block size this document allows.  A RaptorQ block holds up to
+56403 source symbols (Section 6.3.4, rule 6), while a Reed-Solomon
+block holds at most 255 source and repair symbols (Section 4.5).  At
+8 Mb/s with symbols of 1200 bytes, such a block spans at most about
+300 ms of media, so the multi-second interleave windows of Section 9
+need RaptorQ at that rate.  Second, RaptorQ is the code of ATSC 3.0
+ROUTE delivery: when [@?ATSC-A331] applies AL-FEC to file delivery
+over ROUTE, it requires the RaptorQ-based repair protocol of its
+Annex A.4, and Section 12.1 maps its `fecOTI`.  When it applies AL-FEC
+to MMTP sessions, it requires the AL-FEC framework of [@!ISO.23008-1]
+Annex C and leaves the FEC code to in-band signaling, so it does not
+require RaptorQ for MMTP (Section 12).
 
 The algorithm registry (Section 15.2) provides an extension point
-for additional schemes.  In particular, "reed-solomon" (0x02) is
-allocated for a Reed-Solomon erasure code over GF(2^8) [@?RFC5510],
-but its symbol construction, parameter derivation, and repair
-object semantics are not specified by this document; a future
-companion specification is required before it can be used
-interoperably.
+for additional schemes.  A registered value other than "none",
+"raptorq" and "reed-solomon" needs a specification of its own, giving
+its symbol construction, parameter derivation and repair object
+semantics, before it can be used interoperably.
 
 A receiver that does not implement a track's signaled
 `fec.algorithm` simply forgoes FEC protection for that track: it
 consumes the source track normally and does not subscribe to the
 repair track.  Repair-track subscription is optional (Section 6.2),
-so an unrecognized or unimplemented algorithm is not an error.
+so an unrecognized or unimplemented algorithm is not an error.  A
+track under "reed-solomon" is therefore protected only for the
+receivers that implement it.
+
+## Reed-Solomon Code
+
+The "reed-solomon" algorithm is the systematic Reed-Solomon erasure
+code over GF(2^8) of [@!ISO.23008-10] Clause 6, to which that document
+assigns FEC code point 1 (its Table 1).  This section restates the
+code, because [@!ISO.23008-10] is not freely available.  Appendix C
+gives test vectors.
+
+**Field.** The code works in GF(2^8) defined by the primitive
+polynomial x^8 + x^4 + x^3 + x^2 + 1 (0x11D), the polynomial that
+[@?RFC5510] Section 8.1 gives for m = 8.  alpha is a root of that
+polynomial and is represented by the byte 0x02.  A byte with bits b_7
+(the most significant) down to b_0 represents the element
+b_7 alpha^7 + b_6 alpha^6 + ... + b_1 alpha + b_0.  Addition is the
+bitwise exclusive OR of bytes, and multiplication is the product of
+polynomials modulo 0x11D, so alpha^8 is 0x1D.  This document defines
+the code over GF(2^8) only.
+
+**Generator matrix.** The code is generated by G = [I | A], where I is
+an identity matrix and A is a Cauchy matrix ([@!ISO.23008-10]
+Clause 6.2 writes G = [I; A]).  Row i of A belongs to the source
+symbol at ESI i, and column j to the repair symbol whose RS_ID is j.
+The entries of A are:
+
+~~~
+A_{i,j} = 1 / (x_i + y_j)
+x_i     = alpha^(254 - i)
+y_j     = alpha^j
+~~~
+
+A block that holds SSB_length source symbols and RSB_length repair
+symbols uses rows 0 to SSB_length - 1 and columns 0 to RSB_length - 1
+of A.  x_i and y_j differ whenever i + j < 254, so every entry the
+block uses is defined when SSB_length + RSB_length is at most 255, the
+bound of [@!ISO.23008-10] Clause 6.2.  An entry depends on i and j
+alone: not on K, not on SSB_length and not on P.
+
+**Encoding.** Every symbol of a block is T bytes long.  Let s_i be the
+source symbol at ESI i (Section 8.3), for i from 0 to SSB_length - 1.
+The repair symbol r_j whose RS_ID is j is computed one byte position at
+a time, as [@?RFC5510] Section 8.4 applies its code to symbols: for
+each byte position u from 0 to T - 1,
+
+~~~
+r_j[u] = sum over i < SSB_length of A_{i,j} * s_i[u]
+~~~
+
+where the sum and the products are computed in GF(2^8).  The source
+symbols themselves are sent unchanged.
+
+**Short blocks.** A block whose SSB_length is less than K uses only the
+first SSB_length rows of A.  Its repair symbols equal those of a block
+of K source symbols whose symbols at ESIs SSB_length to K - 1 are all
+zero, because a zero symbol adds nothing to any sum.  No zero symbol
+is sent or counted in SSB_length (Section 7.4).
+
+**Decoding.** Every square submatrix of a Cauchy matrix is invertible
+([@!ISO.23008-10] Clause 6.2), so the code is maximum distance
+separable: a receiver that holds any SSB_length distinct symbols of a
+block, source and repair in any mix, recovers every source symbol of
+the block.  Let M be the set of ESIs of the source symbols it lacks,
+and R a set of RS_IDs of as many repair symbols that it holds.  For
+each byte position u and each j in R:
+
+~~~
+sum over i in M of A_{i,j} * s_i[u]
+    = r_j[u] + sum over i < SSB_length, i not in M,
+               of A_{i,j} * s_i[u]
+~~~
+
+The square matrix of the entries A_{i,j} with i in M and j in R is a
+submatrix of A and is therefore invertible.  The receiver inverts it
+once per block and applies the result at every byte position.  Any
+decoding method that yields the same source symbols is acceptable.
+
+The field is that of [@?RFC5510], but the generator matrix is not the
+Vandermonde-derived matrix of [@?RFC5510] Section 8.2, and this
+document uses neither the FEC Payload IDs nor the source block
+partitioning of [@?RFC5510].  Several systematic Reed-Solomon
+constructions over GF(2^8) are in use, and they produce different
+repair symbols from the same source symbols; the test vectors of
+Appendix C tell this one apart.
+
+## Reed-Solomon Parameters
+
+As for RaptorQ (Section 4.2), no decoder configuration is carried on
+the wire, and the code has no OTI to carry.  When a track's catalog
+`fec.algorithm` is "reed-solomon", receivers MUST configure the decoder
+of each FEC block from the catalog fields (Section 5.1) and the
+block's Repair FEC Payload ID (Section 7.1), under the source symbol
+construction of the track's block profile (Sections 7.3 and 7.6.1), as
+follows:
+
+- **Symbol size**: T = `symbolSize`.  Every source and repair symbol
+  is exactly T bytes.  The RaptorQ rule that T is a multiple of 8
+  (Section 4.2) does not apply.
+- **Rows**: SSB_length, the block's source symbol count.  The source
+  symbol whose SS_ID is x is row (x - SS_Start) mod 2^32 of A, which is
+  its ESI (Section 8.3).
+- **Columns**: the repair symbol whose RS_ID is j is column j of A.
+  Its ESI, SSB_length + RS_ID (Section 7.2), still identifies it
+  within its block, but the column depends on RS_ID alone.
+- **Column count**: RSB_length, the instance's total repair count P
+  (Section 7.1).
+
+This derivation is normative and complete: a receiver that has a
+track's catalog `fec` object requires no additional signaling to
+configure its decoder (Section 5.2).  As under RaptorQ, its per-block
+inputs travel in the Repair FEC Payload ID of every repair packet of
+the block.
+
+The catalog keeps every FEC instance under "reed-solomon" within the
+bound of Section 4.4: K + P is at most 255, where K is the instance's
+`sourceSymbols` and P its total repair count over all its repair
+layers (Section 6.3.4, rule 12).  SSB_length + RSB_length is then at
+most 255 in every block.  In addition to the checks of Section 7.4, a
+receiver MUST discard a repair packet of such a track whose
+SSB_length + RSB_length exceeds 255, or whose RS_ID is not less than
+RSB_length, leaving the state of every block unchanged.  Neither
+packet is a symbol of a code that Section 4.4 defines.
+
+Repair layers (Section 6.3) carry disjoint ranges of columns: layer i
+carries columns O_i to O_i + P_i - 1 (Section 6.3.2).  A column
+depends on its RS_ID alone, so a repair symbol is the same whichever
+layer carries it and whatever other layers exist, and symbols from any
+subset of layers combine in one decode.  A keyframe overlay
+(Section 6.4) is a separate FEC instance, with its own rows, numbered
+from its overlay SS_IDs, its own columns and its own bound:
+K_overlay + P_overlay is at most 255, whatever the base instance uses.
+
+For example, this catalog protects an mmtp track under
+"reed-solomon":
+
+~~~ json
+{
+  "tracks": [
+    {
+      "name": "video",
+      "packaging": "mmtp",
+      "mmtpMode": "mfu",
+      "timescale": 90000,
+      "presentationAnchorTicks": 0,
+      "groupDurationMs": 1000,
+      "codec": "avc1.64001f",
+      "width": 1280,
+      "height": 720,
+      "framerate": 30,
+      "fec": {
+        "algorithm": "reed-solomon",
+        "blockProfile": "iso-ssbg1-v1",
+        "sourceSymbols": 32,
+        "repairSymbols": 8,
+        "symbolSize": 1320,
+        "interleaveDepthMs": 200,
+        "reorderToleranceMs": 40,
+        "repairTrack": "video/repair"
+      }
+    },
+    {
+      "name": "video/repair",
+      "packaging": "fec-repair",
+      "depends": ["video"],
+      "repairSymbols": 8,
+      "priority": 240
+    }
+  ]
+}
+~~~
+
+K + P is 32 + 8 = 40, within the bound.  A full block uses rows 0 to
+31 and columns 0 to 7 of A, and its repair packets carry SSB_length 32
+and RSB_length 8.  A short block of 20 source symbols uses rows 0 to 19
+and the same columns, and its repair packets carry SSB_length 20.  The
+repair symbol with RS_ID 3 is column 3 in both blocks, at ESI 35 in the
+first and ESI 23 in the second.  The full block recovers once the
+receiver holds any 32 of its 40 symbols, and the short block once it
+holds any 20 of its 28.  The publisher can later append repair layers
+(Section 6.3.9) of up to 215 more repair symbols in all, since
+32 + 8 + 215 = 255.
 
 # Catalog FEC Extension
 
@@ -363,7 +572,8 @@ is carried at the track level:
 ~~~
 
 (Appendix B works this parameter set through in full.  Section 7.6.7
-shows a loc track under `moq-object-v1`.)
+shows a loc track under `moq-object-v1`, and Section 4.5 a track under
+"reed-solomon".)
 
 Field definitions:
 
@@ -372,8 +582,8 @@ Field definitions:
   - "none": No FEC
   - "raptorq": RaptorQ per RFC 6330 (mandatory to implement,
     Section 4.3)
-  - "reed-solomon": Reserved extension point (Section 4.3); not
-    specified by this document
+  - "reed-solomon": Reed-Solomon over GF(2^8) per Section 4.4
+    (OPTIONAL, Section 4.3)
 
 **blockProfile** (string, REQUIRED when `algorithm` is not "none"):
 The block profile of the track's
@@ -437,7 +647,9 @@ is the value an in-band
 AL-FEC message carries as `maximum_k_for_repair_flow`
 ([@!ISO.23008-1] Clause C.6.3), which is likewise a maximum.  K counts
 source symbols, not objects: under `moq-object-v1` a source object
-contributes s(o) of them (Section 7.6.1).
+contributes s(o) of them (Section 7.6.1).  Under "reed-solomon", K plus
+the instance's total repair count is at most 255 (Section 6.3.4,
+rule 12).
 
 **repairSymbols** (integer, REQUIRED): P value - repair symbols per
 FEC block.  MUST be >= 1 when a repair track is published.
@@ -450,7 +662,8 @@ construction of Section 7.3, under which a source packet of up to
 T - 2 bytes is protected.  Under "moq-object-v1" it is the construction
 of Section 7.6.1, under which an object whose Protected Object Unit is
 at most K x T bytes long is protected.  For "raptorq", T is a multiple of 8, the
-fixed Symbol Alignment of the derived OTI (Section 4.2).
+fixed Symbol Alignment of the derived OTI (Section 4.2).  For
+"reed-solomon", no such alignment applies (Section 4.5).
 
 **interleaveDepthMs** (integer, OPTIONAL): When present, its value MUST
 be a non-negative integer.  A value greater than zero is the complete
@@ -688,6 +901,10 @@ a separate FEC instance and is not in that table: its own K is 256, its
 own P is 32, its RS_ID range is 0 to 31, its ESI range in a full
 overlay block is 256 to 287, and its packets carry RSB_length 32.
 
+This catalog uses `raptorq`.  Under `reed-solomon` its base instance
+would be valid, since 64 + 56 = 120 is at most 255, but its overlay
+would not, since 256 + 32 = 288 exceeds 255 (Section 6.4.1).
+
 The layer arithmetic is the same under `moq-object-v1`, which defines
 no overlay.
 
@@ -697,8 +914,8 @@ The catalog `fec` object (Section 5.1) is the authoritative FEC
 signaling for MoQ receivers, that is for every receiver that obtains
 the track's catalog entry.  Such a receiver has everything needed to
 discover and subscribe to the repair track (Section 6) and to
-configure its decoder via the derived OTI (Section 4.2); no
-in-session signaling is required.
+configure its decoder from the derived parameters (Sections 4.2 and
+4.5); no in-session signaling is required.
 
 A packaging profile MAY also define in-band FEC signaling carried
 with the media, which serves a receiver that consumes a flow without
@@ -1008,11 +1225,12 @@ given receiver joined: a receiver holding a non-prefix subset computes
 the same coordinate for a symbol as a receiver holding everything, and
 the `RS_ID < RSB_length` bound holds for a symbol from any layer.
 
-Because RaptorQ repair symbols are identified by ESI alone and any set
-of distinct encoding symbols of a block decodes together
-([@!RFC6330]), symbols received from any subset of layers, over any
-mix of paths, combine in one decode.  Subsets need not be prefixes: in
-the worked catalog of Section 5.1.2 a receiver holding layers 0 and 2
+Under either code of this document, a repair symbol is fixed by its
+block and its RS_ID alone, whichever layer carries it, and any set of
+distinct encoding symbols of a block decodes together ([@!RFC6330];
+Section 4.4).  Symbols received from any subset of layers, over any
+mix of paths, therefore combine in one decode.  Subsets need not be
+prefixes: in the worked catalog of Section 5.1.2 a receiver holding layers 0 and 2
 holds, for a full block, ESIs 64 to 71 and 88 to 119, which are
 distinct encoding symbols of one code, and it decodes as soon as it
 holds enough distinct symbols in total.
@@ -1020,8 +1238,11 @@ holds enough distinct symbols in total.
 A receiver that has subscribed a set of layers recovers a block
 whenever the number of lost symbols, source and repair together, does
 not exceed C - e, where C is the total P over the layers it holds and
-e is the RaptorQ decoding overhead (roughly 1e-2, 1e-4, and 1e-6
-residual failure at 0, 1, and 2 symbols of overhead per [@!RFC6330]).
+e is the decoding overhead of the track's algorithm: 0 under
+`reed-solomon`, which is maximum distance separable (Section 4.4), and
+under `raptorq` a small number of symbols (roughly 1e-2, 1e-4, and
+1e-6 residual failure at 0, 1, and 2 symbols of overhead per
+[@!RFC6330]).
 This loss tolerance is derived from K and the layer counts; it MUST
 NOT be signaled as a separate catalog field.
 
@@ -1034,11 +1255,12 @@ ID is the block's extended SS_Start (Section 7.5), and that group
 carries P_i objects (Section 7); object j of that group carries the
 repair symbol with RS_ID = O_i + j.
 
-### Why RaptorQ Only
+### Algorithms That Admit Layers
 
-Repair layers and the overlay are defined only for `raptorq`: a
-publisher MUST NOT signal either under any other algorithm, and a
-receiver rejects such a catalog (Section 6.3.4, rule 7).
+Repair layers and the overlay are defined only for `raptorq` and
+`reed-solomon`: a publisher MUST NOT signal either under any other
+algorithm, and a receiver rejects such a catalog (Section 6.3.4,
+rule 7).
 
 Layering needs a code whose repair symbols are identified by ESI
 alone and whose repair symbol for a given ESI does not depend on how
@@ -1050,31 +1272,39 @@ through its open Encoding Symbol ID space ([@!RFC6330]).  The property
 is not particular to fountain codes.  A systematic Reed-Solomon code
 whose generator matrix is Vandermonde-derived ([@?RFC5510]
 Section 8.2.1) or Cauchy-derived has it too, provided the field
-element that defines each repair column is fixed by the repair index
-alone and never by P: [@?RFC5510] fixes it as alpha^j for column j,
-and a Cauchy construction must fix its y_j per index j likewise.  Each
-repair symbol is then one fixed column of that matrix, independent of
-n, and the field size is the only bound, K + totalP at most 2^m - 1
-over GF(2^m) for the [@?RFC5510] construction and at most 2^m for a
-Cauchy one.  A
-Reed-Solomon code in generator-polynomial form lacks it: its parity is
-the remainder modulo a polynomial of degree n - K, so its symbols for
-one P are not valid for another.
+element that defines each repair column is fixed by the symbol's index
+in the code and never by P.  [@?RFC5510] fixes it as alpha^j for the
+Encoding Symbol ID j, so a repair column is fixed by SSB_length and
+RS_ID together, through ESI = SSB_length + RS_ID.  The Cauchy
+construction of Section 4.4 fixes y_j as alpha^j for RS_ID j, so a
+repair column is fixed by RS_ID alone.  Each repair symbol is then one
+fixed column of that matrix, independent of n, and the field size is
+the only bound: K + totalP is at most 2^m - 1 over GF(2^m) for the
+[@?RFC5510] construction, and at most 2^m for a Cauchy construction in
+general.  The construction of Section 4.4, whose x_i and y_j are
+nonzero powers of alpha, allows 2^m - 1, that is 255.  A
+Reed-Solomon code in generator-polynomial form lacks the property: its
+parity is the remainder modulo a polynomial of degree n - K, so its
+symbols for one P are not valid for another.
 
-This document specifies no algorithm other than `raptorq`
-(Section 4.3), the AL-FEC scheme of ATSC 3.0 [@?ATSC-A331] that
-Section 12 of this document maps to, so the restriction above is one
-of specification, not of the codes.  A companion specification for
-another algorithm MAY admit repair layers and the overlay only if it
-(a) establishes this property for the construction it specifies,
-including that each repair column's field element is fixed by repair
-index alone, (b) states how each layer's RS_ID range maps to that
-code's symbol index (for [@?RFC5510], the Encoding Symbol ID, whose
-Max-Number-of-Encoding-Symbols then covers K + totalP over all
-layers), (c) bounds K + totalP by that construction's limit, alongside
-rules 4 and 5 of Section 6.3.4, and (d) updates rule 7 of
-Section 6.3.4, since a receiver of this document otherwise rejects
-such a catalog.  Rule 6 is particular to RaptorQ.
+An algorithm admits repair layers and the overlay only if its
+specification (a) establishes this property for the construction it
+specifies, including that each repair column's field element is fixed
+by the symbol's index in the code alone, (b) states how each layer's
+RS_ID range maps to that code's symbol index (for [@?RFC5510], the
+Encoding Symbol ID, whose Max-Number-of-Encoding-Symbols then covers
+K + totalP over all layers), (c) bounds K + totalP by that
+construction's limit, alongside rules 4 and 5 of Section 6.3.4, and
+(d) updates rule 7 of Section 6.3.4, since a receiver of this document
+otherwise rejects such a catalog.  Rule 6 is particular to RaptorQ.
+
+The `reed-solomon` code of Section 4.4 meets all four conditions:
+(a) column j of A depends on RS_ID j alone, through y_j = alpha^j,
+and not on P or on SSB_length; (b) layer i carries columns O_i to
+O_i + P_i - 1 (Section 4.5); (c) rule 12 of Section 6.3.4 bounds
+K + totalP by 255 for each FEC instance; and (d) rule 7 admits it.  A
+specification of another algorithm MAY admit repair layers and the
+overlay on the same terms.
 
 ### Catalog Rules and Fail-Closed Validation
 
@@ -1105,7 +1335,7 @@ layer set that decodes from one that silently mis-maps symbols.
    Section 5.1.2), so a RaptorQ source block holds at most 56403
    source symbols.
 7. Repair layers and any overlay appear only when `fec.algorithm` is
-   `raptorq` (Section 6.3.3 above).
+   `raptorq` or `reed-solomon` (Section 6.3.3 above).
 8. A track whose `packaging` is `fec-repair` carries no geometry
    field, whether as a flat field or inside an `fec` object of its
    own: `algorithm`, `blockProfile`, `mmtpMode`, `timescale`, any
@@ -1136,8 +1366,14 @@ layer set that decodes from one that silently mis-maps symbols.
     the conflict by preferring either field, because the two readings
     disagree about O_1, about the block total, and therefore about the
     RSB_length that every layer's packets carry (Section 6.3.2).  This
-    rule is why rules 4 and 5 have a single well defined totalP to
+    rule is why rules 4, 5 and 12 have a single well defined totalP to
     bound.
+12. When `fec.algorithm` is `reed-solomon`, K + totalP is at most 255
+    for each FEC instance: for the base instance, `fec.sourceSymbols`
+    plus the `repairSymbols` of all its layers, and for an overlay,
+    its own `sourceSymbols` plus its own `repairSymbols` (Sections 4.5
+    and 6.4.1).  Every entry of A that a block of the instance uses is
+    then defined (Section 4.4).
 
 Section 6.3.9 adds one check that can only be made on received repair
 packets.
@@ -1291,8 +1527,9 @@ set can therefore move the coordinates of a layer a receiver has
 already joined.  This subsection states which changes are defined.
 
 Layer sets are append-only.  A publisher MAY append a layer at the
-next index above the highest published one.  It MUST NOT withdraw a
-published layer, at any index, for the lifetime of the source
+next index above the highest published one; under `reed-solomon` the
+new total MUST keep the instance within rule 12 of Section 6.3.4.  It
+MUST NOT withdraw a published layer, at any index, for the lifetime of the source
 encoding.  An append changes O_i for no layer already published,
 because no published layer's set of lower layers changes.  It does
 raise the total, so RSB_length on the wire rises, which is benign for
@@ -1319,11 +1556,11 @@ layer 1 and the same track's offset becomes O = 8, so the publisher
 now labels those symbols ESI 72 to 103 while the receiver still maps
 them to 88 to 119.
 The receiver feeds correctly received symbols into the decoder under
-wrong coordinates.  RaptorQ does not detect this, because a repair
-symbol is identified by its ESI alone: the result is not a reported
-error but a decode that fails, or that resolves against coordinates
-the symbols do not belong to.  Changing a published `repairSymbols`
-does the same to every layer above the one changed.
+wrong coordinates.  Neither code of this document detects this,
+because a repair symbol is identified by its ESI alone: the result is
+not a reported error but a decode that fails, or that resolves against
+coordinates the symbols do not belong to.  Changing a published
+`repairSymbols` does the same to every layer above the one changed.
 
 Withdrawing the highest layer forces no renumbering, but it is barred
 for a different reason: it is indistinguishable on the wire from the
@@ -1416,6 +1653,15 @@ wire constraint explained in Section 8.5.1.  An overlay is declared
 only by the catalog, never in an in-band AL-FEC message, and only
 where no FEC source or repair packet carries FFSRP_TS
 (Section 8.5.1).
+
+Under `reed-solomon` the overlay has its own bound:
+K_overlay + P_overlay is at most 255 (Section 6.3.4, rule 12),
+whatever the base instance uses, and its rows and columns of A are
+numbered within the overlay instance (Section 4.5).  The overlay of
+the worked catalog of Section 5.1.2, with K_overlay 256 and P_overlay
+32, is valid only under `raptorq`.  Under `reed-solomon`, an overlay
+whose track declares `sourceSymbols` 192 and `repairSymbols` 32 is
+valid, since 192 + 32 = 224.
 
 ### Overlay Membership
 
@@ -1536,26 +1782,33 @@ for the block: the instance's total repair count P, identical on every
 repair packet of the instance; a layer does not carry its own P_i.
 
 **RS_ID (24 bits)**: The zero-based index of this repair symbol
-among the block's P repair symbols.  The RFC 6330 Encoding Symbol ID
-is derived as ESI = SSB_length + RS_ID (Section 7.2).  Layer i of the
-base instance carries RS_ID in [O_i, O_i + P_i) (Section 6.3.2).
+among the block's P repair symbols.  The Encoding Symbol ID is
+derived as ESI = SSB_length + RS_ID (Section 7.2): under `raptorq` it
+is the RFC 6330 Encoding Symbol ID, and under `reed-solomon` the code
+takes the symbol's column of A from RS_ID alone (Section 4.5).  Layer i
+of the base instance carries RS_ID in [O_i, O_i + P_i) (Section 6.3.2).
 
-The encoder performs one RaptorQ encoding pass per source block of
-each instance, producing the total repair count, and then assigns the
-disjoint RS_ID
-ranges to the layer tracks according to O_i.  It MUST NOT run a
-separate encoding per layer: separate encodings of the same block are
-not symbols of a single code, so they could not be combined by a
-receiver holding more than one layer, which is the property
-Section 6.3.2 depends on.
+Every repair symbol of a block, on whichever layer it travels, is a
+symbol of the one code over that block: the symbol at RS_ID r is the
+repair symbol that the instance's algorithm defines for r
+(Section 7.2).  The encoder generates the instance's total repair
+count for each source block and assigns the disjoint RS_ID ranges to
+the layer tracks according to O_i.  It MUST NOT encode a layer as if
+it were the block's only repair, for example by generating the first
+P_i repair symbols of the block and labeling them from O_i: those are
+not the block's symbols at the RS_IDs they carry, so a receiver
+holding more than one layer could not combine them, which is the
+property Section 6.3.2 depends on.
 
 **SSB_length (24 bits)**: The number of source symbols in the
 protected source block ([@!ISO.23008-1] Section C.5.3), from 1 to K,
 where K is the instance's `sourceSymbols` (Section 5.1); it is K for
-a full block.  It is authoritative for the block: the block is a
-RaptorQ source block of SSB_length source symbols, its repair ESIs
-start at SSB_length (Section 7.2), and its decoder is configured with
-F = SSB_length x T (Section 4.2).  A value below K marks a short
+a full block.  It is authoritative for the block: its repair ESIs
+start at SSB_length (Section 7.2).  Under `raptorq` the block is a
+RaptorQ source block of SSB_length source symbols, whose decoder is
+configured with F = SSB_length x T (Section 4.2), and under
+`reed-solomon` it is the number of rows of A that the block uses
+(Section 4.5).  A value below K marks a short
 source block, to which this document's framing adds no padding
 symbols (Section 7.4).  A publisher MUST NOT send 0
 or a value above K; a receiver discards a repair packet carrying
@@ -1578,8 +1831,14 @@ Symbol IDs of [@!RFC6330], which start the repair symbols at that
 document's K', are internal to its encoder and decoder and never
 appear on the wire.
 
-Repair symbol generation for extension algorithms (Section 4.3) is
-not specified by this document.
+For Reed-Solomon, repair symbols are generated per Section 4.4.  Source
+and repair symbols carry the same ESIs as under RaptorQ, so
+ESI = SSB_length + RS_ID still identifies a repair symbol within its
+block, but the code takes the symbol's column of A from its RS_ID
+alone (Section 4.5).
+
+Repair symbol generation for other registered algorithms (Section 4.3)
+is not specified by this document.
 
 ## Sub-Blocks and ssbg_mode
 
@@ -1697,9 +1956,11 @@ SSB_length source symbols,
 `iso-ssbg1-v1` -- is an upper bound on SSB_length, not the size of any particular
 block.  A short block differs from a full one only in SSB_length:
 
-1. The publisher encodes the block as a RaptorQ source block of its
-   SSB_length source symbols (F = SSB_length x T, Section 4.2), at
-   ESIs 0 to SSB_length - 1 in SS_ID order, and MUST carry that count
+1. The publisher encodes the block as a block of its SSB_length
+   source symbols, at ESIs 0 to SSB_length - 1 in SS_ID order: under
+   `raptorq` a RaptorQ source block with F = SSB_length x T
+   (Section 4.2), and under `reed-solomon` the first SSB_length rows
+   of A (Section 4.4).  It MUST carry that count
    in the SSB_length field of every repair packet of the block, on
    every repair track of the instance.  This document's framing adds
    no padding symbols to the block: none is transmitted, and none is
@@ -1718,7 +1979,8 @@ block.  A short block differs from a full one only in SSB_length:
 4. The block is complete, and needs no repair, once the receiver
    holds all SSB_length of its source symbols.  It is recoverable once the
    source and repair symbols the receiver holds together number at
-   least SSB_length, plus the decoding overhead of Section 6.3.2.
+   least SSB_length, plus the decoding overhead of Section 6.3.2, which
+   is zero under `reed-solomon`.
 
 5. Recovery yields the SSB_length source symbols, SSB_length x T bytes, each consumed
    per the track's block profile (Sections 7.3 and 7.6.4).
@@ -1747,7 +2009,8 @@ MUST discard a repair packet whose SSB_length differs from the value
 it has already accepted for the block with the same SS_Start, and one
 whose range [SS_Start, SS_Start + SSB_length) overlaps a different
 block that it has already accepted, in each case leaving the state of
-every block unchanged.
+every block unchanged.  Under `reed-solomon` it also discards a repair
+packet that fails the checks of Section 4.5.
 
 ## SS_ID Wrap and Repair Group IDs
 
@@ -1978,7 +2241,7 @@ s(o) = ceil(len(o) / T)
 
 source symbols.  They are the unit followed by s(o) x T - len(o) zero
 octets, cut into s(o) consecutive T-byte symbols, so every source
-symbol is exactly T bytes, as Section 4.2 requires.  Neither the
+symbol is exactly T bytes, as Sections 4.2 and 4.5 require.  Neither the
 fixed-width fields nor the padding is transmitted: the object travels
 in its usual MoQ form, and the publisher and each receiver build the
 unit from the object's fields.  The mutable Properties, Subgroup ID,
@@ -2012,7 +2275,8 @@ block that holds its first SS_ID, so SSB_length is the sum of s(o)
 over the objects of the block.  A publisher MUST NOT publish a source
 object whose s(o) exceeds K, the track's `sourceSymbols`.  It chooses
 `sourceSymbols` and `symbolSize` so that the unit of its largest
-object fits in K x T bytes; an algorithm that allows only small blocks
+object fits in K x T bytes; an algorithm that allows only small blocks,
+such as `reed-solomon` with K + totalP at most 255 (Section 4.5),
 therefore limits the largest object a track can protect.  When the open
 block already holds more than K - s(o) source symbols, the publisher
 MUST close it before it assigns SS_IDs to o, and o starts the next
@@ -2270,6 +2534,9 @@ symbols, with 2 symbols of decoding overhead (Section 6.3.2).  The IDR
 object spans 51 symbols, more than the block's 32 repair symbols, so
 its loss is not recovered in band: the receiver needs a further repair
 layer or a FETCH of the object, or resumes at the next Group.
+
+This example uses `raptorq`.  Its catalog is not valid under
+`reed-solomon`, since 256 + 32 exceeds 255 (Section 6.3.4, rule 12).
 
 # Block and Group Alignment
 
@@ -2572,7 +2839,8 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 A burst loss can therefore erase symbols from several adjacent blocks;
 each block is recovered with the repair symbols identified by its own
 `SS_Start` and `SSB_length`.  With P repair symbols for a block, the
-usual RaptorQ recovery condition applies independently to that block.
+recovery condition of the track's algorithm (Section 6.3.2) applies
+independently to that block.
 
 Publishers SHOULD choose the interleave window based on:
 
@@ -3254,6 +3522,17 @@ and it needs a MoQ session.  A receiver that holds both:
 This specification is designed for interoperability with ATSC A/331
 [@?ATSC-A331] Application-Layer FEC.
 
+[@?ATSC-A331] protects its two delivery protocols differently.  When
+it applies AL-FEC to file delivery over ROUTE, it requires the repair
+protocol of its Annex A.4, which uses RaptorQ: the S-TSID `fecOTI` is
+the [@!RFC6330] OTI, which Section 12.1 maps to the derived OTI of
+Section 4.2.  When it applies AL-FEC to MMTP sessions, it requires the
+AL-FEC framework of [@!ISO.23008-1] Annex C and leaves the FEC code to
+in-band signaling, so it requires no particular code for MMTP.  There
+the AL-FEC message names the code by its [@!ISO.23008-10] code point,
+3 for `raptorq` and 1 for `reed-solomon` (Section 4.1).  Section 4.3
+states why RaptorQ is the mandatory scheme of this document.
+
 ## Mapping to A/331 AL-FEC
 
 | ATSC A/331 Concept | MoQ FEC Equivalent |
@@ -3510,6 +3789,27 @@ object as it verifies a received one, and discards one that fails.
 With the FEC Source Info Property inside Immutable Properties, the
 same verification authenticates the SS_ID of each object it accepts.
 
+## Reed-Solomon Considerations
+
+The catalog bounds the cost of `reed-solomon` decoding.  A block has
+at most 255 source and repair symbols (Section 4.5), so the number of
+source symbols a receiver recovers in it, e, is at most
+min(SSB_length, RSB_length), which is at most 127.  The receiver
+inverts one e x e matrix per block and performs about
+e x SSB_length x T multiplications in GF(2^8) to form and apply the
+result (Section 4.4).  One open block holds at most 255 x T bytes of
+symbols.
+
+The code provides no integrity protection, as RaptorQ provides none
+(Section 14.2).  A decoder that is given a corrupted or injected
+symbol yields wrong source symbols and reports no error, and when it
+decodes from exactly SSB_length symbols the code itself cannot reveal
+the error.  The checks of Sections 7.3 and 7.6.4 reject some wrong
+results.  A receiver that holds more than SSB_length symbols of a
+block can also re-encode the recovered block and compare the result
+with the symbols it did not use: a mismatch shows that some symbol it
+holds is not what the publisher encoded.
+
 # IANA Considerations
 
 ## MoQ Registrations
@@ -3566,15 +3866,15 @@ with the following initial values:
 |-------|-----------|-----------|
 | 0x00  | None      | This document |
 | 0x01  | RaptorQ   | [@!RFC6330] |
-| 0x02  | Reed-Solomon | [@?RFC5510] |
+| 0x02  | Reed-Solomon | [@!ISO.23008-10] Clause 6; this document, Section 4.4 |
 | 0x03-0xFF | Unassigned | |
 
 New registrations require Specification Required policy.
 
-Only "None" (0x00) and RaptorQ (0x01) are specified for
-interoperation by this document; other registered values, including
-Reed-Solomon (0x02), are extension points whose interoperable use
-requires their own specifications (Section 4.3).
+This document specifies "None" (0x00), RaptorQ (0x01) and
+Reed-Solomon (0x02) for interoperation.  Other registered values are
+extension points whose interoperable use requires their own
+specifications (Section 4.3).
 
 ## Catalog Packaging Value
 
@@ -3650,6 +3950,17 @@ for that format, this document requests registration of:
     <date year='2025' month='May'/>
   </front>
   <seriesInfo name='ISO/IEC' value='23008-1:2023/Amd 1:2025'/>
+</reference>
+
+<reference anchor='ISO.23008-10'>
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 10: MPEG media transport forward error correction (FEC) codes</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year='2015'/>
+  </front>
+  <seriesInfo name='ISO/IEC' value='23008-10:2015'/>
 </reference>
 
 <reference anchor='ISO.23001-7'>
@@ -3910,6 +4221,107 @@ multicast UDP path.  Section 7.6.7 gives a loc track under
 `moq-object-v1`, whose capacity is counted in Protected Object Units
 rather than MMTP packets.
 
+# Reed-Solomon Test Vectors
+
+This appendix is informative.  It gives values of the `reed-solomon`
+code of Section 4.4, so that an implementation can check its field
+arithmetic, its matrix A and the order of its symbols.  Bytes are in
+hexadecimal, and a symbol is written as its T bytes in order.  Two
+separate implementations of Section 4.4 computed these values.  They
+have not been checked against an implementation of [@!ISO.23008-10].
+
+The field.  The powers of alpha fix the polynomial (alpha^8 = 1d) and
+the representation of elements as bytes (alpha^7 = 80):
+
+~~~ json
+{
+  "vector": "field",
+  "polynomial": "11d",
+  "alphaPowers": {"0": "01", "1": "02", "7": "80", "8": "1d",
+                  "9": "3a", "254": "8e", "255": "01"},
+  "inverses": {"02": "8e", "03": "f4", "1d": "83"}
+}
+~~~
+
+Entries of A, with the x_i and y_j that define them.  A_{253,0} and
+A_{0,253} lie at the edge of the bound: a block that uses either has
+SSB_length + RSB_length = 255.
+
+~~~ json
+{
+  "vector": "matrix",
+  "entries": [
+    {"i": 0, "j": 0, "x": "8e", "y": "01", "A": "f5"},
+    {"i": 0, "j": 1, "x": "8e", "y": "02", "A": "53"},
+    {"i": 1, "j": 0, "x": "47", "y": "01", "A": "a6"},
+    {"i": 1, "j": 1, "x": "47", "y": "02", "A": "4e"},
+    {"i": 3, "j": 2, "x": "d8", "y": "04", "A": "99"},
+    {"i": 31, "j": 7, "x": "09", "y": "80", "A": "31"},
+    {"i": 253, "j": 0, "x": "02", "y": "01", "A": "f4"},
+    {"i": 0, "j": 253, "x": "8e", "y": "47", "A": "f7"}
+  ]
+}
+~~~
+
+A block of four one-byte source symbols, and its repair symbols at
+RS_IDs 0 to 2:
+
+~~~ json
+{
+  "vector": "encode",
+  "T": 1,
+  "SSB_length": 4,
+  "source": ["01", "02", "03", "04"],
+  "RS_ID": [0, 1, 2],
+  "repair": ["cc", "ce", "83"]
+}
+~~~
+
+A short block.  K is 8, and the block holds three two-byte source
+symbols.  Its repair symbols are also those of a full block of eight
+source symbols whose last five are zero.  A receiver that holds the
+source symbol at ESI 0 and both repair symbols recovers the source
+symbols at ESIs 1 and 2:
+
+~~~ json
+{
+  "vector": "short-block",
+  "T": 2,
+  "K": 8,
+  "SSB_length": 3,
+  "source": ["0102", "0304", "0506"],
+  "RS_ID": [0, 1],
+  "repair": ["d43a", "d016"],
+  "received": {"ESI": [0], "RS_ID": [0, 1]},
+  "recovered": ["0304", "0506"]
+}
+~~~
+
+Two repair layers over the block of the third vector, with K = 4.
+Layer 0 carries RS_IDs 0 and 1 (P_0 = 2, O_0 = 0), and layer 1 carries
+RS_IDs 2 and 3 (P_1 = 2, O_1 = 2), so RSB_length is 4.  The symbols at
+RS_IDs 0 to 2 equal those of the third vector, whose block has a total
+repair count of 3: a column does not depend on P.  A receiver that
+holds layer 1 alone, with the source symbols at ESIs 0 and 3, recovers
+the source symbols at ESIs 1 and 2:
+
+~~~ json
+{
+  "vector": "layers",
+  "T": 1,
+  "K": 4,
+  "SSB_length": 4,
+  "RSB_length": 4,
+  "source": ["01", "02", "03", "04"],
+  "layers": [
+    {"repairLayer": 0, "RS_ID": [0, 1], "repair": ["cc", "ce"]},
+    {"repairLayer": 1, "RS_ID": [2, 3], "repair": ["83", "20"]}
+  ],
+  "received": {"ESI": [0, 3], "RS_ID": [2, 3]},
+  "recovered": ["02", "03"]
+}
+~~~
+
 # Changes Since draft-ramadan-moq-fec-00
 
 This appendix is informative and is to be removed before publication
@@ -4023,3 +4435,55 @@ as an RFC.
 - Appendices A.1 and B: notes on loc tracks and on multicast carriage.
 - References: added [@!I-D.ietf-moq-loc] as normative and [@?RFC6681]
   as informative.
+- New Sections 4.4 and 4.5: "reed-solomon" (0x02) is fully specified.
+  It is the systematic Cauchy Reed-Solomon code over GF(2^8) of
+  [@!ISO.23008-10] Clause 6 (MMT FEC code point 1), restated with its
+  field, matrix, encoding, short blocks and decoding.  Its parameters
+  come from the catalog and the Repair FEC Payload ID, with no OTI.  A
+  repair packet whose SSB_length + RSB_length exceeds 255, or whose
+  RS_ID is not below RSB_length, is discarded.
+- Abstract, Sections 1, 4 and 5.1: the document fully specifies two
+  schemes, RaptorQ, which remains mandatory to implement, and the
+  OPTIONAL Reed-Solomon code.  `symbolSize` need not be a multiple of
+  8 under Reed-Solomon, and Section 4.5 gives a catalog example.
+- Section 4.1: both codes are systematic and correspond to the
+  [@!ISO.23008-10] code points 3 and 1.  The RaptorQ entry states its
+  decoding overhead.
+- Section 4.3: retitled "Algorithm Requirements".  The rationale for
+  RaptorQ as the mandatory scheme is block size and ATSC 3.0 ROUTE.
+  [@?ATSC-A331] requires RaptorQ for ROUTE and leaves the MMTP code to
+  in-band signaling, and the text no longer implies otherwise.
+- Sections 2, 3 and 5.2: definitions and decoder configuration cover
+  both codes.
+- Section 5.1.2: the worked catalog's overlay is valid only under
+  RaptorQ.
+- Section 6.3.2: the decoding overhead depends on the algorithm and is
+  zero under Reed-Solomon, and layers combine under either code.
+- Section 6.3.3: retitled "Algorithms That Admit Layers".  The
+  Reed-Solomon code meets conditions (a) to (d).  The [@?RFC5510]
+  column is fixed by SSB_length and RS_ID together, and the Cauchy
+  bound of Section 4.4 is 255.
+- Section 6.3.4: rule 7 admits `reed-solomon`, and new rule 12 bounds
+  K + totalP by 255 for each Reed-Solomon FEC instance.
+- Sections 6.3.9 and 6.4.1: a layer append, and a keyframe overlay,
+  stay within rule 12 under Reed-Solomon.  Section 6.4.1 gives a valid
+  Reed-Solomon overlay.
+- Section 7.1: under Reed-Solomon RS_ID is the column of A.  The
+  encoder rule now names the actual hazard: a layer's symbols must be
+  the block's symbols at the RS_IDs they carry, not a separate
+  encoding relabeled from O_i.
+- Sections 7.2 and 7.4: Reed-Solomon repair symbols, short blocks,
+  recovery condition and packet checks.
+- Sections 7.6.2 and 7.6.7: Reed-Solomon limits the largest protected
+  object, and the example is valid only under RaptorQ.
+- Section 9: the recovery condition follows the track's algorithm.
+- Section 12: states which FEC codes [@?ATSC-A331] requires for ROUTE
+  and for MMTP.
+- New Section 14.7: Reed-Solomon decoding cost and the absence of
+  integrity protection.
+- Section 15.2: the Reed-Solomon entry references [@!ISO.23008-10]
+  Clause 6 and Section 4.4, and the code is specified for
+  interoperation.
+- New Appendix C: Reed-Solomon test vectors.  The appendix of changes
+  becomes Appendix D.
+- References: added [@!ISO.23008-10] as normative.

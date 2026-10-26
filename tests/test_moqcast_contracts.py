@@ -107,9 +107,14 @@ class PublishedExamples(unittest.TestCase):
                 self.assertEqual(track.get("mmtpMode"), "mfu", where)
                 self.assertIsInstance(track.get("timescale"), int, where)
                 self.assertTrue(required <= fec.keys(), where)
-                self.assertEqual(fec["algorithm"], "raptorq", where)
+                self.assertIn(fec["algorithm"], ("raptorq", "reed-solomon"), where)
                 self.assertTrue(all(isinstance(fec[k], int) and fec[k] >= 1 for k in ("sourceSymbols", "repairSymbols")), where)
-                self.assertTrue(isinstance(fec["symbolSize"], int) and fec["symbolSize"] % 8 == 0 and fec["symbolSize"] > 0, where)
+                self.assertTrue(isinstance(fec["symbolSize"], int) and fec["symbolSize"] > 0, where)
+                if fec["algorithm"] == "raptorq":
+                    self.assertEqual(fec["symbolSize"] % 8, 0, where)  # RFC 6330 Al = 8
+                else:
+                    # GF(2^8) Cauchy code: K + P <= 255 per FEC instance (fec Section 4.4)
+                    self.assertLessEqual(fec["sourceSymbols"] + fec["repairSymbols"], 255, where)
                 repair = [item for item in tracks if item.get("name") == fec["repairTrack"]]
                 self.assertEqual(len(repair), 1, f"missing repair track for {where}")
                 self.assertEqual(repair[0].get("packaging"), "fec-repair", where)
