@@ -66,6 +66,20 @@ class PublishedExamples(unittest.TestCase):
         except ValueError:
             self.fail(f"published example section is missing: {start!r}")
 
+    def test_multicast_revision_specifies_receiver_owned_dns_health(self):
+        markdown = (ROOT / "draft-ramadan-moq-multicast-01.md").read_text(encoding="utf-8")
+        xml = (ROOT / "draft-ramadan-moq-multicast-01.xml").read_text(encoding="utf-8")
+        self.assertIn('value = "draft-ramadan-moq-multicast-01"', markdown)
+        self.assertIn('docName="draft-ramadan-moq-multicast-01"', xml)
+        self.assertIn('anchor="receiver-owned-dns-candidate-discovery"', xml)
+        for text in (markdown, xml):
+            self.assertIn("DNS answer order", text)
+            self.assertIn("MUST NOT", text)
+            self.assertIn("cancel", text)
+            self.assertIn("Advertisement", text)
+            self.assertIn("Query", text)
+            self.assertIn("first", text)
+
     def test_iso_catalogs_have_required_fields_and_repair_references(self):
         required = {"algorithm", "blockProfile", "sourceSymbols", "repairSymbols", "symbolSize", "repairTrack"}
         seen = 0
