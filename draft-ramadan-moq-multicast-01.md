@@ -84,7 +84,7 @@ for ongoing media data.  This ensures that codec configuration is
 available before multicast reception begins.
 
 Exception: MMTP-packaged streams [@!MOQ-MMT] delivered via ATSC 3.0
-broadcast [@?ATSC-A331] or native SSM MAY operate as unidirectional
+broadcast [@!ATSC-A331] or native SSM MAY operate as unidirectional
 data streams without a MoQ session.  MMTP carries per-packet routing
 (packet_id), timing (timestamp), sequencing (Packet Sequence Number),
 and FEC framing (FEC Type, FEC payload IDs) natively, and its
@@ -1002,7 +1002,7 @@ from UDP source port `port`.  `streamId` is the endpoint's
 holds the same values from its out-of-band provisioning
 ((#receiver-enforcement-and-state)), so for a datagram of the flow
 delivered over a unicast MoQ path or Real-Time Object Delivery over
-Unidirectional Transport (ROUTE) [@?ATSC-A331] the receiver forms the
+Unidirectional Transport (ROUTE) [@!ATSC-A331] the receiver forms the
 same
 pseudoheader and one digest verifies the same bytes on every path
 ((#route-and-broadcast-carriage); step 2 of
@@ -2166,14 +2166,14 @@ endpoint of a flow the consumer is protected under lists, is not a
 datagram of any such flow, and what it helps the base instance
 recover is admitted by digest ((#receiver-enforcement-and-state)).  A datagram
 of the flow carried on a ROUTE session is one delivery object of a
-source flow of that session (Annex A.3.3 of [@?ATSC-A331]), whose
+source flow of that session (Annex A.3.3 of [@!ATSC-A331]), whose
 bytes MUST be the whole MoQ UDP payload, trailer included, for this
 profile to cover it; a ROUTE session that carries the flow's
 datagrams in any other form is not covered.  For broadcast-only
 receivers, the
 signed record is carried unchanged as a delivery object of an LCT
-channel of the ROUTE session [@?ATSC-A331], one channel (its own TSI
-in the LCT header [@!RFC5651], Annex A.2.2 of [@?ATSC-A331]) per
+channel of the ROUTE session [@!ATSC-A331], one channel (its own TSI
+in the LCT header [@!RFC5651], Annex A.2.2 of [@!ATSC-A331]) per
 protected flow, so that the channel's TOIs identify the records of
 one flow.  The ROUTE session is a carrier of the flow's datagrams on
 `port` and `manifestPort` alike, so a record read from that channel
@@ -2184,24 +2184,24 @@ budget, counts as the record's arrival on that path and so measures
 the mirror's lead ((#emission-and-cadence)) where the manifest track
 delivered the record first.  The
 channel's Extended FDT MUST carry `@fileTemplate` (Annex A.3.3.2.3
-of [@?ATSC-A331]), so that a record's TOI alone names its delivery
+of [@!ATSC-A331]), so that a record's TOI alone names its delivery
 object and the TOI rules of Annex A.3.3.2.6 and A.3.3.2.7 of
-[@?ATSC-A331], which hold only for such an Extended FDT, govern the
+[@!ATSC-A331], which hold only for such an Extended FDT, govern the
 channel.  A/331 fixes the LCT TOI at 32 bits (Annex A.3.6 of
-[@?ATSC-A331]), so the record's TOI is a per-channel counter that
-takes neither the value 0, which Annex A.3.3 of [@?ATSC-A331] gives
+[@!ATSC-A331]), so the record's TOI is a per-channel counter that
+takes neither the value 0, which Annex A.3.3 of [@!ATSC-A331] gives
 to an Extended FDT Instance carried in the channel, nor a TOI that a
 `File` element of the channel's Extended FDT lists, which Annex
-A.3.3.2.8 of [@?ATSC-A331] excludes from the `@fileTemplate` mapping
+A.3.3.2.8 of [@!ATSC-A331] excludes from the `@fileTemplate` mapping
 (Annex A.3.3.2.6 requires at least one such element, and none names
 a record): the sender starts it at 1, increments it by one per
 record, lets it wrap modulo 2^32, skips every excluded value
 wherever the counter would take one, the start included, and MUST
 NOT reuse a value within the channel's object expiry, the `@Expires`
-a receiver derives under Annex A.3.3.2.7 of [@?ATSC-A331] from
+a receiver derives under Annex A.3.3.2.7 of [@!ATSC-A331] from
 `@maxExpiresDelta` of the Extended FDT, from the EXT_TIME ERT where
 that attribute is absent, and from the smaller of the two where both
-are present.  Annex A.3.3.2.6 of [@?ATSC-A331] lets no packet of a
+are present.  Annex A.3.3.2.6 of [@!ATSC-A331] lets no packet of a
 TOI be sent after the time `@maxExpiresDelta` gives; the sender MUST
 send no packet of a TOI after the expiry so derived, whichever value
 sets it.  A sender meets the reuse rule across a restart in one of
