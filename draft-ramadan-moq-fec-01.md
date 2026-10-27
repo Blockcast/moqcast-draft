@@ -797,8 +797,8 @@ track in the same catalog that carries an `fec` object whose
 **repairLayer** (integer, REQUIRED on enhancement layers, OPTIONAL on
 layer 0, MUST NOT appear on an overlay): The layer index (Section 6.3).
 
-**repairSymbols** (integer, REQUIRED except on layer 0; MUST be
->= 1): The repair symbols per block that this track carries, P_i.
+**repairSymbols** (integer, REQUIRED except on layer 0; MUST be >= 1):
+The repair symbols per block that this track carries, P_i.
 For layer 0 the source track's `fec.repairSymbols` is the
 authoritative P_0 (Section 6.3.4, rule 11).
 
@@ -821,8 +821,8 @@ overlay is defined only for a source track under `iso-ssbg1-v1`
 (Section 6.3.4, rule 10).
 
 **sourceSymbols** (integer, REQUIRED on an overlay, MUST NOT appear
-otherwise): The overlay instance's own K, the upper bound on the
-SSB_length of its blocks (Section 7.4).
+otherwise; MUST be >= 1): The overlay instance's own K, the upper
+bound on the SSB_length of its blocks (Section 7.4).
 
 Track names carry no meaning in any of this.  A receiver MUST resolve
 every relationship from `fec.repairTrack`, `depends`, `repairLayer`
@@ -1420,12 +1420,15 @@ layer set that decodes from one that silently mis-maps symbols.
     `sourceSymbols` is at least 1, `repairSymbols` is at least 1 when
     a repair track is published, `symbolSize` is at least 14 under
     `iso-ssbg1-v1`, and `symbolSize` is a multiple of 8 when
-    `fec.algorithm` is `raptorq`.  A symbol shorter than 14 octets
-    carries no protected MMTP packet (Section 7.3), a RaptorQ symbol
-    size off the Symbol Alignment fits no derived OTI (Section 4.2),
-    and a block of no source or no repair symbols recovers nothing,
-    so a receiver that started FEC on such a catalog would join
-    repair tracks whose symbols recover no packet.
+    `fec.algorithm` is `raptorq`; and each repair track meets those
+    of Section 5.1.1: its `repairSymbols`, where declared, is at
+    least 1, and an overlay's `sourceSymbols` is at least 1.  A
+    symbol shorter than 14 octets carries no protected MMTP packet
+    (Section 7.3), a RaptorQ symbol size off the Symbol Alignment
+    fits no derived OTI (Section 4.2), and a block of no source or no
+    repair symbols recovers nothing, in the base instance or in an
+    overlay (Section 6.4.1), so a receiver that started FEC on such a
+    catalog would join repair tracks whose symbols recover no packet.
 
 Section 6.3.9 adds one check that can only be made on received repair
 packets.
@@ -4689,10 +4692,12 @@ as an RFC.
   meets them, with K + totalP at most 255.
 - Section 6.3.4: rule 7 admits `reed-solomon`, new rule 12 bounds
   K + totalP by 255 for each Reed-Solomon FEC instance, and new rule
-  13 makes the range rules of Section 5.1 (`sourceSymbols` at least
-  1, `repairSymbols` at least 1 when a repair track is published,
-  `symbolSize` at least 14 under `iso-ssbg1-v1` and a multiple of 8
-  under `raptorq`) catalog rules a receiver fails closed on.
+  13 makes the range rules of Sections 5.1 and 5.1.1 (`sourceSymbols`
+  at least 1, `repairSymbols` at least 1 when a repair track is
+  published and on each repair track where declared, an overlay's
+  `sourceSymbols` at least 1, `symbolSize` at least 14 under
+  `iso-ssbg1-v1` and a multiple of 8 under `raptorq`) catalog rules
+  a receiver fails closed on.
 - Sections 6.3.9 and 6.4.1: a layer append, and a keyframe overlay,
   stay within rule 12 under Reed-Solomon.  Section 6.4.1 gives a valid
   Reed-Solomon overlay.
@@ -4743,7 +4748,9 @@ as an RFC.
   naming convention or in an informative section.
 - Sections 7.6.5, 12 and 14.4: no requirement rests on an
   informative reference.  Secure Objects and Common Encryption are
-  examples, and the ATSC 3.0 ingest guidance uses no BCP 14 keyword.
+  examples, and the ATSC 3.0 ingest guidance sets no requirement of
+  its own: the one BCP 14 keyword in Section 12 restates the status
+  Section 4.3 gives "raptorq".
 - Section 14.3: the overhead bound applies by default to layer 0 of the
   base instance, since further layers are added on demand.
 - Section 14.4: deployments that authenticate packets need a mechanism

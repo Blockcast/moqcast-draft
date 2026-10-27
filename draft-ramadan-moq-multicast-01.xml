@@ -2134,14 +2134,20 @@ the sender's copy and the twin measure nothing and the re-handling
 that a raising copy affords (step 1 of
 <xref target="receiver-enforcement-and-state"></xref>) is not afforded against it.
 Where no larger interval has been measured in the stream generation
-this pins the lead at the injector's replay interval, so the entries
-of every later record the mirror delivers are widened by that
-interval alone, which the geometry of the attack, the injector's
-copy preceding the datagrams by more than
-<tt>maxAuthDelayMs + 2 x manifestTimerMs</tt>, leaves short of their
-datagrams: they are held and expire as in the next case, the attack
-succeeding for every record the mirror delivers first after the one
-that pinned the lead, with no race to win.  A lead the sender's
+this pins the lead at the injector's replay interval, rounded up to
+a multiple of <tt>manifestTimerMs</tt> as step 1 rounds it, so the entries
+of every later record the mirror delivers are widened by that lead
+alone and are short of their datagrams wherever the mirror delivers
+the record more than that lead plus
+<tt>maxAuthDelayMs + 2 x manifestTimerMs</tt> before the multicast path
+delivers the datagrams it covers, which the geometry of the attack
+(the injector's copy preceding those datagrams by more than
+<tt>maxAuthDelayMs + 2 x manifestTimerMs</tt>) meets up to the rounding,
+under <tt>manifestTimerMs</tt>: they are held and expire as a record the
+injector's copy brings to <tt>manifestPort</tt> first does below, the
+attack succeeding for every such record the mirror delivers first
+after the one that pinned the lead, with no race to win.  A lead the
+sender's
 copies measured larger before the injector began is never lowered
 (<xref target="emission-and-cadence"></xref>) and keeps widening the entries of mirrored
 records, so their datagrams are admitted on arrival and the attack

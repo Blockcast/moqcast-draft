@@ -1833,7 +1833,19 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   one-stage entry names is the track's layer 0, and
   `maximum_p_for_repair_flow` is its P while layer 0 is the only
   published layer, as in a one-stage session of [@!ISO.23008-1],
-  whose one repair flow carries the block's whole repair count; a
+  whose one repair flow carries the block's whole repair count.
+  That field bounds the repair count of a block ([@!ISO.23008-1]
+  Clause C.6.3: the maximum allowed number of repair symbols in a
+  repair symbol block) where "iso-ssbg1-v1" carries P as the
+  RSB_length of every repair packet ([@!MOQ-FEC] Section 7.1), on
+  which a receiver holding layer 0 fails closed when it falls below
+  the `repairSymbols` its catalog holds (its Section 6.3.9), so the
+  converter, which receives the flow's repair packets before it
+  lists the repair track (below), fails the conversion of a flow
+  whose repair packets carry an RSB_length below
+  `maximum_p_for_repair_flow` on any block: such a flow is not one
+  "iso-ssbg1-v1" describes.  An RSB_length above the field is the
+  append case of the next sentence.  A
   MoQ publisher that appended a layer ([@!MOQ-FEC] Section 6.3.9)
   sends the raised total in that field (Section 8.3) while the named
   flow carries only the P_0 symbols of each block ([@!MOQ-FEC]
@@ -1851,14 +1863,16 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   published layer while any receiver may still be consuming the
   source track, and says that a receiver reading the smaller bound
   excludes only symbols of layers it has not joined.  A later version
-  that lowers `maximum_p_for_repair_flow` below the `repairSymbols`
-  the converter published is a change that section lets no publisher
-  make, on which every receiver holding the track fails closed, the
-  wire RSB_length falling below the `repairSymbols` its catalog holds
-  for layer 0, so the converter retires the source encoding and
-  publishes the source track and its repair track as a separate
+  that lowers `maximum_p_for_repair_flow` below the total the
+  converter first published for the track, layer 0's `repairSymbols`
+  plus those of every layer above 0 it lists, is a change that
+  section lets no publisher make, on which every receiver holding the
+  highest layer it lists fails closed, the wire RSB_length falling
+  below the O_i + P_i its catalog derives for that layer, which is
+  that total, so the converter retires the source encoding and
+  publishes the source track and its repair tracks as a separate
   rendition carrying the lowered value, as that section has a
-  publisher that must change a published layer do.  The conversion
+  publisher that must retire a layer do.  The conversion
   of a flow fails where the `fec` object it would yield fails a
   catalog rule of [@!MOQ-FEC] Sections 5.1 and 6.3.4, on which a
   receiver fails closed: a `maximum_p_for_repair_flow` of 0 names no
@@ -1888,7 +1902,12 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   packet_id of another track of the session, a value that
   [@!MOQ-MULTICAST] Section 4.1 requires to denote one sub-flow (a
   repair flow carries a packet_id of its own, [@!ISO.23008-1]
-  Clause C.6.3).  The message names the repair flow
+  Clause C.6.3), and for the flows of any two entries that name one
+  `repair_flow_id` or list one Asset: two source tracks naming one
+  repair track, or two `fec` objects for one track, are shapes no
+  FEC instance of [@!MOQ-FEC] has, a repair packet belonging to the
+  instance of the track it arrived on (its Section 6.4.1).  The
+  message names the repair flow
   by packet_id without a location, and the MP table does not list it
   ([@!MOQ-MULTICAST] Section 5), so the converter lists the repair
   track in the `tracks[]` of each endpoint on whose session it
@@ -2176,7 +2195,12 @@ publication as an RFC.
   provisioning, keeping the value it first published for a track
   across later versions of the message that raise the field and
   retiring the source encoding under one that lowers the field below
-  that value ([@!MOQ-FEC] Section 6.3.9).  Section 8.3 sets the
+  the total it first published, that value plus the layers it lists
+  ([@!MOQ-FEC] Section 6.3.9).  Section 12.2 states that the field is
+  a bound in [@!ISO.23008-1] where "iso-ssbg1-v1" carries P as every
+  repair packet's RSB_length, and fails the conversion of a flow
+  whose repair packets carry an RSB_length below the field on any
+  block.  Section 8.3 sets the
   entry's `number_of_assets` to 1, the one Asset being the source
   track's.  Section 12.2 accepts only an entry with a
   `number_of_assets` of 1, the coding byte 0x14 and code point 1 or
@@ -2185,9 +2209,10 @@ publication as an RFC.
   or maximum P of 0, a symbol length below 14, a RaptorQ symbol
   length that is not a multiple of 8, a RaptorQ maximum K above 56403
   or maximum K plus maximum P above 2^24, a Reed-Solomon maximum K
-  plus maximum P above 255) and of one whose repair flow is
+  plus maximum P above 255), of one whose repair flow is
   packet_id 0, the flow's own packet_id or the packet_id of another
-  track of the session.
+  track of the session, and of the flows of two entries that name
+  one repair flow or list one Asset.
 - Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
   has expired, and its content continues as [@?I-D.ietf-moq-cmsf].
   The FEC column names the [@!MOQ-FEC] block profile for each
