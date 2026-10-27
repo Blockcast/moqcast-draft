@@ -1593,17 +1593,22 @@ generated under a total at or above its O_i + P_i whatever block it
 belongs to, and, for every held layer, to a block at or after, in
 the serial order of their SS_Start (Section 7.5), the order blocks
 are generated in, one of which the receiver has received a repair
-packet carrying at least that layer's O_i + P_i; a block before it
-whose packets of other layers carry less was generated before the
-append, carries no symbol of the layer, and those packets are the
-symbols of the layers the receiver holds below it, under the
-coordinates of Section 6.3.2 unchanged.  Layer 0 has no clause of
-its own track: its O_0 is 0 and its symbols' coordinates depend on
-no published count, so a catalog whose layer 0 carries a block
-total read from an AL-FEC message rather than the flow's own count
-(<xref target="MOQ-MMT"></xref> Section 12.2, Section 12), under which a packet of
-that track generated under a previous total carries less, fails a
-receiver closed on no conforming packet.
+packet carrying at least that layer's O_i + P_i; for a layer above
+0, a block before it whose packets of other layers carry less was
+generated before the append, carries no symbol of the layer, and
+those packets are the symbols of the layers the receiver holds
+below it, under the coordinates of Section 6.3.2 unchanged; for
+layer 0, no block carries less than its P_0 where the catalog gives
+the flow's own count, and under a block total read from an AL-FEC
+message (below) a block before it was generated under a previous
+total, which every packet of it carries, those of layer 0's own
+track included.  Layer 0 has no clause of its own track: its O_0 is
+0 and its symbols' coordinates depend on no published count, so a
+catalog whose layer 0 carries a block total read from an AL-FEC
+message rather than the flow's own count (<xref target="MOQ-MMT"></xref> Section
+12.2), or that message held in place of a catalog (Section 12),
+under which a packet of that track generated under a previous total
+carries less, fails a receiver closed on no conforming packet.
 Within a consumer protected under a flow of the
 bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2, whether or
 not that profile governs it for its blocks (Section 7.4), the packet
@@ -1669,8 +1674,8 @@ being above 0, or on a repair packet of the same FEC instance of a
 block at or after, in the serial order of Section 7.5, one of which
 it has received a repair packet carrying at least O_i + P_i, is
 less than the O_i + P_i derived from its own catalog, or from the
-AL-FEC message for a receiver that holds a layer under it
-(Section 12): its own layer's RS_ID range
+AL-FEC message for a receiver that holds layer 0 under that message
+alone (Section 12): its own layer's RS_ID range
 does not fit under the bound the publisher is advertising, so the
 two disagree about coordinates the receiver is actively using.  It
 MUST NOT treat such a packet as a symbol to discard.  In the
@@ -4902,8 +4907,9 @@ above its O_i + P_i, and for every held layer to a block at or
 after, in the serial order of Section 7.5, one that carried at
 least that layer's O_i + P_i; layer 0, whose coordinates depend on
 no published count, has no clause of its own track, which lets a
-catalog give it a block total read from an AL-FEC message
-(<xref target="MOQ-MMT"></xref> Section 12.2, Section 12); the check of -00,
+catalog, or the message held in its place, give it a block total
+read from an AL-FEC message (<xref target="MOQ-MMT"></xref> Section 12.2; Section
+12); the check of -00,
 unscoped, fired on a conforming append.  Within a consumer
 protected under a flow of the
 bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2, governed

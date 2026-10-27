@@ -1938,12 +1938,15 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   later version that lowers `maximum_p_for_repair_flow` below the
   total its catalog derives for the highest layer it lists, layer
   0's `repairSymbols` plus those of every layer above 0 it lists, is
-  a change that section lets no publisher make, on which every
-  receiver holding the highest layer it lists fails closed on the
-  first packet of that layer, where it is above 0, or of a block at
-  or after, in that serial order, one that carried at least that
-  total, whose RSB_length falls below the O_i + P_i its catalog
-  derives for that layer, which is that total, so the converter
+  a change that section lets no publisher make, on which a receiver
+  holding the highest layer it lists fails closed on the first
+  packet of that layer, where it is above 0, or of a block at or
+  after, in that serial order, one that carried at least that total,
+  whose RSB_length falls below the O_i + P_i its catalog derives for
+  that layer, which is that total, and one that no such packet
+  reaches, the check anchored on no block it received, learns of the
+  change only at the next catalog refresh (that section), so the
+  converter
   retires the source encoding and
   publishes the source track and its repair tracks as a separate
   rendition carrying the lowered value, as that section has a
@@ -1955,7 +1958,8 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   same way, the separate rendition listing the repair track as the
   first listing did, once a repair packet of the flow received after
   that one carries at least the field of the version it then holds,
-  which that version names and the violating packet does not.  The
+  as the violating packet, below the field of the version held when
+  it arrived, did not.  The
   conversion
   of a flow fails where the `fec` object it would yield fails a
   catalog rule of [@!MOQ-FEC] Sections 5.1 and 6.3.4, on which a
