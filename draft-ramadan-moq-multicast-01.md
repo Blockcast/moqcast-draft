@@ -2138,10 +2138,17 @@ delivers the datagrams it covers, which the geometry of the attack
 `maxAuthDelayMs + 2 x manifestTimerMs`) meets up to the rounding,
 under `manifestTimerMs`: they are held and expire as a record the
 injector's copy brings to `manifestPort` first does below, the
-attack succeeding for every such record the mirror delivers first
-after the one that pinned the lead, with no race to win.  A lead the
-sender's
-copies measured larger before the injector began is never lowered
+attack succeeding for every such record whose first copy on
+`manifestPort` the injector keeps supplying, with no race against
+the mirror to win.  It ends at the first such record whose first
+copy on `manifestPort` is the sender's (the injector idle, or its
+copy lost or arriving after the sender's): that copy measures the
+interval from the mirror's delivery to its own arrival, which the
+geometry puts above the pinned lead, raises the lead to it (capped
+at the bound of (#emission-and-cadence)) and affords the re-handling
+of step 1 of (#receiver-enforcement-and-state), so that from then
+the next case applies.  A lead the sender's copies measured larger,
+before the injector began or at such a record, is never lowered
 ((#emission-and-cadence)) and keeps widening the entries of mirrored
 records, so their datagrams are admitted on arrival and the attack
 fails for such a record while the interval from the mirror's

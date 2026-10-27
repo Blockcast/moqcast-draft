@@ -1653,7 +1653,13 @@ track whose `fec.blockProfile` is "iso-ssbg1-v1", that entry carries:
   `fec.repairSymbols` while layer 0 is the only published layer
   ([@!MOQ-FEC] Section 6.3.2).  A publisher that appends a layer
   ([@!MOQ-FEC] Section 6.3.9) raises that total and sends a new
-  version of the message carrying it.
+  version of the message carrying it, no earlier than the last
+  repair packet of a block generated under the previous total: a
+  block's RSB_length is the total in force when its repair symbols
+  were generated ([@!MOQ-FEC] Section 7.1), so every repair packet
+  sent after the new version carries a value no lower than the
+  field it names, which the conversion rule of Section 12.2 relies
+  on.
 
 A publisher MUST NOT describe a repair layer above layer 0, or a
 keyframe overlay, in the message, whether in that entry or in an
@@ -1838,14 +1844,20 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   Clause C.6.3: the maximum allowed number of repair symbols in a
   repair symbol block) where "iso-ssbg1-v1" carries P as the
   RSB_length of every repair packet ([@!MOQ-FEC] Section 7.1), on
-  which a receiver holding layer 0 fails closed when it falls below
-  the `repairSymbols` its catalog holds (its Section 6.3.9), so the
-  converter, which receives the flow's repair packets before it
+  which every receiver holding the highest layer the converter lists
+  (below) fails closed when it falls below the O_i + P_i its catalog
+  derives for that layer, the field itself (its Section 6.3.9), so
+  the converter, which receives the flow's repair packets before it
   lists the repair track (below), fails the conversion of a flow
-  whose repair packets carry an RSB_length below
+  whose repair packets carry, once it holds the version of the
+  message that names the field, an RSB_length below
   `maximum_p_for_repair_flow` on any block: such a flow is not one
-  "iso-ssbg1-v1" describes.  An RSB_length above the field is the
-  append case of the next sentence.  A
+  "iso-ssbg1-v1" describes, and a publisher that appends a layer
+  sends the raised field only after the last repair packet generated
+  under the previous total (Section 8.3), so no packet received
+  under a version carries less than that version's field.  An
+  RSB_length above the field is the append case of the next
+  sentence.  A
   MoQ publisher that appended a layer ([@!MOQ-FEC] Section 6.3.9)
   sends the raised total in that field (Section 8.3) while the named
   flow carries only the P_0 symbols of each block ([@!MOQ-FEC]
@@ -1856,23 +1868,36 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   none publishes the whole field, which overstates layer 0's count,
   and the loss tolerance a receiver derives from it, by the layers it
   does not list.  The converter keeps the `repairSymbols` it first
-  published for a track for as long as it publishes the track: a
-  later version of the message that raises
-  `maximum_p_for_repair_flow` changes nothing in its catalog, since
-  [@!MOQ-FEC] Section 6.3.9 forbids changing the `repairSymbols` of a
-  published layer while any receiver may still be consuming the
-  source track, and says that a receiver reading the smaller bound
-  excludes only symbols of layers it has not joined.  A later version
-  that lowers `maximum_p_for_repair_flow` below the total the
-  converter first published for the track, layer 0's `repairSymbols`
-  plus those of every layer above 0 it lists, is a change that
-  section lets no publisher make, on which every receiver holding the
+  published for a track, and the set of layers it listed with it,
+  for as long as it publishes the track: a later version of the
+  message that raises `maximum_p_for_repair_flow` changes nothing in
+  its catalog, since [@!MOQ-FEC] Section 6.3.9 forbids changing the
+  `repairSymbols` of a published layer while any receiver may still
+  be consuming the source track, and says that a receiver reading
+  the smaller bound excludes only symbols of layers it has not
+  joined; and a layer above 0 that the converter learns from
+  provisioning after it published the track it lists only by
+  retiring the source encoding and publishing the source track and
+  its repair tracks as a separate rendition that lists it, since the
+  `repairSymbols` it first published already counts that layer's
+  symbols, so appending the layer ([@!MOQ-FEC] Section 6.3.9) would
+  derive for it an O_i + P_i above the wire RSB_length, on which
+  every receiver joining it fails closed (that section), while
+  lowering layer 0's `repairSymbols` to fit it is the change that
+  section forbids.  A later version that lowers
+  `maximum_p_for_repair_flow` below the total the converter first
+  published for the track, layer 0's `repairSymbols` plus those of
+  every layer above 0 it listed with it, is a change that section
+  lets no publisher make, on which every receiver holding the
   highest layer it lists fails closed, the wire RSB_length falling
   below the O_i + P_i its catalog derives for that layer, which is
   that total, so the converter retires the source encoding and
   publishes the source track and its repair tracks as a separate
   rendition carrying the lowered value, as that section has a
-  publisher that must retire a layer do.  The conversion
+  publisher that must retire a layer do; a repair packet whose
+  RSB_length falls below that total once the track is published is
+  the same violation and has the converter retire the source
+  encoding in the same way.  The conversion
   of a flow fails where the `fec` object it would yield fails a
   catalog rule of [@!MOQ-FEC] Sections 5.1 and 6.3.4, on which a
   receiver fails closed: a `maximum_p_for_repair_flow` of 0 names no
@@ -2195,12 +2220,18 @@ publication as an RFC.
   provisioning, keeping the value it first published for a track
   across later versions of the message that raise the field and
   retiring the source encoding under one that lowers the field below
-  the total it first published, that value plus the layers it lists
-  ([@!MOQ-FEC] Section 6.3.9).  Section 12.2 states that the field is
-  a bound in [@!ISO.23008-1] where "iso-ssbg1-v1" carries P as every
-  repair packet's RSB_length, and fails the conversion of a flow
-  whose repair packets carry an RSB_length below the field on any
-  block.  Section 8.3 sets the
+  the total it first published, that value plus the layers it listed
+  with it ([@!MOQ-FEC] Section 6.3.9), and listing a layer it learns
+  from provisioning after it published the track only by retiring
+  the source encoding and publishing a separate rendition.  Section
+  12.2 states that the field is a bound in [@!ISO.23008-1] where
+  "iso-ssbg1-v1" carries P as every repair packet's RSB_length, and
+  fails the conversion of a flow whose repair packets carry, under
+  the message version it holds, an RSB_length below the field on any
+  block, a publisher that appends a layer sending the new version no
+  earlier than the last repair packet generated under the previous
+  total (Section 8.3); once the track is published such a packet
+  retires the source encoding.  Section 8.3 sets the
   entry's `number_of_assets` to 1, the one Asset being the source
   track's.  Section 12.2 accepts only an entry with a
   `number_of_assets` of 1, the coding byte 0x14 and code point 1 or

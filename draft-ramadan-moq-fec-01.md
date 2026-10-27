@@ -677,19 +677,22 @@ rule 12).
 **repairSymbols** (integer, REQUIRED): P value - repair symbols per
 FEC block.  MUST be >= 1 when a repair track is published.
 
-**symbolSize** (integer, REQUIRED): T value - bytes per symbol.  All
-symbols in a block have the same size; the byte layout of each source
-symbol is fixed by the track's `blockProfile` and is not otherwise
-carried in the catalog.  Under "iso-ssbg1-v1" it is the ssbg_mode1
-construction of Section 7.3, under which a source packet of up to
-T - 2 bytes is protected; under it T MUST be at least 14: a shorter
-symbol carries no protected packet of the 12-octet MMTP packet header
-([@!MOQ-MMT] Section 3.1).  Under "moq-object-v1" it is the
-construction
-of Section 7.6.1, under which an object whose Protected Object Unit is
-at most K x T bytes long is protected.  For "raptorq", T is a multiple of 8, the
-fixed Symbol Alignment of the derived OTI (Section 4.2).  For
-"reed-solomon", no such alignment applies (Section 4.5).
+**symbolSize** (integer, REQUIRED): T value - bytes per symbol.  T
+MUST be at least 1 under every block profile: a zero-length symbol
+carries nothing, and the symbol count of Section 7.6.1 divides by T.
+All symbols in a block have the same size; the byte layout of each
+source symbol is fixed by the track's `blockProfile` and is not
+otherwise carried in the catalog.  Under "iso-ssbg1-v1" it is the
+ssbg_mode1 construction of Section 7.3, under which a source packet
+of up to T - 2 bytes is protected; under it T MUST be at least 14: a
+shorter symbol carries no protected packet of the 12-octet MMTP
+packet header ([@!MOQ-MMT] Section 3.1).  Under "moq-object-v1" it is
+the construction of Section 7.6.1, under which an object whose
+Protected Object Unit is at most K x T bytes long is protected.  For
+"raptorq", T is a multiple of 8, the fixed Symbol Alignment of the
+derived OTI (Section 4.2), so the least T is 8 under "moq-object-v1"
+and 16 under "iso-ssbg1-v1".  For "reed-solomon", no such alignment
+applies (Section 4.5).
 
 **interleaveDepthMs** (integer, OPTIONAL): When present, its value MUST
 be a non-negative integer.  A value greater than zero is the complete
@@ -1418,9 +1421,10 @@ layer set that decodes from one that silently mis-maps symbols.
     then defined (Section 4.4).
 13. The `fec` object meets the range rules of Section 5.1:
     `sourceSymbols` is at least 1, `repairSymbols` is at least 1 when
-    a repair track is published, `symbolSize` is at least 14 under
-    `iso-ssbg1-v1`, and `symbolSize` is a multiple of 8 when
-    `fec.algorithm` is `raptorq`; and each repair track meets those
+    a repair track is published, `symbolSize` is at least 1 and,
+    under `iso-ssbg1-v1`, at least 14, and `symbolSize` is a multiple
+    of 8 when `fec.algorithm` is `raptorq`; and each repair track
+    meets those
     of Section 5.1.1: its `repairSymbols`, where declared, is at
     least 1, and an overlay's `sourceSymbols` is at least 1.  A
     symbol shorter than 14 octets carries no protected MMTP packet
@@ -4625,6 +4629,9 @@ as an RFC.
   defined only under `iso-ssbg1-v1`, and a catalog that declares one
   for a track under `moq-object-v1` fails closed.  Section 6.4 states
   why.
+- Section 5.1.1: an overlay's `sourceSymbols` MUST be >= 1, a floor
+  that -00 did not state.  Section 6.3.4, rule 13 makes it a catalog
+  rule a receiver fails closed on.
 - Section 5.2: loc and cmaf tracks have no in-band FEC signaling.
 - Section 5.3: the FEC Source Info Property carries the SS_ID of an
   object's first source symbol under `moq-object-v1`, where it is the
@@ -4663,8 +4670,9 @@ as an RFC.
 - Abstract, Sections 1, 4 and 5.1: the document fully specifies two
   schemes.  Reed-Solomon is now the mandatory-to-implement scheme;
   RaptorQ, mandatory in -00, is optional (Section 4.3).  `symbolSize`
-  need not be a multiple of 8 under Reed-Solomon and is at least 14
-  under `iso-ssbg1-v1`, and Section 4.5 gives a catalog example.
+  need not be a multiple of 8 under Reed-Solomon, is at least 1 under
+  every profile and at least 14 under `iso-ssbg1-v1`, and Section 4.5
+  gives a catalog example.
 - Section 4.1: both codes are systematic and correspond to the
   [@!ISO.23008-10] code points 3 and 1.  The RaptorQ entry states its
   decoding overhead.
@@ -4695,9 +4703,10 @@ as an RFC.
   13 makes the range rules of Sections 5.1 and 5.1.1 (`sourceSymbols`
   at least 1, `repairSymbols` at least 1 when a repair track is
   published and on each repair track where declared, an overlay's
-  `sourceSymbols` at least 1, `symbolSize` at least 14 under
-  `iso-ssbg1-v1` and a multiple of 8 under `raptorq`) catalog rules
-  a receiver fails closed on.
+  `sourceSymbols` at least 1, now stated in Section 5.1.1,
+  `symbolSize` at least 1 and, under `iso-ssbg1-v1`, at least 14,
+  and a multiple of 8 under `raptorq`) catalog rules a receiver
+  fails closed on.
 - Sections 6.3.9 and 6.4.1: a layer append, and a keyframe overlay,
   stay within rule 12 under Reed-Solomon.  Section 6.4.1 gives a valid
   Reed-Solomon overlay.
