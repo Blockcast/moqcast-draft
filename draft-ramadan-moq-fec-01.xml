@@ -285,21 +285,24 @@ block, so a receiver holding any repair symbol of a block holds the block's SSB_
 implementation that performs FEC decoding under this specification
 MUST support &quot;reed-solomon&quot;, which Sections 4.4 and 4.5 fully
 specify.  &quot;raptorq&quot; is OPTIONAL.</t>
-<t>Reed-Solomon is the mandatory scheme because it is small to
+<t>The MMT AL-FEC framework on which the MMTP profile of this document
+rests (<xref target="ISO.23008-1"></xref> Annex C) requires no FEC code: it carries
+whichever code the AL-FEC message names by its <xref target="ISO.23008-10"></xref> code
+point, and ATSC 3.0, which applies AL-FEC to an MMTP session through
+that framework, requires none either (<xref target="ATSC-A331"></xref> Section 8.1.2.5;
+Section 12).  This document therefore specifies the codes it uses.
+Reed-Solomon is the mandatory scheme because it is small to
 implement, recovers a block from exactly SSB_length of its symbols,
-and is a code of the MMT AL-FEC framework on which the MMTP profile
-of this document rests (<xref target="ISO.23008-10"></xref> code point 1).  RaptorQ
-stays specified for its block size: it serves every block size this
-document allows.
-A RaptorQ block holds up to 56403 source symbols (Section 6.3.4,
-rule 6), while a Reed-Solomon block holds at most 255 source and
-repair symbols (Section 4.5).  At 8 Mb/s with symbols of 1200 bytes,
-such a block spans at most about 300 ms of media, so the multi-second
-interleave windows of Section 9 need RaptorQ at that rate.  No
-broadcast system this document targets requires it: when
-<xref target="ATSC-A331"></xref> applies AL-FEC to an MMTP session, it requires the
-AL-FEC framework of <xref target="ISO.23008-1"></xref> Annex C and leaves the FEC code
-to in-band signaling (Section 12).</t>
+and is a code of that framework (<xref target="ISO.23008-10"></xref> code point 1).
+RaptorQ stays specified, code point 3, for its block size: it serves
+every block size this document allows.  A RaptorQ block holds up to
+56403 source symbols (Section 6.3.4, rule 6), while a Reed-Solomon
+block holds at most 255 source and repair symbols (Section 4.5).  At
+8 Mb/s with symbols of 1200 bytes, such a block spans at most about
+300 ms of media, so the multi-second interleave windows of Section 9
+need RaptorQ at that rate.  A code of <xref target="ISO.23008-10"></xref> other than
+these two is outside this document until the registry below lists
+it.</t>
 <t>The algorithm registry (Section 15.2) provides an extension point
 for additional schemes.  A registered value other than &quot;none&quot;,
 &quot;raptorq&quot; and &quot;reed-solomon&quot; needs a specification of its own, giving
@@ -1920,9 +1923,9 @@ sub-blocks (the Number of Sub-Blocks field of the OTI).  The derived
 OTI of Section 4.2 fixes N = 1, so catalog-signaled sessions do not
 use sub-blocks; the AL-FEC message of <xref target="ISO.23008-1"></xref> carries no OTI,
 and the split source blocks of its Clause C.2.2 are the two-stage
-coding structure, which this document does not use (Section 12).
-A publisher using MMTP packaging under <tt>iso-ssbg1-v1</tt> therefore uses
-ssbg_mode1 without sub-blocks, and never ssbg_mode2.</t>
+coding structure, which this document does not use.  A publisher
+using MMTP packaging under <tt>iso-ssbg1-v1</tt> therefore uses ssbg_mode1
+without sub-blocks, and never ssbg_mode2.</t>
 </section>
 
 <section anchor="short-source-blocks"><name>Short Source Blocks</name>
@@ -3698,14 +3701,18 @@ FT=1 data unit.</t>
 
 <section anchor="atsc-3-0-compatibility"><name>ATSC 3.0 Compatibility</name>
 <t>This specification is designed for interoperability with the
-Application-Layer FEC of ATSC A/331 <xref target="ATSC-A331"></xref> MMTP sessions.  When
-<xref target="ATSC-A331"></xref> applies AL-FEC to an MMTP session, it requires the
-AL-FEC framework of <xref target="ISO.23008-1"></xref> Annex C and leaves the FEC code
-to in-band signaling (its Section 8.1.2.5), so it requires no
-particular code: the AL-FEC message names the code by its
-<xref target="ISO.23008-10"></xref> code point, 3 for &quot;raptorq&quot; and 1 for
-&quot;reed-solomon&quot; (Section 4.1), and <xref target="MOQ-MMT"></xref> Section 8.3 gives the
-message a publisher sends for a track of either algorithm.  A
+Application-Layer FEC of ATSC A/331 <xref target="ATSC-A331"></xref> MMTP sessions.
+<xref target="ATSC-A331"></xref> applies AL-FEC to an MMTP session, when it applies it
+at all, through the AL-FEC framework of <xref target="ISO.23008-1"></xref> Annex C and
+requires no FEC code of its own (its Section 8.1.2.5): the framework
+carries whichever code the AL-FEC message names by its
+<xref target="ISO.23008-10"></xref> code point.  The codes are this document's to
+specify, and it specifies two, &quot;reed-solomon&quot; (code point 1, which
+every implementation supports) and &quot;raptorq&quot; (code point 3,
+OPTIONAL) (Sections 4.1 and 4.3); <xref target="MOQ-MMT"></xref> Section 8.3 gives the
+AL-FEC message a publisher sends for a track of either, and an MMTP
+session whose AL-FEC message names any other code is outside this
+document until the registry of Section 15.2 lists that code.  A
 publisher that ingests an A/331 MMTP session takes the FEC parameters
 of its tracks from that message and the asset locations of the MP
 table (<xref target="MOQ-MMT"></xref> Section 12.2), and a receiver that consumes the
@@ -4644,8 +4651,9 @@ object the track's default Publisher Priority, states the profile's
 applicability, and works an example.</li>
 <li>Abstract and Section 1: the document defines two block profiles, and
 the ATSC 3.0 and ARIB compatibility statement concerns the MMTP
-profile.  Section 1 promises an ATSC 3.0 mapping only, and points to
-<xref target="MOQ-MMT"></xref> for ARIB STD-B60 carriage.</li>
+profile.  Section 1 promises an ATSC 3.0 MMTP compatibility
+statement only, and points to <xref target="MOQ-MMT"></xref> for ARIB STD-B60
+carriage.</li>
 <li>Section 2: the Repair Track, Source Block, Source Symbol, SS_ID,
 Interleave Depth, Keyframe Overlay and Block Profile definitions
 cover both profiles, and Protected Object Unit is defined.</li>
@@ -4710,8 +4718,9 @@ catalog example.</li>
 decoding overhead.</li>
 <li>Section 4.3: retitled &quot;Algorithm Requirements&quot; (it was &quot;Other FEC
 Algorithms&quot;).  It gives the rationale for Reed-Solomon as the
-mandatory scheme and for keeping RaptorQ: block size.
-<xref target="ATSC-A331"></xref> leaves the MMTP code to in-band signaling.</li>
+mandatory scheme and for keeping RaptorQ: block size.  It states
+that the MMT AL-FEC framework and <xref target="ATSC-A331"></xref> require no FEC
+code for an MMTP session, so this document specifies the codes.</li>
 <li>Sections 2, 3 and 5.2: definitions and decoder configuration cover
 both codes.</li>
 <li>Section 5.1.2: the worked catalog's overlay is valid only under
@@ -4745,9 +4754,9 @@ object, and the example is valid only under RaptorQ.</li>
 <li>Section 9: the recovery condition follows the track's algorithm.</li>
 <li>Section 12: ATSC 3.0 compatibility is MMTP only.  The ROUTE mapping
 of A/331 AL-FEC of -00 (the S-TSID <tt>fecOTI</tt>, RepairFlow and
-<tt>percentRepair</tt> rules) and the sub-block guidance are removed, and
-the section states that <xref target="ATSC-A331"></xref> requires no particular code
-for an MMTP session.</li>
+<tt>overhead</tt> rules) and the sub-block guidance are removed, and the
+section states that <xref target="ATSC-A331"></xref> requires no particular code for
+an MMTP session and that the codes are this document's to specify.</li>
 <li>New Section 14.7: Reed-Solomon decoding cost and the absence of
 integrity protection.</li>
 <li>Section 15.2: the Reed-Solomon entry references <xref target="ISO.23008-10"></xref>

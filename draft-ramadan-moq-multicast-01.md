@@ -2495,7 +2495,9 @@ as an RFC.
   than 2268 departs from [@!RFC7450] and never applies to a relay
   found by DRIAD.
 - Section 4.2.2: the atsc3 fields cite [@!ATSC-A331] and
-  [@!ATSC-A322].
+  [@!ATSC-A322], and `slsUri` acquires the SLS of an MMTP service,
+  its MP table included ([@!ATSC-A331] Section 7.2), in place of
+  the S-TSID with FEC parameters of -00.
 - Section 5: the paragraph on LOC and CMAF objects now refers to the
   mmtp rendition rule of Section 4.1.  It no longer says that
   multicast carriage uses MMTP "regardless of a track's unicast

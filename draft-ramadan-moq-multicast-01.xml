@@ -2516,7 +2516,9 @@ service hostname.  The <tt>port</tt> field now says that a value other
 than 2268 departs from <xref target="RFC7450"></xref> and never applies to a relay
 found by DRIAD.</li>
 <li>Section 4.2.2: the atsc3 fields cite <xref target="ATSC-A331"></xref> and
-<xref target="ATSC-A322"></xref>.</li>
+<xref target="ATSC-A322"></xref>, and <tt>slsUri</tt> acquires the SLS of an MMTP service,
+its MP table included (<xref target="ATSC-A331"></xref> Section 7.2), in place of
+the S-TSID with FEC parameters of -00.</li>
 <li>Section 5: the paragraph on LOC and CMAF objects now refers to the
 mmtp rendition rule of Section 4.1.  It no longer says that
 multicast carriage uses MMTP &quot;regardless of a track's unicast

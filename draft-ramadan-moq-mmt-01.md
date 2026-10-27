@@ -1471,10 +1471,13 @@ document.
 
 MMT's AL-FEC framework supports multiple FEC schemes, with the MMT
 FEC codes specified in [@!ISO.23008-10] and parameters signaled via
-MMTP signaling messages (Section 8.3).  For MoQ, "reed-solomon", the
-Reed-Solomon code of [@!ISO.23008-10] Clause 6, is the
-mandatory-to-implement scheme, and RaptorQ [@!RFC6330] is OPTIONAL
-([@!MOQ-FEC] Section 4.3).  FEC repair uses the model defined in
+MMTP signaling messages (Section 8.3); neither the framework nor
+ATSC 3.0, which uses it for MMTP sessions ([@?ATSC-A331]
+Section 8.1.2.5), requires a particular code, so the codes are
+specified by [@!MOQ-FEC]: "reed-solomon", the Reed-Solomon code of
+[@!ISO.23008-10] Clause 6, is the mandatory-to-implement scheme, and
+RaptorQ [@!RFC6330] is OPTIONAL ([@!MOQ-FEC] Section 4.3).  FEC
+repair uses the model defined in
 [@!MOQ-FEC]:
 
 ~~~
@@ -1502,7 +1505,7 @@ MoQ carries no RaptorQ Object Transmission Information (OTI,
 [@!RFC6330] Section 3.3) in-session: receivers derive it per block
 from the catalog `fec` fields and the block's SSB_length per
 [@!MOQ-FEC] Section 4.2.  The AL-FEC message of an MMTP session
-carries none either (Section 8.3).
+(Section 8.3) carries none either ([@!MOQ-FEC] Section 7.3).
 
 # FEC Parameter Signaling
 
@@ -1630,10 +1633,17 @@ track whose `fec.blockProfile` is "iso-ssbg1-v1", that entry carries:
 - as its `repair_flow_id`, the packet_id of the layer-0 repair
   packets.  [@!ISO.23008-1.AMD1] makes this field 16 bits in the
   one-stage branch, where the 2023 edition of Table C.3 gives it 8
-  bits and so cannot name a repair packet_id above 255; and
+  bits and so cannot name a repair packet_id above 255;
 - as its `maximum_k_for_repair_flow`, the track's `fec.sourceSymbols`:
   like that field, it bounds each block's SSB_length and is not the
-  size of any particular block ([@!MOQ-FEC] Section 7.4).
+  size of any particular block ([@!MOQ-FEC] Section 7.4); and
+- as its `maximum_p_for_repair_flow`, the RSB_length that every
+  repair packet of the track's FEC instance carries: the total
+  repair count over the published layers, which is the track's
+  `fec.repairSymbols` while layer 0 is the only published layer
+  ([@!MOQ-FEC] Section 6.3.2).  A publisher that appends a layer
+  ([@!MOQ-FEC] Section 6.3.9) raises that total and sends a new
+  version of the message carrying it.
 
 A publisher MUST NOT describe a repair layer above layer 0, or a
 keyframe overlay, in the message, whether in that entry or in an
@@ -1793,12 +1803,22 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   never advertises a track on packet_id 0
 - the AL-FEC message's entry for a flow -> the track's `fec` object:
   `algorithm` from `fec_code_id_for_repair_flow`, `sourceSymbols` (K)
-  from `maximum_k_for_repair_flow`, and a repair track on the
-  packet_id that `repair_flow_id` names (Section 8.3).
-  `repairSymbols` (P) is not carried, so the converter takes it from
-  another source, such as the repair symbol count of the blocks it
-  observes, or the conversion of the flow fails ([@!MOQ-FEC]
-  Section 5.1 requires at least 1 when a repair track is published)
+  from `maximum_k_for_repair_flow`, `repairSymbols` (P) from
+  `maximum_p_for_repair_flow`, and a repair track, named in
+  `fec.repairTrack`, whose `packetId` is the packet_id that
+  `repair_flow_id` names (Section 8.3).  The one repair flow the
+  one-stage entry names is the track's layer 0 and its P the whole
+  repair count of the block; a message whose
+  `maximum_p_for_repair_flow` is 0 names no repair flow a catalog can
+  publish ([@!MOQ-FEC] Section 5.1 requires at least 1 when a repair
+  track is published), so the conversion of the flow fails.  The
+  message names the repair flow by packet_id without a location, and
+  the MP table does not list it ([@!MOQ-MULTICAST] Section 5), so
+  the converter lists the repair track in the `tracks[]` of each
+  endpoint on whose session it receives packets of that packet_id,
+  which is where a receiver without the catalog finds them; a
+  repair-only endpoint ([@!MOQ-FEC] Section 6.3.6) is one the
+  converter learns from provisioning, not from the signaling
 - `fec.interleaveDepthMs`, the ISO protection-window send span from
   the first source or repair packet to the last: set only when the
   AL-FEC message's `protection_window_time` or an independently known
@@ -1826,10 +1846,10 @@ AMT relay record, and otherwise names a relay service hostname in
 `relay` with "dns" discovery ([@!MOQ-MULTICAST] Section 4.2.1).
 
 `timescale`, the group-duration field and `mmtpMode` are required
-fields (Section 12.1), derived from the MMT signaling.  The converter
-takes `timescale` from `asset_timescale` in the MP table when
-`asset_timescale_flag` is 1, and uses 90 000 Hz when that flag is 0,
-as specified by [@!ISO.23008-1] Clause 10.3.9.3.  For each timed
+fields (Section 12.1).  The converter takes `timescale` from
+`asset_timescale` in the MP table when `asset_timescale_flag` is 1,
+and uses 90 000 Hz when that flag is 0, as specified by
+[@!ISO.23008-1] Clause 10.3.9.3.  For each timed
 Asset, it obtains the presentation time of each MPU's first AU in
 presentation order from the PI document when PI is present;
 ISO/IEC 23008-1 Clause 10.5.2.1 says that the MPU timestamp
@@ -2067,7 +2087,9 @@ publication as an RFC.
   "reed-solomon".  Sections 7 and 8.1 follow [@!MOQ-FEC], which now
   fully specifies "reed-solomon" and makes it the mandatory-to-implement
   scheme.  RaptorQ is optional there.
-  [@!ISO.23008-10] is now a normative reference.
+  [@!ISO.23008-10] is now a normative reference.  The message's
+  `maximum_p_for_repair_flow` carries the RSB_length of the track's
+  FEC instance, which Section 12.2 reads back as `repairSymbols`.
 - Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
   has expired, and its content continues as [@?I-D.ietf-moq-cmsf].
   The FEC column names the [@!MOQ-FEC] block profile for each
@@ -2078,8 +2100,11 @@ publication as an RFC.
   -00 is removed.  This document targets MMTP services and not
   ROUTE, so Section 12.2 now derives the catalog from MMTP signaling,
   the MP table and the AL-FEC message, there is no export to
-  broadcast signaling, and the Abstract, Section 1 and Section 2 no
-  longer name S-TSID.
+  broadcast signaling, and the Abstract, Section 1, Section 2 and
+  Section 7 no longer name S-TSID.  Section 7.2 no longer cites the
+  S-TSID `fecOTI` attribute and says the AL-FEC message carries no
+  OTI, and the Section 8.1 `algorithm` rule reads the code point from
+  `fec_code_id_for_repair_flow` alone, with no ROUTE-ingest case.
 - Sections 4.4.2 and 12.1: the example catalogs carry the fields
   that [@!I-D.ietf-moq-msf] requires.
 - Section 13: a MoQ relay treats MMTP headers as opaque object
