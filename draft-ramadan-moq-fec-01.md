@@ -1628,11 +1628,12 @@ least that layer's O_i + P_i; a block before it whose packets of
 other layers carry less was generated before the append, carries no
 symbol of the layer, and those packets are the symbols of the layers
 the receiver holds below it, under the coordinates of Section 6.3.2
-unchanged.  Within a consumer that the bc-provenance profile of
-[@!MOQ-MULTICAST] Section 7.2 governs for its blocks (Section 7.4),
-the packet that anchors the check and the packet it tests are both
-repair packets that profile has admitted (step 2 of its Section
-7.2.7): a symbol of an unlisted track reaches the consumer under the
+unchanged.  Within a consumer protected under a flow of the
+bc-provenance profile of [@!MOQ-MULTICAST] Section 7.2, whether or
+not that profile governs it for its blocks (Section 7.4), the packet
+that anchors the check and the packet it tests are both repair
+packets that profile has admitted (step 2 of its Section 7.2.7): a
+symbol of an unlisted track reaches the consumer under the
 integrity protection of a MoQ unicast path, which vouches for the
 relay and not for the publisher, so the total it carries attests to
 no coordinate the publisher is using; it anchors nothing, and one
@@ -1674,9 +1675,10 @@ check below cannot tell that case from a genuine coordinate
 disagreement.  Both present as nothing but a smaller total.  The
 receivers holding the highest layer are also the lossiest ones, and
 they cannot recover by observation: absence of symbols is precisely
-the loss condition the layer was joined to repair, so they learn of
-the withdrawal only at the next catalog refresh, which this document
-does not bound.
+the loss condition the layer was joined to repair, so but for the
+check below, which fails them closed on the smaller total, they
+would learn of the withdrawal only at the next catalog refresh,
+which this document does not bound.
 
 Append-only is what makes the check below sound.  RSB_length is
 monotonically non-decreasing over the lifetime of a source encoding
@@ -1706,13 +1708,20 @@ above the receiver's derived bound, for example an increase to a lower
 layer's `repairSymbols`, which shifts every higher offset while
 raising the total.  Nor does it catch, for a receiver that joins a
 withdrawn highest layer under a catalog that still lists it, the
-withdrawal itself: no packet of that layer arrives, the packets of
-the layers below carry a total that reaches O_i + P_i on no block
-and so anchor the check on none, and their coordinates are unchanged
-by the withdrawal, so such a receiver decodes from the layers below
-and learns of the withdrawal only at the next catalog refresh.  Both
-cases are silent on the wire, which is why the protection is the
-prohibition on the publisher rather than validation at the receiver.
+withdrawal itself unless a block generated before the withdrawal
+reaches it: no packet of that layer is generated after the
+withdrawal, the packets of the layers below carry, on every block
+generated after it, a total below O_i + P_i, which anchors the check
+on none of them, and their coordinates are unchanged by the
+withdrawal, so a receiver that takes no earlier block decodes from
+the layers below and learns of the withdrawal only at the next
+catalog refresh, while one that takes a packet of an earlier block,
+by the routes of the append paragraph above, which carries that
+O_i + P_i, has the check anchored and fails closed on the next
+block, as a receiver that had joined the layer does.  The first case
+is silent on the wire, and the second where no earlier block
+arrives, which is why the protection is the prohibition on the
+publisher rather than validation at the receiver.
 A wire RSB_length larger than the receiver's derived total is not an
 error in itself: that is the append case above.
 
@@ -2139,7 +2148,10 @@ endpoint lists its source track (step 2 of its Section 7.2.7; a
 consumer protected under no such flow, as one a repair-only endpoint
 feeds while the receiver takes the source track over MoQ unicast
 alone, is for this paragraph, Section 9 and Section 11.4 a consumer
-outside that profile), a block that only symbols of an unlisted
+outside that profile, while the scoping of the check of Section
+6.3.9 to admitted packets reaches it as it reaches every consumer
+protected under a flow of the profile), a block that only symbols of
+an unlisted
 track have delimited (a track that no endpoint of a flow the
 consumer is protected under lists, as that step defines it: one no
 multicast endpoint the receiver holds lists, holding being joined to
@@ -4799,14 +4811,16 @@ as an RFC.
   its O_i + P_i, and otherwise to a block at or after, in the serial
   order of Section 7.5, one that carried at least that layer's
   O_i + P_i; the check of -00, unscoped, fired on a conforming
-  append.  Within a consumer the bc-provenance profile of
-  [@!MOQ-MULTICAST] Section 7.2 governs for its blocks, the packet
-  that anchors the check and the packet it tests are ones that
-  profile admitted, so a symbol of an unlisted track delivered over
+  append.  Within a consumer protected under a flow of the
+  bc-provenance profile of [@!MOQ-MULTICAST] Section 7.2, governed
+  for its blocks or not, the packet that anchors the check and the
+  packet it tests are ones that profile admitted, so a symbol of an
+  unlisted track delivered over
   a MoQ unicast path neither anchors nor trips it, and one below a
   held layer's bound is discarded.  A receiver that joins a withdrawn
-  highest layer under a catalog that still lists it is caught by
-  nothing and learns of the withdrawal at the next catalog refresh,
+  highest layer under a catalog that still lists it is caught only
+  where a block generated before the withdrawal reaches it, and
+  otherwise learns of the withdrawal at the next catalog refresh,
   which Section 6.3.9 now states.  Under Reed-Solomon a receiver
   also checks SSB_length + RSB_length against 255.
 - Section 7.3: sub-blocks are described as [@!RFC6330] defines them,
