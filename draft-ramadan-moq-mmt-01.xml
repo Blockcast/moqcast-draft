@@ -1957,12 +1957,18 @@ layer 0 (below) where the layers the converter lists above 0 count
 less than the appended one, fails a receiver of the catalog closed
 on nothing: the clause of <xref target="MOQ-FEC"></xref> Section 6.3.9 for a packet
 of a layer's own track applies to layers above 0 alone, layer 0's
-coordinates depending on no count, and its anchored clause treats
-a packet of a block before one of which the receiver has received
-a repair packet carrying at least the field as the conforming
-packet it is, on the repair track the converter
-publishes as on the session's own endpoint, which carries the
-sender's packets and from which the converter withholds nothing.
+coordinates depending on no count, and its anchored clause, which
+anchors a held layer on a block of which the receiver has received
+a repair packet carrying at least that layer's O_i + P_i, for
+layer 0 its <tt>repairSymbols</tt> (the field where the converter lists
+none above 0), treats such a packet as the conforming packet it
+is, every block generated under a total below a layer's O_i + P_i
+preceding, in the serial order of its Section 7.5, every block
+generated under one at or above it (its Section 7.1; no publisher
+lowers a total, its Section 6.3.9), on the repair track the
+converter publishes as on the session's own endpoint, which
+carries the sender's packets and from which the converter
+withholds nothing.
 An RSB_length above the
 field is the append case of the next sentence.  A
 MoQ publisher that appended a layer (<xref target="MOQ-FEC"></xref> Section 6.3.9)

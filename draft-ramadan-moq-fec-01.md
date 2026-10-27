@@ -4822,7 +4822,7 @@ as an RFC.
 - New Section 14.7: Reed-Solomon decoding cost and the absence of
   integrity protection.
 - Section 15.2: the Reed-Solomon entry references [@!ISO.23008-10]
-  Clause 6 and Section 4.4, and the code is specified for
+  Clause 6 and Sections 4.4 and 4.5, and the code is specified for
   interoperation.
 - New Appendix C: Reed-Solomon test vectors.  The appendix of changes
   becomes Appendix D.
@@ -4842,9 +4842,10 @@ as an RFC.
   therefore applies, for a held layer above 0, to a packet of that
   layer's own track, whose symbol was generated under a total at or
   above its O_i + P_i, and for every held layer to a block at or
-  after, in the serial order of Section 7.5, one that carried at
-  least that layer's O_i + P_i; layer 0, whose coordinates depend on
-  no published count, has no clause of its own track, which lets a
+  after, in the serial order of Section 7.5, one of which the
+  receiver has received a repair packet carrying at least that
+  layer's O_i + P_i; layer 0, whose coordinates depend on no
+  published count, has no clause of its own track, which lets a
   catalog, or the message held in its place, give it a block total
   read from an AL-FEC message ([@!MOQ-MMT] Section 12.2; Section
   12); the check of -00,
