@@ -2017,7 +2017,8 @@ the multicast path and withholds records from the mirror moves no
 replay floor and no grace period the multicast copies of those
 records meet, each path keeping its own (step 1 of
 (#receiver-enforcement-and-state)), so a healthy multicast path
-loses no window to what the mirror omits, and a relay that lets the
+loses no window to what the mirror omits, absent the injector of the
+availability paragraph below, and a relay that lets the
 receiver measure a small lead and then leads by more, within the
 bound of (#emission-and-cadence), gains nothing either, the copy on
 `manifestPort` that raises the lead re-admitting
@@ -2101,15 +2102,42 @@ spoofing anything (Cost, (#receiver-enforcement-and-state)).  On an SSM endpoint
 reached natively either flood must spoof `S` or be on path; on an ASM
 endpoint any host that can send to the group suffices, and so it does
 behind an AMT gateway, where a flood need only spoof the relay's
-address toward the gateway ((#receiver-enforcement-and-state)).  Datagrams that expire from the
-multicast path's hold queue are loss for the failover of
-(#multicast-endpoint-format) and (#multi-path-delivery), those that
-expire from the unicast path's queue are not, a held copy that
+address toward the gateway ((#receiver-enforcement-and-state)).  With
+that access an injector forges nothing: a genuine record it reads
+from the manifest track, as any subscriber can, and sends on
+`manifestPort` more than `maxAuthDelayMs + 2 x manifestTimerMs`
+(240 ms at the defaults) before the multicast path delivers the
+datagrams it covers is verified there with unwidened pending
+entries, which expire before those datagrams arrive, so they are
+held, and the sender's own copy, dropped by the already-verified
+lookup, admits nothing (step 1 of
+(#receiver-enforcement-and-state)); one record per window, 50 a
+second at the default `manifestTimerMs`, is then loss of every
+window for the failover below, less than the data-port injection
+above needs wherever the failover fraction of the flow's packet rate
+exceeds that.  On a receiver that reads the manifest track the
+injector's copy, replayed from the mirror ahead of the sender's, is
+the record's first copy on `manifestPort` and measures the lead,
+pinning it at the injector's replay interval, so the sender's copy
+and the twin measure nothing and the re-handling that a raising copy
+affords (step 1 of (#receiver-enforcement-and-state)) is not
+afforded against it; the same copy raises the `highest_mseq` of
+`manifestPort` and starts its grace period early, which drops a
+record the mirror lost or the relay withheld only where the relay's
+lead exceeds 64 windows, and a record of the previous epoch once a
+grace period so started has run.  The attack needs a record source
+that leads the multicast path at the receiver by that much, which
+the injector does not control, and the statements of this section
+about a relay assume no such sender on the group.  Datagrams that
+expire from the multicast path's hold queue are loss for the failover
+of (#multicast-endpoint-format) and (#multi-path-delivery), those
+that expire from the unicast path's queue are not, a held copy that
 step 1 drops because a record admitted another copy of the same
-datagram expires from neither, and a relay that leads the multicast
-path by no more than the bound of (#emission-and-cadence) produces
-none, its admitted digests and pending entries outliving the lead
-the receiver applies, which that bound caps (step 1),
+datagram expires from neither, and, absent such an injector, a relay
+that leads the multicast path by no more than the bound of
+(#emission-and-cadence) produces none, its admitted digests and
+pending entries outliving the lead the receiver applies, which that
+bound caps (step 1),
 the copy on `manifestPort` that raises that lead, when the relay
 leads by more than the receiver has measured, re-admitting or
 re-inserting, under the raised lead, before their datagrams arrive,

@@ -3707,9 +3707,9 @@ at all, through the AL-FEC framework of <xref target="ISO.23008-1"></xref> Annex
 requires no FEC code of its own (its Section 8.1.2.5): the framework
 carries whichever code the AL-FEC message names by its
 <xref target="ISO.23008-10"></xref> code point.  The codes are this document's to
-specify, and it specifies two, &quot;reed-solomon&quot; (code point 1, which
-every implementation supports) and &quot;raptorq&quot; (code point 3,
-OPTIONAL) (Sections 4.1 and 4.3); <xref target="MOQ-MMT"></xref> Section 8.3 gives the
+specify, and it specifies two, &quot;reed-solomon&quot; (code point 1,
+mandatory to implement) and &quot;raptorq&quot; (code point 3, OPTIONAL)
+(Sections 4.1 and 4.3); <xref target="MOQ-MMT"></xref> Section 8.3 gives the
 AL-FEC message a publisher sends for a track of either, and an MMTP
 session whose AL-FEC message names any other code is outside this
 document until the registry of Section 15.2 lists that code.  A

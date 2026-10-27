@@ -1634,6 +1634,12 @@ track whose `fec.blockProfile` is "iso-ssbg1-v1", that entry carries:
   packets.  [@!ISO.23008-1.AMD1] makes this field 16 bits in the
   one-stage branch, where the 2023 edition of Table C.3 gives it 8
   bits and so cannot name a repair packet_id above 255;
+- as its `length_of_repair_symbol`, the track's `fec.symbolSize`
+  (T), the byte length of every repair symbol and, under ssbg_mode1,
+  of every source symbol ([@!MOQ-FEC] Sections 5.1, 7.1 and 7.3), and
+  as its `num_of_repair_symbol_per_packet` 1, the one repair symbol
+  each repair packet carries ([@!MOQ-FEC] Section 7.1), a field whose
+  semantics [@!ISO.23008-1] Clause C.6.3 gives for ssbg_mode2 alone;
 - as its `maximum_k_for_repair_flow`, the track's `fec.sourceSymbols`:
   like that field, it bounds each block's SSB_length and is not the
   size of any particular block ([@!MOQ-FEC] Section 7.4); and
@@ -1802,23 +1808,44 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   sessions whose packet_ids collide under different namespaces, and
   never advertises a track on packet_id 0
 - the AL-FEC message's entry for a flow -> the track's `fec` object:
-  `algorithm` from `fec_code_id_for_repair_flow`, `sourceSymbols` (K)
-  from `maximum_k_for_repair_flow`, `repairSymbols` (P) from
+  `algorithm` from `fec_code_id_for_repair_flow`, "reed-solomon" for
+  code point 1 and "raptorq" for 3, `symbolSize` (T) from
+  `length_of_repair_symbol`, `sourceSymbols` (K) from
+  `maximum_k_for_repair_flow`, `repairSymbols` (P) from
   `maximum_p_for_repair_flow`, and a repair track, named in
   `fec.repairTrack`, whose `packetId` is the packet_id that
-  `repair_flow_id` names (Section 8.3).  The one repair flow the
-  one-stage entry names is the track's layer 0 and its P the whole
-  repair count of the block; a message whose
-  `maximum_p_for_repair_flow` is 0 names no repair flow a catalog can
-  publish ([@!MOQ-FEC] Section 5.1 requires at least 1 when a repair
-  track is published), so the conversion of the flow fails.  The
-  message names the repair flow by packet_id without a location, and
-  the MP table does not list it ([@!MOQ-MULTICAST] Section 5), so
-  the converter lists the repair track in the `tracks[]` of each
-  endpoint on whose session it receives packets of that packet_id,
-  which is where a receiver without the catalog finds them; a
-  repair-only endpoint ([@!MOQ-FEC] Section 6.3.6) is one the
-  converter learns from provisioning, not from the signaling
+  `repair_flow_id` names (Section 8.3).  The converter accepts an
+  entry whose coding byte is 0x14 and whose
+  `fec_code_id_for_repair_flow` is 1 or 3: a flow under any other
+  coding structure, `ssbg_mode`, FFSRP_TS or FEC payload ID mode is
+  not one that "iso-ssbg1-v1" describes ([@!MOQ-FEC] Section 7.3), a
+  session whose message names any other code is outside [@!MOQ-FEC]
+  until its registry lists that code (its Section 12), and the
+  conversion of such a flow fails.  The one repair flow the
+  one-stage entry names is the track's layer 0, and
+  `maximum_p_for_repair_flow` is its P while layer 0 is the only
+  published layer, as in a one-stage session of [@!ISO.23008-1],
+  whose one repair flow carries the block's whole repair count; a
+  MoQ publisher that appended a layer ([@!MOQ-FEC] Section 6.3.9)
+  sends the raised total in that field (Section 8.3) while the named
+  flow carries only the P_0 symbols of each block ([@!MOQ-FEC]
+  Section 6.3.2), and neither the message nor the MP table describes
+  the layers above, so the converter sets `repairSymbols` to
+  `maximum_p_for_repair_flow` less the `repairSymbols` of every
+  layer above 0 that it learns from provisioning, and one that learns
+  none publishes the whole field, which overstates layer 0's count,
+  and the loss tolerance a receiver derives from it, by the layers it
+  does not list.  A message whose `maximum_p_for_repair_flow` is 0
+  names no repair flow a catalog can publish ([@!MOQ-FEC] Section 5.1
+  requires at least 1 when a repair track is published), so the
+  conversion of the flow fails.  The message names the repair flow
+  by packet_id without a location, and the MP table does not list it
+  ([@!MOQ-MULTICAST] Section 5), so the converter lists the repair
+  track in the `tracks[]` of each endpoint on whose session it
+  receives packets of that packet_id, which is where a receiver
+  without the catalog finds them; a repair-only endpoint ([@!MOQ-FEC]
+  Section 6.3.6) is one the converter learns from provisioning, not
+  from the signaling
 - `fec.interleaveDepthMs`, the ISO protection-window send span from
   the first source or repair packet to the last: set only when the
   AL-FEC message's `protection_window_time` or an independently known
@@ -1877,8 +1904,8 @@ than rounding or inventing a cadence.  It sets `mmtpMode` itself.
 The AL-FEC message does not name `fec.blockProfile`, which is
 required for a track whose `fec.algorithm` is not "none"
 ([@!MOQ-FEC] Section 5.1); for such a track the converter sets it to
-the profile under which the MoQ-side publisher protects the track,
-"iso-ssbg1-v1".
+"iso-ssbg1-v1", the profile whose entry carries the coding byte 0x14
+that the converter accepts (Section 8.3; [@!MOQ-FEC] Section 7.3).
 
 # Security Considerations
 
@@ -2086,10 +2113,18 @@ publication as an RFC.
   point of the track's algorithm: 3 for "raptorq" and 1 for
   "reed-solomon".  Sections 7 and 8.1 follow [@!MOQ-FEC], which now
   fully specifies "reed-solomon" and makes it the mandatory-to-implement
-  scheme.  RaptorQ is optional there.
+  scheme.  RaptorQ is optional there.  Section 7 states that neither
+  the MMT AL-FEC framework nor [@?ATSC-A331], which uses it for MMTP
+  sessions, requires a particular code, so the codes are those
+  [@!MOQ-FEC] specifies.
   [@!ISO.23008-10] is now a normative reference.  The message's
-  `maximum_p_for_repair_flow` carries the RSB_length of the track's
-  FEC instance, which Section 12.2 reads back as `repairSymbols`.
+  `length_of_repair_symbol` carries the track's `symbolSize`, which
+  Section 12.2 reads back, and `num_of_repair_symbol_per_packet` is
+  1; its `maximum_p_for_repair_flow` carries the RSB_length of the
+  track's FEC instance, the block total, which Section 12.2 reads
+  back as `repairSymbols` less the layers above 0 it learns from
+  provisioning.  Section 12.2 accepts only an entry with the coding
+  byte 0x14 and code point 1 or 3.
 - Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
   has expired, and its content continues as [@?I-D.ietf-moq-cmsf].
   The FEC column names the [@!MOQ-FEC] block profile for each
