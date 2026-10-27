@@ -476,8 +476,8 @@ SSB_length + RSB_length exceeds 255, or whose RS_ID is not less than
 RSB_length, leaving the state of every block unchanged.  Neither
 packet is a symbol of a code that Section 4.4 defines.  A repair
 packet whose RSB_length is less than O_i + P_i for a layer i that the
-receiver holds is handled by Section 6.3.9, which fails closed, and
-not by this rule.
+receiver holds is handled by Section 6.3.9, which fails closed where
+its check applies, and not by this rule.
 
 Repair layers (Section 6.3) carry disjoint ranges of columns: layer i
 carries columns O_i to O_i + P_i - 1 (Section 6.3.2).  A column
@@ -1606,7 +1606,23 @@ the reason Section 6.3.8 gives: a receiver uses the total only as a
 bound, `RS_ID < RSB_length` and under `reed-solomon` also
 `SSB_length + RSB_length <= 255`, so a receiver holding a catalog from
 before an append reads a smaller bound that excludes only symbols of
-layers it has not joined.
+layers it has not joined.  The other order needs care: a block's
+RSB_length is the total in force when its repair symbols were
+generated (Section 7.1), so the repair packets of a block generated
+under the previous total carry that total, which is O_n for the
+appended layer n and below O_n + P_n, and a receiver that joins layer
+n can take such a packet after the catalog that lists the layer: the
+packets of a block are sent over the span of Section 5.1
+(`interleaveDepthMs`), a relay delivers from its cache, and a unicast
+repair (Section 11.4) returns the repair objects of an older block.
+The check below therefore applies, for a held layer, only to a block
+at or after, in the serial order of their SS_Start (Section 7.5), the
+order blocks are generated in, one of which the receiver has received
+a repair packet carrying at least that layer's O_i + P_i; a block
+before it whose packets carry less was generated before the append,
+carries no symbol of the layer, and its packets are the symbols of
+the layers the receiver holds below it, under the coordinates of
+Section 6.3.2 unchanged.
 
 A publisher MUST NOT renumber the `repairLayer` of a published layer,
 and MUST NOT change the `repairSymbols` of a published layer, while
@@ -1646,13 +1662,17 @@ the withdrawal only at the next catalog refresh, which this document
 does not bound.
 
 Append-only is what makes the check below sound.  RSB_length is
-monotonically non-decreasing over the lifetime of a source encoding,
-so a wire RSB_length below a held layer's O_i + P_i is always a
-genuine violation: no operation this document defines produces one.
+monotonically non-decreasing over the lifetime of a source encoding
+in the order blocks are generated, so on a block at or after one that
+carried a held layer's O_i + P_i a wire RSB_length below that
+O_i + P_i is always a genuine violation: no operation this document
+defines produces one.
 
 A receiver MUST fail closed when, for any layer i it holds, the
-RSB_length carried on any repair packet of the same FEC instance is
-less than O_i + P_i derived from its own catalog: its own layer's
+RSB_length carried on a repair packet of the same FEC instance, of a
+block at or after, in the serial order of Section 7.5, one of which
+it has received a repair packet carrying at least O_i + P_i, is less
+than the O_i + P_i derived from its own catalog: its own layer's
 RS_ID range does not fit under the bound the publisher is advertising,
 so the two disagree about coordinates the receiver is actively using.
 It MUST NOT treat such a packet as a symbol to discard.  In the
@@ -4740,8 +4760,15 @@ as an RFC.
   under `raptorq` only (rule 6).
 - Sections 6.3.8, 6.3.9 and 7.1: RSB_length is the total repair count
   when a block's repair symbols are generated, so it rises when a layer
-  is appended.  Under Reed-Solomon a receiver also checks
-  SSB_length + RSB_length against 255.
+  is appended, and the repair packets of a block generated before an
+  append carry the previous total, below the O_i + P_i of the appended
+  layer, and can reach a receiver that joined the layer after the
+  catalog that lists it.  The fail-closed check of Section 6.3.9
+  therefore applies, for a held layer, to a block at or after, in the
+  serial order of Section 7.5, one that carried at least that layer's
+  O_i + P_i; the check of -00, unscoped, fired on a conforming append.
+  Under Reed-Solomon a receiver also checks SSB_length + RSB_length
+  against 255.
 - Section 7.3: sub-blocks are described as [@!RFC6330] defines them,
   and no session this document targets carries an OTI, so none uses
   them.
