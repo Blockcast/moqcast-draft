@@ -72,8 +72,8 @@ from MPEG Media Transport Protocol (MMTP) packets as Annex C of
 <li>Interleaving strategies to protect against burst loss</li>
 <li>A compatibility statement for ATSC 3.0 MMTP sessions
 (Section 12).  ARIB STD-B60 <xref target="ARIB-B60"></xref> carriage of MMTP-packaged
-tracks uses the in-band AL-FEC signaling of <xref target="MOQ-MMT"></xref> Sections 8.3
-and 10.</li>
+tracks uses the in-band AL-FEC signaling of <xref target="MOQ-MMT"></xref> Section
+8.3, and its Section 10 covers ARIB STD-B60 ingest.</li>
 </ol>
 <t>The mechanism protects tracks whose packaging a block profile admits.
 Under <tt>iso-ssbg1-v1</tt> it protects MMTP-packaged tracks <xref target="MOQ-MMT"></xref>, and

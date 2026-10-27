@@ -1477,8 +1477,7 @@ Section 8.1.2.5), requires a particular code, so the codes are
 specified by [@!MOQ-FEC]: "reed-solomon", the Reed-Solomon code of
 [@!ISO.23008-10] Clause 6, is the mandatory-to-implement scheme, and
 RaptorQ [@!RFC6330] is OPTIONAL ([@!MOQ-FEC] Section 4.3).  FEC
-repair uses the model defined in
-[@!MOQ-FEC]:
+repair uses the model defined in [@!MOQ-FEC]:
 
 ~~~
 Source Track: video
@@ -1838,7 +1837,21 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   does not list.  A message whose `maximum_p_for_repair_flow` is 0
   names no repair flow a catalog can publish ([@!MOQ-FEC] Section 5.1
   requires at least 1 when a repair track is published), so the
-  conversion of the flow fails.  The message names the repair flow
+  conversion of the flow fails.  So does the conversion of a flow
+  whose `length_of_repair_symbol` is 0, a symbol that protects no
+  packet under the T - 2 construction of [@!MOQ-FEC] Section 7.3;
+  one whose entry names code point 3 with a `length_of_repair_symbol`
+  that is not a multiple of 8, a T no "raptorq" track can carry
+  ([@!MOQ-FEC] Section 4.2 fixes the Symbol Alignment at 8, which an
+  MMTP session, carrying no OTI, does not impose on its symbol
+  length), or with `maximum_k_for_repair_flow` above 56403
+  ([@!MOQ-FEC] Section 6.3.4, rule 6); or one that names code point
+  1 with `maximum_k_for_repair_flow` plus `maximum_p_for_repair_flow`
+  above 255, a block no "reed-solomon" instance can hold ([@!MOQ-FEC]
+  Section 6.3.4, rule 12, which bounds K plus the repair count of
+  every layer): a converter publishes no `fec` object that fails the
+  catalog rules of [@!MOQ-FEC] Sections 5.1 and 6.3.4, on which a
+  receiver fails closed.  The message names the repair flow
   by packet_id without a location, and the MP table does not list it
   ([@!MOQ-MULTICAST] Section 5), so the converter lists the repair
   track in the `tracks[]` of each endpoint on whose session it
@@ -2124,16 +2137,23 @@ publication as an RFC.
   track's FEC instance, the block total, which Section 12.2 reads
   back as `repairSymbols` less the layers above 0 it learns from
   provisioning.  Section 12.2 accepts only an entry with the coding
-  byte 0x14 and code point 1 or 3.
+  byte 0x14 and code point 1 or 3, and fails the conversion of a flow
+  whose symbol length is 0, of a RaptorQ entry whose symbol length is
+  not a multiple of 8 or whose maximum K exceeds 56403, and of a
+  Reed-Solomon entry whose maximum K plus maximum P exceeds 255, the
+  catalog rules of [@!MOQ-FEC] Sections 5.1 and 6.3.4 that an AL-FEC
+  message can violate.
 - Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
   has expired, and its content continues as [@?I-D.ietf-moq-cmsf].
   The FEC column names the [@!MOQ-FEC] block profile for each
   packaging, including "moq-object-v1" for loc and cmaf tracks.  The
   section names MSF, LOC and CMSF with their references, and the cases
   that suit each packaging are no longer stated with BCP 14 keywords.
-- Sections 12.2 and 12.3 and Appendix A: the S-TSID conversion of
-  -00 is removed.  This document targets MMTP services and not
-  ROUTE, so Section 12.2 now derives the catalog from MMTP signaling,
+- Sections 12.2 and 12.3 and Appendix A of -00 (the S-TSID
+  conversion example): the S-TSID conversion of -00 is removed, and
+  this appendix of changes is now Appendix A.  This document targets
+  MMTP services and not ROUTE, so Section 12.2 now derives the
+  catalog from MMTP signaling,
   the MP table and the AL-FEC message, there is no export to
   broadcast signaling, and the Abstract, Section 1, Section 2 and
   Section 7 no longer name S-TSID.  Section 7.2 no longer cites the

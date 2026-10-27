@@ -86,8 +86,8 @@ This document defines:
 5. Interleaving strategies to protect against burst loss
 6. A compatibility statement for ATSC 3.0 MMTP sessions
    (Section 12).  ARIB STD-B60 [@?ARIB-B60] carriage of MMTP-packaged
-   tracks uses the in-band AL-FEC signaling of [@!MOQ-MMT] Sections 8.3
-   and 10.
+   tracks uses the in-band AL-FEC signaling of [@!MOQ-MMT] Section
+   8.3, and its Section 10 covers ARIB STD-B60 ingest.
 
 The mechanism protects tracks whose packaging a block profile admits.
 Under `iso-ssbg1-v1` it protects MMTP-packaged tracks [@!MOQ-MMT], and
