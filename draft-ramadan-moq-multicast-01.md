@@ -1238,9 +1238,10 @@ plus `maxAuthDelayMs` outruns the admitted digests the lead widens,
 and by more than that plus `2 x manifestTimerMs` the pending
 entries as well, and the copy on `manifestPort` of a record it
 mirrors that far ahead, which the receiver keeps verified for as
-long as the freshness check of step 1 would pass it
-((#receiver-enforcement-and-state)), is dropped by the lookup of
-step 1 while so kept and by that check after, and, the lead
+long as the freshness check of step 1 would pass it, or for as long
+after that as its `mseq` stays above the manifest track's replay
+floor ((#receiver-enforcement-and-state)), is dropped by the lookup
+of step 1 while so kept and by that check after, and, the lead
 standing at the bound, admits nothing either way, so the multicast
 copies of the datagrams of those records are held and expire from
 the multicast path's hold queue, loss for the failover
@@ -2164,10 +2165,13 @@ the flow from any path, a MoQ unicast path included, against the same
 records ((#digest)); a symbol of an unlisted track, one that no
 endpoint of a flow the consumer is protected under lists, is not a
 datagram of any such flow, and what it helps the base instance
-recover is admitted by digest ((#receiver-enforcement-and-state)).  The ROUTE source
-symbol payload MUST be the whole MoQ UDP payload, trailer included,
-for this profile to cover it; a ROUTE session that carries any other
-symbol format is not covered.  For broadcast-only receivers, the
+recover is admitted by digest ((#receiver-enforcement-and-state)).  A datagram
+of the flow carried on a ROUTE session is one delivery object of a
+source flow of that session (Annex A.3.3 of [@?ATSC-A331]), whose
+bytes MUST be the whole MoQ UDP payload, trailer included, for this
+profile to cover it; a ROUTE session that carries the flow's
+datagrams in any other form is not covered.  For broadcast-only
+receivers, the
 signed record is carried unchanged as a delivery object of an LCT
 channel of the ROUTE session [@?ATSC-A331], one channel (its own TSI
 in the LCT header [@!RFC5651], Annex A.2.2 of [@?ATSC-A331]) per
@@ -2555,6 +2559,10 @@ as an RFC.
   the Reed-Solomon parameters ([@!MOQ-FEC] Section 4.5).  The
   transport table drops the QUIC datagram row, because [@!MOQ-MMT]
   Section 4.3 sends the objects of an mmtp track only in subgroups.
+  The mapping of MMTP packets onto Multicast QUIC DATAGRAM frames,
+  and the use of [@!MOQ-FEC] on that channel, are now described,
+  informatively, in [@!MOQ-FEC] Section 11.3, which that document's
+  -01 makes informative, rather than specified there.
 - Section 6: failover uses the joins of [@!I-D.ietf-moq-transport]
   Section 3.5 (LOCATION_FILTER Next Object or Relative Start, and
   FILL_PARAMETERS for the current group).  These replace the "Largest
