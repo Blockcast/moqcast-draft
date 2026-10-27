@@ -1850,8 +1850,10 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   repair symbol block) where "iso-ssbg1-v1" carries P as the
   RSB_length of every repair packet ([@!MOQ-FEC] Section 7.1), on
   which every receiver holding the highest layer the converter lists
-  (below) fails closed when it falls below the O_i + P_i its catalog
-  derives for that layer, the field itself (its Section 6.3.9), so
+  (below) fails closed when a packet of that layer, or of a block
+  after one that carried the value, carries less than the O_i + P_i
+  its catalog derives for that layer, the field itself (its Section
+  6.3.9), so
   the converter, which receives the flow's repair packets before it
   lists the repair track (below), lists it only once it has received
   a repair packet of the flow carrying an RSB_length of at least the
@@ -1886,30 +1888,39 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   receiver may still be consuming the source track, and says that a
   receiver reading the smaller bound excludes only symbols of layers
   it has not joined.  A layer above 0 that the converter learns from
-  provisioning after it published the track, one the publisher
-  appended after the converter read the field, so that the field of
-  the version it holds has risen by at least that layer's
-  `repairSymbols`, it appends at the next index ([@!MOQ-FEC] Section
-  6.3.9): its O_i is the total the catalog derives for the highest
-  layer listed before it, layer 0's `repairSymbols` plus those of
-  every layer above 0 listed before it, from which its symbols'
-  RS_IDs run upward, and its O_i + P_i is at most the field, which
-  every block generated under the raised total carries.  A layer
-  whose symbols the field the converter first read already counted
-  it lists only by retiring the source encoding and publishing the
-  source track and its repair tracks as a separate rendition that
-  lists it, since appending it would derive for it an O_i + P_i
-  above the wire RSB_length, on which every receiver joining it
-  fails closed (that section), while lowering layer 0's
-  `repairSymbols` to fit it is the change that section forbids.  A
+  provisioning after it published the track, one that provisioning
+  places next above the highest layer the converter lists, the
+  publisher having appended it after the converter read the field
+  with no layer the converter has not learned below it, so that its
+  O_i, the total of every layer below it ([@!MOQ-FEC] Section
+  6.3.2), is the total the catalog derives for the highest layer
+  listed before it, layer 0's `repairSymbols` plus those of every
+  layer above 0 listed before it, and the field of the version it
+  holds has risen by at least that layer's `repairSymbols`, it
+  appends at the next index (its Section 6.3.9): its symbols' RS_IDs
+  run upward from that total, and its O_i + P_i is at most the
+  field, which every block generated under the raised total carries.
+  The field's rise alone places no layer, a field risen by more than
+  a layer's `repairSymbols` counting a layer the converter has not
+  learned, which can lie below the learned one.  A layer that
+  provisioning does not so place, or whose symbols the field the
+  converter first read already counted, it lists only by retiring
+  the source encoding and publishing the source track and its repair
+  tracks as a separate rendition that lists it, since appending it
+  would give it an O_i that is not the publisher's, which no check
+  detects, or an O_i + P_i above the wire RSB_length, on which every
+  receiver joining it fails closed (that section), while lowering
+  layer 0's `repairSymbols` to fit it is the change that section
+  forbids.  A
   later version that lowers `maximum_p_for_repair_flow` below the
   total its catalog derives for the highest layer it lists, layer
   0's `repairSymbols` plus those of every layer above 0 it lists, is
   a change that section lets no publisher make, on which every
-  receiver holding the
-  highest layer it lists fails closed, the wire RSB_length falling
-  below the O_i + P_i its catalog derives for that layer, which is
-  that total, so the converter retires the source encoding and
+  receiver holding the highest layer it lists fails closed on the
+  first packet of that layer, or of a block after one that carried
+  that total, whose RSB_length falls below the O_i + P_i its catalog
+  derives for that layer, which is that total, so the converter
+  retires the source encoding and
   publishes the source track and its repair tracks as a separate
   rendition carrying the lowered value, as that section has a
   publisher that must retire a layer do; a repair packet whose

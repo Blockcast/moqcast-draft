@@ -1742,7 +1742,9 @@ variable-length interpretation before a cryptographic check:
    track is not a datagram of any flow the consumer is protected
    under: it MAY enter a FEC instance under that path's own
    integrity protection, which vouches for the relay and not for the
-   publisher, and the admission that makes the consumer protected
+   publisher, neither anchoring nor tripping the fail-closed check of
+   [@!MOQ-FEC] Section 6.3.9 (that section), and the admission that
+   makes the consumer protected
    under a flow that lists the track ends this for that track, the
    discard above dropping each such symbol the consumer still holds
    and a provisional block those symbols delimited returning its
@@ -2088,8 +2090,9 @@ requested, the SS_IDs it covers that the receiver lacks staying runs
 that admitted packets alone reveal, and the
 blocks only such symbols delimit are discarded under the open-block
 bound of [@!MOQ-FEC] Section 9 before any block that has a ts,
-so it forces no repair request and evicts no block of the multicast
-path, step 2 of (#receiver-enforcement-and-state); a
+so it forces no repair request, evicts no block of the multicast
+path and fails no check of [@!MOQ-FEC] Section 6.3.9 closed, step 2
+of (#receiver-enforcement-and-state); a
 corrupt symbol of an unlisted track it delivers leaves unrecovered
 only a block the admitted symbols could not recover alone, costs at
 most two decodes of that block, and what a decode it corrupts
@@ -2679,7 +2682,9 @@ as an RFC.
   cancel a repair FETCH outstanding for it; a
   packet only the overlay recovers with such help is not delivered,
   and a symbol of an unlisted track gives no block or run its ts or
-  FEC deadline, a block only such symbols delimit being decoded
+  FEC deadline and neither anchors nor trips the fail-closed check
+  of [@!MOQ-FEC] Section 6.3.9, a block only such symbols delimit
+  being decoded
   only, with no ts and no deadline, the lost SS_IDs in its range
   staying runs that a packet admitted above them reveals, and a
   block with no ts being

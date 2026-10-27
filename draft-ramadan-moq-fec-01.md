@@ -476,8 +476,11 @@ SSB_length + RSB_length exceeds 255, or whose RS_ID is not less than
 RSB_length, leaving the state of every block unchanged.  Neither
 packet is a symbol of a code that Section 4.4 defines.  A repair
 packet whose RSB_length is less than O_i + P_i for a layer i that the
-receiver holds is handled by Section 6.3.9, which fails closed where
-its check applies, and not by this rule.
+receiver holds, of that layer's own track or of a block to which the
+check of Section 6.3.9 applies, is handled by that section, which
+fails closed, and not by this rule; on any other block this rule
+applies to it, a block generated before an append carrying no symbol
+of layer i (Section 6.3.9).
 
 Repair layers (Section 6.3) carry disjoint ranges of columns: layer i
 carries columns O_i to O_i + P_i - 1 (Section 6.3.2).  A column
@@ -1615,14 +1618,28 @@ n can take such a packet after the catalog that lists the layer: the
 packets of a block are sent over the span of Section 5.1
 (`interleaveDepthMs`), a relay delivers from its cache, and a unicast
 repair (Section 11.4) returns the repair objects of an older block.
-The check below therefore applies, for a held layer, only to a block
-at or after, in the serial order of their SS_Start (Section 7.5), the
-order blocks are generated in, one of which the receiver has received
-a repair packet carrying at least that layer's O_i + P_i; a block
-before it whose packets carry less was generated before the append,
-carries no symbol of the layer, and its packets are the symbols of
-the layers the receiver holds below it, under the coordinates of
-Section 6.3.2 unchanged.
+The check below therefore applies, for a held layer, to a repair
+packet of that layer's own track, which carries a symbol generated
+under a total at or above its O_i + P_i whatever block it belongs
+to, and otherwise only to a block at or after, in the serial order
+of their SS_Start (Section 7.5), the order blocks are generated in,
+one of which the receiver has received a repair packet carrying at
+least that layer's O_i + P_i; a block before it whose packets of
+other layers carry less was generated before the append, carries no
+symbol of the layer, and those packets are the symbols of the layers
+the receiver holds below it, under the coordinates of Section 6.3.2
+unchanged.  Within a consumer that the bc-provenance profile of
+[@!MOQ-MULTICAST] Section 7.2 governs for its blocks (Section 7.4),
+the packet that anchors the check and the packet it tests are both
+repair packets that profile has admitted (step 2 of its Section
+7.2.7): a symbol of an unlisted track reaches the consumer under the
+integrity protection of a MoQ unicast path, which vouches for the
+relay and not for the publisher, so the total it carries attests to
+no coordinate the publisher is using; it anchors nothing, and one
+whose RSB_length is below the O_i + P_i of a layer the receiver
+holds is discarded, leaving the state of every block unchanged, so
+that a relay on that path cannot stop FEC for the source track with
+one packet.
 
 A publisher MUST NOT renumber the `repairLayer` of a published layer,
 and MUST NOT change the `repairSymbols` of a published layer, while
@@ -1663,30 +1680,41 @@ does not bound.
 
 Append-only is what makes the check below sound.  RSB_length is
 monotonically non-decreasing over the lifetime of a source encoding
-in the order blocks are generated, so on a block at or after one that
-carried a held layer's O_i + P_i a wire RSB_length below that
-O_i + P_i is always a genuine violation: no operation this document
+in the order blocks are generated, and a symbol of a layer is
+generated only under a total at or above that layer's O_i + P_i, so
+a wire RSB_length below a held layer's O_i + P_i on a packet of that
+layer's track, or on a block at or after one that carried that
+O_i + P_i, is always a genuine violation: no operation this document
 defines produces one.
 
 A receiver MUST fail closed when, for any layer i it holds, the
-RSB_length carried on a repair packet of the same FEC instance, of a
-block at or after, in the serial order of Section 7.5, one of which
-it has received a repair packet carrying at least O_i + P_i, is less
-than the O_i + P_i derived from its own catalog: its own layer's
-RS_ID range does not fit under the bound the publisher is advertising,
-so the two disagree about coordinates the receiver is actively using.
-It MUST NOT treat such a packet as a symbol to discard.  In the
+RSB_length carried on a repair packet of that layer's track, or on a
+repair packet of the same FEC instance of a block at or after, in
+the serial order of Section 7.5, one of which it has received a
+repair packet carrying at least O_i + P_i, is less than the
+O_i + P_i derived from its own catalog: its own layer's RS_ID range
+does not fit under the bound the publisher is advertising, so the
+two disagree about coordinates the receiver is actively using.  It
+MUST NOT treat such a packet as a symbol to discard.  In the
 renumbering example above the total falls from 56 to 40 while the
-receiver's O_2 + P_2 is 56, so the check catches it.
+receiver's O_2 + P_2 is 56, so the check catches it on the first
+packet of layer 2 it receives after the change, whenever it joined.
 
 That check is a backstop and not a substitute for the publisher
 requirement.  It does not catch a change that leaves the total at or
 above the receiver's derived bound, for example an increase to a lower
 layer's `repairSymbols`, which shifts every higher offset while
-raising the total.  That case is silent on the wire, which is why the
-protection is the prohibition on the publisher rather than validation
-at the receiver.  A wire RSB_length larger than the receiver's derived
-total is not an error in itself: that is the append case above.
+raising the total.  Nor does it catch, for a receiver that joins a
+withdrawn highest layer under a catalog that still lists it, the
+withdrawal itself: no packet of that layer arrives, the packets of
+the layers below carry a total that reaches O_i + P_i on no block
+and so anchor the check on none, and their coordinates are unchanged
+by the withdrawal, so such a receiver decodes from the layers below
+and learns of the withdrawal only at the next catalog refresh.  Both
+cases are silent on the wire, which is why the protection is the
+prohibition on the publisher rather than validation at the receiver.
+A wire RSB_length larger than the receiver's derived total is not an
+error in itself: that is the append case above.
 
 ## Keyframe Overlay
 
@@ -4684,9 +4712,11 @@ as an RFC.
   field, matrix, encoding, short blocks and decoding.  Its parameters
   come from the catalog and the Repair FEC Payload ID, with no OTI.  A
   repair packet whose SSB_length + RSB_length exceeds 255, or whose
-  RS_ID is not below RSB_length, is discarded, except that the
-  fail-closed check of Section 6.3.9 takes precedence.  Where the
-  restatement and [@!ISO.23008-10] differ, the ISO text governs.
+  RS_ID is not below RSB_length, is discarded, except that, on a
+  packet of a held layer's own track or on a block to which the
+  fail-closed check of Section 6.3.9 applies, that check takes
+  precedence.  Where the restatement and [@!ISO.23008-10] differ, the
+  ISO text governs.
 - Abstract, Sections 1, 4 and 5.1: the document fully specifies two
   schemes.  Reed-Solomon is now the mandatory-to-implement scheme;
   RaptorQ, mandatory in -00, is optional (Section 4.3).  `symbolSize`
@@ -4764,11 +4794,21 @@ as an RFC.
   append carry the previous total, below the O_i + P_i of the appended
   layer, and can reach a receiver that joined the layer after the
   catalog that lists it.  The fail-closed check of Section 6.3.9
-  therefore applies, for a held layer, to a block at or after, in the
-  serial order of Section 7.5, one that carried at least that layer's
-  O_i + P_i; the check of -00, unscoped, fired on a conforming append.
-  Under Reed-Solomon a receiver also checks SSB_length + RSB_length
-  against 255.
+  therefore applies, for a held layer, to a packet of that layer's
+  own track, whose symbol was generated under a total at or above
+  its O_i + P_i, and otherwise to a block at or after, in the serial
+  order of Section 7.5, one that carried at least that layer's
+  O_i + P_i; the check of -00, unscoped, fired on a conforming
+  append.  Within a consumer the bc-provenance profile of
+  [@!MOQ-MULTICAST] Section 7.2 governs for its blocks, the packet
+  that anchors the check and the packet it tests are ones that
+  profile admitted, so a symbol of an unlisted track delivered over
+  a MoQ unicast path neither anchors nor trips it, and one below a
+  held layer's bound is discarded.  A receiver that joins a withdrawn
+  highest layer under a catalog that still lists it is caught by
+  nothing and learns of the withdrawal at the next catalog refresh,
+  which Section 6.3.9 now states.  Under Reed-Solomon a receiver
+  also checks SSB_length + RSB_length against 255.
 - Section 7.3: sub-blocks are described as [@!RFC6330] defines them,
   and no session this document targets carries an OTI, so none uses
   them.
