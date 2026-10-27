@@ -734,7 +734,7 @@ Section 3.1.  A PA message is never carried as a MoQ object
 The Multicast QUIC row corresponds to [@?QUIC-MULTICAST], which adds
 QUIC's per-packet AEAD and integrity.  The mapping of MMTP packets
 onto its DATAGRAM frames, and the use of [@!MOQ-FEC] on that channel,
-are specified in [@!MOQ-FEC] Section 11.3.
+are described, informatively, in [@!MOQ-FEC] Section 11.3.
 
 # Multi-Path Delivery
 
@@ -1249,12 +1249,20 @@ the mirror, such a path fails over on its own latency on a receiver
 that checks freshness.  One that skips the check (the Clock
 paragraph of (#receiver-enforcement-and-state)) keeps the record
 verified `7 s + maxAuthDelayMs` after its arrival on the manifest
-track, so under a relay leading by more than that the copy on
-`manifestPort` misses the lookup, meets no freshness check and is
-verified anew there, from that path's budget, admitting the
+track, or for as long after that as its `mseq` stays above the
+manifest track's replay floor (the state list of that section), so
+under a relay leading by more than the longer of the two the copy
+on `manifestPort` misses the lookup, meets no freshness check and
+is verified anew there, from that path's budget, admitting the
 datagrams of its window as any record on `manifestPort` does: such
-a receiver fails over on a lead between the two values and, under a
-larger one, verifies every record on both paths instead.
+a receiver fails over on a lead between the bound plus
+`maxAuthDelayMs` and that retention and, under a larger one,
+verifies every record on both paths instead; on a flow whose 64
+windows outlast `7 s + maxAuthDelayMs`, one closing fewer than
+eight windows a second, the floor keeps the record verified until
+its copy arrives under any lead shorter than 64 windows, the lookup
+drops the copy, and such a receiver fails over as one that checks
+freshness does.
 
 ### Catalog Signaling
 
@@ -1447,10 +1455,11 @@ it covers expire, as that section says, rather than being verified
 anew on `manifestPort`; where the lead stands below the bound, the
 first such copy raises it to the bound and handles the record's
 pairs again as step 1 says; a receiver that skips the check
-verifies anew a copy arriving after the retention, as that section
-also says), each with the
-time and
-path of its arrival, the `hash_alg` digest of the record's bytes,
+verifies anew a copy arriving after the retention and below the
+manifest track's replay floor, dropping by the lookup one that
+arrives above the floor, as that section also says), each with the
+time and path of its arrival, its `sent`, which that retention
+reads, the `hash_alg` digest of the record's bytes,
 per pair of the record, whether a datagram has been admitted against
 it and, for a record verified on the manifest track whose first copy
 on `manifestPort` has not yet arrived, the record's pairs, which a
@@ -1629,8 +1638,9 @@ variable-length interpretation before a cryptographic check:
    processed under that epoch's own floor and verified set and never
    changes the current epoch.
    Record `(kid, epoch, mseq)` as verified, with the time and path
-   of its arrival and the `hash_alg` digest of its bytes, and raise
-   the `highest_mseq` of the path it arrived on.  For each
+   of its arrival, its `sent` and the `hash_alg` digest of its
+   bytes, and raise the `highest_mseq` of the path it arrived on.
+   For each
    `(digest, sequence)` of the
    record, in order: if a hold queue holds a datagram with that
    digest, admit the oldest such datagram, mark the pair as having
