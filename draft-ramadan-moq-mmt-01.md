@@ -1476,11 +1476,12 @@ document.
 MMT's AL-FEC framework supports multiple FEC schemes, with the MMT
 FEC codes specified in [@!ISO.23008-10] and parameters signaled via
 MMTP signaling messages or, in ATSC 3.0, via S-TSID (which is part of
-the ROUTE transport layer).  For MoQ, RaptorQ [@!RFC6330] is the
-mandatory-to-implement scheme ([@!MOQ-FEC] Section 4.3).
-[@!MOQ-FEC] also fully specifies an OPTIONAL scheme, "reed-solomon":
-the Reed-Solomon code of [@!ISO.23008-10] Clause 6.  FEC repair uses
-the model defined in [@!MOQ-FEC]:
+the ROUTE transport layer).  For MoQ, "reed-solomon", the
+Reed-Solomon code of [@!ISO.23008-10] Clause 6, is the
+mandatory-to-implement scheme, and RaptorQ [@!RFC6330] is OPTIONAL,
+required where ATSC 3.0 ROUTE compatibility is claimed ([@!MOQ-FEC]
+Sections 4.3 and 12).  FEC repair uses the model defined in
+[@!MOQ-FEC]:
 
 ~~~
 Source Track: video
@@ -1559,9 +1560,10 @@ behind such a gap.
 When used with MMT packaging, the catalog `fec` fields map as
 follows:
 
-- **algorithm**: Typically "raptorq" for ATSC 3.0 ingest, or the
-  value whose code point the MMTP AL-FEC message carries in
-  `fec_code_id_for_repair_flow` (Section 8.3)
+- **algorithm**: "raptorq" for an A/331 ROUTE ingest
+  (Section 12.2), otherwise the value whose code point the MMTP
+  AL-FEC message carries in `fec_code_id_for_repair_flow`
+  (Section 8.3)
 - **blockProfile**: "iso-ssbg1-v1" ([@!MOQ-FEC] Section 5.1), the
   ISO 23008-1 Annex C block profile, for which an AL-FEC message
   carries the coding byte 0x14 (Section 8.3); REQUIRED when

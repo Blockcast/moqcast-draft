@@ -29,10 +29,11 @@ formed and identified: an ISO/IEC 23008-1 profile for tracks packaged
 as MPEG Media Transport Protocol (MMTP) packets, and an object profile
 for tracks packaged as Low Overhead Media Container (LOC) or Common
 Media Application Format (CMAF) objects.  It fully specifies
-two FEC schemes: RaptorQ (RFC 6330), which is mandatory to implement,
-and an optional systematic Reed-Solomon code over GF(2^8), the
-Reed-Solomon code of ISO/IEC 23008-10.  An algorithm registry provides
-extension points for additional schemes.  FEC enables receivers to
+two FEC schemes: the systematic Reed-Solomon code over GF(2^8) of
+ISO/IEC 23008-10, which is mandatory to implement, and RaptorQ
+(RFC 6330), which is optional and is required where compatibility
+with ATSC 3.0 ROUTE Application-Layer FEC is claimed.  An algorithm
+registry provides extension points for additional schemes.  FEC enables receivers to
 recover from packet loss without retransmission latency.  The MMTP
 profile is designed for compatibility with ATSC 3.0 (A/331) and ARIB
 STD-B60 broadcast systems.</t>
@@ -57,9 +58,9 @@ environments where burst packet loss is common.</t>
 <ol spacing="compact">
 <li>A catalog extension carrying the complete FEC configuration,
 which is authoritative for MoQ receivers</li>
-<li>A normative derivation of the RaptorQ Object Transmission
-Information (OTI), and of the parameters of an optional
-Reed-Solomon code, from the catalog fields and the Repair FEC
+<li>A normative derivation of the parameters of the Reed-Solomon
+code, and of the RaptorQ Object Transmission Information (OTI),
+from the catalog fields and the Repair FEC
 Payload ID of each block, so that catalog-only receivers
 (including multicast and sessionless receivers) can fully
 configure their decoders</li>
@@ -213,12 +214,14 @@ corresponding string identifiers.</t>
 <t><strong>RaptorQ (0x01)</strong>: RaptorQ fountain code per <xref target="RFC6330"></xref>.  Can recover
 from loss of any symbols as long as SSB_length symbols (source or
 repair), plus a small decoding overhead (Section 6.3.2), are received.
-It is the mandatory-to-implement scheme (Section 4.3).</t>
+It is OPTIONAL, and REQUIRED where compatibility with ATSC 3.0 ROUTE
+AL-FEC is claimed (Sections 4.3 and 12).</t>
 <t><strong>Reed-Solomon (0x02)</strong>: The systematic Reed-Solomon erasure code over
 GF(2^8) of <xref target="ISO.23008-10"></xref> Clause 6, restated in Section 4.4.  It
 recovers a block from any SSB_length of its distinct source and repair
 symbols.  An FEC instance under it holds at most 255 source and repair
-symbols per block (Section 4.5).  It is OPTIONAL (Section 4.3).</t>
+symbols per block (Section 4.5).  It is the mandatory-to-implement
+scheme (Section 4.3).</t>
 <t>Both codes are systematic: the source symbols of a block are among its
 encoding symbols, so a receiver uses the source symbols it receives as
 they arrive.  The two values correspond to the FEC code points 3 (the
@@ -280,23 +283,30 @@ block, so a receiver holding any repair symbol of a block holds the block's SSB_
 </section>
 
 <section anchor="algorithm-requirements"><name>Algorithm Requirements</name>
-<t>RaptorQ is the mandatory-to-implement FEC scheme: an implementation
-that performs FEC decoding under this specification MUST support
-&quot;raptorq&quot;.  &quot;reed-solomon&quot; is fully specified by Sections 4.4 and 4.5
-and is OPTIONAL.</t>
-<t>RaptorQ is the mandatory scheme for two reasons.  First, it serves
-every block size this document allows.  A RaptorQ block holds up to
-56403 source symbols (Section 6.3.4, rule 6), while a Reed-Solomon
-block holds at most 255 source and repair symbols (Section 4.5).  At
-8 Mb/s with symbols of 1200 bytes, such a block spans at most about
-300 ms of media, so the multi-second interleave windows of Section 9
-need RaptorQ at that rate.  Second, RaptorQ is the code of ATSC 3.0
-ROUTE delivery: when <xref target="ATSC-A331"></xref> applies AL-FEC to file delivery
-over ROUTE, it requires the RaptorQ-based repair protocol of its
-Annex A.4, and Section 12.1 maps its <tt>fecOTI</tt>.  When it applies AL-FEC
-to MMTP sessions, it requires the AL-FEC framework of <xref target="ISO.23008-1"></xref>
-Annex C and leaves the FEC code to in-band signaling, so it does not
-require RaptorQ for MMTP (Section 12).</t>
+<t>Reed-Solomon is the mandatory-to-implement FEC scheme: an
+implementation that performs FEC decoding under this specification
+MUST support &quot;reed-solomon&quot;, which Sections 4.4 and 4.5 fully
+specify.  &quot;raptorq&quot; is OPTIONAL, and an implementation that claims
+compatibility with ATSC 3.0 ROUTE delivery (Section 12) MUST support
+it.</t>
+<t>Reed-Solomon is the mandatory scheme because it is small to
+implement, recovers a block from exactly SSB_length of its symbols,
+and is a code of the MMT AL-FEC framework on which the MMTP profile
+of this document rests (<xref target="ISO.23008-10"></xref> code point 1).  RaptorQ
+stays specified, and is required for ATSC 3.0 ROUTE, for two
+reasons.  First, it serves every block size this document allows.
+A RaptorQ block holds up to 56403 source symbols (Section 6.3.4,
+rule 6), while a Reed-Solomon block holds at most 255 source and
+repair symbols (Section 4.5).  At 8 Mb/s with symbols of 1200 bytes,
+such a block spans at most about 300 ms of media, so the multi-second
+interleave windows of Section 9 need RaptorQ at that rate.  Second,
+RaptorQ is the code of ATSC 3.0 ROUTE delivery: when <xref target="ATSC-A331"></xref>
+applies AL-FEC to file delivery over ROUTE, it requires the
+RaptorQ-based repair protocol of its Annex A.4, and Section 12.1 maps
+its <tt>fecOTI</tt>.  When it applies AL-FEC to MMTP sessions, it requires
+the AL-FEC framework of <xref target="ISO.23008-1"></xref> Annex C and leaves the FEC
+code to in-band signaling, so it does not require RaptorQ for MMTP
+(Section 12).</t>
 <t>The algorithm registry (Section 15.2) provides an extension point
 for additional schemes.  A registered value other than &quot;none&quot;,
 &quot;raptorq&quot; and &quot;reed-solomon&quot; needs a specification of its own, giving
@@ -307,8 +317,8 @@ semantics, before it can be used interoperably.</t>
 consumes the source track normally and does not subscribe to the
 repair track.  Repair-track subscription is optional (Section 6.2),
 so an unrecognized or unimplemented algorithm is not an error.  A
-track under &quot;reed-solomon&quot; is therefore protected only for the
-receivers that implement it.</t>
+track under &quot;raptorq&quot; is therefore protected only for the receivers
+that implement it.</t>
 </section>
 
 <section anchor="reed-solomon-code"><name>Reed-Solomon Code</name>
@@ -542,10 +552,10 @@ shows a loc track under <tt>moq-object-v1</tt>, and Section 4.5 a track under
 
 <ul spacing="compact">
 <li>&quot;none&quot;: No FEC</li>
-<li>&quot;raptorq&quot;: RaptorQ per RFC 6330 (mandatory to implement,
-Section 4.3)</li>
+<li>&quot;raptorq&quot;: RaptorQ per RFC 6330 (OPTIONAL; REQUIRED for ATSC 3.0
+ROUTE compatibility, Sections 4.3 and 12)</li>
 <li>&quot;reed-solomon&quot;: Reed-Solomon over GF(2^8) per Section 4.4
-(OPTIONAL, Section 4.3)</li>
+(mandatory to implement, Section 4.3)</li>
 </ul>
 <t><strong>blockProfile</strong> (string, REQUIRED when <tt>algorithm</tt> is not &quot;none&quot;):
 The block profile of the track's
@@ -3615,8 +3625,10 @@ Section 4.2.  When it applies AL-FEC to MMTP sessions, it requires the
 AL-FEC framework of <xref target="ISO.23008-1"></xref> Annex C and leaves the FEC code to
 in-band signaling, so it requires no particular code for MMTP.  There
 the AL-FEC message names the code by its <xref target="ISO.23008-10"></xref> code point,
-3 for <tt>raptorq</tt> and 1 for <tt>reed-solomon</tt> (Section 4.1).  Section 4.3
-states why RaptorQ is the mandatory scheme of this document.</t>
+3 for <tt>raptorq</tt> and 1 for <tt>reed-solomon</tt> (Section 4.1).  An
+implementation that claims compatibility with A/331 ROUTE AL-FEC, the
+mapping of Section 12.1, MUST support &quot;raptorq&quot; (Section 4.3); an
+A/331 MMTP session needs no particular code.</t>
 
 <section anchor="mapping-to-a-331-al-fec"><name>Mapping to A/331 AL-FEC</name>
 <table>
@@ -4674,16 +4686,19 @@ RS_ID is not below RSB_length, is discarded, except that the
 fail-closed check of Section 6.3.9 takes precedence.  Where the
 restatement and <xref target="ISO.23008-10"></xref> differ, the ISO text governs.</li>
 <li>Abstract, Sections 1, 4 and 5.1: the document fully specifies two
-schemes, RaptorQ, which remains mandatory to implement, and the
-optional Reed-Solomon code.  <tt>symbolSize</tt> need not be a multiple of
-8 under Reed-Solomon, and Section 4.5 gives a catalog example.</li>
+schemes.  Reed-Solomon is now the mandatory-to-implement scheme;
+RaptorQ, mandatory in -00, is optional and required where ATSC 3.0
+ROUTE compatibility is claimed (Section 12).  <tt>symbolSize</tt> need not
+be a multiple of 8 under Reed-Solomon, and Section 4.5 gives a
+catalog example.</li>
 <li>Section 4.1: both codes are systematic and correspond to the
 <xref target="ISO.23008-10"></xref> code points 3 and 1.  The RaptorQ entry states its
 decoding overhead.</li>
 <li>Section 4.3: retitled &quot;Algorithm Requirements&quot; (it was &quot;Other FEC
-Algorithms&quot;).  It gives the rationale for RaptorQ as the mandatory
-scheme: block size and ATSC 3.0 ROUTE.  <xref target="ATSC-A331"></xref> requires
-RaptorQ for ROUTE and leaves the MMTP code to in-band signaling.</li>
+Algorithms&quot;).  It gives the rationale for Reed-Solomon as the
+mandatory scheme and for keeping RaptorQ: block size and ATSC 3.0
+ROUTE.  <xref target="ATSC-A331"></xref> requires RaptorQ for ROUTE and leaves the
+MMTP code to in-band signaling.</li>
 <li>Sections 2, 3 and 5.2: definitions and decoder configuration cover
 both codes.</li>
 <li>Section 5.1.2: the worked catalog's overlay is valid only under

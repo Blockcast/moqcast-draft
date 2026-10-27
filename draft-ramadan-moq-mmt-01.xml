@@ -1491,11 +1491,11 @@ document.</t>
 <t>MMT's AL-FEC framework supports multiple FEC schemes, with the MMT
 FEC codes specified in <xref target="ISO.23008-10"></xref> and parameters signaled via
 MMTP signaling messages or, in ATSC 3.0, via S-TSID (which is part of
-the ROUTE transport layer).  For MoQ, RaptorQ <xref target="RFC6330"></xref> is the
-mandatory-to-implement scheme (<xref target="MOQ-FEC"></xref> Section 4.3).
-<xref target="MOQ-FEC"></xref> also fully specifies an OPTIONAL scheme, &quot;reed-solomon&quot;:
-the Reed-Solomon code of <xref target="ISO.23008-10"></xref> Clause 6.  FEC repair uses
-the model defined in <xref target="MOQ-FEC"></xref>:</t>
+the ROUTE transport layer).  For MoQ, &quot;reed-solomon&quot;, the
+Reed-Solomon code of <xref target="ISO.23008-10"></xref> Clause 6, is the
+mandatory-to-implement scheme, and RaptorQ <xref target="RFC6330"></xref> is OPTIONAL,
+required where ATSC 3.0 ROUTE compatibility is claimed (<xref target="MOQ-FEC"></xref>
+Sections 4.3 and 12).  FEC repair uses the model defined in</t>
 
 <artwork><![CDATA[Source Track: video
   +-- Objects: MMTP packets with FEC Type=0 or 1 (source)
@@ -1570,9 +1570,10 @@ behind such a gap.</t>
 follows:</t>
 
 <ul spacing="compact">
-<li><strong>algorithm</strong>: Typically &quot;raptorq&quot; for ATSC 3.0 ingest, or the
-value whose code point the MMTP AL-FEC message carries in
-<tt>fec_code_id_for_repair_flow</tt> (Section 8.3)</li>
+<li><strong>algorithm</strong>: &quot;raptorq&quot; for an A/331 ROUTE ingest
+(Section 12.2), otherwise the value whose code point the MMTP
+AL-FEC message carries in <tt>fec_code_id_for_repair_flow</tt>
+(Section 8.3)</li>
 <li><strong>blockProfile</strong>: &quot;iso-ssbg1-v1&quot; (<xref target="MOQ-FEC"></xref> Section 5.1), the
 ISO 23008-1 Annex C block profile, for which an AL-FEC message
 carries the coding byte 0x14 (Section 8.3); REQUIRED when
