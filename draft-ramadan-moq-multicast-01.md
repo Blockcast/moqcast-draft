@@ -2112,35 +2112,45 @@ entries, which expire before those datagrams arrive, so they are
 held, and the sender's own copy, dropped by the already-verified
 lookup, admits nothing (step 1 of
 (#receiver-enforcement-and-state)); one record per window is then
-loss of every window for the failover below, 50 a second at the
-default `manifestTimerMs` on a flow the timer governs and one per
-37 datagrams on a flow above 1850 datagrams a second
+loss of every window for the failover below, at most 50 a second
+at the default `manifestTimerMs` on a flow the timer governs and
+one per 37 datagrams on a flow above 1850 datagrams a second
 ((#emission-and-cadence)), less than the data-port injection above
 needs wherever the failover fraction of the flow's packet rate
 exceeds that window rate, above 50 a second on the former and above
 a thirty-seventh of the packet rate on the latter.  On a receiver
-that reads the manifest track the injector's copy, replayed from the
-mirror ahead of the sender's, is the record's first copy on
-`manifestPort` and measures the lead, so the sender's copy and the
-twin measure nothing and the re-handling that a raising copy affords
-(step 1 of (#receiver-enforcement-and-state)) is not afforded
-against it: where no larger interval has been measured in the
-stream generation this pins the lead at the injector's replay
-interval, while a lead the sender's copies measured larger before
-the injector began is never lowered ((#emission-and-cadence)) and
-keeps widening the entries of mirrored records, so their datagrams
-are admitted on arrival and the attack fails on that receiver; the
-same copy raises the `highest_mseq` of `manifestPort` and starts
-its grace period early, which drops a record the mirror lost or the
-relay withheld only where the relay's lead reaches 64 windows, less
-the windows by which the record's twin lags it where the record's
-own copy was lost on the multicast path as well (two at the
-RECOMMENDED placement of (#emission-and-cadence), up to 63 under
-its bound, which assumes that only the sender's records raise the
-floor of step 1), and a record of the previous epoch once a grace
-period so started has run.  The attack needs a record source
-that leads the multicast path at the receiver by that much, which
-the injector does not control, and the statements of this section
+that reads the manifest track the outcome turns on arrival order.
+For a record the receiver's mirror delivers before the injector's
+copy, that copy, replayed from the mirror ahead of the sender's, is
+the record's first copy on `manifestPort` and measures the lead, so
+the sender's copy and the twin measure nothing and the re-handling
+that a raising copy affords (step 1 of
+(#receiver-enforcement-and-state)) is not afforded against it: where
+no larger interval has been measured in the stream generation this
+pins the lead at the injector's replay interval, while a lead the
+sender's copies measured larger before the injector began is never
+lowered ((#emission-and-cadence)) and keeps widening the entries of
+mirrored records, so their datagrams are admitted on arrival and the
+attack fails for such a record.  A record the injector's copy brings
+to `manifestPort` before the receiver's mirror delivers it is
+verified there with unwidened entries whatever lead the receiver has
+measured, and the mirror's later copy, dropped by the already-verified
+lookup, measures nothing and widens nothing (step 1), so its
+datagrams are held and expire as on a receiver that reads no manifest
+track; an injector that reads the manifest track with less delay
+than the receiver does wins that race on every record.  The
+injector's copy also raises the `highest_mseq` of `manifestPort` and
+starts its grace period early, which drops a record the mirror lost
+or the relay withheld only where the injector's copies lead the
+multicast path at the receiver by 64 windows, less the windows by
+which the record's twin lags it where the record's own copy was lost
+on the multicast path as well (two at the RECOMMENDED placement of
+(#emission-and-cadence), up to 63 under its bound, which assumes
+that only the sender's records raise the floor of step 1), and a
+record of the previous epoch once a grace period so started has
+run.  That needs a mirror that leads the multicast path at the
+receiver by that much; the injector chooses which mirror it reads
+but raises the lead of none, and the statements of this section
 about a relay assume no such sender on the group.  Datagrams that
 expire from the multicast path's hold queue are loss for the failover
 of (#multicast-endpoint-format) and (#multi-path-delivery), those

@@ -1915,24 +1915,42 @@ the layers above, so the converter sets <tt>repairSymbols</tt> to
 layer above 0 that it learns from provisioning, and one that learns
 none publishes the whole field, which overstates layer 0's count,
 and the loss tolerance a receiver derives from it, by the layers it
-does not list.  A message whose <tt>maximum_p_for_repair_flow</tt> is 0
-names no repair flow a catalog can publish (<xref target="MOQ-FEC"></xref> Section 5.1
-requires at least 1 when a repair track is published), so the
-conversion of the flow fails.  So does the conversion of a flow
-whose <tt>length_of_repair_symbol</tt> is 0, a symbol that protects no
-packet under the T - 2 construction of <xref target="MOQ-FEC"></xref> Section 7.3;
-one whose entry names code point 3 with a <tt>length_of_repair_symbol</tt>
-that is not a multiple of 8, a T no &quot;raptorq&quot; track can carry
+does not list.  The converter keeps the <tt>repairSymbols</tt> it first
+published for a track for as long as it publishes the track: a
+later version of the message that raises
+<tt>maximum_p_for_repair_flow</tt> changes nothing in its catalog, since
+<xref target="MOQ-FEC"></xref> Section 6.3.9 forbids changing the <tt>repairSymbols</tt> of a
+published layer while any receiver may still be consuming the
+source track, and says that a receiver reading the smaller bound
+excludes only symbols of layers it has not joined.  The conversion
+of a flow fails where the <tt>fec</tt> object it would yield fails a
+catalog rule of <xref target="MOQ-FEC"></xref> Sections 5.1 and 6.3.4, on which a
+receiver fails closed: a <tt>maximum_p_for_repair_flow</tt> of 0 names no
+repair flow a catalog can publish (<xref target="MOQ-FEC"></xref> Section 5.1
+requires a <tt>repairSymbols</tt> of at least 1 when a repair track is
+published), a <tt>maximum_k_for_repair_flow</tt> of 0 names no block (a
+<tt>sourceSymbols</tt> of at least 1), and a <tt>length_of_repair_symbol</tt>
+below 14 names a symbol that protects no MMTP packet under the
+T - 2 construction of <xref target="MOQ-FEC"></xref> Section 7.3, whose protected
+packet begins with the 12-octet MMTP packet header of Section 3.1
+(a <tt>symbolSize</tt> of at least 14 under &quot;iso-ssbg1-v1&quot;); an entry
+that names code point 3 with a <tt>length_of_repair_symbol</tt> that is
+not a multiple of 8 names a T no &quot;raptorq&quot; track can carry
 (<xref target="MOQ-FEC"></xref> Section 4.2 fixes the Symbol Alignment at 8, which an
 MMTP session, carrying no OTI, does not impose on its symbol
-length), or with <tt>maximum_k_for_repair_flow</tt> above 56403
-(<xref target="MOQ-FEC"></xref> Section 6.3.4, rule 6); or one that names code point
-1 with <tt>maximum_k_for_repair_flow</tt> plus <tt>maximum_p_for_repair_flow</tt>
-above 255, a block no &quot;reed-solomon&quot; instance can hold (<xref target="MOQ-FEC"></xref>
-Section 6.3.4, rule 12, which bounds K plus the repair count of
-every layer): a converter publishes no <tt>fec</tt> object that fails the
-catalog rules of <xref target="MOQ-FEC"></xref> Sections 5.1 and 6.3.4, on which a
-receiver fails closed.  The message names the repair flow
+length), one with <tt>maximum_k_for_repair_flow</tt> above 56403 fails
+rule 6 of <xref target="MOQ-FEC"></xref> Section 6.3.4, and one with
+<tt>maximum_k_for_repair_flow</tt> plus <tt>maximum_p_for_repair_flow</tt> above
+2^24 names an ESI no instance can produce (rule 5, which bounds
+K + totalP - 1 by 2^24 - 1, a sum the two 24-bit fields can
+exceed); and an entry that names code point 1 with
+<tt>maximum_k_for_repair_flow</tt> plus <tt>maximum_p_for_repair_flow</tt> above
+255 names a block no &quot;reed-solomon&quot; instance can hold (rule 12,
+which bounds K plus the repair count of every layer).  The
+conversion also fails for a flow whose <tt>repair_flow_id</tt> is 0, the
+signaling flow (Section 3.1), or the packet_id of another track of
+the session, a value that <xref target="MOQ-MULTICAST"></xref> Section 4.1 requires
+to denote one sub-flow.  The message names the repair flow
 by packet_id without a location, and the MP table does not list it
 (<xref target="MOQ-MULTICAST"></xref> Section 5), so the converter lists the repair
 track in the <tt>tracks[]</tt> of each endpoint on whose session it
@@ -2236,13 +2254,17 @@ Section 12.2 reads back, and <tt>num_of_repair_symbol_per_packet</tt> is
 1; its <tt>maximum_p_for_repair_flow</tt> carries the RSB_length of the
 track's FEC instance, the block total, which Section 12.2 reads
 back as <tt>repairSymbols</tt> less the layers above 0 it learns from
-provisioning.  Section 12.2 accepts only an entry with the coding
-byte 0x14 and code point 1 or 3, and fails the conversion of a flow
-whose symbol length is 0, of a RaptorQ entry whose symbol length is
-not a multiple of 8 or whose maximum K exceeds 56403, and of a
-Reed-Solomon entry whose maximum K plus maximum P exceeds 255, the
-catalog rules of <xref target="MOQ-FEC"></xref> Sections 5.1 and 6.3.4 that an AL-FEC
-message can violate.</li>
+provisioning, keeping the value it first published for a track
+across later versions of the message that raise the field
+(<xref target="MOQ-FEC"></xref> Section 6.3.9).  Section 12.2 accepts only an entry
+with the coding byte 0x14 and code point 1 or 3, and fails the
+conversion of a flow whose <tt>fec</tt> object would fail a catalog rule
+of <xref target="MOQ-FEC"></xref> Sections 5.1 and 6.3.4 (a maximum K or maximum P of
+0, a symbol length below 14, a RaptorQ symbol length that is not a
+multiple of 8, a RaptorQ maximum K above 56403 or maximum K plus
+maximum P above 2^24, a Reed-Solomon maximum K plus maximum P
+above 255) and of one whose repair flow is packet_id 0 or the
+packet_id of another track of the session.</li>
 <li>Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
 has expired, and its content continues as <xref target="I-D.ietf-moq-cmsf"></xref>.
 The FEC column names the <xref target="MOQ-FEC"></xref> block profile for each

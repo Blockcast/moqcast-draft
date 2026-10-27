@@ -682,7 +682,10 @@ symbols in a block have the same size; the byte layout of each source
 symbol is fixed by the track's `blockProfile` and is not otherwise
 carried in the catalog.  Under "iso-ssbg1-v1" it is the ssbg_mode1
 construction of Section 7.3, under which a source packet of up to
-T - 2 bytes is protected.  Under "moq-object-v1" it is the construction
+T - 2 bytes is protected, and MUST be at least 14: a shorter symbol
+carries no protected packet of the 12-octet MMTP packet header
+([@!MOQ-MMT] Section 3.1).  Under "moq-object-v1" it is the
+construction
 of Section 7.6.1, under which an object whose Protected Object Unit is
 at most K x T bytes long is protected.  For "raptorq", T is a multiple of 8, the
 fixed Symbol Alignment of the derived OTI (Section 4.2).  For
@@ -4647,9 +4650,8 @@ as an RFC.
 - Abstract, Sections 1, 4 and 5.1: the document fully specifies two
   schemes.  Reed-Solomon is now the mandatory-to-implement scheme;
   RaptorQ, mandatory in -00, is optional (Section 4.3).  `symbolSize`
-  need not
-  be a multiple of 8 under Reed-Solomon, and Section 4.5 gives a
-  catalog example.
+  need not be a multiple of 8 under Reed-Solomon and is at least 14
+  under `iso-ssbg1-v1`, and Section 4.5 gives a catalog example.
 - Section 4.1: both codes are systematic and correspond to the
   [@!ISO.23008-10] code points 3 and 1.  The RaptorQ entry states its
   decoding overhead.
