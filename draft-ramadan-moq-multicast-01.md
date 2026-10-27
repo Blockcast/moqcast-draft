@@ -1224,14 +1224,20 @@ the multicast copies of the datagrams its relay delivers before the
 join arrive after it.  The timers of
 (#receiver-enforcement-and-state) are wall-clock bounds; a
 relay-buffered QUIC path can deliver records later than
-`maxAuthDelayMs`, and a unicast receiver SHOULD widen its hold, and
+`maxAuthDelayMs`, or the datagrams of a window later than the record
+that covers them, the manifest track and the media tracks being
+separate streams, and a unicast receiver SHOULD widen its hold, and
 the freshness tolerance of step 1 of
 (#receiver-enforcement-and-state) for the records it reads from the
-manifest track, accordingly, by at most 5 s: the widening is also
-its exposure at join to windows that old served by its relay
-((#threat-model)), a record on `manifestPort` keeps the unwidened
-tolerance as the multicast path's hold queue keeps the unwidened
-expiry, and a receiver that needs more is replaying
+manifest track, accordingly, by at most 5 s, the widening W, a
+receiver that applies no lead widening the pending expiry of a
+mirrored record's entries by W as well (step 1), since no lead
+covers the datagrams its relay delivers after the records that
+cover them: the widening is also its exposure at join to windows
+that old served by its relay ((#threat-model)), a record on
+`manifestPort` keeps the unwidened tolerance and pending expiry as
+the multicast path's hold queue keeps the unwidened expiry, and a
+receiver that needs more is replaying
 ((#receiver-enforcement-and-state)).  The bound caps the lead as
 well: a relay that leads the multicast path by more than the bound
 plus `maxAuthDelayMs` outruns the admitted digests the lead widens,
@@ -1476,7 +1482,7 @@ zero on a receiver that reads no manifest track or will not join the
 multicast path; a pending table of
 `(digest, sequence, expiry)` entries, each naming the record and
 the pair that inserted it, an entry whose expiry the mirror's lead
-widened keeping its insertion time as well (step 1);
+or W widened keeping its insertion time as well (step 1);
 the digests recorded as admitted, each until the expiry set when
 it was recorded, the time of recording plus `maxAuthDelayMs` plus
 the mirror's lead then in force, a copy on `manifestPort` that
@@ -1649,9 +1655,10 @@ variable-length interpretation before a cryptographic check:
    (step 2); otherwise insert the pair into the
    pending table with expiry
    `now + maxAuthDelayMs + 2 x manifestTimerMs` (240 ms at the
-   defaults), plus the mirror's lead for a record read from the
-   manifest track ((#emission-and-cadence)), an entry so widened
-   keeping its insertion time.  Once every pair of the record is
+   defaults), plus the mirror's lead, or W on a receiver that
+   applies no lead, for a record read from the manifest track
+   ((#emission-and-cadence)), an entry so widened keeping its
+   insertion time.  Once every pair of the record is
    processed, drop from both hold queues each datagram still held
    whose digest is now recorded as admitted: it is a copy of a
    datagram this record admitted, delivered on the other path or
@@ -1673,10 +1680,10 @@ variable-length interpretation before a cryptographic check:
    never held); otherwise append `(D, datagram)` to the hold queue of
    its path, with expiry `now + maxAuthDelayMs + W`, each queue
    bounded to `(maxAuthDelayMs + W) x bandwidth / 8000` octets, W
-   being the widening of (#emission-and-cadence), zero on the
-   multicast path; drop the newest on overflow and drop at expiry, so
-   a MoQ unicast path that fills its queue evicts no multicast
-   datagram.  Repair symbols follow the same rule,
+   being the widening of (#emission-and-cadence) in milliseconds,
+   zero on the multicast path; drop the newest on overflow and drop
+   at expiry, so a MoQ unicast path that fills its queue evicts no
+   multicast datagram.  Repair symbols follow the same rule,
    so an injected symbol is dropped before FEC decode.  A receiver MUST
    NOT feed a FEC instance, a keyframe overlay or the packet_id 0
    signaling consumer with a datagram of a protected flow that it has
@@ -2292,11 +2299,12 @@ catalog is therefore an attack vector:
   receiver retains for as long as the freshness check of step 1
   would pass a copy of them on `manifestPort`, each with the pairs
   kept until its first `manifestPort` copy arrives; the widening W
-  of (#emission-and-cadence) enlarges the unicast path's queue and
-  the mirror's lead the pending expiry of a mirrored record's
-  entries, the admitted-digest set and the entries kept for unicast
-  repair (step 2, those pending at an admission), both
-  receiver-chosen and capped at 5 s.  A
+  of (#emission-and-cadence) enlarges the unicast path's queue and,
+  on a receiver that applies no lead, the pending expiry of a
+  mirrored record's entries, and the mirror's lead that expiry, the
+  admitted-digest set and the entries kept for unicast repair (step
+  2, those pending at an admission), both receiver-chosen and capped
+  at 5 s.  A
   receiver bounds all of these
   by local policy, and the
   pending entries it keeps for unicast repair by the open-block bound
@@ -2697,11 +2705,13 @@ as an RFC.
   failover; a unicast receiver widens its hold, its hold queue with
   it, and the freshness tolerance of the records it reads from the
   manifest track, by at most 5 s, a record on `manifestPort` keeping
-  the unwidened tolerance, and a receiver reading the mirror that
-  has joined or may yet join widens the pending expiry of a mirrored
-  record's entries and the life of its admitted digests by the
-  mirror's lead, a per-flow value it
-  measures, the bound until the generation's first measurement
+  the unwidened tolerance, one that reads the mirror and will not
+  join the multicast path widening the pending expiry of a mirrored
+  record's entries by the same W, and a receiver reading the mirror
+  that has joined or may yet join widens the pending expiry of a
+  mirrored record's entries and the life of its admitted digests by
+  the mirror's lead, a per-flow value it measures, the bound until
+  the generation's first measurement
   ((#receiver-enforcement-and-state), (#emission-and-cadence),
   (#threat-model)).
 - A `keys` array that repeats a `kid` or a `firstEpoch` yields no
