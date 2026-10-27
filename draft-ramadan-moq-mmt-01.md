@@ -1858,7 +1858,19 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   the converter, which receives the flow's repair packets before it
   lists the repair track (below), lists it only once it has received
   a repair packet of the flow carrying an RSB_length of at least the
-  field of the version it holds, and fails the conversion of a flow
+  field of the version it holds and, where it sets
+  `fec.interleaveDepthMs` (below), that span has elapsed since that
+  packet: the endpoint it lists the track on is the session's own,
+  carrying the sender's packets, on which the packets of a block
+  generated under the previous total can follow the raised total's
+  first packet for that span ([@!MOQ-FEC] Section 9), so a receiver
+  of the catalog that joined sooner would take one, below the
+  `repairSymbols` the catalog gives layer 0 (below), as a packet of
+  that layer's own track and fail closed on it (its Section 6.3.9);
+  where the converter sets no `fec.interleaveDepthMs` the listing is
+  exposed to those packets for the sender's send span, which the
+  converter, originating nothing on the session, cannot withhold.
+  It fails the conversion of a flow
   whose repair packets carry an RSB_length below that field on a
   block at or after, in the serial order of their SS_Start
   ([@!MOQ-FEC] Section 7.5), one of which it has received a repair
@@ -1881,7 +1893,9 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   the layers the converter learns, has an O_i + P_i that a
   previous-total packet of the flow, its own track, can fall below,
   and a receiver of that catalog, which cannot tell it from the
-  publisher's, would fail closed on it.  An RSB_length above the
+  publisher's, would fail closed on it, on the repair track the
+  converter publishes as on the endpoint's session, from which only
+  the listing delay above keeps it.  An RSB_length above the
   field is the append case of the next sentence.  A
   MoQ publisher that appended a layer ([@!MOQ-FEC] Section 6.3.9)
   sends the raised total in that field (Section 8.3) while the named
@@ -1889,10 +1903,20 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   Section 6.3.2), and neither the message nor the MP table describes
   the layers above, so the converter sets `repairSymbols` to
   `maximum_p_for_repair_flow` less the `repairSymbols` of every
-  layer above 0 that it learns from provisioning, and one that learns
-  none publishes the whole field, which overstates layer 0's count,
-  and the loss tolerance a receiver derives from it, by the layers it
-  does not list.  The converter keeps the `repairSymbols` it first
+  layer above 0 that it lists, and lists a layer it learns from
+  provisioning only where provisioning places it, with every other
+  layer it lists, above every layer it does not list, the topmost
+  layers of the publisher's set: layer 0's `repairSymbols` is then
+  the publisher's total below the lowest listed layer and each
+  listed layer's O_i ([@!MOQ-FEC] Section 6.3.2) is the publisher's,
+  while listing a layer above which lies one the converter does not
+  list would give it an O_i that is not the publisher's, which no
+  check detects, and an O_i + P_i that its own-track packets
+  generated before that layer's append fall below (its Section
+  6.3.9).  One that lists none publishes the whole field, which
+  overstates layer 0's count, and the loss tolerance a receiver
+  derives from it, by the layers it does not list.  The converter
+  keeps the `repairSymbols` it first
   published for a track, and those of every layer it has listed,
   for as long as it publishes the track: a later version of the
   message that raises `maximum_p_for_repair_flow` changes nothing in
@@ -2261,8 +2285,10 @@ publication as an RFC.
   Section 12.2 reads back, and `num_of_repair_symbol_per_packet` is
   1; its `maximum_p_for_repair_flow` carries the RSB_length of the
   track's FEC instance, the block total, which Section 12.2 reads
-  back as `repairSymbols` less the layers above 0 it learns from
-  provisioning, keeping the value it first published for a track,
+  back as `repairSymbols` less the layers above 0 it lists, listing
+  a layer it learns from provisioning only where provisioning places
+  it, with every other listed layer, above every layer it does not
+  list, keeping the value it first published for a track,
   and those of the layers it has listed, across later versions of
   the message that raise the field, retiring the source encoding
   under one that lowers the field below the total its catalog
@@ -2277,7 +2303,11 @@ publication as an RFC.
   the field is a bound in [@!ISO.23008-1] where
   "iso-ssbg1-v1" carries P as every repair packet's RSB_length,
   lists the repair track only once a repair packet of the flow
-  carries at least the field, and fails the conversion of a flow
+  carries at least the field and, where it sets
+  `fec.interleaveDepthMs`, that span has elapsed since it, the
+  endpoint listed being the session's own, on which previous-total
+  packets can follow for that span and from which the converter
+  withholds nothing, and fails the conversion of a flow
   whose repair packets carry an RSB_length below the field on a
   block at or after, in the serial order of [@!MOQ-FEC] Section
   7.5, one received carrying at least the field, since a publisher
