@@ -95,7 +95,10 @@ receiver without the catalog
 takes the FEC configuration from the AL-FEC message
 ([@!MOQ-MMT] Section 8.3) when the flow carries one.  A receiver
 that holds the catalog takes both from the catalog, which remains
-authoritative for it (Section 4.1; [@!MOQ-FEC] Section 5.2).
+authoritative for media and FEC parameters (Section 4.1;
+[@!MOQ-FEC] Section 5.2).  A catalog-provided service name or relay
+address is only a discovery input; it is not proof that an upstream
+is reachable or healthy.
 ATSC 3.0 and ARIB STD-B60 [@?ARIB-B60] receivers consume MMTP over
 SSM as their native delivery path.
 
@@ -114,6 +117,16 @@ in all capitals, as shown here.
 **DRIAD**: DNS Reverse IP AMT Discovery [@!RFC8777]
 
 **TreeDN**: Tree-based Content Delivery Network [@?RFC9706]
+
+**Service hostname**: A stable DNS name identifying an upstream MoQ
+relay or AMT relay service.  It is the receiver's connection identity;
+the A and AAAA records returned for it are candidate addresses, not
+stable endpoint identities.
+
+**Protocol health**: Successful completion of the protocol-specific
+handshake and capability checks required before a receiver selects an
+upstream.  A DNS response, a routable address, or a transport handshake
+alone is not protocol health.
 
 **MMTP**: MMT Protocol -- the packet layer of MPEG Media Transport
 ([@!ISO.23008-1] Clause 9; [@!MOQ-MMT] Section 3).
@@ -152,6 +165,63 @@ native SSM, AMT tunneling, and finally MoQ/QUIC unicast.  Local
 policy MAY override this order.  Within tuner-based reception,
 receivers prefer Single Frequency Network (SFN) diversity reception,
 where deployed, over single-transmitter reception.
+
+## Receiver-Owned DNS Candidate Discovery
+
+When a receiver is given a service hostname for a MoQ upstream or an
+AMT relay, it MUST perform discovery from that hostname at connection
+time.  The resolver's A and AAAA answers form a set of candidate
+addresses.  DNS answer order, address reachability, and an address's
+geographic or topological appearance do not by themselves establish
+health.  Local, anycast, or GeoDNS policy MAY use the resolver to steer
+the candidate set toward a nearby upstream, but the receiver MUST
+validate the selected candidate at the protocol layer.
+
+For a MoQ/QUIC upstream, a receiver MUST retain the service hostname
+for TLS certificate and SNI validation and MUST use a bounded attempt
+for each candidate.  A candidate is healthy only after the QUIC
+handshake, supported MoQ ALPN negotiation, MoQ session setup, and the
+capability or catalog check needed by the requested service have
+succeeded.  Receivers MUST bound both the number of concurrent candidate
+attempts and the duration of each attempt.  They SHOULD race a bounded
+batch of candidates in parallel (or use an equivalent bounded strategy),
+select the first healthy candidate, and cancel the losing attempts.  A candidate that
+completes QUIC but fails MoQ setup or capability validation MUST NOT
+prevent another candidate from being tried.
+
+For an AMT relay, a receiver MUST complete the AMT Discovery,
+Advertisement, Request, and Membership Query exchange when those
+messages are used, and MUST wait for either the first data packet for
+the requested source and group or a configured finite
+post-Membership-Query/Update wait to expire.  A receiver MUST NOT wait indefinitely for
+data: for a source declared sparse or idle by local policy, expiry of
+that wait MAY permit selection after the control-plane exchange, but
+the result is control-plane health rather than proof of data-plane
+delivery.  A relay that answers DNS or sends an Advertisement but does
+not complete the exchange is not healthy.  After selection, the
+receiver MUST use bounded liveness and membership-refresh timers and
+MUST repeat DNS resolution and the candidate race after tunnel failure
+or liveness expiry.
+
+Receivers SHOULD honor DNS TTLs for new connection attempts and SHOULD
+apply only bounded negative caching.  An established connection MAY
+continue after its DNS answer expires, but a reconnect MUST NOT pin a
+previous address indefinitely.  Retries MUST use bounded backoff and
+MUST cancel stale attempts before starting another bounded batch; at no
+time may candidate attempts accumulate without a bound.  If no candidate
+becomes healthy, the receiver uses the next permitted delivery path or
+remains in retry state according to local policy; it MUST NOT declare a
+path healthy solely because DNS returned an answer.
+
+This procedure applies equally to service hostnames obtained from
+configuration, an operator provisioning system, or a multicast catalog.
+An operator provisioning system is a control-plane service that publishes
+the service hostname, transport metadata, and policy; it is not a
+substitute for receiver-side protocol health validation.  A catalog MUST
+NOT be interpreted as an authority to bypass that validation.  A literal
+IP address is permitted for an explicitly configured static deployment,
+but it does not provide DNS locality steering and is not the preferred
+form for a service that has multiple upstreams.
 
 # Multicast Catalog Extension
 
@@ -221,8 +291,8 @@ audio/video groups) use multiple elements:
     ],
     "networkSource": [{
       "type": "amt",
-      "discovery": "driad",
-      "relay": "amt.example.com"
+      "relay": "amt.example.com",
+      "discovery": "dns"
     }]
   }
 }
@@ -390,13 +460,18 @@ Defined types:
 {
   "networkSource": [{
     "type": "amt",
-    "relay": "198.51.100.1",
-    "discovery": "driad"
+    "relay": "amt.example.com",
+    "discovery": "dns"
   }]
 }
 ~~~
 
-**relay** (string, OPTIONAL): AMT relay address (IP or hostname).
+**relay** (string, OPTIONAL): AMT relay service name.  With `dns`, it
+MUST be a hostname whose A and AAAA answers are candidate addresses.
+With `manual`, it MUST be the literal address of the explicitly
+configured relay.  It MUST be omitted with `driad`, because DRIAD
+supplies the relay candidates.  A literal address does not provide DNS
+locality steering.
 
 **port** (integer, OPTIONAL): UDP port on which the relay named by
   the `relay` field accepts requests.  When absent, the AMT port (2268,
@@ -408,28 +483,62 @@ Defined types:
 
 **discovery** (string, OPTIONAL): AMT relay discovery method.
 
+  - "dns": Resolve the `relay` service hostname to A and AAAA
+    candidates and validate each candidate with the AMT protocol
+    (Section 3.1).
+    This is the RECOMMENDED method when a relay service hostname is
+    available.
   - "driad": DNS Reverse IP AMT Discovery per [@!RFC8777].
     Subscribers query the source IP's reverse DNS for AMT relay
-    records.  It is the RECOMMENDED value of this field.
+    records; `relay` MUST be omitted.  Each discovered relay is still a
+    candidate and MUST be validated with the AMT protocol before
+    selection.
   - "manual": Relay address is provided in the `relay` field.
+    This is intended for explicitly configured static deployments.
 
-Subscribers SHOULD look for a relay in the preference order of
-[@!RFC8777] Section 3.1.2, and try the `relay` field ahead of DRIAD:
+For `dns`, subscribers MUST resolve the hostname at each connection
+and reconnect attempt, bound both the number and duration of AMT
+validation attempts, and race a bounded batch for the returned A and
+AAAA candidates.  The receiver MUST wait for either first `(S,G)` data
+or the configured finite post-Membership-Query/Update wait.  It MUST
+select only a candidate that completes the AMT control-plane exchange;
+for a sparse or idle source, selection after the wait expires records
+control-plane health without claiming data-plane proof.  DNS answer
+order is not a health signal.
+
+When cancelling a losing AMT attempt that has reached the Query/Update
+state, the receiver MUST send a Membership Update carrying the IGMP/MLD
+leave (withdrawal) for the requested `(S,G)` [@!RFC7450] Section 5.1.5,
+then close that candidate's socket.  An attempt that has not reached
+that state is cancelled by closing its socket; a failed cancellation is
+bounded and MUST NOT keep the candidate attempt alive.
+
+Subscribers SHOULD look for a relay in this order, which keeps the
+preference of [@!RFC8777] Section 3.1.2 for a relay in the
+subscriber's own network:
 
 1. Look for a relay in the subscriber's own network, with DNS-based
    Service Discovery (DNS-SD) [@!RFC6763] for `_amt._udp` and then
-   through the AMT anycast addresses of [@!RFC7450] Section 7
-2. Use the `relay` field if provided
-3. Use DRIAD on the SSM source address if `discovery` is "driad" or
-   omitted
-4. Fall back to MoQ/QUIC unicast
+   through the AMT anycast addresses of [@!RFC7450] Section 7.
+2. Use receiver-owned DNS candidate discovery when `discovery` is
+   "dns", or when `discovery` is omitted and `relay` is a hostname.
+3. Use DRIAD discovery on the SSM source IP when `discovery` is
+   "driad", or when both `discovery` and `relay` are omitted and the
+   source IP has DRIAD records.
+4. Use a literal `relay` directly when `discovery` is "manual", or when
+   `discovery` is omitted and `relay` is a literal under an explicitly
+   permitted static-deployment policy.
+5. Fall back to MoQ/QUIC unicast.
 
-A relay named by the `relay` field or found by DRIAD is one that the
-sender knows, and is not necessarily near the subscriber ([@!RFC8777]
-Section 3.1.1).  A local relay keeps more of the path on native
-multicast.  DRIAD requires AMTRELAY (TYPE260) reverse DNS records on
-the source IP.  Publishers without reverse DNS control SHOULD provide
-the `relay` field directly.
+The `discovery` and `relay` fields select at most one of steps 2 to 4
+for an endpoint.  A relay named by the `relay` field or found by DRIAD
+is one that the sender knows, and is not necessarily near the
+subscriber ([@!RFC8777] Section 3.1.1).  A local relay keeps more of
+the path on native multicast.  Every relay found in steps 1 to 4 is a
+candidate that the subscriber validates with the AMT protocol before
+selection (Section 3.1).  DRIAD requires AMTRELAY (TYPE260) reverse
+DNS records on the source IP.  Publishers without reverse DNS control
+SHOULD provide a stable `relay` service hostname.
 
 ### ATSC 3.0 (Broadcast Television)
 
@@ -470,7 +579,7 @@ When a stream is available via multiple delivery technologies, the
 ~~~ json
 {
   "networkSource": [
-    { "type": "amt", "relay": "198.51.100.1", "discovery": "driad" },
+    { "type": "amt", "discovery": "driad" },
     { "type": "atsc3", "frequency": 533000, "plpId": 0 }
   ]
 }
