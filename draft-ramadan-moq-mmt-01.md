@@ -30,8 +30,7 @@ container format for Media over QUIC (MoQ).  MMT carries media over
 broadcast (ATSC 3.0, ARIB STD-B60), multicast, and unicast
 (QUIC/WebTransport) networks.  This specification defines the mapping
 of MMT packets to MoQ objects, interaction with Application-Layer FEC,
-bidirectional conversion between the ATSC 3.0 Service-based Transport
-Session Instance Description (S-TSID) and MoQ catalogs, and
+the derivation of MoQ catalogs from MMTP signaling, and
 compatibility considerations for both ATSC 3.0 and ARIB STD-B60
 systems.
 
@@ -41,9 +40,9 @@ systems.
 
 MPEG Media Transport (MMT) [@!ISO.23008-1] is a transport protocol
 designed for delivery of multimedia content over heterogeneous
-networks.  MMT is supported as an alternative transport in ATSC 3.0
-broadcast television (Americas, South Korea) alongside the primary
-ROUTE/DASH transport, and is the basis for ARIB STD-B60 (Japan).
+networks.  MMT is supported as a transport in ATSC 3.0 broadcast
+television (Americas, South Korea), and is the basis for ARIB
+STD-B60 (Japan).
 MMT provides native support for:
 
 - Media Processing Units (MPU, branded "mpuf" in the ISO Base Media
@@ -63,8 +62,8 @@ over MoQ [@!I-D.ietf-moq-transport], enabling:
    per [@!MOQ-FEC]
 3. **Multicast promotion**: MoQ clients can receive Source-Specific
    Multicast (SSM) directly when available, per [@!MOQ-MULTICAST]
-4. **Bidirectional signaling**: Convert between S-TSID (ATSC) and MoQ
-   catalogs
+4. **Broadcast signaling**: Derive MoQ catalogs from MMTP signaling
+   (Section 12.2)
 
 ## Relationship to Other MoQ Media Formats
 
@@ -119,9 +118,6 @@ data, or an item of non-timed media data, within an MPU
 **AL-FEC**: Application-Layer Forward Error Correction
 
 **AU**: Access Unit
-
-**S-TSID**: Service-based Transport Session Instance Description -
-ATSC 3.0 signaling table containing transport and FEC parameters
 
 **SLT**: Service Layer Table - ATSC 3.0 bootstrap signaling
 
@@ -1475,12 +1471,10 @@ document.
 
 MMT's AL-FEC framework supports multiple FEC schemes, with the MMT
 FEC codes specified in [@!ISO.23008-10] and parameters signaled via
-MMTP signaling messages or, in ATSC 3.0, via S-TSID (which is part of
-the ROUTE transport layer).  For MoQ, "reed-solomon", the
+MMTP signaling messages (Section 8.3).  For MoQ, "reed-solomon", the
 Reed-Solomon code of [@!ISO.23008-10] Clause 6, is the
-mandatory-to-implement scheme, and RaptorQ [@!RFC6330] is OPTIONAL,
-required where ATSC 3.0 ROUTE compatibility is claimed ([@!MOQ-FEC]
-Sections 4.3 and 12).  FEC repair uses the model defined in
+mandatory-to-implement scheme, and RaptorQ [@!RFC6330] is OPTIONAL
+([@!MOQ-FEC] Section 4.3).  FEC repair uses the model defined in
 [@!MOQ-FEC]:
 
 ~~~
@@ -1504,11 +1498,11 @@ an elapsed-time deadline.  A typical window for ARIB STD-B60 content is
 
 ## OTI Signaling
 
-The S-TSID carries the RaptorQ Object Transmission Information (OTI)
-of [@!RFC6330] Section 3.3 in its `fecOTI` attribute.  MoQ carries no
-OTI in-session: receivers derive it per block from the catalog `fec` fields and the block's SSB_length
-per [@!MOQ-FEC] Section 4.2, and Section 12.2 converts an ingested
-`fecOTI` to catalog fields.
+MoQ carries no RaptorQ Object Transmission Information (OTI,
+[@!RFC6330] Section 3.3) in-session: receivers derive it per block
+from the catalog `fec` fields and the block's SSB_length per
+[@!MOQ-FEC] Section 4.2.  The AL-FEC message of an MMTP session
+carries none either (Section 8.3).
 
 # FEC Parameter Signaling
 
@@ -1560,10 +1554,8 @@ behind such a gap.
 When used with MMT packaging, the catalog `fec` fields map as
 follows:
 
-- **algorithm**: "raptorq" for an A/331 ROUTE ingest
-  (Section 12.2), otherwise the value whose code point the MMTP
-  AL-FEC message carries in `fec_code_id_for_repair_flow`
-  (Section 8.3)
+- **algorithm**: the value whose code point the MMTP AL-FEC message
+  carries in `fec_code_id_for_repair_flow` (Section 8.3)
 - **blockProfile**: "iso-ssbg1-v1" ([@!MOQ-FEC] Section 5.1), the
   ISO 23008-1 Annex C block profile, for which an AL-FEC message
   carries the coding byte 0x14 (Section 8.3); REQUIRED when
@@ -1580,7 +1572,7 @@ follows:
   block boundary from MoQ Groups.  When ingesting broadcast content,
   use the ISO protection-window signaling or a known source/repair
   send-span bound.  A source-frame count alone does not bound the
-  actual packet send span (Section 12.2).
+  actual packet send span.
 
 See [@!MOQ-FEC] for the complete catalog field definitions, the
 algorithm registry, and the OTI derivation.
@@ -1770,139 +1762,71 @@ Example, with the `data` value shortened:
 }
 ~~~
 
-## S-TSID to MoQ Catalog Conversion
+## MMTP Signaling to MoQ Catalog Conversion
 
-This section and its inverse (Section 12.3) are informative: they
-document a mapping for ingesting ATSC 3.0 broadcast signaling into
-MoQ catalogs and exporting it back, and impose no interoperability
-requirements on MoQ publishers or subscribers.  A converter's
-output catalog is
-subject to the normative catalog requirements of Section 12.1 like
-any other catalog.
+This section is informative: it documents how a converter that
+ingests an MMTP broadcast service, an ATSC 3.0 MMTP session
+([@?ATSC-A331] Section 8.1.2.1) or an ARIB STD-B60 service, derives a
+MoQ catalog from the MMT signaling, and imposes no interoperability
+requirements on MoQ publishers or subscribers.  A converter's output
+catalog is subject to the normative catalog requirements of
+Section 12.1 like any other catalog.  The MP table gives the
+location of each Asset ([@!ISO.23008-1] Clause 10.3.9) and the
+AL-FEC message the FEC parameters of each protected flow
+([@!ISO.23008-1] Annex C.6; Section 8.3 gives the fields a MoQ
+publisher sets, which a converter reads back).
 
-When ingesting ATSC 3.0 content delivered via ROUTE, generate MoQ
-catalog from the S-TSID signaling table (defined in ATSC A/331
-[@?ATSC-A331] for the ROUTE transport layer).  For MMT-delivered
-content, equivalent parameters are obtained from the MP table (asset
-locations, [@!ISO.23008-1] Clause 10.3.9) and the AL-FEC message (FEC
-parameters, [@!ISO.23008-1] Annex C.6).  A complete worked example is given in
-Appendix A.
+The `multicast` field in the output uses the multicast endpoint
+format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
 
-Repair-ratio arithmetic.  `FECParameters@percentRepair` is the
-maximum ratio of repair symbols to source symbols, as an integer
-percentage from 0 to 200 ([@?ATSC-A331] Table A.4.1).  Below, a div b
-is the integer quotient floor(a / b) of a non-negative integer a and
-a positive integer b.  Export (Section 12.3) rounds up, computing
-ceil(100 x P / K) as (100 x P + K - 1) div K; ingest (this section)
-rounds down, computing P = floor(K x percentRepair / 100) as
-(K x percentRepair) div 100.  The two are matching inverses:
-ceil(100 x P / K) <= percentRepair if and only if
-P <= (K x percentRepair) div 100, so ingest yields the largest P whose
-exported `@percentRepair` does not exceed the ingested one.
-`FECParameters@overhead` is not that ratio: A/331 defines it as the
-size of the AL-FEC fields of a repair packet relative to the packet,
-and it has no catalog mapping.
-
-The `multicast` field in the output uses the multicast endpoint format
-defined in [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
-
-- `RS@sIpAddr` -> `multicast.endpoints[].sourceAddress`
-- `RS@dIpAddr` -> `multicast.endpoints[].groupAddress`
-- `RS@dPort` -> `multicast.endpoints[].port`
-- each `LS` SrcFlow and RepairFlow -> a distinct
-  `multicast.endpoints[].tracks[]` entry, with `packetId` assigned per
-  the rule below
-- `LS@bw` -> `bitrate` ([@!I-D.ietf-moq-msf] Section 5.2.22), as
-  1000 x `LS@bw`.  A/331 gives `@bw` in kilobits per second, counting
-  IP, UDP and ROUTE headers, and repair when the `LS` also carries a
-  RepairFlow, so the result is an upper bound.  When `@bw` is absent,
-  the converter takes the `bitrate` of an audio or video track from
-  another source, or the conversion of that track fails.
-- `SrcFlow@rt` = "true" (real-time content) -> `isLive` = true
-  ([@!I-D.ietf-moq-msf] Section 5.2.7) on the flow's track and on its
-  repair track, which the converter publishes while it ingests the
-  live service
+- each MMTP session the MP table locates by its source address,
+  destination address and destination port -> one
+  `multicast.endpoints[]` entry (`sourceAddress`, `groupAddress`,
+  `port`), and the Assets it carries -> that endpoint's `tracks[]`
+- each Asset -> a track whose `packetId` is the Asset's packet_id,
+  unique within the session ([@?ATSC-A331] Section 8.1.2.1.1) and
+  carried by every packet of the flow, so a converter cannot renumber
+  it.  [@!MOQ-MULTICAST] Section 4.1 requires each `packetId` value to
+  denote one sub-flow across all endpoints of a sending entity and
+  reserves 0 for the signaling flow, so a converter publishes
+  sessions whose packet_ids collide under different namespaces, and
+  never advertises a track on packet_id 0
+- the AL-FEC message's entry for a flow -> the track's `fec` object:
+  `algorithm` from `fec_code_id_for_repair_flow`, `sourceSymbols` (K)
+  from `maximum_k_for_repair_flow`, and a repair track on the
+  packet_id that `repair_flow_id` names (Section 8.3).
+  `repairSymbols` (P) is not carried, so the converter takes it from
+  another source, such as the repair symbol count of the blocks it
+  observes, or the conversion of the flow fails ([@!MOQ-FEC]
+  Section 5.1 requires at least 1 when a repair track is published)
+- `fec.interleaveDepthMs`, the ISO protection-window send span from
+  the first source or repair packet to the last: set only when the
+  AL-FEC message's `protection_window_time` or an independently known
+  source/repair send schedule supplies that span, as a positive
+  integer millisecond upper bound that covers the complete span,
+  never rounded down; when the span is unknown, or the message
+  signals zero (the size-based case), the converter omits it
+- a live service -> `isLive` = true ([@!I-D.ietf-moq-msf]
+  Section 5.2.7) on each media track and on its repair track, which
+  the converter publishes while it ingests the service
 - the source composition/edit-list origin for each synchronized media
   track -> `presentationAnchorTicks`; a converter preserves one
   common presentation origin across audio and video, and does not
   emit zero merely because the source offset was unavailable
-- `FECParameters@percentRepair` -> `fec.repairSymbols`, computed as
-  P = (K x percentRepair) div 100 (repair-ratio arithmetic above)
-- `fecOTI` F, T and Z -> `fec.sourceSymbols` and `fec.symbolSize`:
-  K = ceil(ceil(F / T) / Z), the symbol count of the largest source
-  block ([@!RFC6330] Section 4.4.1.2), and T.  For streaming content
-  A/331 lets F be all zeroes; such an S-TSID gives no K, and its
-  conversion fails unless the converter has K from another source.
-- the RepairFlow's FEC scheme -> `fec.algorithm` "raptorq", since an
-  A/331 repair flow uses RaptorQ ([@?ATSC-A331] Annex A.4)
-- `FECParameters@maximumDelay` has no direct catalog mapping.  A/331
-  defines it as the maximum delivery delay between a source packet and
-  its associated repair packet, whereas `fec.interleaveDepthMs` is the
-  ISO protection-window send span from the first source or repair
-  packet to the last.  The converter does not copy this attribute into
-  `interleaveDepthMs`.  It sets `interleaveDepthMs` only when an ISO
-  AL-FEC `protection_window_time` value or an independently known
-  source/repair send schedule supplies that first-to-last span, using
-  a positive integer millisecond upper bound that covers the complete
-  span.  It does not round a fractional span down.  If the span is
-  unknown, or ISO signals zero (the size-based case), the converter
-  omits `interleaveDepthMs`.  The RFC 6330 Z parameter -- the number of
-  source blocks -- is likewise unrelated to interleaving; it enters
-  only the computation of K above.
+- `bitrate` ([@!I-D.ietf-moq-msf] Section 5.2.22) from whatever
+  signaling carries it, or from another source, or the conversion of
+  that track fails
 
-An ingested `@percentRepair` with K x percentRepair < 100 yields
-P = 0, less than one repair symbol per block.  A catalog cannot
-express that for a flow that has a RepairFlow (`repairSymbols` is at
-least 1 when a repair track is published, [@!MOQ-FEC] Section 5.1), so
-the conversion of such an S-TSID fails: the converter neither rounds P
-up nor emits the source flow without its RepairFlow.  A RepairFlow
-without `@percentRepair` gives no P, and its conversion fails in the
-same way.  The round-trip properties of Section 12.3 assume that the
-ingested `@percentRepair` was rounded up as that section specifies; a
-`@percentRepair` that its producer rounded down or to nearest can
-ingest to a P below the one it was computed from.
-
-No OTI is carried in the output catalog.  The MoQ-side decoder
-configuration is re-derived per block from the catalog fields and the
-block's SSB_length (Section 7.2), and the ingested F does not survive
-conversion: it yields only K, the upper bound on a block's source
-symbol count ([@!MOQ-FEC] Section 7.4).  With Z = 1, the transfer
-length of a full MoQ-side block, K x T, exceeds the ingested F when F
-is not a multiple of T.
-
-`packetId` is assigned per flow, not per `tsi`.  An `LS` (ROUTE
-transport session) carrying both a SrcFlow and its RepairFlow yields
-two `tracks[]` entries, and Section 4.1 of [@!MOQ-MULTICAST]
-requires each `packetId` value to denote exactly one sub-flow across
-all endpoints of the MMT sending entity ([@!MOQ-MULTICAST]
-Section 2); reusing `tsi` directly would collide for a repair flow
-that shares its source's `tsi`, and for `LS` elements of different
-`RS` elements that reuse a `tsi`.  The converter assigns `packetId`
-sequentially from 1, in `RS` document order and in `tsi` order
-within each `RS`, without restarting at a new `RS`, and emits each
-source flow immediately before its repair flow (so `tsi` 1
-source -> packetId 1, its repair -> packetId 2, `tsi` 2
-source -> packetId 3); it never assigns 0, which is reserved for the
-MMTP signaling flow ([@!MOQ-MULTICAST] Section 4.1).  The numbering
-scope is the MMT sending entity, which serves exactly one MoQ
-namespace ([@!MOQ-MULTICAST] Section 4.1) but is not limited to one
-S-TSID: when the converter publishes the flows of several S-TSIDs
-under one namespace, it continues the sequence from one S-TSID to
-the next, in ingestion order, rather than restarting at 1, so that no
-two flows of that sending entity share a value.  S-TSIDs published
-under different namespaces belong to different sending entities, and
-each is numbered from 1.  Flows sharing one
-(sourceAddress, groupAddress, port) tuple collapse into a single
-endpoint whose `tracks[]` array lists them all.
-
-S-TSID carries no `networkSource` ([@!MOQ-MULTICAST] Section 4.2).
+Flows sharing one (sourceAddress, groupAddress, port) tuple collapse
+into a single endpoint whose `tracks[]` array lists them all.  MMT
+signaling carries no `networkSource` ([@!MOQ-MULTICAST] Section 4.2).
 A converter that adds an AMT network source advertises "driad"
 discovery only for a source address whose reverse DNS zone carries an
 AMT relay record, and otherwise names a relay service hostname in
 `relay` with "dns" discovery ([@!MOQ-MULTICAST] Section 4.2.1).
 
-`timescale`, the group-duration field, and `mmtpMode` are not carried in
-S-TSID, yet they are required fields (Section 12.1).  The converter
+`timescale`, the group-duration field and `mmtpMode` are required
+fields (Section 12.1), derived from the MMT signaling.  The converter
 takes `timescale` from `asset_timescale` in the MP table when
 `asset_timescale_flag` is 1, and uses 90 000 Hz when that flag is 0,
 as specified by [@!ISO.23008-1] Clause 10.3.9.3.  For each timed
@@ -1929,65 +1853,12 @@ is an exact positive integer tick count; when the cadence is exact
 only in ticks it emits `groupDurationTicks`.
 The fixed-cadence profile cannot represent a source whose MPU cadence
 is not one constant positive duration, so conversion fails rather
-than rounding or inventing a cadence.  It sets `mmtpMode` itself.  Nor
-does S-TSID carry `fec.blockProfile`, which is required for a
-track whose `fec.algorithm` is not "none" ([@!MOQ-FEC] Section 5.1);
-for such a track the converter sets it to the profile under
-which the MoQ-side publisher protects the track, "iso-ssbg1-v1".
-
-## MoQ Catalog to S-TSID Conversion
-
-When generating ATSC-compatible output, convert the MoQ catalog to
-S-TSID by inverting the mapping of Section 12.2.  Conversion rules:
-
-- `multicast.endpoints[].sourceAddress` -> `RS@sIpAddr`
-- `fec.repairSymbols` (P) and `fec.sourceSymbols` (K) ->
-  `FECParameters@percentRepair`, computed as (100 x P + K - 1) div K
-  (Section 12.2).  A/331 limits the attribute to 200, so a catalog
-  whose P exceeds 2 x K has no `@percentRepair` value; the converter
-  omits the attribute and documents that the repair rate was not
-  preserved.
-- `fec.interleaveDepthMs` has no direct inverse to
-  `FECParameters@maximumDelay`: the former is the ISO protection-window
-  source/repair send span, while the latter is the maximum delay from a
-  source packet to its associated repair packet.  Emit
-  `@maximumDelay` only when the target converter separately computes
-  that A/331 delivery delay; otherwise omit it rather than copying
-  `interleaveDepthMs` (and document that the field was not preserved).
-- `fec.sourceSymbols` and `fec.symbolSize` -> `fecOTI`, exactly the
-  OTI of a full block (SSB_length = K) derived from them
-  (Section 7.2), as the 12 octets in hexBinary that A/331 requires
-
-These FEC rules apply to a track whose `fec.algorithm` is "raptorq".
-A/331 defines no ROUTE RepairFlow for "reed-solomon" ([@!MOQ-FEC]
-Sections 4.5 and 12), so the converter emits such a track's SrcFlow
-without a RepairFlow and documents that its FEC was not preserved.
-
-Because export rounds up, for a catalog whose only FEC instance is
-the source track's own, the exported `@percentRepair` never
-understates the catalog's repair rate.  That guarantee does not extend
-to a catalog that declares layered repair tracks ([@!MOQ-FEC] Section 6.3) or a
-keyframe overlay ([@!MOQ-FEC] Section 6.4).  There `fec.repairSymbols`
-is P_0, the base layer only; layers i >= 1 and the overlay carry
-repair symbols of their own, and a single
-`FECParameters@percentRepair` cannot represent them.  Converting such
-a catalog with this rule therefore understates its repair rate, and the exported
-`FECParameters` describes the base layer alone, not the catalog's
-full repair capacity.
-
-Like the rest of this section, the round-trip properties that follow
-from the repair-ratio arithmetic of Section 12.2 are informative:
-
-- catalog -> S-TSID -> catalog always reproduces `repairSymbols` when
-  K <= 100 and P <= 2 x K.  For larger K, several values of P can
-  share one whole-percent `@percentRepair`, and the round trip yields
-  the largest of them.
-- S-TSID -> catalog -> S-TSID always reproduces `@percentRepair` when
-  K >= 100.  For smaller K it reproduces `@percentRepair` if and only
-  if the ingested value equals ceil(100 x P / K) for some P; otherwise
-  it yields the largest such value below the ingested one.
-- Either round trip is stable: converting its output again changes
-  nothing.
+than rounding or inventing a cadence.  It sets `mmtpMode` itself.
+The AL-FEC message does not name `fec.blockProfile`, which is
+required for a track whose `fec.algorithm` is not "none"
+([@!MOQ-FEC] Section 5.1); for such a track the converter sets it to
+the profile under which the MoQ-side publisher protects the track,
+"iso-ssbg1-v1".
 
 # Security Considerations
 
@@ -2127,172 +1998,6 @@ document in this suite requests a control-message codepoint.
   <seriesInfo name='ARIB STD-B60' value='Version 1.14'/>
 </reference>
 
-# S-TSID Conversion Example
-
-This appendix is informative, like the conversion mapping it
-illustrates (Section 12.2).
-
-Complete example showing bidirectional conversion between
-ATSC S-TSID and MoQ catalog for a multi-track service.
-
-## Original ATSC S-TSID
-
-~~~ xml
-<?xml version="1.0" encoding="UTF-8"?>
-<S-TSID
-    xmlns="tag:atsc.org,2016:XMLSchemas/ATSC3/Delivery/S-TSID/1.0/">
-  <RS sIpAddr="198.51.100.10" dIpAddr="232.1.1.10" dPort="5000">
-    <!-- Video 1080p -->
-    <LS tsi="1" bw="7984">
-      <SrcFlow rt="true" minBuffSize="8000000">
-        <ContentInfo>
-          <MediaInfo contentType="video" repId="1080p" lang="en"/>
-        </ContentInfo>
-        <EFDT>
-          <FDT-Instance Expires="4294967295">
-            <File Content-Location="video/1080p/init.mp4" TOI="1"/>
-          </FDT-Instance>
-        </EFDT>
-        <Payload codePoint="128" formatId="2"/>
-      </SrcFlow>
-      <RepairFlow>
-        <FECParameters maximumDelay="1000" percentRepair="25"
-                       fecOTI="00000F42400003E801000108">
-          <ProtectedObject tsi="1">
-            <SourceTOI x="0" y="65535"/>
-          </ProtectedObject>
-        </FECParameters>
-      </RepairFlow>
-    </LS>
-    <!-- Audio Stereo -->
-    <LS tsi="2" bw="128">
-      <SrcFlow rt="true">
-        <ContentInfo>
-          <MediaInfo contentType="audio" repId="stereo" lang="en"/>
-        </ContentInfo>
-        <Payload codePoint="128" formatId="2"/>
-      </SrcFlow>
-    </LS>
-  </RS>
-</S-TSID>
-~~~
-
-## Converted MoQ Catalog
-
-~~~ json
-{
-  "version": "draft-01",
-  "tracks": [
-    {
-      "name": "video/1080p",
-      "packaging": "mmtp",
-      "isLive": true,
-      "mmtpMode": "mfu",
-      "timescale": 90000,
-      "presentationAnchorTicks": 0,
-      "groupDurationMs": 1000,
-      "codec": "avc1.640028",
-      "width": 1920,
-      "height": 1080,
-      "framerate": 30,
-      "bitrate": 7984000,
-      "lang": "en",
-      "fec": {
-        "algorithm": "raptorq",
-        "blockProfile": "iso-ssbg1-v1",
-        "sourceSymbols": 1000,
-        "repairSymbols": 250,
-        "symbolSize": 1000,
-        "reorderToleranceMs": 40,
-        "repairTrack": "video/1080p/repair"
-      }
-    },
-    {
-      "name": "video/1080p/repair",
-      "packaging": "fec-repair",
-      "isLive": true,
-      "priority": 240
-    },
-    {
-      "name": "audio/stereo",
-      "packaging": "mmtp",
-      "isLive": true,
-      "mmtpMode": "mfu",
-      "timescale": 48000,
-      "presentationAnchorTicks": 0,
-      "groupDurationMs": 1000,
-      "codec": "mp4a.40.2",
-      "samplerate": 48000,
-      "channelConfig": "2",
-      "bitrate": 128000,
-      "lang": "en"
-    }
-  ],
-  "multicast": {
-    "endpoints": [{
-      "protocol": "ssm",
-      "sourceAddress": "198.51.100.10",
-      "groupAddress": "232.1.1.10",
-      "port": 5000,
-      "tracks": [
-        { "name": "video/1080p",        "packetId": 1 },
-        { "name": "video/1080p/repair", "packetId": 2 },
-        { "name": "audio/stereo",        "packetId": 3 }
-      ]
-    }],
-    "networkSource": [{
-      "type": "amt",
-      "discovery": "driad"
-    }]
-  }
-}
-~~~
-
-The catalog envelope is the MSF root ([@!I-D.ietf-moq-msf]
-Section 5.1); the `version` value names the MSF revision the
-catalog conforms to.  The converter publishes the catalog under the
-namespace derived from the ingested service, and the track entries
-inherit that namespace from the catalog track
-([@!I-D.ietf-moq-msf] Section 5.2.2).  Rendition parameters
-(`codec`, `width`, `bitrate`, `lang`, ...) are the flat base track
-fields of [@!I-D.ietf-moq-msf] Section 5.2 (Section 12.1).  Each
-`bitrate` is 1000 x `LS@bw`, and every track has `isLive` true
-because its source flow is real-time (Section 12.2).  The converter
-adds the `networkSource` entry itself.  Its "driad" discovery assumes
-that the reverse DNS zone of the source address carries an AMT relay
-record (Section 12.2).
-
-The FEC fields recompute from the S-TSID as follows:
-
-- `algorithm`: "raptorq", the code of an A/331 repair flow
-  (Section 12.2)
-- `sourceSymbols`: the `fecOTI` value 00000F42400003E801000108 encodes
-  F = 1,000,000, T = 1000, Z = 1, N = 1 and Al = 8 ([@!RFC6330]
-  Sections 3.3.2 and 3.3.3), so K = ceil(ceil(F / T) / Z) =
-  ceil(ceil(1,000,000 / 1,000) / 1) = 1000
-- `repairSymbols`: P = (K x percentRepair) div 100 =
-  (1000 x 25) div 100 = 250 (Section 12.2); re-exporting gives
-  `@percentRepair` = (100 x 250 + 1000 - 1) div 1000 = 25, the
-  ingested value (Section 12.3)
-- `interleaveDepthMs`: omitted.  The source S-TSID value
-  `maximumDelay="1000"` describes the maximum delivery delay from a
-  source packet to its associated repair packet; it does not provide
-  the ISO protection-window send span required by this catalog field.
-- `blockProfile`: set by the converter (Section 12.2), since S-TSID
-  carries none and the track's `algorithm` is not "none"
-- Derived MoQ OTI of a full block (SSB_length = K, Section 7.2):
-  F = K x T = 1000 x 1000 = 1,000,000 bytes, identical to the
-  ingested `fecOTI`, so the round trip is lossless
-
-This S-TSID example supplies no ISO protection-window send span, so the
-converted catalog does not signal `interleaveDepthMs`.  If a publisher
-has that span independently, it may add the field; it still does not
-imply that one MoQ Group is one FEC block or that a block contains a
-fixed number of Groups.  The publisher signals each block's `SS_Start`
-and `SSB_length` in its repair packets ([@!MOQ-FEC] Sections 7.1 and
-7.4).  The full-block OTI calculation above is therefore a catalog
-bound and does not replace that per-block signaling.
-
 # Changes Since draft-ramadan-moq-mmt-00
 
 This appendix is informative.  It is to be removed before
@@ -2361,8 +2066,7 @@ publication as an RFC.
   point of the track's algorithm: 3 for "raptorq" and 1 for
   "reed-solomon".  Sections 7 and 8.1 follow [@!MOQ-FEC], which now
   fully specifies "reed-solomon" and makes it the mandatory-to-implement
-  scheme.  RaptorQ is optional there, and required where ATSC 3.0 ROUTE
-  compatibility is claimed.
+  scheme.  RaptorQ is optional there.
   [@!ISO.23008-10] is now a normative reference.
 - Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
   has expired, and its content continues as [@?I-D.ietf-moq-cmsf].
@@ -2370,33 +2074,23 @@ publication as an RFC.
   packaging, including "moq-object-v1" for loc and cmaf tracks.  The
   section names MSF, LOC and CMSF with their references, and the cases
   that suit each packaging are no longer stated with BCP 14 keywords.
-- Sections 12.2 and 12.3 and Appendix A: the repair rate maps to
-  `FECParameters@percentRepair`, the ratio A/331 defines, instead of
-  `@overhead`, which has no catalog mapping.  A RepairFlow without
-  `@percentRepair` fails conversion, and export omits the attribute
-  when P exceeds 2 x K, since A/331 limits it to 200.  K accounts for
-  the number of source blocks Z, an all-zero transfer length fails
-  conversion, a RepairFlow converts to `fec.algorithm` "raptorq",
-  `bitrate` is 1000 x `LS@bw`, `isLive` is set, and only "raptorq"
-  tracks export a RepairFlow.  A converter that adds an AMT network
-  source advertises "driad" discovery only where the source address
-  has an AMT relay record in reverse DNS, and otherwise names a relay
-  service hostname with "dns" discovery.  The converter rules no
-  longer use BCP 14 keywords, since those sections are informative.
-  The example S-TSID uses a hexBinary `fecOTI`, no reserved
-  `srcFecPayloadId`, and `@bw` in kilobits per second.
-- Sections 4.4.2 and 12.1 and Appendix A: the example catalogs carry
-  the fields that [@!I-D.ietf-moq-msf] requires.
+- Sections 12.2 and 12.3 and Appendix A: the S-TSID conversion of
+  -00 is removed.  This document targets MMTP services and not
+  ROUTE, so Section 12.2 now derives the catalog from MMTP signaling,
+  the MP table and the AL-FEC message, there is no export to
+  broadcast signaling, and the Abstract, Section 1 and Section 2 no
+  longer name S-TSID.
+- Sections 4.4.2 and 12.1: the example catalogs carry the fields
+  that [@!I-D.ietf-moq-msf] requires.
 - Section 13: a MoQ relay treats MMTP headers as opaque object
   payload.
-- Editorial: abbreviations such as S-TSID, ISOBMFF, SSM, ASM, AMT,
+- Editorial: abbreviations such as ISOBMFF, SSM, ASM, AMT,
   ABR, GOP and OTI are expanded, and Section 2 defines AU.  Section 1
   says "FEC" instead of "Unified FEC".  Capitalized words that are not
   BCP 14 keywords (NOT, LOW, NO) are lowercased.  Section 3.1 cites
   [@?RFC5905] for the NTP short format, Section 9 cites [@?RFC9706]
   for TreeDN, and Section 13 cites [@?ISO.23001-7] for Common
-  Encryption.  Section 14 uses the name "MOQT Streaming Format".  The
-  examples of Appendix A use a documentation address.
+  Encryption.  Section 14 uses the name "MOQT Streaming Format".
 - [@!ISO.14496-12] (ISOBMFF) is a normative reference, and
   [@!ISO.23008-10] is dated.
 - References to the companion drafts point to their -01 revisions.

@@ -46,8 +46,7 @@ for tracks packaged as Low Overhead Media Container (LOC) or Common
 Media Application Format (CMAF) objects.  It fully specifies
 two FEC schemes: the systematic Reed-Solomon code over GF(2^8) of
 ISO/IEC 23008-10, which is mandatory to implement, and RaptorQ
-(RFC 6330), which is optional and is required where compatibility
-with ATSC 3.0 ROUTE Application-Layer FEC is claimed.  An algorithm
+(RFC 6330), which is optional.  An algorithm
 registry provides extension points for additional schemes.  FEC enables receivers to
 recover from packet loss without retransmission latency.  The MMTP
 profile is designed for compatibility with ATSC 3.0 (A/331) and ARIB
@@ -85,7 +84,7 @@ This document defines:
    [@!ISO.23008-1] does, and
    `moq-object-v1`, which forms them from whole MoQ objects
 5. Interleaving strategies to protect against burst loss
-6. A compatibility mapping for ATSC 3.0 broadcast systems
+6. A compatibility statement for ATSC 3.0 MMTP sessions
    (Section 12).  ARIB STD-B60 [@?ARIB-B60] carriage of MMTP-packaged
    tracks uses the in-band AL-FEC signaling of [@!MOQ-MMT] Sections 8.3
    and 10.
@@ -246,8 +245,7 @@ corresponding string identifiers.
 **RaptorQ (0x01)**: RaptorQ fountain code per [@!RFC6330].  Can recover
 from loss of any symbols as long as SSB_length symbols (source or
 repair), plus a small decoding overhead (Section 6.3.2), are received.
-It is OPTIONAL, and REQUIRED where compatibility with ATSC 3.0 ROUTE
-AL-FEC is claimed (Sections 4.3 and 12).
+It is OPTIONAL (Section 4.3).
 
 **Reed-Solomon (0x02)**: The systematic Reed-Solomon erasure code over
 GF(2^8) of [@!ISO.23008-10] Clause 6, restated in Section 4.4.  It
@@ -321,28 +319,23 @@ block, so a receiver holding any repair symbol of a block holds the block's SSB_
 Reed-Solomon is the mandatory-to-implement FEC scheme: an
 implementation that performs FEC decoding under this specification
 MUST support "reed-solomon", which Sections 4.4 and 4.5 fully
-specify.  "raptorq" is OPTIONAL, and an implementation that claims
-compatibility with ATSC 3.0 ROUTE delivery (Section 12) MUST support
-it.
+specify.  "raptorq" is OPTIONAL.
 
 Reed-Solomon is the mandatory scheme because it is small to
 implement, recovers a block from exactly SSB_length of its symbols,
 and is a code of the MMT AL-FEC framework on which the MMTP profile
 of this document rests ([@!ISO.23008-10] code point 1).  RaptorQ
-stays specified, and is required for ATSC 3.0 ROUTE, for two
-reasons.  First, it serves every block size this document allows.
+stays specified for its block size: it serves every block size this
+document allows.
 A RaptorQ block holds up to 56403 source symbols (Section 6.3.4,
 rule 6), while a Reed-Solomon block holds at most 255 source and
 repair symbols (Section 4.5).  At 8 Mb/s with symbols of 1200 bytes,
 such a block spans at most about 300 ms of media, so the multi-second
-interleave windows of Section 9 need RaptorQ at that rate.  Second,
-RaptorQ is the code of ATSC 3.0 ROUTE delivery: when [@?ATSC-A331]
-applies AL-FEC to file delivery over ROUTE, it requires the
-RaptorQ-based repair protocol of its Annex A.4, and Section 12.1 maps
-its `fecOTI`.  When it applies AL-FEC to MMTP sessions, it requires
-the AL-FEC framework of [@!ISO.23008-1] Annex C and leaves the FEC
-code to in-band signaling, so it does not require RaptorQ for MMTP
-(Section 12).
+interleave windows of Section 9 need RaptorQ at that rate.  No
+broadcast system this document targets requires it: when
+[@?ATSC-A331] applies AL-FEC to an MMTP session, it requires the
+AL-FEC framework of [@!ISO.23008-1] Annex C and leaves the FEC code
+to in-band signaling (Section 12).
 
 The algorithm registry (Section 15.2) provides an extension point
 for additional schemes.  A registered value other than "none",
@@ -608,8 +601,7 @@ Field definitions:
 **algorithm** (string, REQUIRED if fec present): FEC scheme identifier.
 
   - "none": No FEC
-  - "raptorq": RaptorQ per RFC 6330 (OPTIONAL; REQUIRED for ATSC 3.0
-    ROUTE compatibility, Sections 4.3 and 12)
+  - "raptorq": RaptorQ per RFC 6330 (OPTIONAL, Section 4.3)
   - "reed-solomon": Reed-Solomon over GF(2^8) per Section 4.4
     (mandatory to implement, Section 4.3)
 
@@ -1534,7 +1526,7 @@ whose endpoint the receiver has left is carried on no endpoint it
 holds, reachable over MoQ unicast as above; under the bc-provenance
 profile of [@!MOQ-MULTICAST] Section 7.2 a receiver holds an
 endpoint while joined to its group, reading its manifest track or
-receiving the ROUTE session that carries the flow (its
+receiving the broadcast that carries the flow (its
 Section 7.2.9), and a consumer is protected under that endpoint's
 flow only while the receiver holds it (step 2 of [@!MOQ-MULTICAST]
 Section 7.2.7).
@@ -1992,8 +1984,9 @@ track contradicts the catalog (Section 5.2).
 decoder's working memory, RFC 6330 permits dividing each block into N
 sub-blocks (the Number of Sub-Blocks field of the OTI).  The derived
 OTI of Section 4.2 fixes N = 1, so catalog-signaled sessions do not
-use sub-blocks; sub-block operation by broadcast systems that carry
-an explicit OTI is described informatively in Section 12.2.
+use sub-blocks; the AL-FEC message of [@!ISO.23008-1] carries no OTI,
+and the split source blocks of its Clause C.2.2 are the two-stage
+coding structure, which this document does not use (Section 12).
 A publisher using MMTP packaging under `iso-ssbg1-v1` therefore uses
 ssbg_mode1 without sub-blocks, and never ssbg_mode2.
 
@@ -2079,7 +2072,7 @@ outside that profile), a block that only symbols of an unlisted
 track have delimited (a track that no endpoint of a flow the
 consumer is protected under lists, as that step defines it: one no
 multicast endpoint the receiver holds lists, holding being joined to
-its group, reading its manifest track or receiving the ROUTE session
+its group, reading its manifest track or receiving the broadcast
 that carries the flow, or one a held endpoint lists while the
 consumer is not yet protected under its flow; Section 6.3.6) is
 provisional: it yields to a repair packet the profile has admitted
@@ -3700,73 +3693,24 @@ and it needs a MoQ session.  A receiver that holds both:
 
 # ATSC 3.0 Compatibility
 
-This specification is designed for interoperability with ATSC A/331
-[@?ATSC-A331] Application-Layer FEC.
-
-[@?ATSC-A331] protects its two delivery protocols differently.  When
-it applies AL-FEC to file delivery over ROUTE, it requires the repair
-protocol of its Annex A.4, which uses RaptorQ: the S-TSID `fecOTI` is
-the [@!RFC6330] OTI, which Section 12.1 maps to the derived OTI of
-Section 4.2.  When it applies AL-FEC to MMTP sessions, it requires the
-AL-FEC framework of [@!ISO.23008-1] Annex C and leaves the FEC code to
-in-band signaling, so it requires no particular code for MMTP.  There
-the AL-FEC message names the code by its [@!ISO.23008-10] code point,
-3 for `raptorq` and 1 for `reed-solomon` (Section 4.1).  An
-implementation that claims compatibility with A/331 ROUTE AL-FEC, the
-mapping of Section 12.1, MUST support "raptorq" (Section 4.3); an
-A/331 MMTP session needs no particular code.
-
-## Mapping to A/331 AL-FEC
-
-| ATSC A/331 Concept | MoQ FEC Equivalent |
-|--------------------|--------------------|
-| `<FECParameters>` | Catalog `fec` field |
-| `<RepairFlow>` | Repair track subscription |
-| `fecOTI` (in S-TSID) | Derived OTI (Section 4.2) |
-| Source TOI range | Group ID range per Section 8 |
-| `maximumDelay` | No direct mapping to `interleaveDepthMs`; calculate the source-to-associated-repair delivery delay from the ROUTE schedule ([@!MOQ-MMT] Sections 12.2-12.3) |
-| `percentRepair` | From P and K ([@!MOQ-MMT] Sections 12.2-12.3) |
-
-`percentRepair` is not carried in the catalog; it is converted to and
-from `repairSymbols` by the informative rules of [@!MOQ-MMT]
-Sections 12.2 and 12.3.
-
-Publishers ingesting ATSC 3.0 broadcasts can preserve the original
-FEC parameters and pass them through in the catalog `fec` field.
-`percentRepair` in particular is not passed through verbatim: the
-catalog carries P rather than a percentage, and `percentRepair` is
-converted as above.
-
-The table maps parameters, and applies under either block profile.  A
-ROUTE source symbol is a slice of a FEC transport object, which is a
-delivery object followed by padding and its 4-byte size
-([@?ATSC-A331] Annex A.4.2.2), so it matches the source symbols of
-neither profile.  A publisher that ingests ROUTE therefore forms its
-own source symbols, and generates its own repair symbols, under the
-track's block profile.
-
-## Sub-Blocks in Broadcast Systems
-
-This subsection is informative broadcast-interoperability guidance,
-not an interoperability requirement of this document.  A broadcast
-system that carries an explicit [@!RFC6330] OTI, such as the A/331
-S-TSID `fecOTI`, can signal N > 1 sub-blocks (Section 7.3); the
-ISO 23008-1 AL-FEC message carries no OTI, and the split source
-blocks of [@!ISO.23008-1] are the two-stage FEC coding structure of
-Clause C.2.2, which this document does not use.
-
-Under [@!RFC6330] Section 4.4.1.2, sub-blocking splits each T-byte
-symbol into N sub-symbols of TL x Al or TS x Al octets.  Every
-sub-block holds one sub-symbol from each source symbol of the block,
-and every encoding symbol, source or repair, carries one sub-symbol of
-every sub-block.  Sub-blocks therefore reduce the decoder's working
-memory ([@!RFC6330] Section 4.4.1.1).  They change neither the number
-of source or repair symbols, nor the repair overhead, nor the recovery
-latency: a receiver can decode the sub-blocks one at a time, but each
-sub-block is decodable exactly when the whole block is, from the same
-received ESIs.  The derived OTI of Section 4.2 fixes N = 1, so a MoQ
-receiver never sees sub-blocks, and a publisher that ingests such a
-flow forms its own source symbols (Section 12.1).
+This specification is designed for interoperability with the
+Application-Layer FEC of ATSC A/331 [@?ATSC-A331] MMTP sessions.  When
+[@?ATSC-A331] applies AL-FEC to an MMTP session, it requires the
+AL-FEC framework of [@!ISO.23008-1] Annex C and leaves the FEC code
+to in-band signaling (its Section 8.1.2.5), so it requires no
+particular code: the AL-FEC message names the code by its
+[@!ISO.23008-10] code point, 3 for "raptorq" and 1 for
+"reed-solomon" (Section 4.1), and [@!MOQ-MMT] Section 8.3 gives the
+message a publisher sends for a track of either algorithm.  A
+publisher that ingests an A/331 MMTP session takes the FEC parameters
+of its tracks from that message and the asset locations of the MP
+table ([@!MOQ-MMT] Section 12.2), and a receiver that consumes the
+session without the catalog takes them from the message alone.  An
+MMTP session carries no [@!RFC6330] OTI: the derived OTI of
+Section 4.2 fixes N = 1, and sub-blocks are never used
+(Section 7.3).  ROUTE delivery, whose repair protocol (Annex A.4 of
+[@?ATSC-A331]) is RaptorQ-based, is outside the scope of this
+document.
 
 # Interaction with CMAF Packaging
 
@@ -4674,8 +4618,6 @@ as an RFC.
   and the conformance cases are stated per profile.
 - Sections 11.1, 11.2 and 11.3: multicast carries mmtp tracks only, and
   a loc or cmaf track reaches it through an mmtp rendition track.
-- Section 12.1: the A/331 mapping is of parameters, and ROUTE source
-  symbols match neither profile.
 - Section 13: rewritten.  A cmaf track can be protected directly under
   `moq-object-v1`, or carried as an mmtp track, which is also its route
   to multicast.
@@ -4696,8 +4638,8 @@ as an RFC.
   restatement and [@!ISO.23008-10] differ, the ISO text governs.
 - Abstract, Sections 1, 4 and 5.1: the document fully specifies two
   schemes.  Reed-Solomon is now the mandatory-to-implement scheme;
-  RaptorQ, mandatory in -00, is optional and required where ATSC 3.0
-  ROUTE compatibility is claimed (Section 12).  `symbolSize` need not
+  RaptorQ, mandatory in -00, is optional (Section 4.3).  `symbolSize`
+  need not
   be a multiple of 8 under Reed-Solomon, and Section 4.5 gives a
   catalog example.
 - Section 4.1: both codes are systematic and correspond to the
@@ -4705,9 +4647,8 @@ as an RFC.
   decoding overhead.
 - Section 4.3: retitled "Algorithm Requirements" (it was "Other FEC
   Algorithms").  It gives the rationale for Reed-Solomon as the
-  mandatory scheme and for keeping RaptorQ: block size and ATSC 3.0
-  ROUTE.  [@?ATSC-A331] requires RaptorQ for ROUTE and leaves the
-  MMTP code to in-band signaling.
+  mandatory scheme and for keeping RaptorQ: block size.
+  [@?ATSC-A331] leaves the MMTP code to in-band signaling.
 - Sections 2, 3 and 5.2: definitions and decoder configuration cover
   both codes.
 - Section 5.1.2: the worked catalog's overlay is valid only under
@@ -4739,8 +4680,11 @@ as an RFC.
 - Sections 7.6.2 and 7.6.7: Reed-Solomon limits the largest protected
   object, and the example is valid only under RaptorQ.
 - Section 9: the recovery condition follows the track's algorithm.
-- Section 12: states which FEC codes [@?ATSC-A331] requires for ROUTE
-  and for MMTP.
+- Section 12: ATSC 3.0 compatibility is MMTP only.  The ROUTE mapping
+  of A/331 AL-FEC of -00 (the S-TSID `fecOTI`, RepairFlow and
+  `percentRepair` rules) and the sub-block guidance are removed, and
+  the section states that [@?ATSC-A331] requires no particular code
+  for an MMTP session.
 - New Section 14.7: Reed-Solomon decoding cost and the absence of
   integrity protection.
 - Section 15.2: the Reed-Solomon entry references [@!ISO.23008-10]
@@ -4759,9 +4703,9 @@ as an RFC.
   when a block's repair symbols are generated, so it rises when a layer
   is appended.  Under Reed-Solomon a receiver also checks
   SSB_length + RSB_length against 255.
-- Sections 7.3 and 12.2: sub-blocks are described as [@!RFC6330]
-  defines them: they split each symbol and reduce decoder memory, and
-  they change neither the symbol counts nor the recovery latency.
+- Section 7.3: sub-blocks are described as [@!RFC6330] defines them,
+  and no session this document targets carries an OTI, so none uses
+  them.
 - Section 8.5: [@?ATSC-A360] is cited as a reference, and A3SA is the
   ATSC 3.0 Security Authority.
 - Sections 11 and 11.1: TreeDN is native SSM plus AMT relays, and the
@@ -4772,7 +4716,7 @@ as an RFC.
   session.
 - Sections 6.1 and 13: BCP 14 keywords are no longer used for a
   naming convention or in an informative section.
-- Sections 7.6.5, 12.1 and 14.4: no requirement rests on an
+- Sections 7.6.5, 12 and 14.4: no requirement rests on an
   informative reference.  Secure Objects and Common Encryption are
   examples, and the ATSC 3.0 ingest guidance uses no BCP 14 keyword.
 - Section 14.3: the overhead bound applies by default to layer 0 of the
@@ -4807,7 +4751,7 @@ as an RFC.
   symbols of an unlisted track (one that no endpoint of a flow the
   consumer is protected under lists: one no multicast endpoint the
   receiver holds lists, holding being joined to its group, reading
-  its manifest track or receiving the ROUTE session that carries the
+  its manifest track or receiving the broadcast that carries the
   flow, or one a held endpoint lists while the consumer is not yet
   protected under its flow) is provisional and yields to an admitted
   repair packet that conflicts with it, as [@!MOQ-MULTICAST]
@@ -4843,8 +4787,5 @@ as an RFC.
   11.4.5 item 3
   cancels no non-keyframe or audio repair at the deadline of a block
   Section 11.4.2 does not request.
-- Section 12.1: the A/331 repair ratio that converts to and from
-  `repairSymbols` is `percentRepair`, as in [@!MOQ-MMT] Sections 12.2
-  and 12.3, not `overhead`.
 - Section 15.3: "MoQ Streaming Format" is now "MOQT Streaming Format",
   the name that [@!I-D.ietf-moq-msf] uses.

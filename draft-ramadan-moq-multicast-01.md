@@ -589,8 +589,8 @@ SHOULD provide a stable `relay` service hostname.
 
 **slsUri** (string, OPTIONAL): URI for Service Layer Signaling (SLS)
   bootstrap.  Enables receivers joining via IP (not RF) to acquire
-  the full ATSC 3.0 SLS including S-TSID with FEC parameters
-  ([@!ATSC-A331]).
+  the full ATSC 3.0 SLS of an MMTP service, its MP table included
+  ([@!ATSC-A331] Section 7.2).
 
 Receivers with ATSC 3.0 tuner hardware can receive the stream
 directly over RF.  MoQ subscribers without tuner hardware ignore
@@ -922,7 +922,7 @@ mandatory to implement.
 
 The record, digest pseudoheader, signature prefix and hash registry
 do not depend on MoQ; (#signature-context-binding),
-(#catalog-signaling) and (#route-and-broadcast-carriage) bind them
+(#catalog-signaling) and (#broadcast-carriage) bind them
 to MoQ.
 
 All multi-octet integers are unsigned and big-endian; `u8`, `u16`,
@@ -1001,11 +1001,9 @@ from UDP source port `port`.  `streamId` is the endpoint's
 `auth.streamId`.  Every input is catalog-declared, and a receiver without the catalog
 holds the same values from its out-of-band provisioning
 ((#receiver-enforcement-and-state)), so for a datagram of the flow
-delivered over a unicast MoQ path or Real-Time Object Delivery over
-Unidirectional Transport (ROUTE) [@!ATSC-A331] the receiver forms the
-same
-pseudoheader and one digest verifies the same bytes on every path
-((#route-and-broadcast-carriage); step 2 of
+delivered over a unicast MoQ path or an MMTP broadcast the receiver
+forms the same pseudoheader and one digest verifies the same bytes
+on every path ((#broadcast-carriage); step 2 of
 (#receiver-enforcement-and-state)).
 
 ### Manifest Record
@@ -1401,9 +1399,10 @@ session) MUST be provisioned out of band with the keys, `firstEpoch` included,
 and `minEpoch` and, per protected flow, the `streamId`, `S`, `G`, `port`,
 `manifestPort` and `bandwidth` the catalog would declare
 ((#catalog-signaling)), and any non-default `maxAuthDelayMs` and
-`manifestTimerMs`: the record carries none of them, and a ROUTE
-session's own addresses and ports never enter the pseudoheader or
-`signed_message`; keys are never taken from a carrier's signaling.  A
+`manifestTimerMs`: the record carries none of them, and a broadcast
+carries the flow on those addresses and ports or not at all
+((#broadcast-carriage)); keys are never taken from a carrier's
+signaling.  A
 receiver that pins keys takes the key set, `firstEpoch` included, from
 the pin rather than from the catalog, and MUST keep with the pin,
 across sessions, the highest `epoch` it has verified under each pinned
@@ -1433,9 +1432,8 @@ A datagram that passes belongs to the flow `(S, G, port)` or `(S, G,
 manifestPort)` with `S` as in (#digest).
 
 State per flow: the current `epoch` with the `kid` that set it, per
-path (`manifestPort`, a record read from the ROUTE record channel
-counting as arriving on it ((#route-and-broadcast-carriage)), and
-the manifest track) the grace period that ends
+path (`manifestPort` and the manifest track) the grace period that
+ends
 `maxAuthDelayMs + 2 x manifestTimerMs` after the first record of the
 current epoch verified on that path or dropped there by the
 already-verified lookup of step 1 as its byte-identical copy, and,
@@ -1688,7 +1686,7 @@ variable-length interpretation before a cryptographic check:
    NOT feed a FEC instance, a keyframe overlay or the packet_id 0
    signaling consumer with a datagram of a protected flow that it has
    not admitted under step 1 or 2, on whatever carrier it arrived
-   ((#route-and-broadcast-carriage)).  A FEC instance, a keyframe
+   ((#broadcast-carriage)).  A FEC instance, a keyframe
    overlay or the packet_id 0 consumer that has admitted a datagram of
    a protected flow is a protected consumer, protected under each flow
    a datagram of which it has admitted (one that a source endpoint and
@@ -1712,9 +1710,9 @@ variable-length interpretation before a cryptographic check:
    protected consumers and continues as such a subscriber; one that
    does MAY keep them.  A receiver holds an endpoint while it is
    joined to its group, reads its `manifestTrack`
-   ((#emission-and-cadence)) or receives the ROUTE session that
-   carries the flow ((#route-and-broadcast-carriage)), and a
-   consumer is protected under a
+   ((#emission-and-cadence)) or receives the broadcast that carries
+   the flow ((#broadcast-carriage)), and a consumer is protected
+   under a
    flow only while the receiver holds the flow's endpoint: when the
    receiver ceases to hold one, on the failover above or on dropping
    a repair layer ([@!MOQ-FEC] Section 6.3.6), it discards that
@@ -2164,95 +2162,34 @@ flow are detectable ([@?I-D.ietf-mboned-multicast-security] Section
 2.3), and no mode of this profile delivers an unauthenticated datagram
 (Section 2.4.4 of that document).
 
-### ROUTE and Broadcast Carriage
+### Broadcast Carriage
 
 Hybrid receivers that also hold the MoQ catalog verify datagrams of
 the flow from any path, a MoQ unicast path included, against the same
 records ((#digest)); a symbol of an unlisted track, one that no
 endpoint of a flow the consumer is protected under lists, is not a
 datagram of any such flow, and what it helps the base instance
-recover is admitted by digest ((#receiver-enforcement-and-state)).  A datagram
-of the flow carried on a ROUTE session is one delivery object of a
-source flow of that session (Annex A.3.3 of [@!ATSC-A331]), whose
-bytes MUST be the whole MoQ UDP payload, trailer included, for this
-profile to cover it; a ROUTE session that carries the flow's
-datagrams in any other form is not covered.  For broadcast-only
-receivers, the
-signed record is carried unchanged as a delivery object of an LCT
-channel of the ROUTE session [@!ATSC-A331], one channel (its own TSI
-in the LCT header [@!RFC5651], Annex A.2.2 of [@!ATSC-A331]) per
-protected flow, so that the channel's TOIs identify the records of
-one flow.  The ROUTE session is a carrier of the flow's datagrams on
-`port` and `manifestPort` alike, so a record read from that channel
-is, for step 1 of (#receiver-enforcement-and-state), a record on
-`manifestPort`, whatever receiver reads it: it meets that path's
-replay floor and grace period, draws on that path's verification
-budget, counts as the record's arrival on that path and so measures
-the mirror's lead ((#emission-and-cadence)) where the manifest track
-delivered the record first.  The
-channel's Extended FDT MUST carry `@fileTemplate` (Annex A.3.3.2.3
-of [@!ATSC-A331]), so that a record's TOI alone names its delivery
-object and the TOI rules of Annex A.3.3.2.6 and A.3.3.2.7 of
-[@!ATSC-A331], which hold only for such an Extended FDT, govern the
-channel.  A/331 fixes the LCT TOI at 32 bits (Annex A.3.6 of
-[@!ATSC-A331]), so the record's TOI is a per-channel counter that
-takes neither the value 0, which Annex A.3.3 of [@!ATSC-A331] gives
-to an Extended FDT Instance carried in the channel, nor a TOI that a
-`File` element of the channel's Extended FDT lists, which Annex
-A.3.3.2.8 of [@!ATSC-A331] excludes from the `@fileTemplate` mapping
-(Annex A.3.3.2.6 requires at least one such element, and none names
-a record): the sender starts it at 1, increments it by one per
-record, lets it wrap modulo 2^32, skips every excluded value
-wherever the counter would take one, the start included, and MUST
-NOT reuse a value within the channel's object expiry, the `@Expires`
-a receiver derives under Annex A.3.3.2.7 of [@!ATSC-A331] from
-`@maxExpiresDelta` of the Extended FDT, from the EXT_TIME ERT where
-that attribute is absent, and from the smaller of the two where both
-are present.  Annex A.3.3.2.6 of [@!ATSC-A331] lets no packet of a
-TOI be sent after the time `@maxExpiresDelta` gives; the sender MUST
-send no packet of a TOI after the expiry so derived, whichever value
-sets it.  A sender meets the reuse rule across a restart in one of
-two ways, kept for every run of the channel.  A sender that persists
-the counter MUST persist a TOI before it sends the first packet
-carrying it, and a restarted run resumes at one past the last TOI
-persisted, the increment wrapping and skipping as above.  A sender
-that seeds the counter from a clock seeds every run of the channel,
-the first included, from that clock in place of 1, the seed taken
-modulo 2^32 and advanced past any excluded value it lands on: the
-counter advances once per window of (#emission-and-cadence), so a
-seed from a clock in seconds falls short of the previous run's
-reach, and one from a clock read in units finer than the shortest
-window, with the peak record rate times the expiry added, does not,
-so long as 2^32 of those units outlast the longest run of the
-channel, the downtime after it and the expiry together (a unit of
-1 ms gives 49 days) and the clock, read at the start of a run, reads
-no earlier than it read at the end of the previous run; past that
-bound the reduction modulo 2^32 can land the seed among TOIs still
-live from the previous run, and a clock that reads earlier across
-the restart (stepped back, or read before it is disciplined) lands
-it there within the previous run's reach, so a sender that cannot so
-bound its runs or so hold its clock MUST persist the counter instead.
-`kid`, `epoch` and `mseq` are
-read from the record itself ((#manifest-record)).  The record is
-transmitted twice as (#emission-and-cadence) requires, and the twin,
-byte-identical, repeats the original's TOI as a further packet of the
-same object ([@!RFC5651] Section 6.1), so the sender MUST set the
-expiry above the interval between the two copies, which
-(#emission-and-cadence) bounds by `maxAuthDelayMs / 2` or the time
-from the record to the signed record of window `mseq + 64`,
-whichever is shorter; the expiry goes out in the record's first
-packet, before the sender knows when the twin goes, so the sender
-sets it above that bound rather than above the interval the twin
-then takes, and 1 s, the smallest nonzero value `@maxExpiresDelta`
-and the ERT carry, is above it on every flow, `maxAuthDelayMs` being
-at most 1000.  A
-broadcast-only receiver forms the
-pseudoheader and `signed_message` from the multicast endpoint's `S`,
-`G`, `port`, `streamId` and `manifestPort`, never from the ROUTE
-session's own addresses and ports, and holds those values and the keys
-by provisioning ((#receiver-enforcement-and-state)).  This document
-does not otherwise specify the S-TSID signaling of that channel or
-any in-band carriage of those values.
+recover is admitted by digest ((#receiver-enforcement-and-state)).  A
+broadcast carries the flow as an MMTP service ([@!ATSC-A331]
+Section 8.1.2.1; [@?ARIB-B60]): the flow's datagrams are the MMTP
+packets of one MMTP session, carried as the UDP datagrams the sender
+emits, each the whole MoQ UDP payload, trailer included, on the
+endpoint's `S`, `G` and `port`, and the records are the sender's
+record datagrams on `manifestPort` of the same `S` and `G`, both
+copies ((#emission-and-cadence)), carried in the same IP multicast
+of the broadcast.  A broadcast that re-addresses either flow, or
+carries the datagrams in any other form, is not covered: the
+pseudoheader binds `S`, `G` and the ports ((#digest)), and a record
+verifies as it was signed or not at all.  A broadcast-only receiver
+reads both UDP flows of the broadcast, forms the pseudoheader and
+`signed_message` from the endpoint's `S`, `G`, `port`, `streamId`
+and `manifestPort`, and holds those values and the keys by
+provisioning ((#receiver-enforcement-and-state)): the SLS of the
+service describes the MMTP session ([@!ATSC-A331] Section 7.2) and
+nothing of this profile, so `manifestPort` and the rest come from
+provisioning alone, and this document specifies no in-band carriage
+of them.  A record so read is a record on `manifestPort` for step 1
+of (#receiver-enforcement-and-state), as on any multicast path.
 
 ### Hash Algorithms
 
@@ -2588,15 +2525,15 @@ as an RFC.
   keeps any repair layer that no endpoint carries and that it combines
   with multicast source symbols.
 - Editorial: the Abstract and Section 1 expand MMTP, AMT and
-  DRIAD, and (#digest) expands ROUTE.  Section 1 no longer calls failover seamless,
+  DRIAD.  Section 1 no longer calls failover seamless,
   Section 1.1 calls multicast an additional delivery path instead of
   an optimized one, and Section 3 calls MoQ/WebTransport the fallback
   that every client supports instead of the universal fallback.  The
   examples of Section 4.1 use a documentation address.
 - References: [@!MOQ-MMT] and [@!MOQ-FEC] now name their -01
   revisions, and [@!MOQ-FEC] lists both of its authors.  ATSC A/331,
-  ATSC A/322, ARIB STD-B60, RFC 5651 and FIPS 180-4 are now cited;
-  BLAKE3 is no longer cited.
+  ATSC A/322, ARIB STD-B60 and FIPS 180-4 are now cited; BLAKE3 is no
+  longer cited.
 - (#content-authentication) replaces bc-provenance version 1 with
   version 2; the BCPV1 `manifest_object`, its "BCPV1-sig" prefix,
   the `compaction` member, the Merkle Tree Hash and the 198-octet
@@ -2626,7 +2563,7 @@ as an RFC.
   symbol admitted under any flow of the object being admitted in it,
   a consumer being protected under a flow only while the receiver
   holds its endpoint, joined to its group, reading its
-  `manifestTrack` or receiving the ROUTE session that carries the
+  `manifestTrack` or receiving the broadcast that carries the
   flow, and leaving one discarding that flow's state and
   hold queues, ending the protection under it and keeping what was
   admitted; only a symbol of an unlisted track, one that no endpoint
@@ -2724,19 +2661,18 @@ as an RFC.
   and a re-fetch or re-provisioning after which that `(kid, epoch)`
   fails the range check of (#catalog-signaling) resets the flow the
   same way ((#receiver-enforcement-and-state)).
-- A datagram of the flow carried on a ROUTE session is one delivery
-  object of a source flow of that session whose bytes are the whole
-  MoQ UDP payload, trailer included, a session that carries the
-  flow's datagrams in any other form being uncovered; this rule
-  replaces the `sourceSymbolFormat` member of -00, whose only value
-  named the authenticated bytes of that revision, trailer excluded.
-  For broadcast-only receivers the record is carried as a delivery
-  object of one LCT channel per protected flow whose Extended FDT
-  carries `@fileTemplate`, its TOI a 32-bit per-channel counter that
-  takes neither 0 nor a `File` element's TOI and is not reused within
-  the channel's object expiry, in place of the signaling-carousel
-  carriage of -00; the EXT_AUTH clause is removed, the profile having
-  no inclusion proofs ((#route-and-broadcast-carriage)).
+- A broadcast carries the flow as an MMTP service: the flow's
+  datagrams as the MMTP packets of one MMTP session, carried as the
+  sender's UDP datagrams on `S`, `G` and `port`, and the records as
+  the sender's record datagrams on `manifestPort`, a broadcast that
+  re-addresses either flow or carries the datagrams in any other
+  form being uncovered.  This document no longer covers ROUTE: the
+  carriage of -00, the record in the ROUTE signaling carousel and
+  the signed group digest in an ALC/LCT EXT_AUTH header, is removed,
+  the profile having no inclusion proofs, and so is the
+  `sourceSymbolFormat` member of -00, whose only value named the
+  authenticated bytes of that revision, trailer excluded
+  ((#broadcast-carriage)).
 - (#multicast-endpoint-format) defines `S` for the tuple rule
   (`sourceAddress` on an SSM endpoint, `auth.senderAddress` on a
   protected ASM endpoint, absent on an unprotected ASM endpoint),
