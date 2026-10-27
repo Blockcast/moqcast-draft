@@ -1852,9 +1852,10 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   which every receiver holding the highest layer the converter lists
   (below) fails closed when a packet of that layer, where it is
   above 0, or of a block at or after (in the serial order of
-  [@!MOQ-FEC] Section 7.5) one that carried at least the value,
-  carries less than the O_i + P_i its catalog derives for that
-  layer, the field itself (its Section 6.3.9), so
+  [@!MOQ-FEC] Section 7.5) one of which it has received a repair
+  packet carrying at least the value, carries less than the
+  O_i + P_i its catalog derives for that layer, the field itself
+  (its Section 6.3.9), so
   the converter, which receives the flow's repair packets before it
   lists the repair track (below), lists it only once it has received
   a repair packet of the flow carrying an RSB_length of at least the
@@ -1876,8 +1877,9 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   on nothing: the clause of [@!MOQ-FEC] Section 6.3.9 for a packet
   of a layer's own track applies to layers above 0 alone, layer 0's
   coordinates depending on no count, and its anchored clause treats
-  a packet of a block before one that carried at least the field as
-  the conforming packet it is, on the repair track the converter
+  a packet of a block before one of which the receiver has received
+  a repair packet carrying at least the field as the conforming
+  packet it is, on the repair track the converter
   publishes as on the session's own endpoint, which carries the
   sender's packets and from which the converter withholds nothing.
   An RSB_length above the
@@ -1941,11 +1943,13 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   a change that section lets no publisher make, on which a receiver
   holding the highest layer it lists fails closed on the first
   packet of that layer, where it is above 0, or of a block at or
-  after, in that serial order, one that carried at least that total,
-  whose RSB_length falls below the O_i + P_i its catalog derives for
-  that layer, which is that total, and one that no such packet
-  reaches, the check anchored on no block it received, learns of the
-  change only at the next catalog refresh (that section), so the
+  after, in that serial order, one of which it has received a repair
+  packet carrying at least that total, whose RSB_length falls below
+  the O_i + P_i its catalog derives for that layer, which is that
+  total, and one that no such packet reaches, the check anchored on
+  no block it received or, holding that layer alone, reached by no
+  repair packet after the change, learns of the change only at the
+  next catalog refresh (that section), so the
   converter
   retires the source encoding and
   publishes the source track and its repair tracks as a separate

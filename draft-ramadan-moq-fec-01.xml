@@ -1600,15 +1600,16 @@ those packets are the symbols of the layers the receiver holds
 below it, under the coordinates of Section 6.3.2 unchanged; for
 layer 0, no block carries less than its P_0 where the catalog gives
 the flow's own count, and under a block total read from an AL-FEC
-message (below) a block before it was generated under a previous
-total, which every packet of it carries, those of layer 0's own
-track included.  Layer 0 has no clause of its own track: its O_0 is
-0 and its symbols' coordinates depend on no published count, so a
-catalog whose layer 0 carries a block total read from an AL-FEC
-message rather than the flow's own count (<xref target="MOQ-MMT"></xref> Section
-12.2), or that message held in place of a catalog (Section 12),
-under which a packet of that track generated under a previous total
-carries less, fails a receiver closed on no conforming packet.
+message (below) a block before it whose packets carry less was
+generated under a previous total, which every packet of it carries,
+those of layer 0's own track included.  Layer 0 has no clause of
+its own track: its O_0 is 0 and its symbols' coordinates depend on
+no published count, so a catalog whose layer 0 carries a block
+total read from an AL-FEC message rather than the flow's own count
+(<xref target="MOQ-MMT"></xref> Section 12.2), or that message held in place of a
+catalog (Section 12), under which a packet of that track generated
+under a previous total carries less, fails a receiver closed on no
+conforming packet.
 Within a consumer protected under a flow of the
 bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2, whether or
 not that profile governs it for its blocks (Section 7.4), the packet
