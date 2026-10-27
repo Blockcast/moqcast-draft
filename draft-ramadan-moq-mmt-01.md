@@ -2360,7 +2360,9 @@ publication as an RFC.
   `fec_code_id_for_repair_flow` the [@!ISO.23008-10] Table 1 code
   point of the track's algorithm: 3 for "raptorq" and 1 for
   "reed-solomon".  Sections 7 and 8.1 follow [@!MOQ-FEC], which now
-  fully specifies "reed-solomon" as an optional scheme.
+  fully specifies "reed-solomon" and makes it the mandatory-to-implement
+  scheme.  RaptorQ is optional there, and required where ATSC 3.0 ROUTE
+  compatibility is claimed.
   [@!ISO.23008-10] is now a normative reference.
 - Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
   has expired, and its content continues as [@?I-D.ietf-moq-cmsf].
