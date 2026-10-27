@@ -1529,7 +1529,15 @@ bandwidth to decide whether to add or drop a repair layer.
 Layer changes are make-before-break.  A receiver MUST join the
 additional layer's endpoint and begin receiving from it before
 leaving any endpoint it currently holds, so that no source block is
-left with less coverage than the receiver already had.
+left with less coverage than the receiver already had.  A layer
+whose endpoint the receiver has left is carried on no endpoint it
+holds, reachable over MoQ unicast as above; under the bc-provenance
+profile of [@!MOQ-MULTICAST] Section 7.2 a receiver holds an
+endpoint while joined to its group, reading its manifest track or
+receiving the ROUTE session that carries the flow (its
+Section 7.2.9), and a consumer is protected under that endpoint's
+flow only while the receiver holds it (step 2 of [@!MOQ-MULTICAST]
+Section 7.2.7).
 
 Hysteresis MUST derive from the FEC block span, that is from
 `interleaveDepthMs` together with `reorderToleranceMs`, and MUST NOT
@@ -2061,6 +2069,29 @@ block that it has already accepted, in each case leaving the state of
 every block unchanged.  Under `reed-solomon` it also discards a repair
 packet that fails the checks of Section 4.5.
 
+Within a consumer that the bc-provenance profile of [@!MOQ-MULTICAST]
+Section 7.2 governs for its blocks, one protected under a flow whose
+endpoint lists its source track (step 2 of its Section 7.2.7; a
+consumer protected under no such flow, as one a repair-only endpoint
+feeds while the receiver takes the source track over MoQ unicast
+alone, is for this paragraph, Section 9 and Section 11.4 a consumer
+outside that profile), a block that only symbols of an unlisted
+track have delimited (a track that no endpoint of a flow the
+consumer is protected under lists, as that step defines it: one no
+multicast endpoint the receiver holds lists, holding being joined to
+its group, reading its manifest track or receiving the ROUTE session
+that carries the flow, or one a held endpoint lists while the
+consumer is not yet protected under its flow; Section 6.3.6) is
+provisional: it yields to a repair packet the profile has admitted
+whose (SS_Start, SSB_length) conflicts with it, as that step
+specifies, and the rules of the previous paragraph then apply among
+admitted packets.  A provisional block is held for decoding only:
+it has no ts and no FEC deadline (Section 9), and the SS_IDs in its
+range that the receiver lacks belong, for Section 11.4, to blocks
+the receiver holds no repair packet of, as if the block were not
+delimited; such a symbol reveals no run of lost SS_IDs, which a
+packet the profile admits above them alone reveals.
+
 ## SS_ID Wrap and Repair Group IDs
 
 SS_ID and SS_Start are 32-bit values that start from an arbitrary
@@ -2205,8 +2236,15 @@ on each repair track it requests from, where:
   SSB_length that a block can have (Section 7.4), so the block that
   contains x starts at most K - 1 SS_IDs before x;
 - S_prev is the SS_Start of the last block that the receiver has
-  delimited that ends before x.  When the receiver has delimited no
-  such block, the first term is absent and the range is
+  delimited that ends before x.  Within a consumer that the
+  bc-provenance profile of [@!MOQ-MULTICAST] Section 7.2 governs for
+  its blocks (Section 7.4), only a block that a repair packet the
+  profile has admitted delimits counts here: a provisional block,
+  one that only symbols of an unlisted track (Section 7.4) have
+  delimited, is no such block, as its (SS_Start, SSB_length) is
+  unverified and the block that contains x may start within its
+  range.  When the receiver has delimited no such block, the first
+  term is absent and the range is
   [ max(ext(x) - (K - 1), 0), ext(x) ];
 - ext(x) is x extended relative to ext(S_prev) when S_prev exists,
   and otherwise relative to the reference value r of the receiver's
@@ -2803,9 +2841,10 @@ assignment taken from the trailing Source FEC Payload ID of an A3SA
 verified packet is unauthenticated.  A receiver that requires
 authenticated FEC block assignment MUST obtain it from an integrity
 mechanism, other than A3SA signing, whose coverage includes the
-complete MMTP packet, the trailer included.  The moq-provenance profile
-is not such a mechanism: its authenticated bytes exclude the Source
-FEC Payload ID ([@!MOQ-MULTICAST] Section 7.2.4).
+complete MMTP packet, the trailer included.  Version 2 of the
+bc-provenance profile ([@!MOQ-MULTICAST] Section 7.2) is such a
+mechanism: its digest covers the whole UDP payload as transmitted,
+the Source FEC Payload ID included.
 
 For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical identifier by which a
@@ -2941,7 +2980,22 @@ block whose first packet the receiver did not receive is one that it
 first learns of from a later signal -- a later source or repair
 packet of the block, a packet of a successor block, or a FETCH
 response that covers the block (Section 7.5) -- and its `ts` is the
-arrival time of that signal.  When `interleaveDepthMs` is positive,
+arrival time of that signal.  Within a consumer that the
+bc-provenance profile of [@!MOQ-MULTICAST] Section 7.2 governs for
+its blocks (Section 7.4), the packet whose receipt anchors `ts` is
+the first packet of the block, in the order received, that the
+profile admits, whenever it admits it (a datagram held on a miss
+and admitted later keeps its receipt time), and a symbol of an
+unlisted track (Section 7.4) is neither that packet nor such a
+signal, whether or not a repair packet the profile admits later
+delimits the same block; a block that only such symbols have
+delimited is held for decoding only: it has no `ts` and no FEC
+deadline,
+whatever packets the profile admits into or above its range, and the
+SS_IDs in its range that the receiver lacks are runs of Section
+11.4, each with the `ts` the packet admitted above it gives, as step
+2 of [@!MOQ-MULTICAST] Section 7.2.7 specifies.
+When `interleaveDepthMs` is positive,
 the base FEC deadline is:
 
 ~~~
@@ -2991,7 +3045,15 @@ NOT discard the block before that deadline, or while a unicast repair
 FETCH for it is outstanding (Section 11.4.2), except under a memory
 cap.  A block so discarded is treated from then on as having reached
 its FEC deadline unrecovered and, on a track whose blocks Section
-11.4.1 classifies, of unknown class.  The
+11.4.1 classifies, of unknown class.  Within a consumer that the
+bc-provenance profile governs for its blocks (Section 7.4), the
+policy discards a block that has no `ts`, one that only symbols of
+an unlisted track have delimited, before any block that has a `ts`,
+on a track that derives no FEC deadline as on one that does, and
+such a discard is neither a reached deadline nor a
+signal: it gives the block no deadline and no class, drops its repair
+symbols and returns its source symbols to the undelimited state of
+Section 7.4 (step 2 of [@!MOQ-MULTICAST] Section 7.2.7).  The
 policy is not signaled, and a receiver MUST keep it separate from the
 catalog values: it does not change `interleaveDepthMs`,
 `reorderToleranceMs`, or a deadline derived from them, and discarding
@@ -3256,10 +3318,13 @@ When this scheme is carried over a multicast QUIC channel:
    therefore not individually covered by a packet hash; it inherits trust
    transitively from the verified surviving symbols used to reconstruct
    it.  Deployments requiring per-object authentication of recovered data
-   can additionally apply an object-level scheme (for example the
-   manifest-based moq-provenance profile of [@!MOQ-MULTICAST]
-   Section 7.2) computed below the FEC layer, which survives
-   reconstruction.
+   can additionally apply a scheme that authenticates every multicast
+   symbol before it enters the decoder, repair symbols included, and,
+   whenever a symbol of its decode was not so authenticated, checks a
+   recovered packet against its own digest or, where it can derive no
+   coordinate to hash with, withholds it (for example the
+   manifest-based bc-provenance profile of [@!MOQ-MULTICAST]
+   Section 7.2, whose receiver procedure is its Section 7.2.7).
 
 4. **Repair channel versus unicast repair.**  A publisher using this
    scheme broadcasts repair symbols on the multicast channel (the repair
@@ -3309,15 +3374,30 @@ Every block receives in-band FEC processing.  A receiver MUST attempt
 to recover every block, whatever its class, from the source and repair
 symbols received on its multicast and AMT paths, together with any it
 receives on other paths (Section 8.3), up to the block's FEC deadline.
-The rest of this section governs only a block that is still
+Within a consumer that the bc-provenance profile of [@!MOQ-MULTICAST]
+Section 7.2 governs for its blocks (Section 7.4), a symbol of an
+unlisted track (Section 7.4) enters a decode only as step 2 of
+[@!MOQ-MULTICAST] Section 7.2.7 allows, which takes none into a
+decode of a block that two decodes with such symbols' help have left
+unrecovered; the attempt continues from the symbols the profile
+admits.  The rest of this section governs only a block that is still
 unrecovered at that deadline: the receiver does not hold all of its
 SSB_length source symbols (Section 7.4), and decoding from the
-symbols it holds has not recovered them.
+symbols it holds has not recovered them.  Within such a consumer, a
+source symbol the profile has not admitted, received or recovered, is
+not held for this purpose (step 2 of [@!MOQ-MULTICAST]
+Section 7.2.7).
 
 A run of SS_IDs that the receiver lacks and that lies in no block it
 has delimited belongs to one or more blocks of which it holds no
 repair packet (Section 7.4).  For this section the receiver treats
-such a run as one block of the instance: Section 11.4.1
+such a run as one block of the instance (within a consumer that the
+bc-provenance profile of [@!MOQ-MULTICAST] Section 7.2 governs for
+its blocks, Section 7.4, a block only symbols of an unlisted track
+have delimited being no block the receiver has delimited, and the
+run one only once a packet the profile has admitted lies above it,
+step 2 of [@!MOQ-MULTICAST] Section 7.2.7):
+Section 11.4.1
 classifies it from the source packets the receiver holds on either
 side of it, and its repair is requested by the Group range of
 Section 7.5, whose response also delimits the blocks it covers.
@@ -3425,7 +3505,15 @@ video.
 When a keyframe-bearing block is still unrecovered at its FEC
 deadline, a receiver that holds a MoQ session with a relay serving the
 block's repair track MUST request on-demand unicast repair for it,
-with the priority of Section 11.4.5.  The request is a FETCH
+with the priority of Section 11.4.5, unless the block lies below a
+RAP the receiver has already admitted complete (the repair would be
+moot on completion, below); within a consumer that the
+bc-provenance profile of [@!MOQ-MULTICAST] Section 7.2 governs for
+its blocks (Section 7.4), a block only symbols of an unlisted track
+(Section 7.4) have delimited reaches no deadline and is never
+requested, the SS_IDs it covers that the receiver lacks being runs
+of this section (step 2 of [@!MOQ-MULTICAST] Section 7.2.7).  The
+request is a FETCH
 [@!I-D.ietf-moq-transport], over QUIC, of the block's
 repair-track group, whose Group ID is the block's extended SS_Start,
 or, for a run that the receiver has not delimited, of the Group range
@@ -3465,7 +3553,8 @@ non-keyframe block (Section 11.4.3).
 
 If the next RAP arrives complete before a keyframe repair completes,
 the repair is moot: the receiver resumes from that RAP and SHOULD
-cancel the FETCH.
+cancel the FETCH; a block that reaches its deadline already below
+such a RAP is not requested at all.
 
 ### Other Video Blocks
 
@@ -3562,8 +3651,9 @@ a track counting as that track's `symbolSize` T (Section 5.1).
 3. A receiver MUST NOT issue a non-keyframe or audio repair FETCH
    while a keyframe repair FETCH is outstanding on the same session,
    and SHOULD cancel its outstanding non-keyframe and audio repair
-   FETCHes when a keyframe-bearing block reaches its FEC deadline
-   unrecovered.
+   FETCHes when it requests the repair of a keyframe-bearing block
+   that reaches its FEC deadline unrecovered; a block whose repair
+   Section 11.4.2 does not request cancels nothing.
 
 Priorities follow the ranges of Section 10.  A keyframe repair FETCH
 MUST carry a SUBSCRIBER_PRIORITY ([@!I-D.ietf-moq-transport]
@@ -3802,13 +3892,21 @@ apply:
    (e.g., valid media container structure).
 
 3. **Source Authentication**: SSM limits which sources reach a
-   receiver ([@!MOQ-MULTICAST] Section 7.1), and the moq-provenance
-   profile authenticates content ([@!MOQ-MULTICAST] Section 7.2).
+   receiver ([@!MOQ-MULTICAST] Section 7.1), and version 2 of the
+   bc-provenance profile ([@!MOQ-MULTICAST] Section 7.2) authenticates
+   the datagrams themselves, repair symbols included, with a digest
+   that covers the whole UDP payload, the Source FEC Payload ID
+   included (Section 8.5).
 
 4. **Block Integrity**: Receivers MAY implement block-level checksums
-   to detect corrupted recovery.  If decoded source data fails
-   integrity checks, receivers SHOULD request retransmission via
-   unicast fallback.
+   to detect corrupted recovery.  A block whose decoded source data
+   fails such a check, or, within a consumer that the bc-provenance
+   profile of [@!MOQ-MULTICAST] Section 7.2 governs for its blocks
+   (Section 7.4), whose recovered packets step 2 of its Section 7.2.7
+   does not admit, is unrecovered: Section 11.4 governs it from its
+   FEC deadline, and the receiver requests unicast repair for it only
+   as that section directs, never by the multicast-to-unicast
+   failover of [@!MOQ-MULTICAST], which replaces the multicast path.
 
 5. **Repair Policy Inputs**: The in-band evidence that Section 11.4.1
    classifies blocks from, and the SSB_length by which Section 7.4
@@ -3825,9 +3923,10 @@ apply:
    exposed to injection SHOULD authenticate source and repair packets
    with an integrity mechanism whose coverage includes the complete
    packet, the Source FEC Payload ID and the Repair FEC Payload ID
-   included (Section 8.5).  The moq-provenance profile
-   ([@!MOQ-MULTICAST] Section 7.2) authenticates source packet bytes
-   but not the trailer or repair packets.
+   included (Section 8.5).  Version 2 of the bc-provenance profile
+   ([@!MOQ-MULTICAST] Section 7.2) is such a mechanism: its digest
+   covers the whole UDP payload of source and repair packets, both
+   Payload IDs included.
 
 ## ATSC 3.0 Signed Region (A3SA) Considerations
 
@@ -4679,7 +4778,8 @@ as an RFC.
 - Section 14.3: the overhead bound applies by default to layer 0 of the
   base instance, since further layers are added on demand.
 - Section 14.4: deployments that authenticate packets need a mechanism
-  that covers the FEC Payload IDs, which moq-provenance does not.
+  that covers the FEC Payload IDs; version 2 of the bc-provenance
+  profile does.
 - Sections 5.1 and 15: the algorithm registry carries the catalog
   identifier and gives guidance to the designated expert, and a new
   "MoQ FEC Block Profiles" registry (Section 15.4) holds the
@@ -4692,9 +4792,57 @@ as an RFC.
   11.4 set requirements on its endpoints and legs.  Added
   [@?ATSC-A360], [@?I-D.ietf-moq-secure-objects] and [@?ISO.23001-7]
   as informative and [@!RFC8126] as normative.
-- Sections 8.5, 11.3 and 14.4: the content authentication profile of
-  [@!MOQ-MULTICAST] Section 7.2 is called "moq-provenance", its name in
-  that document's -01 revision ("bc-provenance" in -00).
+- Sections 8.5, 11.3 and 14.4 name version 2 of the bc-provenance
+  profile of [@!MOQ-MULTICAST] Section 7.2, whose digest covers the
+  Source FEC Payload ID of source packets and the Repair FEC Payload
+  ID of repair packets.  Section 11.3 item 3 describes a per-object
+  scheme that authenticates every multicast symbol before it enters
+  the decoder and checks a recovered packet against its own digest
+  or withholds it.
+- Section 7.4 states that, within a consumer the bc-provenance
+  profile governs for its blocks (one protected under a flow whose
+  endpoint lists its source track; one a repair-only endpoint feeds
+  while the source track comes over MoQ unicast alone is outside the
+  profile for Sections 7.4, 9 and 11.4), a block delimited only by
+  symbols of an unlisted track (one that no endpoint of a flow the
+  consumer is protected under lists: one no multicast endpoint the
+  receiver holds lists, holding being joined to its group, reading
+  its manifest track or receiving the ROUTE session that carries the
+  flow, or one a held endpoint lists while the consumer is not yet
+  protected under its flow) is provisional and yields to an admitted
+  repair packet that conflicts with it, as [@!MOQ-MULTICAST]
+  Section 7.2.7 specifies, the fail-closed rule then applying among
+  admitted packets, and that such symbols reveal no run of lost
+  SS_IDs.  Section 6.3.6 states that a consumer is protected under
+  an endpoint's flow only while the receiver holds the endpoint.
+- Sections 9 and 11.4 state that, within such a consumer, a symbol
+  of an unlisted track enters a decode only as step 2 of
+  [@!MOQ-MULTICAST] Section 7.2.7 allows, which bounds the decodes a
+  block takes with such symbols' help, that a source symbol the
+  profile has not admitted is not held in deciding whether a block
+  is unrecovered at its FEC deadline, that the packet whose receipt
+  anchors a block's ts is the first packet of the block, in receipt
+  order, that the profile admits, whenever it admits it, never such
+  a symbol, that a block only such symbols
+  have delimited is held for decoding only, with no ts and no FEC
+  deadline whatever packets are admitted into or above its range,
+  the SS_IDs it covers that the receiver lacks being runs of
+  Section 11.4 as if it were not delimited, and
+  that the open-block bound discards a block that has no ts before
+  any block that has a ts; Section 7.5 states that, within such a
+  consumer, such a block is never the S_prev of the Group range,
+  only a block that a repair packet the profile has admitted
+  delimits counting there; Section 14.4 item 4 sends a decode
+  that fails an integrity check, and, within such a consumer, one
+  whose recovered packets step 2 of [@!MOQ-MULTICAST] Section 7.2.7
+  does not admit, to Section 11.4 instead of to the unicast fallback;
+  Section 11.4.2 requests no repair for a block that reaches its
+  deadline below a RAP the receiver has admitted complete, nor,
+  within such a consumer, for a block only symbols of an unlisted
+  track have delimited, which reaches no deadline, and Section
+  11.4.5 item 3
+  cancels no non-keyframe or audio repair at the deadline of a block
+  Section 11.4.2 does not request.
 - Section 12.1: the A/331 repair ratio that converts to and from
   `repairSymbols` is `percentRepair`, as in [@!MOQ-MMT] Sections 12.2
   and 12.3, not `overhead`.
