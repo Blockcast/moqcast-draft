@@ -682,8 +682,8 @@ symbols in a block have the same size; the byte layout of each source
 symbol is fixed by the track's `blockProfile` and is not otherwise
 carried in the catalog.  Under "iso-ssbg1-v1" it is the ssbg_mode1
 construction of Section 7.3, under which a source packet of up to
-T - 2 bytes is protected, and MUST be at least 14: a shorter symbol
-carries no protected packet of the 12-octet MMTP packet header
+T - 2 bytes is protected; under it T MUST be at least 14: a shorter
+symbol carries no protected packet of the 12-octet MMTP packet header
 ([@!MOQ-MMT] Section 3.1).  Under "moq-object-v1" it is the
 construction
 of Section 7.6.1, under which an object whose Protected Object Unit is
@@ -1416,6 +1416,16 @@ layer set that decodes from one that silently mis-maps symbols.
     its own `sourceSymbols` plus its own `repairSymbols` (Sections 4.5
     and 6.4.1).  Every entry of A that a block of the instance uses is
     then defined (Section 4.4).
+13. The `fec` object meets the range rules of Section 5.1:
+    `sourceSymbols` is at least 1, `repairSymbols` is at least 1 when
+    a repair track is published, `symbolSize` is at least 14 under
+    `iso-ssbg1-v1`, and `symbolSize` is a multiple of 8 when
+    `fec.algorithm` is `raptorq`.  A symbol shorter than 14 octets
+    carries no protected MMTP packet (Section 7.3), a RaptorQ symbol
+    size off the Symbol Alignment fits no derived OTI (Section 4.2),
+    and a block of no source or no repair symbols recovers nothing,
+    so a receiver that started FEC on such a catalog would join
+    repair tracks whose symbols recover no packet.
 
 Section 6.3.9 adds one check that can only be made on received repair
 packets.
@@ -4677,8 +4687,12 @@ as an RFC.
   The section states conditions (a) to (d) under which an algorithm
   admits repair layers and the overlay, and the Reed-Solomon code
   meets them, with K + totalP at most 255.
-- Section 6.3.4: rule 7 admits `reed-solomon`, and new rule 12 bounds
-  K + totalP by 255 for each Reed-Solomon FEC instance.
+- Section 6.3.4: rule 7 admits `reed-solomon`, new rule 12 bounds
+  K + totalP by 255 for each Reed-Solomon FEC instance, and new rule
+  13 makes the range rules of Section 5.1 (`sourceSymbols` at least
+  1, `repairSymbols` at least 1 when a repair track is published,
+  `symbolSize` at least 14 under `iso-ssbg1-v1` and a multiple of 8
+  under `raptorq`) catalog rules a receiver fails closed on.
 - Sections 6.3.9 and 6.4.1: a layer append, and a keyframe overlay,
   stay within rule 12 under Reed-Solomon.  Section 6.4.1 gives a valid
   Reed-Solomon overlay.

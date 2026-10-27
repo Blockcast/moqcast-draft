@@ -1622,6 +1622,11 @@ flow,
 the track's layer-0 repair track ([@!MOQ-FEC] Section 6.3).  For a
 track whose `fec.blockProfile` is "iso-ssbg1-v1", that entry carries:
 
+- a `number_of_assets` of 1, the one Asset it lists being the source
+  track's, the Asset whose packet_id is the track's: an FEC source
+  flow of [@!ISO.23008-1] may carry the packets of several Assets
+  (its Clause C.1), where an FEC instance of [@!MOQ-FEC] protects one
+  source track (its Section 6.3);
 - the coding byte 0x14, that is `fec_coding_structure` 0001
   (one-stage), `ssbg_mode` 01, `ffsrpts_flag` 0 and
   `fec_payload_id_mode` 0 ([@!MOQ-FEC] Section 7.3);
@@ -1814,13 +1819,17 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   `maximum_p_for_repair_flow`, and a repair track, named in
   `fec.repairTrack`, whose `packetId` is the packet_id that
   `repair_flow_id` names (Section 8.3).  The converter accepts an
-  entry whose coding byte is 0x14 and whose
-  `fec_code_id_for_repair_flow` is 1 or 3: a flow under any other
-  coding structure, `ssbg_mode`, FFSRP_TS or FEC payload ID mode is
-  not one that "iso-ssbg1-v1" describes ([@!MOQ-FEC] Section 7.3), a
-  session whose message names any other code is outside [@!MOQ-FEC]
-  until its registry lists that code (its Section 12), and the
-  conversion of such a flow fails.  The one repair flow the
+  entry whose `number_of_assets` is 1, whose coding byte is 0x14 and
+  whose `fec_code_id_for_repair_flow` is 1 or 3: a source flow of
+  several Assets ([@!ISO.23008-1] Clause C.1) is one block sequence
+  over the packets of several packet_ids, which no FEC instance of
+  [@!MOQ-FEC] protects (its Section 6.3 protects one source track),
+  a flow under any other coding structure, `ssbg_mode`, FFSRP_TS or
+  FEC payload ID mode is not one that "iso-ssbg1-v1" describes
+  ([@!MOQ-FEC] Section 7.3), a session whose message names any other
+  code is outside [@!MOQ-FEC] until its registry lists that code (its
+  Section 12), and the conversion of such a flow fails.  The one
+  repair flow the
   one-stage entry names is the track's layer 0, and
   `maximum_p_for_repair_flow` is its P while layer 0 is the only
   published layer, as in a one-stage session of [@!ISO.23008-1],
@@ -1841,7 +1850,15 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   [@!MOQ-FEC] Section 6.3.9 forbids changing the `repairSymbols` of a
   published layer while any receiver may still be consuming the
   source track, and says that a receiver reading the smaller bound
-  excludes only symbols of layers it has not joined.  The conversion
+  excludes only symbols of layers it has not joined.  A later version
+  that lowers `maximum_p_for_repair_flow` below the `repairSymbols`
+  the converter published is a change that section lets no publisher
+  make, on which every receiver holding the track fails closed, the
+  wire RSB_length falling below the `repairSymbols` its catalog holds
+  for layer 0, so the converter retires the source encoding and
+  publishes the source track and its repair track as a separate
+  rendition carrying the lowered value, as that section has a
+  publisher that must change a published layer do.  The conversion
   of a flow fails where the `fec` object it would yield fails a
   catalog rule of [@!MOQ-FEC] Sections 5.1 and 6.3.4, on which a
   receiver fails closed: a `maximum_p_for_repair_flow` of 0 names no
@@ -1867,9 +1884,11 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   255 names a block no "reed-solomon" instance can hold (rule 12,
   which bounds K plus the repair count of every layer).  The
   conversion also fails for a flow whose `repair_flow_id` is 0, the
-  signaling flow (Section 3.1), or the packet_id of another track of
-  the session, a value that [@!MOQ-MULTICAST] Section 4.1 requires
-  to denote one sub-flow.  The message names the repair flow
+  signaling flow (Section 3.1), the flow's own packet_id, or the
+  packet_id of another track of the session, a value that
+  [@!MOQ-MULTICAST] Section 4.1 requires to denote one sub-flow (a
+  repair flow carries a packet_id of its own, [@!ISO.23008-1]
+  Clause C.6.3).  The message names the repair flow
   by packet_id without a location, and the MP table does not list it
   ([@!MOQ-MULTICAST] Section 5), so the converter lists the repair
   track in the `tracks[]` of each endpoint on whose session it
@@ -2155,16 +2174,20 @@ publication as an RFC.
   track's FEC instance, the block total, which Section 12.2 reads
   back as `repairSymbols` less the layers above 0 it learns from
   provisioning, keeping the value it first published for a track
-  across later versions of the message that raise the field
-  ([@!MOQ-FEC] Section 6.3.9).  Section 12.2 accepts only an entry
-  with the coding byte 0x14 and code point 1 or 3, and fails the
-  conversion of a flow whose `fec` object would fail a catalog rule
-  of [@!MOQ-FEC] Sections 5.1 and 6.3.4 (a maximum K or maximum P of
-  0, a symbol length below 14, a RaptorQ symbol length that is not a
-  multiple of 8, a RaptorQ maximum K above 56403 or maximum K plus
-  maximum P above 2^24, a Reed-Solomon maximum K plus maximum P
-  above 255) and of one whose repair flow is packet_id 0 or the
-  packet_id of another track of the session.
+  across later versions of the message that raise the field and
+  retiring the source encoding under one that lowers the field below
+  that value ([@!MOQ-FEC] Section 6.3.9).  Section 8.3 sets the
+  entry's `number_of_assets` to 1, the one Asset being the source
+  track's.  Section 12.2 accepts only an entry with a
+  `number_of_assets` of 1, the coding byte 0x14 and code point 1 or
+  3, and fails the conversion of a flow whose `fec` object would fail
+  a catalog rule of [@!MOQ-FEC] Sections 5.1 and 6.3.4 (a maximum K
+  or maximum P of 0, a symbol length below 14, a RaptorQ symbol
+  length that is not a multiple of 8, a RaptorQ maximum K above 56403
+  or maximum K plus maximum P above 2^24, a Reed-Solomon maximum K
+  plus maximum P above 255) and of one whose repair flow is
+  packet_id 0, the flow's own packet_id or the packet_id of another
+  track of the session.
 - Section 1.1: the CARP row is removed.  CARP (draft-law-moq-carp-00)
   has expired, and its content continues as [@?I-D.ietf-moq-cmsf].
   The FEC column names the [@!MOQ-FEC] block profile for each
