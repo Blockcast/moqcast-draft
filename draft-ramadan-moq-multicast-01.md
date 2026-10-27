@@ -849,7 +849,7 @@ subscriptions or end them:
 - To pause a subscription, the receiver sends a REQUEST_UPDATE with
   the FORWARD parameter set to 0 ([@!I-D.ietf-moq-transport]
   Sections 3.1.1 and 9.20.18).  The subscription stays Established,
-  and the publisher sends no objects on it.  Failback then needs no
+  and the publisher sends no objects on it.  Failover then needs no
   new SUBSCRIBE.
 - To end a subscription, the receiver sends STOP_SENDING
   ([@!I-D.ietf-moq-transport] Section 3.1).
@@ -860,7 +860,7 @@ repair layer that no endpoint it holds carries and that it combines
 with multicast source symbols (Section 6, item 2; [@!MOQ-FEC]
 Section 6.3.6).
 
-On failback (Section 6), the receiver resumes a paused subscription
+On failover (Section 6), the receiver resumes a paused subscription
 with a REQUEST_UPDATE that sets FORWARD to 1.  FILL_PARAMETERS
 carried while a subscription is paused opens no fill fetch stream,
 and resuming without re-sending FILL_PARAMETERS opens none either
@@ -1259,11 +1259,10 @@ datagrams of its window as any record on `manifestPort` does: such
 a receiver fails over on a lead between the bound plus
 `maxAuthDelayMs` and that retention and, under a larger one,
 verifies every record on both paths instead; on a flow whose 64
-windows outlast `7 s + maxAuthDelayMs`, one closing fewer than
-eight windows a second, the floor keeps the record verified until
-its copy arrives under any lead shorter than 64 windows, the lookup
-drops the copy, and such a receiver fails over as one that checks
-freshness does.
+windows outlast `7 s + maxAuthDelayMs`, the floor keeps the record
+verified until its copy arrives under any lead shorter than 64
+windows, the lookup drops the copy, and such a receiver fails over
+as one that checks freshness does.
 
 ### Catalog Signaling
 
@@ -2577,7 +2576,7 @@ as an RFC.
   fails only when no publisher upstream still holds the group.
 - New Section 6.3: after a switch to multicast, a receiver SHOULD
   pause its unicast subscriptions with REQUEST_UPDATE (FORWARD 0) or
-  end them with STOP_SENDING, and resumes paused ones on failback.  It
+  end them with STOP_SENDING, and resumes paused ones on failover.  It
   keeps any repair layer that no endpoint carries and that it combines
   with multicast source symbols.
 - Editorial: the Abstract and Section 1 expand MMTP, AMT and
@@ -2715,7 +2714,13 @@ as an RFC.
   and a re-fetch or re-provisioning after which that `(kid, epoch)`
   fails the range check of (#catalog-signaling) resets the flow the
   same way ((#receiver-enforcement-and-state)).
-- For broadcast-only receivers the record is carried as a delivery
+- A datagram of the flow carried on a ROUTE session is one delivery
+  object of a source flow of that session whose bytes are the whole
+  MoQ UDP payload, trailer included, a session that carries the
+  flow's datagrams in any other form being uncovered; this rule
+  replaces the `sourceSymbolFormat` member of -00, whose only value
+  named the authenticated bytes of that revision, trailer excluded.
+  For broadcast-only receivers the record is carried as a delivery
   object of one LCT channel per protected flow whose Extended FDT
   carries `@fileTemplate`, its TOI a 32-bit per-channel counter that
   takes neither 0 nor a `File` element's TOI and is not reused within
