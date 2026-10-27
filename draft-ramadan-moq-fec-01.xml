@@ -3321,8 +3321,8 @@ can additionally apply a scheme that authenticates every multicast
 symbol before it enters the decoder, repair symbols included, and,
 whenever a symbol of its decode was not so authenticated, checks a
 recovered packet against its own digest or, where it can derive no
-coordinate to hash with, withholds it (for example the
-manifest-based bc-provenance profile of <xref target="MOQ-MULTICAST"></xref>
+coordinate to hash with, withholds it (for example version 2 of
+the manifest-based bc-provenance profile of <xref target="MOQ-MULTICAST"></xref>
 Section 7.2, whose receiver procedure is its Section 7.2.7).</t>
 </li>
 <li><t><strong>Repair channel versus unicast repair.</strong>  A publisher using this

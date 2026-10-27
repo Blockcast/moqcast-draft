@@ -1234,16 +1234,27 @@ tolerance as the multicast path's hold queue keeps the unwidened
 expiry, and a receiver that needs more is replaying
 ((#receiver-enforcement-and-state)).  The bound caps the lead as
 well: a relay that leads the multicast path by more than the bound
-plus `maxAuthDelayMs + 2 x manifestTimerMs` outruns the pending
-entries and admitted digests the lead widens, and the copy on
-`manifestPort` of a record it mirrors that far ahead, which the
-receiver keeps verified for as long as the freshness check of step
-1 would pass it ((#receiver-enforcement-and-state)), is dropped by
-the lookup of step 1 and, the lead standing at the bound, admits
-nothing, so the multicast copies of the datagrams of those records
-are held and expire from the multicast path's hold queue, loss for
-the failover ((#threat-model)); the lead being the multicast path's
-lag behind the mirror, such a path fails over on its own latency.
+plus `maxAuthDelayMs` outruns the admitted digests the lead widens,
+and by more than that plus `2 x manifestTimerMs` the pending
+entries as well, and the copy on `manifestPort` of a record it
+mirrors that far ahead, which the receiver keeps verified for as
+long as the freshness check of step 1 would pass it
+((#receiver-enforcement-and-state)), is dropped by the lookup of
+step 1 while so kept and by that check after, and, the lead
+standing at the bound, admits nothing either way, so the multicast
+copies of the datagrams of those records are held and expire from
+the multicast path's hold queue, loss for the failover
+((#threat-model)); the lead being the multicast path's lag behind
+the mirror, such a path fails over on its own latency on a receiver
+that checks freshness.  One that skips the check (the Clock
+paragraph of (#receiver-enforcement-and-state)) keeps the record
+verified `7 s + maxAuthDelayMs` after its arrival on the manifest
+track, so under a relay leading by more than that the copy on
+`manifestPort` misses the lookup, meets no freshness check and is
+verified anew there, from that path's budget, admitting the
+datagrams of its window as any record on `manifestPort` does: such
+a receiver fails over on a lead between the two values and, under a
+larger one, verifies every record on both paths instead.
 
 ### Catalog Signaling
 
@@ -1350,8 +1361,8 @@ declare `bandwidth`, which bounds the receiver's hold queues:
 - **maxAuthDelayMs** (integer, OPTIONAL, default 200, range 50 to
   1000): how long a receiver holds a datagram whose digest has not
   arrived.
-- **manifestTimerMs** (integer, OPTIONAL, default 20): the window
-  timer of (#emission-and-cadence).
+- **manifestTimerMs** (integer, OPTIONAL, default 20, at least 1):
+  the window timer of (#emission-and-cadence).
 - **manifestTrack** (string, OPTIONAL): the MoQ track mirroring the
   records ((#emission-and-cadence)).
 
@@ -1429,9 +1440,15 @@ that check, whatever the floor (so that the lookup of step 1 still
 meets, and measures the lead from, a `manifestPort` copy arriving
 after 64 or more further records were verified on the mirror, and
 drops as already verified every copy that check would pass: one
-arriving beyond the bound of (#emission-and-cadence) then admits
-nothing, and the datagrams it covers expire, as that section says,
-rather than being verified anew on `manifestPort`), each with the
+arriving more than the bound of (#emission-and-cadence) plus
+`maxAuthDelayMs + 2 x manifestTimerMs` after the mirror's copy, the
+lead standing at the bound, then admits nothing, and the datagrams
+it covers expire, as that section says, rather than being verified
+anew on `manifestPort`; where the lead stands below the bound, the
+first such copy raises it to the bound and handles the record's
+pairs again as step 1 says; a receiver that skips the check
+verifies anew a copy arriving after the retention, as that section
+also says), each with the
 time and
 path of its arrival, the `hash_alg` digest of the record's bytes,
 per pair of the record, whether a datagram has been admitted against
@@ -2257,12 +2274,15 @@ catalog is therefore an attack vector:
 
 - **Resource claims**: `bandwidth`, `maxAuthDelayMs` and
   `manifestTimerMs` size the hold queues and pending table of
-  (#receiver-enforcement-and-state); the widening W of
-  (#emission-and-cadence) enlarges the unicast path's queue and the
-  mirror's lead the pending expiry of a mirrored record's entries,
-  the admitted-digest set, the entries kept for unicast repair
-  (step 2, those pending at an admission) and the pairs kept with a
-  mirrored record until its first `manifestPort` copy arrives, both
+  (#receiver-enforcement-and-state) and, with the manifest track's
+  verification budget, the records verified on that track which a
+  receiver retains for as long as the freshness check of step 1
+  would pass a copy of them on `manifestPort`, each with the pairs
+  kept until its first `manifestPort` copy arrives; the widening W
+  of (#emission-and-cadence) enlarges the unicast path's queue and
+  the mirror's lead the pending expiry of a mirrored record's
+  entries, the admitted-digest set and the entries kept for unicast
+  repair (step 2, those pending at an admission), both
   receiver-chosen and capped at 5 s.  A
   receiver bounds all of these
   by local policy, and the

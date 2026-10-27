@@ -3322,8 +3322,8 @@ When this scheme is carried over a multicast QUIC channel:
    symbol before it enters the decoder, repair symbols included, and,
    whenever a symbol of its decode was not so authenticated, checks a
    recovered packet against its own digest or, where it can derive no
-   coordinate to hash with, withholds it (for example the
-   manifest-based bc-provenance profile of [@!MOQ-MULTICAST]
+   coordinate to hash with, withholds it (for example version 2 of
+   the manifest-based bc-provenance profile of [@!MOQ-MULTICAST]
    Section 7.2, whose receiver procedure is its Section 7.2.7).
 
 4. **Repair channel versus unicast repair.**  A publisher using this
