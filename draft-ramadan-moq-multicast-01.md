@@ -31,9 +31,10 @@ sessions integrate with IP multicast (SSM, ASM), Automatic Multicast
 Tunneling (AMT), and TreeDN for scalable live streaming.  The
 specification includes a multicast catalog extension for endpoint
 discovery and multi-path delivery across TV, mobile, and browser
-platforms.  All multicast delivery uses MMTP packets, the same packet
-format used on MoQ QUIC streams and datagrams.  A manifest-based
-content-authentication profile protects multicast delivery.
+platforms.  All multicast delivery uses MPEG Media Transport Protocol
+(MMTP) packets, the same packet format used on MoQ QUIC streams and
+datagrams.  A manifest-based content-authentication profile protects
+multicast delivery.
 
 {mainmatter}
 
@@ -49,28 +50,41 @@ signaling of QUIC:
 
 1. **Delivery paths**: Platform-specific multicast reception for
    TV, mobile, and browser clients
-2. **Catalog extension**: A container-agnostic multicast endpoint
-   discovery mechanism for MoQ catalogs [@!I-D.ietf-moq-msf]
+2. **Catalog extension**: A multicast endpoint discovery mechanism
+   for MoQ catalogs [@!I-D.ietf-moq-msf].  Endpoints carry mmtp tracks
+   and their repair tracks, and a loc or cmaf track reaches multicast
+   through an mmtp rendition track (Section 4.1).
 3. **MMTP wire format**: All multicast delivery uses MMTP packets --
-   the same packet format used on MoQ QUIC streams and datagrams
+   the same packet format that MoQ objects carry on QUIC streams
    (Section 5).
 4. **Multi-path delivery**: Combining MoQ unicast and multicast for
-   seamless failover and FEC symbol deduplication
+   failover and FEC symbol deduplication
 
-MoQ relays MAY operate as TreeDN [@?RFC9706] nodes for hierarchical
-distribution.
+These mechanisms follow TreeDN [@?RFC9706], which gives an
+incremental path to native multicast.  A network that supports
+multicast delivers the stream to its receivers as native SSM.  A
+receiver on a unicast-only network reaches the same stream through an
+Automatic Multicast Tunneling (AMT) relay [@!RFC7450] that it finds
+in its own network, from a relay service hostname (Section 3.1), or
+with DNS Reverse IP AMT Discovery (DRIAD) [@!RFC8777].  Section 4.2.1
+describes how a catalog signals both.  Each network can therefore
+turn on multicast when it is ready.  Until then, its receivers that
+have UDP socket access (Section 3) use AMT, and the others stay on
+MoQ unicast.  An AMT relay can replicate packets in router forwarding
+hardware or in a kernel data plane, so relay fan-out does not cost a
+server per receiver.
 
 ## Multicast as Supplement to MoQ Unicast
 
 Multicast delivery as defined in this document is a supplement to
 MoQ/QUIC unicast.  Subscribers MUST establish a MoQ session first
 to receive the catalog, negotiate parameters, and receive initial
-media.  Multicast MAY then be used as an optimized delivery path
+media.  Multicast MAY then be used as an additional delivery path
 for ongoing media data.  This ensures that codec configuration is
 available before multicast reception begins.
 
-Exception: MMTP-packaged streams [@!MOQ-MMT] delivered
-via ATSC 3.0 broadcast or native SSM MAY operate as unidirectional
+Exception: MMTP-packaged streams [@!MOQ-MMT] delivered via ATSC 3.0
+broadcast [@?ATSC-A331] or native SSM MAY operate as unidirectional
 data streams without a MoQ session.  MMTP carries per-packet routing
 (packet_id), timing (timestamp), sequencing (Packet Sequence Number),
 and FEC framing (FEC Type, FEC payload IDs) natively, and its
@@ -86,8 +100,8 @@ authoritative for media and FEC parameters (Section 4.1;
 [@!MOQ-FEC] Section 5.2).  A catalog-provided service name or relay
 address is only a discovery input; it is not proof that an upstream
 is reachable or healthy.
-ATSC 3.0 and ARIB STD-B60 receivers consume MMTP over SSM as their
-native delivery path.
+ATSC 3.0 and ARIB STD-B60 [@?ARIB-B60] receivers consume MMTP over
+SSM as their native delivery path.
 
 # Terminology
 
@@ -137,21 +151,21 @@ on platform capabilities:
 | Browser (standard) | MoQ/WebTransport (unicast) |
 
 Both native SSM and AMT tunneling require UDP socket access.
-MoQ/WebTransport is the universal fallback and requires no
-special platform capabilities.
+MoQ/WebTransport is the fallback that every client supports and
+requires no special platform capabilities.
 
 Broadcast receivers (ATSC 3.0, ARIB STD-B60) consume MMTP streams
 natively over RF tuner hardware.  MoQ integration occurs at the
 gateway/head-end level via TreeDN [@?RFC9706] and AMT [@!RFC7450] /
 DRIAD [@!RFC8777].
 
-Multiple transports MAY be available for a given stream.  When more
+Several transports can be available for a given stream.  When more
 than one delivery path is available, receivers SHOULD prefer, in
 order: tuner-based broadcast reception (where tuner hardware exists),
 native SSM, AMT tunneling, and finally MoQ/QUIC unicast.  Local
 policy MAY override this order.  Within tuner-based reception,
-receivers SHOULD prefer Single Frequency Network (SFN) diversity
-reception, where deployed, over single-transmitter reception.
+receivers prefer Single Frequency Network (SFN) diversity reception,
+where deployed, over single-transmitter reception.
 
 ## Receiver-Owned DNS Candidate Discovery
 
@@ -179,8 +193,8 @@ prevent another candidate from being tried.
 For an AMT relay, a receiver MUST complete the AMT Discovery,
 Advertisement, Request, and Membership Query exchange when those
 messages are used, and MUST wait for either the first data packet for
-the requested source and group or a configured finite post-Membership-
-Query/Update wait to expire.  A receiver MUST NOT wait indefinitely for
+the requested source and group or a configured finite
+post-Membership-Query/Update wait to expire.  A receiver MUST NOT wait indefinitely for
 data: for a source declared sparse or idle by local policy, expiry of
 that wait MAY permit selection after the control-plane exchange, but
 the result is control-plane health rather than proof of data-plane
@@ -259,7 +273,7 @@ audio/video groups) use multiple elements:
   "multicast": {
     "endpoints": [
       {
-        "sourceAddress": "10.0.0.1",
+        "sourceAddress": "192.0.2.1",
         "groupAddress": "232.1.1.1",
         "port": 5004,
         "tracks": [
@@ -268,7 +282,7 @@ audio/video groups) use multiple elements:
         ]
       },
       {
-        "sourceAddress": "10.0.0.1",
+        "sourceAddress": "192.0.2.1",
         "groupAddress": "232.1.1.2",
         "port": 5004,
         "tracks": [
@@ -294,7 +308,7 @@ The `multicast` object contains the following members:
   configuration applying to all endpoints; see Section 4.2.
 
 **auth** (object, OPTIONAL): Content authentication configuration
-  for the bc-provenance profile; see Section 7.2.
+  for the moq-provenance profile; see Section 7.2.
 
 Endpoint field definitions:
 
@@ -309,7 +323,8 @@ Endpoint field definitions:
 **groupAddress** (string, REQUIRED): Multicast group address.
 
   - SSM range: 232.0.0.0/8 (IPv4), ff3x::/32 (IPv6)
-  - ASM range: 224.0.0.0/4 (IPv4), ff0x::/16 (IPv6)
+  - ASM range: 224.0.0.0/4 (IPv4), ff00::/8 outside the SSM range
+    ff3x::/32 (IPv6)
 
 **port** (integer, REQUIRED): UDP port number.
 
@@ -317,7 +332,13 @@ Endpoint field definitions:
   Each element is an object with the following fields:
 
   - **name** (string, REQUIRED): Track name corresponding to the
-    track identifier used in the MoQ catalog.
+    track identifier used in the MoQ catalog.  The name is resolved
+    in the namespace of the catalog track ([@!I-D.ietf-moq-msf]
+    Section 5.2.2); an endpoint MUST NOT list a track whose catalog
+    entry declares another namespace.  The named track MUST
+    be a track whose `packaging` is `mmtp` ([@!MOQ-MMT] Section 12.1)
+    or a `fec-repair` track that repairs such a track ([@!MOQ-FEC]
+    Section 5.1.1).
   - **packetId** (integer, REQUIRED): MMTP packet_id used for
     packet-level track routing on multicast.  Maps directly to the
     Packet ID field in the MMTP header (Section 3.1 of
@@ -372,7 +393,21 @@ inconsistent -- for example, a `protocol` of "ssm" with
 of "asm", or a `groupAddress` outside the multicast address space.
 Receivers MUST likewise ignore an endpoint that lists a track
 `packetId` outside the range 1..65535, including 0, the MMTP
-signaling flow.
+signaling flow.  They MUST also ignore an endpoint that lists a track
+that the `name` field does not permit.
+
+This document defines multicast carriage only for mmtp tracks
+(Section 5).  To offer a track packaged as loc [@?I-D.ietf-moq-loc]
+or cmaf [@?I-D.ietf-moq-cmsf] on multicast, a publisher also
+publishes an mmtp rendition of the same media: a separate track whose
+`packaging` is `mmtp`, with its own name, `packetId`, `fec` object
+and repair tracks, in the same `altGroup` as the loc or cmaf track
+(Section 6.1).  The endpoint lists the mmtp rendition track.  A
+receiver that holds the loc or cmaf track over MoQ receives the mmtp
+rendition track on multicast in its place.  The two tracks are
+separate FEC instances ([@!MOQ-FEC] Section 6.4.1), so symbols of
+one never repair the other, and the multi-path combining of
+Section 6 applies within the mmtp rendition track only.
 
 Subscribers receiving a catalog with multicast endpoints MAY
 auto-connect to the multicast group when multicast APIs are
@@ -382,8 +417,8 @@ IGMP/MLD state on intermediate routers; subscribers SHOULD only
 join when multicast provides a concrete benefit over unicast.
 
 Joining an SSM endpoint requires source-specific group membership
-signaling: receivers MUST use IGMPv3 [@!RFC3376] (IPv4) or MLDv2
-[@!RFC3810] (IPv6) to convey (S,G) joins.  Earlier protocol
+signaling: receivers MUST use IGMPv3 [@!RFC9776] (IPv4) or MLDv2
+[@!RFC9777] (IPv6) to convey (S,G) joins.  Earlier protocol
 versions (IGMPv2/MLDv1) cannot express source-specific joins; if
 the receiver's network segment operates at an earlier version (for
 example, due to an IGMPv2 querier or snooping switch on the
@@ -393,7 +428,9 @@ MoQ/QUIC unicast (Section 6).
 
 During multicast join (which may take 1-3 seconds for IGMP/MLD),
 subscribers SHOULD continue receiving via MoQ/QUIC.  Once multicast
-data arrives, subscribers switch to the multicast path.
+data arrives, subscribers switch to the multicast path.  Section 6.3
+describes how they then pause or end the unicast subscriptions that
+the multicast path replaces.
 
 If multicast reception fails or degrades, subscribers fall back
 to MoQ/QUIC unicast per Section 6.
@@ -402,8 +439,7 @@ Receivers SHOULD implement hysteresis to prevent flapping between
 multicast and unicast paths.  Switch away from multicast after
 sustained loss or consecutive FEC block failures; switch back only
 after multicast reception is stable for a sufficient period.
-Specific thresholds are implementation-defined and SHOULD be
-tunable.
+Specific thresholds are implementation-defined and configurable.
 
 ## Network Source Types
 
@@ -438,14 +474,19 @@ configured relay.  It MUST be omitted with `driad`, because DRIAD
 supplies the relay candidates.  A literal address does not provide DNS
 locality steering.
 
-**port** (integer, OPTIONAL): UDP port on which the AMT relay
-  accepts requests.  When absent, the IANA-assigned AMT port (2268,
-  [@!RFC7450]) is used.
+**port** (integer, OPTIONAL): UDP port on which the relay named by
+  the `relay` field accepts requests.  When absent, the AMT port (2268,
+  [@!RFC7450] Section 7.2) is used.  A value other than 2268 departs
+  from [@!RFC7450] Sections 5.1.1 and 5.1.3 and works only with
+  gateways and relays configured for it.  The field never applies to
+  a relay found by DRIAD, whose AMTRELAY record carries no port
+  ([@!RFC8777] Section 4.2).
 
 **discovery** (string, OPTIONAL): AMT relay discovery method.
 
   - "dns": Resolve the `relay` service hostname to A and AAAA
-    candidates and validate each candidate with the AMT protocol.
+    candidates and validate each candidate with the AMT protocol
+    (Section 3.1).
     This is the RECOMMENDED method when a relay service hostname is
     available.
   - "driad": DNS Reverse IP AMT Discovery per [@!RFC8777].
@@ -473,24 +514,32 @@ then close that candidate's socket.  An attempt that has not reached
 that state is cancelled by closing its socket; a failed cancellation is
 bounded and MUST NOT keep the candidate attempt alive.
 
-Subscribers SHOULD attempt AMT discovery in this order:
+Subscribers SHOULD look for a relay in this order, which keeps the
+preference of [@!RFC8777] Section 3.1.2 for a relay in the
+subscriber's own network:
 
-1. Use receiver-owned DNS candidate discovery when `discovery` is
+1. Look for a relay in the subscriber's own network, with DNS-based
+   Service Discovery (DNS-SD) [@!RFC6763] for `_amt._udp` and then
+   through the AMT anycast addresses of [@!RFC7450] Section 7.
+2. Use receiver-owned DNS candidate discovery when `discovery` is
    "dns", or when `discovery` is omitted and `relay` is a hostname.
-2. Use DRIAD discovery on the SSM source IP when `discovery` is
+3. Use DRIAD discovery on the SSM source IP when `discovery` is
    "driad", or when both `discovery` and `relay` are omitted and the
    source IP has DRIAD records.
-3. Use a literal `relay` directly when `discovery` is "manual", or when
+4. Use a literal `relay` directly when `discovery` is "manual", or when
    `discovery` is omitted and `relay` is a literal under an explicitly
    permitted static-deployment policy.
-4. Fall back to MoQ/QUIC unicast.
+5. Fall back to MoQ/QUIC unicast.
 
-Note: DRIAD requires TYPE260 reverse DNS records on the source IP.
-DRIAD relay addresses are typically anycast -- subscribers connect
-to the topologically nearest relay without additional configuration,
-but the receiver still performs the AMT health validation above.
-Publishers without reverse DNS control SHOULD provide a stable
-`relay` service hostname.
+The `discovery` and `relay` fields select at most one of steps 2 to 4
+for an endpoint.  A relay named by the `relay` field or found by DRIAD
+is one that the sender knows, and is not necessarily near the
+subscriber ([@!RFC8777] Section 3.1.1).  A local relay keeps more of
+the path on native multicast.  Every relay found in steps 1 to 4 is a
+candidate that the subscriber validates with the AMT protocol before
+selection (Section 3.1).  DRIAD requires AMTRELAY (TYPE260) reverse
+DNS records on the source IP.  Publishers without reverse DNS control
+SHOULD provide a stable `relay` service hostname.
 
 ### ATSC 3.0 (Broadcast Television)
 
@@ -508,15 +557,16 @@ Publishers without reverse DNS control SHOULD provide a stable
 
 **frequency** (integer, REQUIRED): RF center frequency in kHz.
 
-**plpId** (integer, OPTIONAL): Physical Layer Pipe ID.
-  Defaults to 0 (base PLP).
+**plpId** (integer, OPTIONAL): Physical Layer Pipe ID
+  ([@!ATSC-A322]).  Defaults to 0.
 
 **serviceId** (integer, OPTIONAL): Service ID within the
-  broadcast multiplex.
+  broadcast multiplex ([@!ATSC-A331]).
 
 **slsUri** (string, OPTIONAL): URI for Service Layer Signaling (SLS)
   bootstrap.  Enables receivers joining via IP (not RF) to acquire
-  the full ATSC 3.0 SLS including S-TSID with FEC parameters.
+  the full ATSC 3.0 SLS including S-TSID with FEC parameters
+  ([@!ATSC-A331]).
 
 Receivers with ATSC 3.0 tuner hardware can receive the stream
 directly over RF.  MoQ subscribers without tuner hardware ignore
@@ -542,33 +592,35 @@ transport hierarchy defined in Section 3.
 # Multicast Packet Format
 
 All multicast delivery uses MMTP packets.  Each UDP datagram carries
-one MMTP packet -- the same packet format used on MoQ QUIC streams
-and datagrams.  MMTP provides track routing (packet_id), send
+one MMTP packet -- the same packet format that MoQ objects carry on
+QUIC streams.  MMTP provides track routing (packet_id), send
 timestamps, sequencing (packet_sequence_number), FEC framing (FEC
 Type and the Source/Repair FEC Payload IDs) and random access
 signaling (RAP flag) in its packet header, and fragmentation (FI) in
 the MPU-mode payload header ([@!MOQ-MMT] Sections 3.1 and 4.2).
-For a MoQ receiver, FEC configuration, including the RaptorQ OTI,
-comes from the catalog ([@!MOQ-FEC] Sections 4.2 and 5.2); a
-receiver without the catalog relies on the in-band signaling below.
+For a MoQ receiver, FEC configuration (the RaptorQ OTI, or the
+Reed-Solomon parameters) comes from the catalog ([@!MOQ-FEC]
+Sections 4.2, 4.5 and 5.2); a receiver without the catalog relies on
+the in-band signaling below.
 
 Frame-sized LOC [@?I-D.ietf-moq-loc] or CMAF [@?I-D.ietf-moq-cmsf]
-objects exceed a UDP datagram; the MMTP MPU-mode payload format
+objects exceed a UDP datagram, while the MMTP MPU-mode payload format
 fragments media into MTU-sized packets ([@!ISO.23008-1]
-Clause 9.3.2; [@!MOQ-MMT] Section 5.2), so multicast carriage uses
-MMTP regardless of a track's unicast packaging.
+Clause 9.3.2; [@!MOQ-MMT] Section 5.2).  Multicast carriage therefore
+uses MMTP: an endpoint lists only mmtp tracks and their repair
+tracks, and a loc or cmaf track reaches multicast through an mmtp
+rendition track (Section 4.1).
 
 No additional multicast framing, encapsulation, or header format is
 needed.  The MMTP packet format is defined in [@!ISO.23008-1]
 Clause 9.2, as profiled in [@!MOQ-MMT] Section 3.1.
 
-This design means the same MMTP packet can be delivered via four
+This design means the same MMTP packet can be delivered via three
 transports without modification:
 
 | Transport | Encapsulation |
 |-----------|---------------|
 | Reliable QUIC stream | MMTP packet as MoQ stream object |
-| QUIC datagram | MMTP packet as MoQ datagram object |
 | Multicast QUIC | MMTP packet as multicast QUIC DATAGRAM object |
 | Multicast UDP | MMTP packet as UDP datagram |
 
@@ -680,15 +732,31 @@ When symbols arrive from multiple paths simultaneously, receivers:
    MoQ/QUIC with repair symbols via lossy multicast -- skipping
    FEC decoding when all source symbols arrive reliably
 
-Multicast-to-unicast failover: if multicast reception fails,
-subscribers fall back to MoQ/QUIC unicast by subscribing with the
-Largest Object filter (to resume at the live edge) or the Next Group
-Start filter (to resume at the next group boundary) per
-[@!I-D.ietf-moq-transport].  No coordinate mapping between multicast
-SS_IDs and MoQ Group IDs is needed -- the relay provides the current
-position.  Failover replaces
-the multicast path; it is distinct from per-block unicast repair
-(Section 6.2), which leaves the multicast subscription in place.
+Multicast-to-unicast failover: if multicast reception fails, a
+subscriber falls back to MoQ/QUIC unicast.  It resumes a unicast
+subscription that it paused when it switched to multicast, as
+Section 6.3 describes.  Otherwise it subscribes again, with a
+SUBSCRIBE whose LOCATION_FILTER parameter ([@!I-D.ietf-moq-transport]
+Section 9.20.9) sets where delivery starts, using one of the joins of
+[@!I-D.ietf-moq-transport] Section 3.5:
+
+- Next Object (Location Filter Type 0x05) starts at the live edge.
+  Delivery can begin in the middle of a group.
+- Next Object together with a FILL_PARAMETERS parameter
+  ([@!I-D.ietf-moq-transport] Section 9.20.15) whose LOCATION_FILTER
+  is Relative Start (0x01) with StartGroup 1 also delivers the
+  current group from its start, on a fill fetch stream
+  ([@!I-D.ietf-moq-transport] Section 3.4).  This is the join of
+  [@!MOQ-MMT] Section 6.1, and the one to use when the receiver
+  cannot decode from the middle of a group.
+- Relative Start (0x01) with StartGroup 0 starts at the next group.
+
+No coordinate mapping between multicast SS_IDs and MoQ Group IDs is
+needed, because the publisher resolves each of these filters against
+its Largest Object ([@!I-D.ietf-moq-transport] Section 3.1.4).
+Failover replaces the multicast path; it is distinct from per-block
+unicast repair (Section 6.2), which leaves the multicast subscription
+in place.
 
 ## Packaging Negotiation
 
@@ -705,29 +773,81 @@ repair symbols it receives on its multicast paths.  For a block that
 in-band FEC leaves unrecovered at its FEC deadline, a receiver that
 holds a MoQ session (Section 1.1) applies the receiver repair policy
 of [@!MOQ-FEC] Section 11.4, which repairs a keyframe-bearing block
-by a standalone FETCH [@!I-D.ietf-moq-transport] of the block's
-repair-track group.  That group's ID is the block's SS_Start, from
-the Repair FEC Payload ID of a multicast repair packet of the block,
-extended to 62 bits with the wrap epoch of [@!MOQ-FEC] Section 7.5.
+by a FETCH [@!I-D.ietf-moq-transport] of the block's repair-track
+group.  That group's ID is the block's extended SS_Start
+([@!MOQ-FEC] Section 7.5): the SS_Start from the Repair FEC Payload
+ID of a multicast repair packet of the block, extended with the wrap
+epoch to a value in [0, 2^62).  MoQ Transport Group IDs range up to
+2^64 - 1 ([@!I-D.ietf-moq-transport] Section 8.1); repair Group IDs
+use only [0, 2^62), as [@!MOQ-FEC] Section 7.5 specifies.
 A receiver that takes its repair from multicast has usually received
-no repair-track Group ID over MoQ, so before its first FETCH it
-establishes that epoch from the Largest Location that a TRACK_STATUS
-request for the repair track reports ([@!I-D.ietf-moq-transport]
-Section 9.13): the Group of the LARGEST_OBJECT parameter in the
-REQUEST_OK (TRACK_STATUS_OK) that answers the request, as
-[@!MOQ-FEC] Section 7.5 specifies, unless it has received such a
-Group ID or has observed the FEC instance from its first block.  For lost source packets whose block it has
-not delimited, because it holds no repair packet of that block, the
-receiver instead fetches the Group range that [@!MOQ-FEC] Section 7.5
-derives from a lost SS_ID.  No other coordinate mapping is needed,
-and the returned symbols are deduplicated per item 1 of Section 6.  A receiver without a MoQ
-session cannot request unicast repair; it relies on in-band FEC and,
-where published, the keyframe overlay ([@!MOQ-FEC] Section 6.4).
+no repair-track Group ID over MoQ.  Before its first FETCH it
+therefore establishes the wrap epoch, as [@!MOQ-FEC] Section 7.5
+specifies, unless it has received such a Group ID or has observed the
+FEC instance from its first block.  To do so, it sends a TRACK_STATUS
+request for the repair track ([@!I-D.ietf-moq-transport]
+Section 9.13).  The epoch comes from the Group of the Largest Object
+([@!I-D.ietf-moq-transport] Section 3.1.4) carried in the
+LARGEST_OBJECT parameter ([@!I-D.ietf-moq-transport] Section 9.20.17)
+of the REQUEST_OK (TRACK_STATUS_OK) that answers it.  For
+lost source packets whose block it has not delimited, because it
+holds no repair packet of that block, the receiver instead fetches
+the Group range that [@!MOQ-FEC] Section 7.5 derives from a lost
+SS_ID.  No other coordinate mapping is needed, and the returned
+symbols are deduplicated per item 1 of Section 6.  A receiver without
+a MoQ session cannot request unicast repair; it relies on in-band FEC
+and, where published, the keyframe overlay ([@!MOQ-FEC] Section 6.4).
 
-A FETCH for a repair-track group that the relay no longer retains
-fails or returns none of the group's objects, and the receiver then
-treats the block as unrecoverable.  How long a relay retains
-repair-track groups is relay policy.
+A relay that does not hold the requested objects fetches them
+upstream ([@!I-D.ietf-moq-transport] Sections 3.2.3 and 7.6).  A
+FETCH for a repair-track group that neither the relay nor any
+publisher upstream of it still holds fails or returns none of the
+group's objects, and the receiver then treats the block as
+unrecoverable.  How long relays and the original publisher keep
+repair-track groups is their own policy.
+
+## Unicast Subscriptions After a Switch to Multicast
+
+After a receiver switches to multicast (Section 4.1), it still holds
+the unicast subscriptions that delivered the same media before the
+switch: to the tracks it now receives on multicast or to their loc
+or cmaf alternatives (Section 4.1), to the repair tracks of such a
+loc or cmaf alternative, and to the repair tracks that its multicast
+endpoints now carry.
+While these subscriptions forward objects, the receiver gets the
+media twice, and the network still carries the unicast copy that the
+multicast path replaces.  Once multicast delivery of a track is
+verified, for example by the receipt on multicast of a complete group
+or a complete FEC block of the track, the receiver SHOULD pause these
+subscriptions or end them:
+
+- To pause a subscription, the receiver sends a REQUEST_UPDATE with
+  the FORWARD parameter set to 0 ([@!I-D.ietf-moq-transport]
+  Sections 3.1.1 and 9.20.18).  The subscription stays Established,
+  and the publisher sends no objects on it.  Failback then needs no
+  new SUBSCRIBE.
+- To end a subscription, the receiver sends STOP_SENDING
+  ([@!I-D.ietf-moq-transport] Section 3.1).
+
+The receiver does not pause its other subscriptions, such as those
+to the catalog track, any manifest track (Section 7.2.1), and any
+repair layer that no endpoint it holds carries and that it combines
+with multicast source symbols (Section 6, item 2; [@!MOQ-FEC]
+Section 6.3.6).
+
+On failback (Section 6), the receiver resumes a paused subscription
+with a REQUEST_UPDATE that sets FORWARD to 1.  FILL_PARAMETERS
+carried while a subscription is paused opens no fill fetch stream,
+and resuming without re-sending FILL_PARAMETERS opens none either
+([@!I-D.ietf-moq-transport] Section 3.4.1).  A receiver that needs
+the current group from its start therefore sends FILL_PARAMETERS, as
+in the join of Section 6, in a further REQUEST_UPDATE after it
+receives the REQUEST_UPDATE_OK for the update that resumed the
+subscription.  A receiver that ended its subscriptions subscribes
+again as Section 6 describes.
+
+Pausing or ending these subscriptions does not affect per-block
+unicast repair (Section 6.2), which uses FETCH.
 
 # Security Considerations
 
@@ -747,7 +867,7 @@ is delegated to the relay per [@!RFC7450].
 ## Content Authentication
 
 Multicast UDP delivery lacks the integrity protection that QUIC
-provides on unicast paths.  This section defines "bc-provenance", a
+provides on unicast paths.  This section defines "moq-provenance", a
 manifest-provenance authentication profile.  The publisher
 computes, per MoQ group per protected track, an ordered digest
 structure over the group's objects; signs its root with a dedicated
@@ -755,7 +875,7 @@ broadcast Ed25519 key [@!RFC8032]; and publishes the signed
 manifest on a dedicated MoQ track.  Receivers verify each object --
 received or FEC-recovered -- against the group root before admitting
 it to reassembly and decode.  Verification cost is one signature
-verification per group; all digests use BLAKE3 [@?BLAKE3].
+verification per group; all digests use BLAKE3 [@!BLAKE3].
 Per-packet signatures suit only low-rate signaling flows; media
 tracks use this profile.
 
@@ -772,19 +892,28 @@ themselves.
 
 ### Manifest Content
 
-A manifest is an ordered sequence of per-object entries, each
-binding:
+A manifest is an ordered sequence of per-object entries, one for
+each object of the group that carries a packet of the media track's
+own MMTP sub-flow (Section 4.1), each binding:
 
-- **object_id**: the explicit source-symbol identity assigned at
-  encode time.  `object_id` values MUST be unique within the
-  group but need not be contiguous or start at zero.
+- **object_id**: the packet_sequence_number of the MMTP packet that
+  the object carries ([@!MOQ-MMT] Section 3.1).  It is neither the
+  MoQ Object ID nor the SS_ID.  Every delivery path carries it inside
+  the authenticated bytes (Section 7.2.4), and FEC decoding restores
+  it with the packet, so a receiver reads it from the packet however
+  the packet reached it.  `object_id` values are therefore unique
+  within the group but need not be contiguous or start at zero.
 - **digest**: the object's leaf digest -- a keyed BLAKE3-256 over its
   authenticated bytes (Section 7.2.4), domain-separated with
   `authScope` and computed exactly as in Section 7.2.9.
 - **length**: the length of the authenticated bytes in octets.
 
-The entry sequence is followed by a group-close record binding
-(group_id, object_count), and by the signature.  The on-wire encoding
+Entries are in ascending numeric `object_id` order, also in a group
+whose packet_sequence_numbers wrap.  An object that carries a
+signaling packet on packet_id 0, such as the AL-FEC signaling object
+([@!MOQ-MMT] Section 4.6), has no entry.  The entry sequence is
+followed by a group-close record binding (group_id, object_count),
+and by the signature.  The on-wire encoding
 of the manifest object, of the leaf digest, and of the value the
 signature covers is specified in Section 7.2.9 (Canonical Encoding).
 
@@ -800,7 +929,7 @@ covers the flat digest list directly.
 The signature MUST NOT cover the bare root.  It covers the signed
 message of Section 7.2.9, which binds the root (or, with
 `compaction` "none", the flat digest list) to its context: the
-broadcast namespace, track name, group_id, object-id range, key
+track namespace, track name, group_id, object-id range, key
 epoch, manifest format version, and the track's catalog-advertised
 codec, timing, and FEC-geometry parameters.
 
@@ -822,7 +951,9 @@ the only range excluded.  It is excluded because it is not part of
 the protected packet: it is appended after FEC encoding, so a packet
 recovered by FEC decoding carries none ([@!MOQ-FEC] Section 7.3).
 The authenticated bytes are therefore identical across MoQ unicast,
-multicast UDP, and ROUTE, and for a packet recovered by FEC decoding.
+multicast UDP, and Real-Time Object Delivery over Unidirectional
+Transport (ROUTE) [@?ATSC-A331], and for a packet recovered by FEC
+decoding.
 This gives cross-path verifiability: the same digest validates a
 symbol regardless of which path delivered it, so a symbol received on
 any path, or recovered by FEC decoding, verifies against the same
@@ -835,9 +966,9 @@ trailer carries ([@!MOQ-FEC] Section 8.5).
 The authentication configuration is declared in the catalog as part
 of the multicast configuration:
 
-~~~ json
+~~~
 "auth": {
-  "scheme": "bc-provenance",
+  "scheme": "moq-provenance",
   "hash": "blake3",
   "sig": "ed25519",
   "publicKey": "<32-byte Ed25519 public key, base64url unpadded>",
@@ -856,8 +987,8 @@ of the multicast configuration:
 
 **scheme**, **hash**, **sig** (strings, REQUIRED): The
   authentication profile, digest algorithm, and signature algorithm.
-  This document defines only "bc-provenance" with "blake3"
-  (BLAKE3-256 [@?BLAKE3]) and "ed25519" ([@!RFC8032]).
+  This document defines only "moq-provenance" with "blake3"
+  (BLAKE3-256 [@!BLAKE3]) and "ed25519" ([@!RFC8032]).
 
 **publicKey** (string, REQUIRED): The 32-byte Ed25519 broadcast
   public key, base64url-encoded without padding.
@@ -886,7 +1017,9 @@ of the multicast configuration:
     track as it appears in the catalog.
   - **manifestTrack** (string, REQUIRED): Name of the manifest
     track carrying the signed manifests for `mediaTrack`.
-    `manifestTrack` values MUST NOT collide across entries.
+    `manifestTrack` values MUST NOT collide across entries.  Both
+    `mediaTrack` and `manifestTrack` are resolved in the namespace of
+    the catalog track, as the endpoint `name` field is (Section 4.1).
   - **authScope** (string, REQUIRED): A fresh, unpredictable
     32-byte value, base64url-encoded without padding, generated
     per (session, track) and mixed into the digest computation as
@@ -932,15 +1065,22 @@ channel provides no authentication.
 
 ### ROUTE and Broadcast Carriage
 
+This section is informative.
+
 Hybrid receivers -- receivers that also hold the MoQ catalog --
 verify symbols from any carrier against the same
 catalog-advertised manifests; no carrier-specific authentication
 is needed.
 
 For broadcast-only receivers, manifest objects are carried in the
-ROUTE signaling carousel, and each source block additionally
-carries the signed group digest in an ALC/LCT EXT_AUTH header
-extension per [@?RFC5775].
+ROUTE signaling carousel [@?ATSC-A331], and each source block
+additionally carries the signed group digest in the Layered Coding
+Transport (LCT) header extension EXT_AUTH (Header Extension Type
+(HET) 1, [@?RFC5651] Section 5.2.1) of its Asynchronous Layered
+Coding (ALC) packets [@?RFC5775].  The extension identifies this
+profile by its ASID field ([@?RFC6584] Section 2), whose value the
+session description assigns.  This document does not define the
+encoding of the group digest in EXT_AUTH.
 
 ### Canonical Encoding
 
@@ -954,12 +1094,12 @@ All multi-octet integers are unsigned and in network byte order
 
 - `u8`, `u16`, `u32`, `u64`: unsigned integers of that width.
 - `lp16(x)`: a `u16` octet count followed by the `x` octets; `lp32(x)`
-  is the same with a `u32` count.  A string is encoded as its UTF-8
-  octets.
+  is the same with a `u32` count.  A catalog string (`keyId`, `codec`,
+  `fecAlgorithm`) is encoded as its UTF-8 octets.
 - A digest is 32 octets (BLAKE3-256); the signature is 64 octets
   (Ed25519 [@!RFC8032]).
 - `BLAKE3(m)` is BLAKE3 in unkeyed mode; `BLAKE3(k; m)` is BLAKE3
-  keyed with the 32-octet key `k` ([@?BLAKE3]).
+  keyed with the 32-octet key `k` ([@!BLAKE3]).
 
 A conforming sender and receiver MUST produce identical octet strings
 for the leaf digest, the root, and the signed message.  A receiver
@@ -1004,26 +1144,32 @@ manifest object and the catalog:
 
 ~~~
 signed_message =
-    "BCPV1-sig"                       # 9-octet ASCII domain tag
+    "MOQPV1-sig"                      # 10-octet ASCII domain tag
  || u8(manifest_format_version)       # = 1
  || u8(compaction)                    # 0 = none, 1 = merkle
- || lp16(broadcast_namespace)
+ || u8(n)                             # namespace field count
+ || lp16(ns_field_1) || ... || lp16(ns_field_n)
  || lp16(track_name)                  # the media track name
  || u64(group_id)
  || u32(object_id_min) || u32(object_id_max)
  || lp16(keyId)
  || params_hash                       # 32 octets (below)
- || lp32(root_or_list)                # 32-octet root (merkle), or
-                                      #   32*m-octet flat list (none)
+ || lp32(root_or_list)                # root, or flat list (none)
 ~~~
 
-`object_id_min` and `object_id_max` are the smallest and largest
-`object_id` in the manifest.  `params_hash` binds the track's codec, timing, and
-FEC geometry as a hash over a fixed-order encoding of those catalog
-fields, so they are bound without depending on a canonical JSON form:
+`n` and `ns_field_1` to `ns_field_n` are the number and the bytes of
+the Track Namespace Fields of the media track, in order, and
+`track_name` is the bytes of its Track Name, each as MoQ Transport
+carries them ([@!I-D.ietf-moq-transport] Sections 2.4.1 and 8.7).  The
+value `root_or_list` is the 32-octet root (merkle) or the 32 * m-octet
+flat list (none).  `object_id_min` and `object_id_max` are the
+smallest and largest `object_id` in the manifest.  `params_hash`
+binds the track's codec, timing, and FEC geometry as a hash over a
+fixed-order encoding of those catalog fields, so they are bound
+without depending on a canonical JSON form:
 
 ~~~
-params_hash = BLAKE3("BCPV1-params"
+params_hash = BLAKE3("MOQPV1-params"
     || lp16(codec) || u32(timescale) || u32(groupDurationTicks)
     || lp16(fecAlgorithm) || u32(sourceSymbols) || u32(repairSymbols)
     || u32(symbolSize) || u32(interleaveDepthMs))
@@ -1044,13 +1190,13 @@ manifest_object =
  || u64(group_id)
  || u32(object_count = m)
  || m * ( u32(object_id) || u32(length) || 32-octet digest )
-                                      #   in ascending object_id order
  || 64-octet Ed25519 signature
 ~~~
 
 The `group_id` and `object_count` fields are the group-close record of
-Section 7.2.2.  A receiver reconstructs the signed message from these
-fields plus the `broadcast_namespace`, `track_name`, `keyId`, and
+Section 7.2.2, and the entries are in ascending `object_id` order.  A
+receiver reconstructs the signed message from these fields plus the
+media track's namespace and `track_name`, the `keyId`, and the
 catalog parameters bound by the profile, recomputes the root (or flat
 list) from the entry digests, and verifies the signature against the
 `publicKey`.  A worked test vector is in Appendix A.
@@ -1107,9 +1253,9 @@ registration.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026'/>
+    <date year='2026' month='October' day='26'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC'>
@@ -1118,9 +1264,12 @@ registration.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026'/>
+    <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
+      <organization>Rutgers University</organization>
+    </author>
+    <date year='2026' month='October' day='26'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-01'/>
 </reference>
 
 <reference anchor='QUIC-MULTICAST' target='https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/'>
@@ -1162,12 +1311,46 @@ registration.
   </front>
 </reference>
 
-# Test Vector: bc-provenance (BCPV1)
+<reference anchor='ATSC-A331' target='https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/'>
+  <front>
+    <title>Signaling, Delivery, Synchronization, and Error Protection</title>
+    <author>
+      <organization>ATSC</organization>
+    </author>
+    <date year='2026' month='February'/>
+  </front>
+  <seriesInfo name='ATSC' value='A/331:2026-02'/>
+</reference>
 
-This appendix is informative.  It gives a worked `bc-provenance`
+<reference anchor='ATSC-A322' target='https://www.atsc.org/wp-content/uploads/2026/06/A322-2026-06-Physical-Layer-Protocol.pdf'>
+  <front>
+    <title>Physical Layer Protocol</title>
+    <author>
+      <organization>ATSC</organization>
+    </author>
+    <date year='2026' month='June'/>
+  </front>
+  <seriesInfo name='ATSC' value='A/322:2026-06'/>
+</reference>
+
+<reference anchor='ARIB-B60'>
+  <front>
+    <title>MMT-Based Media Transport Scheme in Digital Broadcasting Systems</title>
+    <author>
+      <organization>ARIB</organization>
+    </author>
+    <date/>
+  </front>
+  <seriesInfo name='ARIB STD-B60' value='Version 1.14'/>
+</reference>
+
+# Test Vector: moq-provenance (MOQPV1)
+
+This appendix is informative.  It gives a worked `moq-provenance`
 example (Section 7.2.9) with `compaction` "merkle".  All values are
 hexadecimal; the Ed25519 secret seed is included only so the vector
-is reproducible.
+is reproducible.  The authenticated bytes are placeholders rather
+than MMTP packets, so the `object_id` values are not read from them.
 
 Inputs:
 
@@ -1178,7 +1361,7 @@ ed25519 publicKey   : 03a107bff3ce10be1d70dd18e74bc099
                       67e4d6309ba50d5f1ddc8664125531b8
 authScope           : a0a1a2a3a4a5a6a7a8a9aaabacadaeaf
                       b0b1b2b3b4b5b6b7b8b9babbbcbdbebf
-broadcast_namespace : "example.arena"
+track namespace     : one field, "example.arena"
 track_name          : "video/base"
 group_id            : 42
 keyId               : "v1"
@@ -1188,8 +1371,8 @@ params (for params_hash):
   codec="avc1.640028" timescale=90000 groupDurationTicks=3000
   fecAlgorithm="raptorq" sourceSymbols=32 repairSymbols=16
   symbolSize=1312 interleaveDepthMs=133
-params_hash         : d04d1a707cebcdc0fad2623afef8ebbd
-                      bed0e8b97ffa0eb5f99a7f6a751a01af
+params_hash         : 6f0ab95fb0bcbaf034f1d889c251a3b3
+                      366ba01152edfcdcd615f2395e72ccb8
 
 objects (object_id, length, authenticated_bytes):
   0, 40, 0x11 repeated 40 times
@@ -1216,20 +1399,20 @@ merkle root         : 6d32a8a2e87a1a0ea7e7d98f35c7f3e3
                       c8b8bd8226a3cf1baa53ebb115814c34
 ~~~
 
-signed_message (126 octets) and the Ed25519 signature over it:
+signed_message (128 octets) and the Ed25519 signature over it:
 
 ~~~
 signed_message :
-  42435056312d736967 0101 000d 6578616d706c652e6172656e61
+  4d4f515056312d736967 0101 01 000d 6578616d706c652e6172656e61
   000a 766964656f2f62617365 000000000000002a 00000000 00000002
   0002 7631
-  d04d1a707cebcdc0fad2623afef8ebbdbed0e8b97ffa0eb5f99a7f6a751a01af
+  6f0ab95fb0bcbaf034f1d889c251a3b3366ba01152edfcdcd615f2395e72ccb8
   00000020
   6d32a8a2e87a1a0ea7e7d98f35c7f3e3c8b8bd8226a3cf1baa53ebb115814c34
 
 signature (64 octets) :
-  179971c4e4e9b04ada879d5a96f4980351e2c6e90a1e29f7c2363d959dd974e2
-  75a88b0cef7c66d8c38910499282d1bad710bc1cae4c62043978c11506f26c0e
+  d274092eb1f7de4500e3010732bf1f3dfdadc5a2559020394a02f22de8f99a73
+  524d2257bb289382b657d97b19c0fb9c1ff6af2b751f8fdd259d7cc6d9e5460e
 ~~~
 
 The full manifest object (198 octets) carried on the manifest track:
@@ -1242,6 +1425,117 @@ The full manifest object (198 octets) carried on the manifest track:
                  b5404ae171e2753d6771181d9f2ee845
 0000000200000018 e452c8d0abadb8a9c781c7fc64755552
                  550328bab5d69928a4e7be11ef7478d9
-179971c4e4e9b04ada879d5a96f4980351e2c6e90a1e29f7c2363d959dd974e2
-75a88b0cef7c66d8c38910499282d1bad710bc1cae4c62043978c11506f26c0e
+d274092eb1f7de4500e3010732bf1f3dfdadc5a2559020394a02f22de8f99a73
+524d2257bb289382b657d97b19c0fb9c1ff6af2b751f8fdd259d7cc6d9e5460e
 ~~~
+
+# Changes Since draft-ramadan-moq-multicast-00
+
+This appendix is informative.  It is to be removed before publication
+as an RFC.
+
+- Section 1: added a paragraph on TreeDN [@?RFC9706] as an incremental
+  path to native multicast, with AMT relays serving unicast-only
+  networks; receivers without UDP socket access stay on
+  MoQ unicast.  The statement that MoQ relays MAY operate as TreeDN
+  nodes is removed, because [@?RFC9706] defines no such role.  The
+  catalog extension is no longer called container-agnostic.
+- Section 1.1: a catalog-provided service name or relay address is
+  a discovery input, not proof that an upstream is reachable or
+  healthy.
+- Section 2: defines service hostname and protocol health.
+- Sections 3 and 4.1: the availability of several transports, the
+  preference for SFN diversity reception, and the configurability of
+  hysteresis thresholds are no longer stated with BCP 14 keywords.
+- New Section 3.1: a receiver given a service hostname for a MoQ
+  upstream or an AMT relay resolves it at connection time and treats
+  the A and AAAA answers as candidates.  It selects a candidate only
+  after protocol health: MoQ session setup and the capability check
+  for a MoQ upstream, or the AMT exchange and the first data or a
+  bounded wait for an AMT relay.  It races a bounded batch, cancels
+  the losers, honors DNS TTLs, and does not pin an address across
+  reconnects.
+- Section 4.1: an endpoint lists only mmtp tracks and the
+  `fec-repair` tracks that repair them, and a receiver ignores an
+  endpoint that lists any other track.  A loc or cmaf track reaches
+  multicast through an mmtp rendition track in its `altGroup`.
+- Section 4.1: an endpoint names tracks in the namespace of the
+  catalog track.  The IPv6 ASM range is now ff00::/8 outside the SSM
+  range ff3x::/32, which admits transient, unicast-prefix-based and
+  embedded-RP groups.  IGMPv3 and MLDv2 are cited to [@!RFC9776] and
+  [@!RFC9777], which obsolete RFC 3376 and RFC 3810.
+- Section 4.1: points to Section 6.3, under which a receiver SHOULD
+  pause or end the unicast subscriptions that the multicast path
+  replaces once multicast delivery is verified.
+- Section 4.2.1: the new `discovery` value "dns" resolves the
+  `relay` service hostname to candidates that the subscriber
+  validates (Section 3.1).  It is now the recommended method when a
+  relay service hostname is available, in place of "driad".
+  `relay` is a hostname with "dns", a literal
+  address with "manual", and absent with "driad".  A losing AMT
+  candidate sends a Membership Update with the leave before its
+  socket closes.  The search starts with a relay in the subscriber's
+  own network, found with DNS-SD or the AMT anycast addresses
+  ([@!RFC8777] Section 3.1.2).  The claim that DRIAD relay addresses
+  are typically anycast is removed.  The examples name a relay
+  service hostname.  The `port` field now says that a value other
+  than 2268 departs from [@!RFC7450] and never applies to a relay
+  found by DRIAD.
+- Section 4.2.2: the atsc3 fields cite [@!ATSC-A331] and
+  [@!ATSC-A322].
+- Section 5: the paragraph on LOC and CMAF objects now refers to the
+  mmtp rendition rule of Section 4.1.  It no longer says that
+  multicast carriage uses MMTP "regardless of a track's unicast
+  packaging".  The catalog-derived FEC configuration now also covers
+  the Reed-Solomon parameters ([@!MOQ-FEC] Section 4.5).  The
+  transport table drops the QUIC datagram row, because [@!MOQ-MMT]
+  Section 4.3 sends the objects of an mmtp track only in subgroups.
+- Section 6: failover uses the joins of [@!I-D.ietf-moq-transport]
+  Section 3.5 (LOCATION_FILTER Next Object or Relative Start, and
+  FILL_PARAMETERS for the current group).  These replace the "Largest
+  Object filter" and "Next Group Start filter", which that document no
+  longer defines.  A paused unicast subscription is resumed instead
+  of subscribing again.
+- Section 6.2: "standalone FETCH" is now FETCH, and "Largest Location"
+  is now Largest Object, with the LARGEST_OBJECT parameter cited.  The
+  text now says that repair Group IDs use only [0, 2^62) of the MoQ
+  Transport Group ID range, which goes up to 2^64 - 1.  A relay that
+  does not hold a repair-track group fetches it upstream, so a FETCH
+  fails only when no publisher upstream still holds the group.
+- New Section 6.3: after a switch to multicast, a receiver SHOULD
+  pause its unicast subscriptions with REQUEST_UPDATE (FORWARD 0) or
+  end them with STOP_SENDING, and resumes paused ones on failback.  It
+  keeps any repair layer that no endpoint carries and that it combines
+  with multicast source symbols.
+- Section 7.2: the profile is renamed from "bc-provenance" to
+  "moq-provenance", and its domain tags from "BCPV1-sig" and
+  "BCPV1-params" to "MOQPV1-sig" and "MOQPV1-params".  [@!BLAKE3] is
+  now a normative reference.
+- Section 7.2.2: `object_id` is now the packet_sequence_number of the
+  MMTP packet, which every delivery path carries and FEC decoding
+  restores.  It is neither the MoQ Object ID nor the SS_ID.  An object
+  that carries a signaling packet on packet_id 0 has no entry.
+- Section 7.2.5: `mediaTrack` and `manifestTrack` are resolved in the
+  namespace of the catalog track, as the endpoint `name` field is.
+- Section 7.2.8: the section is now informative.  EXT_AUTH is now
+  cited to [@?RFC5651] Section 5.2.1 instead of [@?RFC5775] alone.
+  The section now states that the extension identifies this profile
+  by its ASID field ([@?RFC6584] Section 2), whose value the session
+  description assigns, and that this document does not define the
+  encoding of the group digest in EXT_AUTH.
+- Section 7.2.9: the signed message binds the media track's Track
+  Namespace Fields as a counted list of length-prefixed fields instead
+  of a single string, and the Track Name as its bytes.  The test
+  vector of Appendix A is regenerated for the new encoding and domain
+  tags, and notes that its authenticated bytes are placeholders, not
+  MMTP packets.
+- Editorial: the Abstract and Sections 1 and 7.2.4 expand MMTP, AMT,
+  DRIAD and ROUTE.  Section 1 no longer calls failover seamless,
+  Section 1.1 calls multicast an additional delivery path instead of
+  an optimized one, and Section 3 calls MoQ/WebTransport the fallback
+  that every client supports instead of the universal fallback.  The
+  examples of Section 4.1 use a documentation address, and the `auth`
+  fragment of Section 7.2.5 is not labeled as JSON.
+- References: [@!MOQ-MMT] and [@!MOQ-FEC] now name their -01
+  revisions, and [@!MOQ-FEC] lists both of its authors.  ATSC A/331,
+  ATSC A/322 and ARIB STD-B60 are now cited.

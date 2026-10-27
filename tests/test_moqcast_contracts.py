@@ -140,9 +140,14 @@ class PublishedExamples(unittest.TestCase):
                 self.assertEqual(track.get("mmtpMode"), "mfu", where)
                 self.assertIsInstance(track.get("timescale"), int, where)
                 self.assertTrue(required <= fec.keys(), where)
-                self.assertEqual(fec["algorithm"], "raptorq", where)
+                self.assertIn(fec["algorithm"], ("raptorq", "reed-solomon"), where)
                 self.assertTrue(all(isinstance(fec[k], int) and fec[k] >= 1 for k in ("sourceSymbols", "repairSymbols")), where)
-                self.assertTrue(isinstance(fec["symbolSize"], int) and fec["symbolSize"] % 8 == 0 and fec["symbolSize"] > 0, where)
+                self.assertTrue(isinstance(fec["symbolSize"], int) and fec["symbolSize"] > 0, where)
+                if fec["algorithm"] == "raptorq":
+                    self.assertEqual(fec["symbolSize"] % 8, 0, where)  # RFC 6330 Al = 8
+                else:
+                    # GF(2^8) Cauchy code: K + P <= 255 per FEC instance (fec Section 4.4)
+                    self.assertLessEqual(fec["sourceSymbols"] + fec["repairSymbols"], 255, where)
                 repair = [item for item in tracks if item.get("name") == fec["repairTrack"]]
                 self.assertEqual(len(repair), 1, f"missing repair track for {where}")
                 self.assertEqual(repair[0].get("packaging"), "fec-repair", where)
@@ -151,7 +156,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertGreater(seen, 0)
 
     def test_mmt_negative_time_rows_compute_admission_and_unique_groups(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-00.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-mmt-01.md").read_text(encoding="utf-8")
         part = self.sec(text, "Negative authored timestamps use", "### Catalog Signaling")
         anchor = int(re.search(r"presentationAnchorTicks:\s*(-?\d+)", part).group(1))
         duration = int(re.search(r"groupDurationTicks:\s*(\d+)", part).group(1))
@@ -171,7 +176,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertIn("computed Group number MUST be strictly greater than the Group number", " ".join(text.split()))
 
     def test_packet_budget_arithmetic(self):
-        text = (ROOT / "draft-ramadan-moq-fec-00.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-fec-01.md").read_text(encoding="utf-8")
         budget = self.sec(text, "Parameter consistency:", "The catalog envelope")
         rows = re.findall(r"ceil\(([\d,]+) / ([\d,]+)\) = ([\d,]+)", budget)
         self.assertEqual(len(rows), 2)
@@ -192,7 +197,7 @@ class PublishedExamples(unittest.TestCase):
         return vector, (lambda ticks: (ticks - anchor) // duration)
 
     def test_mmt_published_bframe_and_tick_only_examples(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-00.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-mmt-01.md").read_text(encoding="utf-8")
         definition = " ".join(self.sec(text, "- `ticks` is", "- `groupDurationTicks`").split())
         self.assertIn("first AU in decode order", definition)
         self.assertNotIn("presentation order", definition)
@@ -221,7 +226,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertEqual((track["timescale"], track["groupDurationTicks"]), (44100, 1470))
 
     def test_mmt_open_gop_leading_pictures_yield_increasing_groups(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-00.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-mmt-01.md").read_text(encoding="utf-8")
         vector, group = self.decode_order_vector(text)
         closed, open_gop = vector["mpuSamplePtsInDecodeOrder"]
         self.assertEqual(closed[0], min(closed))  # closed GOP: both selections agree
@@ -234,7 +239,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertEqual(presentation_min, [0, 0])  # violates the strictly-greater rule
 
     def test_fec_published_json_vectors_compute_blocks_and_short_tail(self):
-        text = (ROOT / "draft-ramadan-moq-fec-00.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-fec-01.md").read_text(encoding="utf-8")
         cases = self.sec(text, "**Conformance cases.**", "# Priority")
         vector = next(json.loads(raw) for _, raw in fences(cases, "json") if '"sourcePacketsPerAccessUnit"' in raw)
         self.assertEqual((vector["fps"], vector["gopFrames"], vector["groupDurationMs"], vector["interleaveDepthMs"]), (30, 30, 1000, 133))
