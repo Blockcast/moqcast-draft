@@ -1972,8 +1972,8 @@ endpoint whose <tt>tracks[]</tt> array lists them all.</t>
 <t>S-TSID carries no <tt>networkSource</tt> (<xref target="MOQ-MULTICAST"></xref> Section 4.2).
 A converter that adds an AMT network source advertises &quot;driad&quot;
 discovery only for a source address whose reverse DNS zone carries an
-AMT relay record, and otherwise gives the relay address in <tt>relay</tt>
-(<xref target="MOQ-MULTICAST"></xref> Section 4.2.1).</t>
+AMT relay record, and otherwise names a relay service hostname in
+<tt>relay</tt> with &quot;dns&quot; discovery (<xref target="MOQ-MULTICAST"></xref> Section 4.2.1).</t>
 <t><tt>timescale</tt>, the group-duration field, and <tt>mmtpMode</tt> are not carried in
 S-TSID, yet they are required fields (Section 12.1).  The converter
 takes <tt>timescale</tt> from <tt>asset_timescale</tt> in the MP table when
@@ -2472,7 +2472,8 @@ conversion, a RepairFlow converts to <tt>fec.algorithm</tt> &quot;raptorq&quot;,
 <tt>bitrate</tt> is 1000 x <tt>LS@bw</tt>, <tt>isLive</tt> is set, and only &quot;raptorq&quot;
 tracks export a RepairFlow.  A converter that adds an AMT network
 source advertises &quot;driad&quot; discovery only where the source address
-has an AMT relay record in reverse DNS.  The converter rules no
+has an AMT relay record in reverse DNS, and otherwise names a relay
+service hostname with &quot;dns&quot; discovery.  The converter rules no
 longer use BCP 14 keywords, since those sections are informative.
 The example S-TSID uses a hexBinary <tt>fecOTI</tt>, no reserved
 <tt>srcFecPayloadId</tt>, and <tt>@bw</tt> in kilobits per second.</li>

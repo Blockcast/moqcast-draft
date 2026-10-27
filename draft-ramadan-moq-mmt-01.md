@@ -1898,8 +1898,8 @@ endpoint whose `tracks[]` array lists them all.
 S-TSID carries no `networkSource` ([@!MOQ-MULTICAST] Section 4.2).
 A converter that adds an AMT network source advertises "driad"
 discovery only for a source address whose reverse DNS zone carries an
-AMT relay record, and otherwise gives the relay address in `relay`
-([@!MOQ-MULTICAST] Section 4.2.1).
+AMT relay record, and otherwise names a relay service hostname in
+`relay` with "dns" discovery ([@!MOQ-MULTICAST] Section 4.2.1).
 
 `timescale`, the group-duration field, and `mmtpMode` are not carried in
 S-TSID, yet they are required fields (Section 12.1).  The converter
@@ -2380,7 +2380,8 @@ publication as an RFC.
   `bitrate` is 1000 x `LS@bw`, `isLive` is set, and only "raptorq"
   tracks export a RepairFlow.  A converter that adds an AMT network
   source advertises "driad" discovery only where the source address
-  has an AMT relay record in reverse DNS.  The converter rules no
+  has an AMT relay record in reverse DNS, and otherwise names a relay
+  service hostname with "dns" discovery.  The converter rules no
   longer use BCP 14 keywords, since those sections are informative.
   The example S-TSID uses a hexBinary `fecOTI`, no reserved
   `srcFecPayloadId`, and `@bw` in kilobits per second.

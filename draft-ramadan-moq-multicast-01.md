@@ -65,6 +65,7 @@ incremental path to native multicast.  A network that supports
 multicast delivers the stream to its receivers as native SSM.  A
 receiver on a unicast-only network reaches the same stream through an
 Automatic Multicast Tunneling (AMT) relay [@!RFC7450] that it finds
+in its own network, from a relay service hostname (Section 3.1), or
 with DNS Reverse IP AMT Discovery (DRIAD) [@!RFC8777].  Section 4.2.1
 describes how a catalog signals both.  Each network can therefore
 turn on multicast when it is ready.  Until then, its receivers that
@@ -1434,14 +1435,26 @@ This appendix is informative.  It is to be removed before publication
 as an RFC.
 
 - Section 1: added a paragraph on TreeDN [@?RFC9706] as an incremental
-  path to native multicast, with AMT relays found by DRIAD serving
-  unicast-only networks; receivers without UDP socket access stay on
+  path to native multicast, with AMT relays serving unicast-only
+  networks; receivers without UDP socket access stay on
   MoQ unicast.  The statement that MoQ relays MAY operate as TreeDN
   nodes is removed, because [@?RFC9706] defines no such role.  The
   catalog extension is no longer called container-agnostic.
+- Section 1.1: a catalog-provided service name or relay address is
+  a discovery input, not proof that an upstream is reachable or
+  healthy.
+- Section 2: defines service hostname and protocol health.
 - Sections 3 and 4.1: the availability of several transports, the
   preference for SFN diversity reception, and the configurability of
   hysteresis thresholds are no longer stated with BCP 14 keywords.
+- New Section 3.1: a receiver given a service hostname for a MoQ
+  upstream or an AMT relay resolves it at connection time and treats
+  the A and AAAA answers as candidates.  It selects a candidate only
+  after protocol health: MoQ session setup and the capability check
+  for a MoQ upstream, or the AMT exchange and the first data or a
+  bounded wait for an AMT relay.  It races a bounded batch, cancels
+  the losers, honors DNS TTLs, and does not pin an address across
+  reconnects.
 - Section 4.1: an endpoint lists only mmtp tracks and the
   `fec-repair` tracks that repair them, and a receiver ignores an
   endpoint that lists any other track.  A loc or cmaf track reaches
@@ -1454,12 +1467,18 @@ as an RFC.
 - Section 4.1: points to Section 6.3, under which a receiver SHOULD
   pause or end the unicast subscriptions that the multicast path
   replaces once multicast delivery is verified.
-- Section 4.2.1: relay discovery follows the preference order of
-  [@!RFC8777] Section 3.1.2, so a relay in the subscriber's own
-  network, found with DNS-SD or the AMT anycast addresses, comes
-  before the `relay` field and DRIAD.  That order has no `relay`
-  field, and the section tries it ahead of DRIAD.  The claim that DRIAD relay addresses are typically
-  anycast is removed.  The `port` field now says that a value other
+- Section 4.2.1: the new `discovery` value "dns" resolves the
+  `relay` service hostname to candidates that the subscriber
+  validates (Section 3.1).  It is now the recommended method when a
+  relay service hostname is available, in place of "driad".
+  `relay` is a hostname with "dns", a literal
+  address with "manual", and absent with "driad".  A losing AMT
+  candidate sends a Membership Update with the leave before its
+  socket closes.  The search starts with a relay in the subscriber's
+  own network, found with DNS-SD or the AMT anycast addresses
+  ([@!RFC8777] Section 3.1.2).  The claim that DRIAD relay addresses
+  are typically anycast is removed.  The examples name a relay
+  service hostname.  The `port` field now says that a value other
   than 2268 departs from [@!RFC7450] and never applies to a relay
   found by DRIAD.
 - Section 4.2.2: the atsc3 fields cite [@!ATSC-A331] and
