@@ -2180,10 +2180,21 @@ on the multicast path as well (two at the RECOMMENDED placement of
 (#emission-and-cadence), up to 63 under its bound, which assumes
 that only the sender's records raise the floor of step 1), and a
 record of the previous epoch once a grace period so started has
-run.  That needs a mirror that leads the multicast path at the
-receiver by that much; the injector chooses which mirror it reads
-but makes no mirror deliver earlier, and the statements of this
-section about a relay assume no such sender on the group.  Datagrams
+run.  The first needs a mirror that leads the multicast path at the
+receiver by that many windows; the second, one that leads it by
+more than `maxAuthDelayMs + 2 x manifestTimerMs` (240 ms at the
+defaults), a lead within the bound of (#emission-and-cadence) on
+any flow: the injector's copy of the new epoch's first record
+starts the period that long before the multicast path delivers that
+record, which the last twins of the previous epoch immediately
+precede ((#emission-and-cadence)), so a record of the previous
+epoch, its own copy or its twin, that arrives on `manifestPort`
+within the excess of the lead over the period before that record
+is dropped, and a window of the previous epoch every copy of whose
+record so arrives, the mirror having lost it or the relay withheld
+it, expires.  The injector chooses which mirror it reads but makes
+no mirror deliver earlier, and the statements of this section about
+a relay assume no such sender on the group.  Datagrams
 that
 expire from the multicast path's hold queue are loss for the failover
 of (#multicast-endpoint-format) and (#multi-path-delivery), those

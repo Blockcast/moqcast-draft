@@ -1578,7 +1578,13 @@ the reason Section 6.3.8 gives: a receiver uses the total only as a
 bound, <tt>RS_ID &lt; RSB_length</tt> and under <tt>reed-solomon</tt> also
 <tt>SSB_length + RSB_length &lt;= 255</tt>, so a receiver holding a catalog from
 before an append reads a smaller bound that excludes only symbols of
-layers it has not joined.  The other order needs care: a block's
+layers it has not joined.  A publisher MUST apply the raised total
+from a block onward in the serial order of Section 7.5, generating
+the repair symbols of that block and of every block after it under
+the raised total and those of every block before it under the
+previous one, whatever order its encoder generates the repair
+symbols of blocks in, so that RSB_length is non-decreasing in that
+order.  The other order needs care: a block's
 RSB_length is the total in force when its repair symbols were
 generated (Section 7.1), so the repair packets of a block generated
 under the previous total carry that total, which is O_n for the
@@ -1591,11 +1597,11 @@ The check below therefore applies, for a held layer above 0, to a
 repair packet of that layer's own track, which carries a symbol
 generated under a total at or above its O_i + P_i whatever block it
 belongs to, and, for every held layer, to a block at or after, in
-the serial order of their SS_Start (Section 7.5), the order blocks
-are generated in, one of which the receiver has received a repair
-packet carrying at least that layer's O_i + P_i; for a layer above
-0, a block before it whose packets of other layers carry less was
-generated before the append, carries no symbol of the layer, and
+the serial order of their SS_Start (Section 7.5), in which the total
+never falls (above), one of which the receiver has received a
+repair packet carrying at least that layer's O_i + P_i; for a layer
+above 0, a block before it whose packets of other layers carry less
+was generated before the append, carries no symbol of the layer, and
 those packets are the symbols of the layers the receiver holds
 below it, under the coordinates of Section 6.3.2 unchanged; for
 layer 0, no block carries less than its P_0 where the catalog gives
@@ -1661,9 +1667,10 @@ they would learn of the withdrawal only at the next catalog
 refresh, which this document does not bound, as one holding the
 withdrawn layer alone, which no packet reaches after the
 withdrawal, does.</t>
-<t>Append-only is what makes the check below sound.  RSB_length is
-monotonically non-decreasing over the lifetime of a source encoding
-in the order blocks are generated, and a symbol of a layer above 0
+<t>Append-only, applied from a block onward, is what makes the check
+below sound.  RSB_length is monotonically non-decreasing over the
+lifetime of a source encoding in the serial order of Section 7.5,
+as the append rule above requires, and a symbol of a layer above 0
 is generated only under a total at or above that layer's O_i + P_i,
 so a wire RSB_length below a held layer's O_i + P_i on a packet of
 that layer's track, the layer being above 0, or on a block at or
@@ -1882,7 +1889,8 @@ of the packet's FEC instance (Section 6.4.1).</t>
 for the block: the instance's total repair count P when the block's
 repair symbols are generated, identical on every repair packet of the
 block.  A layer does not carry its own P_i.  The value rises when a
-layer is appended (Section 6.3.9).</t>
+layer is appended, from a block onward in the serial order of
+Section 7.5 (Section 6.3.9).</t>
 <t><strong>RS_ID (24 bits)</strong>: The zero-based index of this repair symbol
 among the block's P repair symbols.  The Encoding Symbol ID is
 derived as ESI = SSB_length + RS_ID (Section 7.2): under <tt>raptorq</tt> it
@@ -4898,10 +4906,15 @@ to Publisher Priority 240 (rule 3), and the 56403 bound applies
 under <tt>raptorq</tt> only (rule 6).</li>
 <li>Sections 6.3.8, 6.3.9 and 7.1: RSB_length is the total repair count
 when a block's repair symbols are generated, so it rises when a layer
-is appended, and the repair packets of a block generated before an
-append carry the previous total, below the O_i + P_i of the appended
-layer, and can reach a receiver that joined the layer after the
-catalog that lists it.  The fail-closed check of Section 6.3.9
+is appended, which a publisher MUST apply from a block onward in the
+serial order of Section 7.5, every block at or after it generated
+under the raised total and every block before it under the previous
+one whatever order its encoder generates blocks in (a rule -00 did
+not state, on which the check rests), and the repair packets of a
+block generated before an append carry the previous total, below the
+O_i + P_i of the appended layer, and can reach a receiver that joined
+the layer after the catalog that lists it.  The fail-closed check of
+Section 6.3.9
 therefore applies, for a held layer above 0, to a packet of that
 layer's own track, whose symbol was generated under a total at or
 above its O_i + P_i, and for every held layer to a block at or

@@ -1663,8 +1663,9 @@ track whose `fec.blockProfile` is "iso-ssbg1-v1", that entry carries:
   of both can take a packet generated under the previous total
   after the new version; the blocks generated under the raised
   total follow every block generated under the previous one in the
-  serial order of their SS_Start ([@!MOQ-FEC] Section 7.5), which
-  the conversion rule of Section 12.2 relies on instead.
+  serial order of their SS_Start ([@!MOQ-FEC] Section 7.5), as its
+  Section 6.3.9 requires of the publisher, which the conversion rule
+  of Section 12.2 relies on instead.
 
 A publisher MUST NOT describe a repair layer above layer 0, or a
 keyframe overlay, in the message, whether in that entry or in an
@@ -1883,8 +1884,9 @@ format of [@!MOQ-MULTICAST] Section 4.1.  Conversion rules:
   none above 0), treats such a packet as the conforming packet it
   is, every block generated under a total below a layer's O_i + P_i
   preceding, in the serial order of its Section 7.5, every block
-  generated under one at or above it (its Section 7.1; no publisher
-  lowers a total, its Section 6.3.9), on the repair track the
+  generated under one at or above it (its Section 6.3.9, which has
+  a publisher apply a raised total from a block onward in that order
+  and lower none), on the repair track the
   converter publishes as on the session's own endpoint, which
   carries the sender's packets and from which the converter
   withholds nothing.
