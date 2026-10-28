@@ -1262,17 +1262,17 @@ is verified anew there, from that path's budget, admitting the
 datagrams of its window as any record on `manifestPort` does: such
 a receiver fails over on a lead between the bound plus
 `maxAuthDelayMs` and that retention and, under a larger one,
-verifies every record on both paths instead, save at an epoch
-change, where it loses the windows of the previous epoch's records
-whose copies reach `manifestPort` past that epoch's deadline (step 1
-of (#receiver-enforcement-and-state)), and of most of its 64
-latest, which that epoch's replay floor, raised by no later record,
-keeps verified so that the lookup drops their copies, and so may
-fail over there; on a flow whose 64
+verifies every record on both paths instead; on a flow whose 64
 windows outlast `7 s + maxAuthDelayMs`, the floor keeps the record
 verified until its copy arrives under any lead shorter than 64
 windows, the lookup drops the copy, and such a receiver fails over
-as one that checks freshness does.
+as one that checks freshness does.  Under a lead beyond that
+retention such a receiver still loses windows at each epoch change,
+and so may fail over there: those of the previous epoch's records
+whose copies reach `manifestPort` past that epoch's deadline (step 1
+of (#receiver-enforcement-and-state)), and those of most of its 64
+latest records, whose copies the lookup drops because that epoch's
+replay floor, raised by no later record, keeps them verified.
 
 ### Catalog Signaling
 
@@ -1650,8 +1650,9 @@ variable-length interpretation before a cryptographic check:
    the new epoch that arrives on it and is verified, or dropped by
    the lookup above as the record itself (this record starts it on
    its own path now; `manifestPort`, while no such record has yet
-   arrived there, admits the previous epoch until then, and the
-   manifest track until the earlier-started of the two periods ends,
+   arrived there, admits the previous epoch until one starts that
+   path's period and then until that period ends, and the manifest
+   track until the earlier-started of the two periods ends,
    the sender emitting every twin of it before the new epoch's first
    record, (#emission-and-cadence); neither path admits it past the
    previous epoch's deadline, above, which this record sets, so a
