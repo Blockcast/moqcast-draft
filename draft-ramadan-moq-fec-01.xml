@@ -2303,6 +2303,16 @@ the Group's objects (Section 11.4.2), type 0x04 (Absolute Range) with
 StartGroup ext(SS_Start), StartObject the first and EndObject the last
 Object ID that it requests (an inclusive range,
 <xref target="I-D.ietf-moq-transport"></xref> Section 3.3.1), and EndGroupDelta 0.</t>
+<t>Either form is answered only by a relay that caches the repair
+objects it receives, datagram-delivered ones included, and serves
+them by FETCH.  At the time of writing not every relay does: some
+decline a FETCH of objects delivered as datagrams, and some serve no
+FETCH at all.  A block's repair objects share one Group (above), so a
+hop that carries no Object IDs for datagram-delivered objects
+delivers only the first repair object of each Group, one repair
+symbol per block, however many the publisher sent.  A publisher
+whose receivers sit behind such a hop can send repair objects on
+streams, which carry every object's Object ID.</t>
 <t>The 32-bit wrap of SS_ID and SS_Start is that of <xref target="ISO.23008-1"></xref>.  The
 extended SS_Start, and its use as a MoQ Group ID, are defined by this
 document, outside <xref target="ISO.23008-1"></xref>.</t>
@@ -3276,6 +3286,15 @@ wire-visible stream priority mechanism.  A repair track's catalog
 <tt>priority</tt> is the Publisher Priority of its objects, and Section 5.1.1
 states how a subscriber chooses its subscriber priority for the
 track.</t>
+<t>Not every MoQ Transport implementation applies these priorities to
+objects delivered as datagrams.  At the time of writing, some stacks
+send every datagram ahead of all stream data whatever its Publisher
+Priority, and others give the datagrams of a connection one priority,
+so on such a hop a repair track delivered as datagrams can precede
+the source track it protects, whatever priorities the two carry.  A
+publisher keeps repair from delaying its source on such a hop by
+sending a block's repair objects only after it has sent the block's
+source objects.</t>
 <t>Under congestion, this priority separation ensures:</t>
 
 <ol spacing="compact">
@@ -3638,7 +3657,9 @@ receiver MUST NOT delay this request behind any non-keyframe or audio
 repair; Section 11.4.6 covers its interplay with a keyframe overlay.
 A FETCH completes or fails by MoQ Transport events, its last object
 or an error; a receiver MUST NOT declare it failed on a locally chosen
-timeout.</t>
+timeout.  A relay answers it only where it caches the repair track's
+objects, datagram-delivered ones included (Section 7.5); where it
+does not, the FETCH fails by those events.</t>
 <t>Only a keyframe-bearing block may stall video.  While its unicast
 repair is outstanding, the receiver MAY hold video presentation for
 it.  The block is unrecoverable when its unicast repair fails or
@@ -5027,11 +5048,21 @@ cancels no non-keyframe or audio repair at the deadline of a block
 Section 11.4.2 does not request.</li>
 <li>Section 15.3: &quot;MoQ Streaming Format&quot; is now &quot;MOQT Streaming Format&quot;,
 the name that <xref target="I-D.ietf-moq-msf"></xref> uses.</li>
+<li>Sections 7.5, 10 and 11.4.2: notes on implementations at the time
+of writing.  Some MoQ Transport stacks do not apply Publisher
+Priority to datagram-delivered objects, so a publisher keeps repair
+from delaying its source by sending a block's repair objects after
+the block's source objects; the repair FETCH is answered only by a
+relay that caches datagram-delivered objects and serves them by
+FETCH; and a hop that carries no Object IDs for datagram-delivered
+objects delivers only the first repair object of each Group.</li>
 </ul>
 </section>
 
 <section anchor="acknowledgments" numbered="false"><name>Acknowledgments</name>
-<t>Marc E. Fiuczynski reviewed this revision.</t>
+<t>Marc E. Fiuczynski reviewed this revision and reported how relays
+and MoQ Transport stacks of the time handle datagram-delivered
+repair objects (Sections 7.5, 10 and 11.4.2).</t>
 </section>
 
 </back>
