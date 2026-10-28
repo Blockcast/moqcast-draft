@@ -21,14 +21,6 @@ fullname = "Omar Ramadan"
 organization = "Blockcast"
   [author.address]
   email = "omar@blockcast.net"
-
-[[author]]
-initials = "M. E."
-surname = "Fiuczynski"
-fullname = "Marc E. Fiuczynski"
-organization = "Rutgers University"
-  [author.address]
-  email = "marc@fiuczynski.com"
 %%%
 
 .# Abstract
@@ -4642,7 +4634,6 @@ the source symbols at ESIs 1 and 2:
 This appendix is informative and is to be removed before publication
 as an RFC.
 
-- Added Marc E. Fiuczynski as an author.
 - Removed Section 5.4 (Relay Extensibility Requirements) and its
   item in the Introduction.  Its first rule contradicted
   [@!I-D.ietf-moq-transport] Section 9, under which an unknown control
@@ -4967,3 +4958,8 @@ as an RFC.
   Section 11.4.2 does not request.
 - Section 15.3: "MoQ Streaming Format" is now "MOQT Streaming Format",
   the name that [@!I-D.ietf-moq-msf] uses.
+
+{numbered="false"}
+# Acknowledgments
+
+Marc E. Fiuczynski reviewed this revision.

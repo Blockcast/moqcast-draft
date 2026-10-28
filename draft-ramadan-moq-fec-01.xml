@@ -6,8 +6,6 @@
 <title abbrev="MoQ FEC">Forward Error Correction for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><author initials="M. E." surname="Fiuczynski" fullname="Marc E. Fiuczynski"><organization>Rutgers University</organization><address><postal><street></street>
-</postal><email>marc@fiuczynski.com</email>
 </address></author><date year="2026" month="October" day="26"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
@@ -4705,7 +4703,6 @@ the source symbols at ESIs 1 and 2:</t>
 as an RFC.</t>
 
 <ul spacing="compact">
-<li>Added Marc E. Fiuczynski as an author.</li>
 <li>Removed Section 5.4 (Relay Extensibility Requirements) and its
 item in the Introduction.  Its first rule contradicted
 <xref target="I-D.ietf-moq-transport"></xref> Section 9, under which an unknown control
@@ -5031,6 +5028,10 @@ Section 11.4.2 does not request.</li>
 <li>Section 15.3: &quot;MoQ Streaming Format&quot; is now &quot;MOQT Streaming Format&quot;,
 the name that <xref target="I-D.ietf-moq-msf"></xref> uses.</li>
 </ul>
+</section>
+
+<section anchor="acknowledgments" numbered="false"><name>Acknowledgments</name>
+<t>Marc E. Fiuczynski reviewed this revision.</t>
 </section>
 
 </back>

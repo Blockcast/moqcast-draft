@@ -2425,9 +2425,6 @@ catalog extension (Section 4) requires no registration.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
-      <organization>Rutgers University</organization>
-    </author>
     <date year='2026' month='October' day='26'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-01'/>

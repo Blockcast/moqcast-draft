@@ -2256,9 +2256,6 @@ document in this suite requests a control-message codepoint.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
-      <organization>Rutgers University</organization>
-    </author>
     <date year="2026" month="October" day="26"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-01"></seriesInfo>
