@@ -2172,29 +2172,35 @@ receiver sooner than the receiver's mirror does, its read of the
 manifest track and its injection path to the receiver counted
 together against the mirror's delivery delay.  The
 injector's copy also raises the `highest_mseq` of `manifestPort` and
-starts its grace period early, which drops a record the mirror lost
-or the relay withheld only where the injector's copies lead the
-multicast path at the receiver by 64 windows, less the windows by
-which the record's twin lags it where the record's own copy was lost
-on the multicast path as well (two at the RECOMMENDED placement of
+starts its grace period early, which drops the sender's copies of a
+record only where the injector's copies lead the multicast path at
+the receiver by 64 windows, less the windows by which the record's
+twin lags it where the record's own copy was lost on the multicast
+path as well (two at the RECOMMENDED placement of
 (#emission-and-cadence), up to 63 under its bound, which assumes
-that only the sender's records raise the floor of step 1), and a
-record of the previous epoch once a grace period so started has
-run.  The first needs a mirror that leads the multicast path at the
-receiver by that many windows; the second, one that leads it by
-more than `maxAuthDelayMs + 2 x manifestTimerMs` (240 ms at the
-defaults), a lead within the bound of (#emission-and-cadence) on
-any flow: the injector's copy of the new epoch's first record
-starts the period that long before the multicast path delivers that
-record, which the last twins of the previous epoch immediately
-precede ((#emission-and-cadence)), so a record of the previous
-epoch, its own copy or its twin, that arrives on `manifestPort`
-within the excess of the lead over the period before that record
-is dropped, and a window of the previous epoch every copy of whose
-record so arrives, the mirror having lost it or the relay withheld
-it, expires.  The injector chooses which mirror it reads but makes
-no mirror deliver earlier, and the statements of this section about
-a relay assume no such sender on the group.  Datagrams
+that only the sender's records raise the floor of step 1), and
+those of a record of the previous epoch once a grace period so
+started has run.  The first needs the injector's copies to lead the
+multicast path at the receiver by that many windows; the second, to
+lead it by more than `maxAuthDelayMs + 2 x manifestTimerMs` (240 ms
+at the defaults), a lead within the bound of
+(#emission-and-cadence) on any flow: the injector's copy of the new
+epoch's first record starts the period that long before the
+multicast path delivers that record, which the last twins of the
+previous epoch immediately precede ((#emission-and-cadence)), so a
+record of the previous epoch, its own copy or its twin, that
+arrives on `manifestPort` within the excess of the lead over the
+period before that record is dropped.  A copy the receiver's own
+mirror delivers meets the higher floor and the earlier-started
+period (step 1), so it is dropped as well where the injector's
+copies lead that mirror by as much, by 64 windows for the first
+drop and by more than the period for the second; a window expires
+where every copy of its record is so dropped, the injector, whose
+mirror lost the record or whose relay withheld it, having sent none
+ahead, and the receiver's mirror delivering none or a late one.
+The injector chooses which mirror it reads but makes no mirror
+deliver earlier, and the statements of this section about a relay
+assume no such sender on the group.  Datagrams
 that
 expire from the multicast path's hold queue are loss for the failover
 of (#multicast-endpoint-format) and (#multi-path-delivery), those

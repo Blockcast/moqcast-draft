@@ -1581,10 +1581,10 @@ before an append reads a smaller bound that excludes only symbols of
 layers it has not joined.  A publisher MUST apply the raised total
 from a block onward in the serial order of Section 7.5, generating
 the repair symbols of that block and of every block after it under
-the raised total and those of every block before it under the
-previous one, whatever order its encoder generates the repair
-symbols of blocks in, so that RSB_length is non-decreasing in that
-order.  The other order needs care: a block's
+the raised total or one raised later and those of every block
+before it under a smaller one, whatever order its encoder generates
+the repair symbols of blocks in, so that RSB_length is
+non-decreasing in that order.  The other order needs care: a block's
 RSB_length is the total in force when its repair symbols were
 generated (Section 7.1), so the repair packets of a block generated
 under the previous total carry that total, which is O_n for the
@@ -1707,9 +1707,11 @@ learns of the withdrawal only at the next catalog refresh, while
 one that takes a packet of such a block, by the routes of the
 append paragraph above, whose packets carry that O_i + P_i, has the
 check anchored and, where it holds a layer below the withdrawn
-one, fails closed on the first block generated after the
-withdrawal that reaches it, as a receiver that had joined the layer
-and holds one below it does, while one holding the withdrawn layer
+one, fails closed on the first block that reaches it carrying the
+smaller total at or after, in the serial order of Section 7.5, a
+block of which it has received a repair packet carrying that
+O_i + P_i, as a receiver that had joined the layer and holds one
+below it does, while one holding the withdrawn layer
 alone, which no repair packet reaches after the withdrawal, learns
 of it at that refresh as well.  The first case is silent on the
 wire, and the second where no such block arrives or the receiver
@@ -4908,9 +4910,10 @@ under <tt>raptorq</tt> only (rule 6).</li>
 when a block's repair symbols are generated, so it rises when a layer
 is appended, which a publisher MUST apply from a block onward in the
 serial order of Section 7.5, every block at or after it generated
-under the raised total and every block before it under the previous
-one whatever order its encoder generates blocks in (a rule -00 did
-not state, on which the check rests), and the repair packets of a
+under the raised total or one raised later and every block before it
+under a smaller one whatever order its encoder generates blocks in
+(a rule -00 did not state, on which the check rests), and the repair
+packets of a
 block generated before an append carry the previous total, below the
 O_i + P_i of the appended layer, and can reach a receiver that joined
 the layer after the catalog that lists it.  The fail-closed check of
