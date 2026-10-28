@@ -2121,8 +2121,10 @@ one per 37 datagrams on a flow above 1850 datagrams a second
 ((#emission-and-cadence)), less than the data-port injection above
 needs wherever the failover fraction of the flow's packet rate
 exceeds that window rate, above 50 a second on the former and above
-a thirty-seventh of the packet rate on the latter.  On a receiver
-that reads the manifest track the outcome turns on arrival order.
+a thirty-seventh of the packet rate on the latter, at a lead of at
+most 64 windows; at a lead of `L` windows above that, the omission
+below costs one record per `L - 63` windows.  On a receiver that
+reads the manifest track the outcome turns on arrival order.
 For a record the receiver's mirror delivers before the injector's
 copy, that copy, replayed from the mirror ahead of the sender's, is
 the record's first copy on `manifestPort` and measures the lead, so
@@ -2176,7 +2178,7 @@ starts its grace period early, which drops the sender's copies of a
 record only where the injector's copies lead the multicast path at
 the receiver by 64 windows, less the windows by which the record's
 twin lags it where the record's own copy was lost on the multicast
-path as well (two at the RECOMMENDED placement of
+path (two at the RECOMMENDED placement of
 (#emission-and-cadence), up to 63 under its bound, which assumes
 that only the sender's records raise the floor of step 1), and
 those of a record of the previous epoch once a grace period so
@@ -2195,10 +2197,25 @@ mirror delivers meets the higher floor and the earlier-started
 period (step 1), so it is dropped as well where the injector's
 copies lead that mirror by as much, by 64 windows for the first
 drop and by more than the period for the second; a window expires
-where every copy of its record is so dropped, the injector, whose
-mirror lost the record or whose relay withheld it, having sent none
-ahead, and the receiver's mirror delivering none or a late one.
-The injector chooses which mirror it reads but makes no mirror
+where every copy of its record is so dropped, the injector having
+sent none ahead, whether its mirror lost the record, its relay
+withheld it or it omitted the record itself, and the receiver's
+mirror delivering none or a late one.  The omission is the cheaper
+attack where the lead allows it: a record of mseq `k` the injector
+sends raises `highest_mseq` to `k`, so the sender's copies of every
+record of mseq at most `k - 64` whose copies have yet to arrive are
+dropped, and an injector whose copies lead the multicast path at
+the receiver by `L` windows, `L` above 64, loses every such window
+with one record per `L - 63` windows, against the one record per
+window the replay above costs; the windows of its own records are
+lost as well, by that replay, where the lead also exceeds the
+period, and admitted, by the unwidened entries of its copies, where
+it does not, as on a flow the count cap governs above about 9,900
+datagrams a second, where 64 windows close within
+`maxAuthDelayMs + 2 x manifestTimerMs`, so that an injector leading
+by more than 64 windows but by less than the period harms nothing
+by replaying and costs a window only by omitting its record.  The
+injector chooses which mirror it reads but makes no mirror
 deliver earlier, and the statements of this section about a relay
 assume no such sender on the group.  Datagrams
 that
