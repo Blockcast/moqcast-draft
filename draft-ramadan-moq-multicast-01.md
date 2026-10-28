@@ -2207,8 +2207,15 @@ record of mseq at most `k - 64` whose copies have yet to arrive are
 dropped, and an injector whose copies lead the multicast path at
 the receiver by `L` windows, `L` above 64, loses every such window,
 on a receiver that reads no manifest track or whose mirror those
-copies also lead by 64 windows, with one record per `L - 63`
-windows, against the one record per window the replay above costs.
+copies also lead by as much, with one record per `L - 63` windows,
+against the one record per window the replay above costs; where
+they lead the receiver's mirror by fewer windows, `M`, the records
+the mirror delivered before the injector's are verified there,
+their sender's copies dropped by the already-verified lookup, which
+precedes the floor in step 1, and their windows admitted as the
+mirror-first cases above have it, so each record it sends loses
+only the `M - 63` windows the mirror delivers after it, none where
+`M` is below 64 and one, the cost of the replay, where `M` is 64.
 The windows of its own records follow the arrival-order cases
 above: on a receiver that reads no manifest track or whose mirror
 the injector's copy precedes, they are lost by that replay where
