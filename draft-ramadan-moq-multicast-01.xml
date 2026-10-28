@@ -2212,16 +2212,23 @@ attack where the lead allows it: a record of mseq <tt>k</tt> the injector
 sends raises <tt>highest_mseq</tt> to <tt>k</tt>, so the sender's copies of every
 record of mseq at most <tt>k - 64</tt> whose copies have yet to arrive are
 dropped, and an injector whose copies lead the multicast path at
-the receiver by <tt>L</tt> windows, <tt>L</tt> above 64, loses every such window
-with one record per <tt>L - 63</tt> windows, against the one record per
-window the replay above costs; the windows of its own records are
-lost as well, by that replay, where the lead also exceeds the
-period, and admitted, by the unwidened entries of its copies, where
-it does not, as on a flow the count cap governs above about 9,900
-datagrams a second, where 64 windows close within
+the receiver by <tt>L</tt> windows, <tt>L</tt> above 64, loses every such window,
+on a receiver that reads no manifest track or whose mirror those
+copies also lead by 64 windows, with one record per <tt>L - 63</tt>
+windows, against the one record per window the replay above costs.
+The windows of its own records follow the arrival-order cases
+above: on a receiver that reads no manifest track or whose mirror
+the injector's copy precedes, they are lost by that replay where
+the lead also exceeds the period and admitted, by the unwidened
+entries of its copies, where it does not, as on a flow the count
+cap governs (<xref target="emission-and-cadence"></xref>) whose rate, above about 9,900
+datagrams a second at the defaults, closes 64 windows within
 <tt>maxAuthDelayMs + 2 x manifestTimerMs</tt>, so that an injector leading
 by more than 64 windows but by less than the period harms nothing
-by replaying and costs a window only by omitting its record.  The
+by replaying and costs a window only by omitting its record; where
+the receiver's mirror delivered the record first, they are admitted
+by the entries the measured lead widened, within that lead plus the
+period.  The
 injector chooses which mirror it reads but makes no mirror
 deliver earlier, and the statements of this section about a relay
 assume no such sender on the group.  Datagrams
