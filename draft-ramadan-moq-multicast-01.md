@@ -1266,7 +1266,13 @@ verifies every record on both paths instead; on a flow whose 64
 windows outlast `7 s + maxAuthDelayMs`, the floor keeps the record
 verified until its copy arrives under any lead shorter than 64
 windows, the lookup drops the copy, and such a receiver fails over
-as one that checks freshness does.
+as one that checks freshness does.  Under a lead beyond that
+retention such a receiver still loses windows at each epoch change,
+and so may fail over there: those of the previous epoch's records
+whose copies reach `manifestPort` past that epoch's deadline (step 1
+of (#receiver-enforcement-and-state)), and those of most of its 64
+latest records, whose copies the lookup drops because that epoch's
+replay floor, raised by no later record, keeps them verified.
 
 ### Catalog Signaling
 
@@ -1339,12 +1345,13 @@ receiver past its successor's `firstEpoch`.
 **minEpoch** (integer, REQUIRED): the lowest `epoch` a receiver
 accepts at join (step 1 of (#receiver-enforcement-and-state)); after
 its first verified record the current epoch is the floor, with the
-previous epoch admitted on `manifestPort` only until the earlier of
-the end of its path grace period (when that period has started) and
-`maxAuthDelayMs + 2 x manifestTimerMs` after the current epoch became
-current; on the manifest track it is admitted only within the earlier-
-started of the two path periods and never past that same absolute
-deadline (step 1).  The publisher MUST write the current
+previous epoch admitted on `manifestPort` until that path's grace
+period ends, or while that path has started none, and never past the
+bound
+of (#emission-and-cadence) plus `maxAuthDelayMs + 2 x manifestTimerMs`
+after the current epoch became current, and on the manifest track
+within the earlier-started of the two paths' periods (step 1).  The
+publisher MUST write the current
 `epoch` at every
 epoch change, sender restart included, so a joiner with a current
 catalog cannot be fed an earlier epoch.
@@ -1436,12 +1443,14 @@ time at which that epoch became current, per path (`manifestPort` and
 the manifest track) the grace period that ends
 `maxAuthDelayMs + 2 x manifestTimerMs` after the first record of the
 current epoch verified on that path or dropped there by the
-already-verified lookup of step 1 as its byte-identical copy, and the
-previous `epoch`: on `manifestPort`, only until the earlier of its
-path grace-period end (when started) and the absolute deadline at the
-current-epoch time plus `maxAuthDelayMs + 2 x manifestTimerMs`; on the
-manifest track, only within the earlier-started of the two path
-periods and never past that absolute deadline (step 1).  The flow's
+already-verified lookup of step 1 as its byte-identical copy, and,
+until the period on `manifestPort` ends or the previous epoch's
+deadline passes, the previous `epoch`, the deadline being the bound
+of (#emission-and-cadence) plus `maxAuthDelayMs + 2 x manifestTimerMs`
+after the current epoch became current (step 1; a record on
+`manifestPort` meets its own path's period and the deadline, one read
+from the manifest track the earlier-started of the two periods, which
+ends before the deadline); the flow's
 `hash_alg`, fixed by its first verified
 record; per `(kid, epoch)` the verified `mseq` values above the
 replay floor of the path they arrived on, and those verified on the
@@ -1461,8 +1470,10 @@ anew on `manifestPort`; where the lead stands below the bound, the
 first such copy raises it to the bound and handles the record's
 pairs again as step 1 says; a receiver that skips the check
 verifies anew a copy arriving after the retention and below the
-manifest track's replay floor, dropping by the lookup one that
-arrives above the floor, as that section also says), each with the
+manifest track's replay floor, save a copy of the previous epoch
+arriving past that epoch's deadline, which step 1 drops, dropping by
+the lookup one that arrives above the floor, as that section also
+says), each with the
 time and path of its arrival, its `sent`, which that retention
 reads, the `hash_alg` digest of the record's bytes,
 per pair of the record, whether a datagram has been admitted against
@@ -1573,14 +1584,16 @@ variable-length interpretation before a cryptographic check:
    ((#threat-model)); a dropped
    copy whose bytes do not match counts as nothing); `epoch` is
    below the current epoch and is not the previous epoch within the
-   grace period this record meets and before the absolute deadline
-   at the time the current epoch became current plus
-   `maxAuthDelayMs + 2 x manifestTimerMs` (below; on
-   `manifestPort`, if no record of the current epoch has yet been
-   verified or dropped by the lookup above as its byte-identical copy,
-   the previous epoch remains admitted only until that absolute
-   deadline; on the manifest track it remains admitted only until the
-   earlier-started of the two path periods and that deadline), or, when no
+   grace period this record meets and before the previous epoch's
+   deadline, the bound of (#emission-and-cadence) plus
+   `maxAuthDelayMs + 2 x manifestTimerMs` after the current epoch
+   became current (below; a path on which no record of the current
+   epoch has yet been verified, or dropped by the lookup above as its
+   byte-identical copy, has started no grace period, so the previous
+   epoch stays admitted on `manifestPort` until the deadline passes
+   or, once such a record starts that path's period, until that
+   period ends, if sooner, and on the manifest track until the
+   earlier-started of the two paths' periods ends), or, when no
    record has yet been
    verified, is below
    `minEpoch` or below the pinned floor for its `kid`; `mseq <=
@@ -1611,7 +1624,12 @@ variable-length interpretation before a cryptographic check:
    no grace period
    a multicast copy meets: a record a relay withholds from the
    mirror, or one the mirror loses, is tested against the multicast
-   path's own cadence however far the mirror leads
+   path's own cadence however far the mirror leads, and, while the
+   mirror leads by no more than the bound of (#emission-and-cadence),
+   the previous epoch's deadline drops on `manifestPort` only a record
+   of that epoch reordered more than
+   `maxAuthDelayMs + 2 x manifestTimerMs` behind the new epoch's
+   first record
    ((#threat-model)), and a mirror that lags the multicast path by
    the floor brings nothing a receiver still holds.  Charge the
    per-flow verification budget, a token
@@ -1632,17 +1650,18 @@ variable-length interpretation before a cryptographic check:
    the new epoch that arrives on it and is verified, or dropped by
    the lookup above as the record itself (this record starts it on
    its own path now; `manifestPort`, while no such record has yet
-   arrived there, admits the previous epoch only until the earlier of
-   that path's period end and the absolute deadline from when this
-   epoch became current, and the manifest track until the earlier of
-   the two periods and that deadline, the
-   sender emitting every twin of it before the new epoch's first
-   record, (#emission-and-cadence)),
+   arrived there, admits the previous epoch until one starts that
+   path's period and then until that period ends, and the manifest
+   track until the earlier-started of the two periods ends,
+   the sender emitting every twin of it before the new epoch's first
+   record, (#emission-and-cadence); neither path admits it past the
+   previous epoch's deadline, above, which this record sets, so a
+   path on which the new epoch's records are dropped holds the
+   previous epoch open no longer than that),
    fix the flow's `hash_alg` from this record if none is fixed yet, and
    hash every held datagram that has no digest yet; pending entries and held datagrams
    of the previous epoch are not flushed and live out their expiry.  A
-   record of the previous epoch within the grace period it meets,
-   or on `manifestPort` while that path has started none, is
+   record of the previous epoch that passes the checks above is
    processed under that epoch's own floor and verified set and never
    changes the current epoch.
    Record `(kid, epoch, mseq)` as verified, with the time and path
@@ -1935,16 +1954,16 @@ first verified record sets the floor ((#threat-model)).
 catalog with the `firstEpoch` at which it will sign, at least one
 catalog lifetime ahead; signs with it from that epoch; and raises
 `minEpoch`.  A receiver that holds that catalog accepts the retired
-`kid` below the successor's `firstEpoch` only, so the retired key can
-sign for it on `manifestPort` until the earlier of the first record
-of the new epoch being verified there or dropped there by the
-already-verified lookup of step 1 as its byte-identical copy followed
-by the previous epoch's grace period, and
+`kid` below the successor's `firstEpoch` only, so records the retired
+key signs are admitted on `manifestPort` until that path's grace
+period for the new epoch ends, or while that path has started none,
+but never past the bound of (#emission-and-cadence) plus
 `maxAuthDelayMs + 2 x manifestTimerMs` after the new epoch became
-current; on the manifest track it is accepted within the
-earlier-started of the two paths' periods and never past that same
-absolute deadline (step 1 of
-(#receiver-enforcement-and-state)); a
+current, and on the manifest track only within the earlier-started
+of the two paths' periods (step 1 of
+(#receiver-enforcement-and-state)); a receiver that verifies no
+record of the new epoch keeps the epoch before it current, which the
+retired key still signs, and a
 receiver whose catalog or pin predates the rotation is exposed to the
 retired key until it re-fetches or is re-provisioned
 ((#threat-model)).  A record with an unknown `kid` triggers at most
@@ -2000,11 +2019,13 @@ endpoint, stream generation, broadcast, key or epoch
 by `minEpoch` ((#catalog-signaling)) and, on a receiver that pins
 keys, by the epoch floor kept with the pin, and after the first
 verified record by the current epoch, the previous epoch admitted
-on `manifestPort` only until the earlier of that path's grace-period
-end and the absolute deadline of `maxAuthDelayMs + 2 x manifestTimerMs`
-after the current epoch became current, and on the manifest track
-within the earlier-started of the two path periods and before that
-same absolute deadline ((#receiver-enforcement-and-state)); and
+on `manifestPort` until that path's grace period ends, or while that
+path has started none, and never past the previous epoch's deadline,
+the bound of (#emission-and-cadence) plus
+`maxAuthDelayMs + 2 x manifestTimerMs` after the current epoch became
+current, and on the manifest track
+within the earlier-started of the two paths' periods
+((#receiver-enforcement-and-state)); and
 within an epoch a receiver with a UTC-synchronized clock admits no window whose record was
 emitted more than `7 s + maxAuthDelayMs` before receipt, so the verification
 budget cannot be spent with stale genuine records and the replay floor
@@ -2022,7 +2043,11 @@ that leads the multicast path during the join cannot leave its own
 copy of a symbol in place of the admitted one.  A relay that leads
 the multicast path and withholds records from the mirror moves no
 replay floor and no grace period the multicast copies of those
-records meet, each path keeping its own (step 1 of
+records meet, each path keeping its own, and, leading it by no more
+than the bound of (#emission-and-cadence), makes the previous
+epoch's deadline drop only a copy reordered more than
+`maxAuthDelayMs + 2 x manifestTimerMs` behind the new epoch's first
+record (step 1 of
 (#receiver-enforcement-and-state)), so a healthy multicast path
 loses no window to what the mirror omits, absent the injector of the
 availability paragraph below, and a relay that lets the
@@ -2053,7 +2078,9 @@ floor kept with it ((#receiver-enforcement-and-state)) the third,
 except at a receiver's first join under a `kid`, where a lowered
 `minEpoch` admits records of an earlier epoch signed with a
 still-listed `kid` until a record of the current epoch is verified,
-so rotated-out keys SHOULD be removed promptly.  A rewrite that
+and after that as the previous epoch (step 1 of
+(#receiver-enforcement-and-state)), so rotated-out keys SHOULD be
+removed promptly.  A rewrite that
 raises `minEpoch` costs a receiver, pinned or not, that session's
 data and nothing more, since neither carries a catalog value past the
 session ((#receiver-enforcement-and-state)).
@@ -2281,12 +2308,27 @@ multicast path: a relay that floods the mirror could otherwise move a
 receiver with a healthy multicast path onto itself.  A receiver that holds the catalog naming the successor key accepts
 the retired `kid` only below the successor's `firstEpoch`
 ((#catalog-signaling)), and records of the previous epoch on
-`manifestPort` only until the earlier of that path's grace-period end
-and `maxAuthDelayMs + 2 x manifestTimerMs` after the new epoch became
-current, and on the manifest track within the earlier-started of the
-two paths' periods and before that same absolute deadline (step 1),
-so a key retired at an epoch boundary cannot be kept admissible on a
-path by suppressing the new epoch; a
+`manifestPort` until that path's grace period ends, or while that
+path has started none, and never past the bound of
+(#emission-and-cadence)
+plus `maxAuthDelayMs + 2 x manifestTimerMs` after the new epoch
+became current, and on the manifest track within the earlier-started
+of the two paths' periods (step 1), so for that receiver a key
+retired at an epoch boundary signs records admitted on a path for at
+most `maxAuthDelayMs + 2 x manifestTimerMs` after the new epoch's
+first record is verified there, or dropped there as its
+byte-identical copy, and on any path for at most the bound of
+(#emission-and-cadence) plus `maxAuthDelayMs + 2 x manifestTimerMs`
+(5.24 s at the defaults) after the new epoch became current, however
+many of the new epoch's records an attacker drops on `manifestPort`.
+An attacker that drops
+every record of the new epoch on each path a receiver reads, the
+multicast path alone on a receiver that reads no manifest track,
+keeps the epoch before the change current at that receiver, and,
+holding the retired key, signs records that receiver admits until a
+record of the new epoch reaches it, a catalog removes the retired
+`kid` or the
+receiver is re-provisioned, `minEpoch` binding only a join.  A
 receiver with an older catalog is exposed to the
 retired key until it re-fetches, one catalog lifetime plus the 30 s
 re-fetch interval of (#receiver-enforcement-and-state) at most, and a
@@ -2765,12 +2807,18 @@ as an RFC.
   nothing; a record meets a 64-deep replay floor per `(kid, epoch)`,
   and a record of the previous epoch is admitted within a grace
   period of `maxAuthDelayMs + 2 x manifestTimerMs`, in place of the
-  `previousKey` overlap of -00, with the period kept per arrival path
-  (`manifestPort`, the manifest track) but capped at that duration
-  after the epoch became current, the floor raised by the records
-  arriving on the path, verified or dropped as the byte-identical
-  copy of a verified one, and a record read from the mirror meeting
-  the higher of the two floors and the earlier-started period; the sender transmits each record
+  `previousKey` overlap of -00, floor and grace period kept per
+  arrival path (`manifestPort`, the manifest track), the floor raised
+  by the records arriving on the path, verified or dropped as the
+  byte-identical copy of a verified one, the period ending that long
+  after the first such record of the new epoch on the path,
+  `manifestPort` admitting the previous epoch while that path has
+  started none, a record
+  read from the mirror meeting the higher of the two floors and the
+  earlier-started period, and no record of the previous epoch
+  admitted past the bound of (#emission-and-cadence) plus
+  `maxAuthDelayMs + 2 x manifestTimerMs` after the new epoch became
+  current; the sender transmits each record
   twice, the byte-identical twin after the last datagram the record
   covers, no later than `maxAuthDelayMs / 2` after the record and
   before the signed record of window `mseq + 64`, so that it arrives
