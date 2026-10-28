@@ -6,8 +6,6 @@
 <title abbrev="MoQ FEC">Forward Error Correction for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><author initials="M. E." surname="Fiuczynski" fullname="Marc E. Fiuczynski"><organization>Rutgers University</organization><address><postal><street></street>
-</postal><email>marc@fiuczynski.com</email>
 </address></author><date year="2026" month="October" day="26"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
@@ -31,8 +29,7 @@ for tracks packaged as Low Overhead Media Container (LOC) or Common
 Media Application Format (CMAF) objects.  It fully specifies
 two FEC schemes: the systematic Reed-Solomon code over GF(2^8) of
 ISO/IEC 23008-10, which is mandatory to implement, and RaptorQ
-(RFC 6330), which is optional and is required where compatibility
-with ATSC 3.0 ROUTE Application-Layer FEC is claimed.  An algorithm
+(RFC 6330), which is optional.  An algorithm
 registry provides extension points for additional schemes.  FEC enables receivers to
 recover from packet loss without retransmission latency.  The MMTP
 profile is designed for compatibility with ATSC 3.0 (A/331) and ARIB
@@ -71,10 +68,10 @@ from MPEG Media Transport Protocol (MMTP) packets as Annex C of
 <xref target="ISO.23008-1"></xref> does, and
 <tt>moq-object-v1</tt>, which forms them from whole MoQ objects</li>
 <li>Interleaving strategies to protect against burst loss</li>
-<li>A compatibility mapping for ATSC 3.0 broadcast systems
+<li>A compatibility statement for ATSC 3.0 MMTP sessions
 (Section 12).  ARIB STD-B60 <xref target="ARIB-B60"></xref> carriage of MMTP-packaged
-tracks uses the in-band AL-FEC signaling of <xref target="MOQ-MMT"></xref> Sections 8.3
-and 10.</li>
+tracks uses the in-band AL-FEC signaling of <xref target="MOQ-MMT"></xref> Section
+8.3, and its Section 10 covers ARIB STD-B60 ingest.</li>
 </ol>
 <t>The mechanism protects tracks whose packaging a block profile admits.
 Under <tt>iso-ssbg1-v1</tt> it protects MMTP-packaged tracks <xref target="MOQ-MMT"></xref>, and
@@ -214,8 +211,7 @@ corresponding string identifiers.</t>
 <t><strong>RaptorQ (0x01)</strong>: RaptorQ fountain code per <xref target="RFC6330"></xref>.  Can recover
 from loss of any symbols as long as SSB_length symbols (source or
 repair), plus a small decoding overhead (Section 6.3.2), are received.
-It is OPTIONAL, and REQUIRED where compatibility with ATSC 3.0 ROUTE
-AL-FEC is claimed (Sections 4.3 and 12).</t>
+It is OPTIONAL (Section 4.3).</t>
 <t><strong>Reed-Solomon (0x02)</strong>: The systematic Reed-Solomon erasure code over
 GF(2^8) of <xref target="ISO.23008-10"></xref> Clause 6, restated in Section 4.4.  It
 recovers a block from any SSB_length of its distinct source and repair
@@ -286,27 +282,25 @@ block, so a receiver holding any repair symbol of a block holds the block's SSB_
 <t>Reed-Solomon is the mandatory-to-implement FEC scheme: an
 implementation that performs FEC decoding under this specification
 MUST support &quot;reed-solomon&quot;, which Sections 4.4 and 4.5 fully
-specify.  &quot;raptorq&quot; is OPTIONAL, and an implementation that claims
-compatibility with ATSC 3.0 ROUTE delivery (Section 12) MUST support
-it.</t>
-<t>Reed-Solomon is the mandatory scheme because it is small to
+specify.  &quot;raptorq&quot; is OPTIONAL.</t>
+<t>The MMT AL-FEC framework on which the MMTP profile of this document
+rests (<xref target="ISO.23008-1"></xref> Annex C) requires no FEC code: it carries
+whichever code the AL-FEC message names by its <xref target="ISO.23008-10"></xref> code
+point, and ATSC 3.0, which applies AL-FEC to an MMTP session through
+that framework, requires none either (<xref target="ATSC-A331"></xref> Section 8.1.2.5;
+Section 12).  This document therefore specifies the codes it uses.
+Reed-Solomon is the mandatory scheme because it is small to
 implement, recovers a block from exactly SSB_length of its symbols,
-and is a code of the MMT AL-FEC framework on which the MMTP profile
-of this document rests (<xref target="ISO.23008-10"></xref> code point 1).  RaptorQ
-stays specified, and is required for ATSC 3.0 ROUTE, for two
-reasons.  First, it serves every block size this document allows.
-A RaptorQ block holds up to 56403 source symbols (Section 6.3.4,
-rule 6), while a Reed-Solomon block holds at most 255 source and
-repair symbols (Section 4.5).  At 8 Mb/s with symbols of 1200 bytes,
-such a block spans at most about 300 ms of media, so the multi-second
-interleave windows of Section 9 need RaptorQ at that rate.  Second,
-RaptorQ is the code of ATSC 3.0 ROUTE delivery: when <xref target="ATSC-A331"></xref>
-applies AL-FEC to file delivery over ROUTE, it requires the
-RaptorQ-based repair protocol of its Annex A.4, and Section 12.1 maps
-its <tt>fecOTI</tt>.  When it applies AL-FEC to MMTP sessions, it requires
-the AL-FEC framework of <xref target="ISO.23008-1"></xref> Annex C and leaves the FEC
-code to in-band signaling, so it does not require RaptorQ for MMTP
-(Section 12).</t>
+and is a code of that framework (<xref target="ISO.23008-10"></xref> code point 1).
+RaptorQ stays specified, code point 3, for its block size: it serves
+every block size this document allows.  A RaptorQ block holds up to
+56403 source symbols (Section 6.3.4, rule 6), while a Reed-Solomon
+block holds at most 255 source and repair symbols (Section 4.5).  At
+8 Mb/s with symbols of 1200 bytes, such a block spans at most about
+300 ms of media, so the multi-second interleave windows of Section 9
+need RaptorQ at that rate.  A code of <xref target="ISO.23008-10"></xref> other than
+these two is outside this document until the registry below lists
+it.</t>
 <t>The algorithm registry (Section 15.2) provides an extension point
 for additional schemes.  A registered value other than &quot;none&quot;,
 &quot;raptorq&quot; and &quot;reed-solomon&quot; needs a specification of its own, giving
@@ -430,8 +424,12 @@ SSB_length + RSB_length exceeds 255, or whose RS_ID is not less than
 RSB_length, leaving the state of every block unchanged.  Neither
 packet is a symbol of a code that Section 4.4 defines.  A repair
 packet whose RSB_length is less than O_i + P_i for a layer i that the
-receiver holds is handled by Section 6.3.9, which fails closed, and
-not by this rule.</t>
+receiver holds, of that layer's own track where i is above 0 or of a
+block to which the check of Section 6.3.9 applies, is handled by
+that section, which fails closed, and not by this rule; on any other
+packet this rule applies to it, one of a block generated before an
+append, carrying no symbol of layer i, or one of layer 0's track
+generated under a previous total (Section 6.3.9).</t>
 <t>Repair layers (Section 6.3) carry disjoint ranges of columns: layer i
 carries columns O_i to O_i + P_i - 1 (Section 6.3.2).  A column
 depends on its RS_ID alone, so a repair symbol is the same whichever
@@ -552,8 +550,7 @@ shows a loc track under <tt>moq-object-v1</tt>, and Section 4.5 a track under
 
 <ul spacing="compact">
 <li>&quot;none&quot;: No FEC</li>
-<li>&quot;raptorq&quot;: RaptorQ per RFC 6330 (OPTIONAL; REQUIRED for ATSC 3.0
-ROUTE compatibility, Sections 4.3 and 12)</li>
+<li>&quot;raptorq&quot;: RaptorQ per RFC 6330 (OPTIONAL, Section 4.3)</li>
 <li>&quot;reed-solomon&quot;: Reed-Solomon over GF(2^8) per Section 4.4
 (mandatory to implement, Section 4.3)</li>
 </ul>
@@ -625,16 +622,22 @@ the instance's total repair count is at most 255 (Section 6.3.4,
 rule 12).</t>
 <t><strong>repairSymbols</strong> (integer, REQUIRED): P value - repair symbols per
 FEC block.  MUST be &gt;= 1 when a repair track is published.</t>
-<t><strong>symbolSize</strong> (integer, REQUIRED): T value - bytes per symbol.  All
-symbols in a block have the same size; the byte layout of each source
-symbol is fixed by the track's <tt>blockProfile</tt> and is not otherwise
-carried in the catalog.  Under &quot;iso-ssbg1-v1&quot; it is the ssbg_mode1
-construction of Section 7.3, under which a source packet of up to
-T - 2 bytes is protected.  Under &quot;moq-object-v1&quot; it is the construction
-of Section 7.6.1, under which an object whose Protected Object Unit is
-at most K x T bytes long is protected.  For &quot;raptorq&quot;, T is a multiple of 8, the
-fixed Symbol Alignment of the derived OTI (Section 4.2).  For
-&quot;reed-solomon&quot;, no such alignment applies (Section 4.5).</t>
+<t><strong>symbolSize</strong> (integer, REQUIRED): T value - bytes per symbol.  T
+MUST be at least 1 under every block profile: a zero-length symbol
+carries nothing, and the symbol count of Section 7.6.1 divides by T.
+All symbols in a block have the same size; the byte layout of each
+source symbol is fixed by the track's <tt>blockProfile</tt> and is not
+otherwise carried in the catalog.  Under &quot;iso-ssbg1-v1&quot; it is the
+ssbg_mode1 construction of Section 7.3, under which a source packet
+of up to T - 2 bytes is protected; under it T MUST be at least 14: a
+shorter symbol carries no protected packet of the 12-octet MMTP
+packet header (<xref target="MOQ-MMT"></xref> Section 3.1).  Under &quot;moq-object-v1&quot; it is
+the construction of Section 7.6.1, under which an object whose
+Protected Object Unit is at most K x T bytes long is protected.  For
+&quot;raptorq&quot;, T is a multiple of 8, the fixed Symbol Alignment of the
+derived OTI (Section 4.2), so the least T is 8 under &quot;moq-object-v1&quot;
+and 16 under &quot;iso-ssbg1-v1&quot;.  For &quot;reed-solomon&quot;, no such alignment
+applies (Section 4.5).</t>
 <t><strong>interleaveDepthMs</strong> (integer, OPTIONAL): When present, its value MUST
 be a non-negative integer.  A value greater than zero is the complete
 FEC source/repair packet send span in milliseconds.  It is the catalog
@@ -727,11 +730,11 @@ track in the same catalog that carries an <tt>fec</tt> object whose
 <tt>blockProfile</tt> admits the track's <tt>packaging</tt> (Section 5.1).</t>
 <t><strong>repairLayer</strong> (integer, REQUIRED on enhancement layers, OPTIONAL on
 layer 0, MUST NOT appear on an overlay): The layer index (Section 6.3).</t>
-<t><strong>repairSymbols</strong> (integer, REQUIRED except on layer 0; MUST be</t>
-<blockquote><t>= 1): The repair symbols per block that this track carries, P_i.
+<t><strong>repairSymbols</strong> (integer, REQUIRED except on layer 0; MUST be &gt;= 1):
+The repair symbols per block that this track carries, P_i.
 For layer 0 the source track's <tt>fec.repairSymbols</tt> is the
 authoritative P_0 (Section 6.3.4, rule 11).</t>
-</blockquote><t><strong>priority</strong> (integer, OPTIONAL): The Publisher Priority
+<t><strong>priority</strong> (integer, OPTIONAL): The Publisher Priority
 (<xref target="I-D.ietf-moq-transport"></xref> Section 5.1.1) of this track's objects, in
 the range 192 to 255 (Section 10).  A publisher that declares it MUST
 give every object of the track this Publisher Priority, for example
@@ -748,8 +751,8 @@ declares this track to be the source track's keyframe overlay
 overlay is defined only for a source track under <tt>iso-ssbg1-v1</tt>
 (Section 6.3.4, rule 10).</t>
 <t><strong>sourceSymbols</strong> (integer, REQUIRED on an overlay, MUST NOT appear
-otherwise): The overlay instance's own K, the upper bound on the
-SSB_length of its blocks (Section 7.4).</t>
+otherwise; MUST be &gt;= 1): The overlay instance's own K, the upper
+bound on the SSB_length of its blocks (Section 7.4).</t>
 <t>Track names carry no meaning in any of this.  A receiver MUST resolve
 every relationship from <tt>fec.repairTrack</tt>, <tt>depends</tt>, <tt>repairLayer</tt>
 and <tt>scope</tt>, and MUST NOT infer one by parsing a track name or a name
@@ -1361,6 +1364,20 @@ plus the <tt>repairSymbols</tt> of all its layers, and for an overlay,
 its own <tt>sourceSymbols</tt> plus its own <tt>repairSymbols</tt> (Sections 4.5
 and 6.4.1).  Every entry of A that a block of the instance uses is
 then defined (Section 4.4).</li>
+<li>The <tt>fec</tt> object meets the range rules of Section 5.1:
+<tt>sourceSymbols</tt> is at least 1, <tt>repairSymbols</tt> is at least 1 when
+a repair track is published, <tt>symbolSize</tt> is at least 1 and,
+under <tt>iso-ssbg1-v1</tt>, at least 14, and <tt>symbolSize</tt> is a multiple
+of 8 when <tt>fec.algorithm</tt> is <tt>raptorq</tt>; and each repair track
+meets those
+of Section 5.1.1: its <tt>repairSymbols</tt>, where declared, is at
+least 1, and an overlay's <tt>sourceSymbols</tt> is at least 1.  A
+symbol shorter than 14 octets carries no protected MMTP packet
+(Section 7.3), a RaptorQ symbol size off the Symbol Alignment
+fits no derived OTI (Section 4.2), and a block of no source or no
+repair symbols recovers nothing, in the base instance or in an
+overlay (Section 6.4.1), so a receiver that started FEC on such a
+catalog would join repair tracks whose symbols recover no packet.</li>
 </ol>
 <t>Section 6.3.9 adds one check that can only be made on received repair
 packets.</t>
@@ -1500,7 +1517,15 @@ bandwidth to decide whether to add or drop a repair layer.</t>
 <t>Layer changes are make-before-break.  A receiver MUST join the
 additional layer's endpoint and begin receiving from it before
 leaving any endpoint it currently holds, so that no source block is
-left with less coverage than the receiver already had.</t>
+left with less coverage than the receiver already had.  A layer
+whose endpoint the receiver has left is carried on no endpoint it
+holds, reachable over MoQ unicast as above; under the bc-provenance
+profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2 a receiver holds an
+endpoint while joined to its group, reading its manifest track or
+receiving the broadcast that carries the flow (its
+Section 7.2.9), and a consumer is protected under that endpoint's
+flow only while the receiver holds it (step 2 of <xref target="MOQ-MULTICAST"></xref>
+Section 7.2.7).</t>
 <t>Hysteresis MUST derive from the FEC block span, that is from
 <tt>interleaveDepthMs</tt> together with <tt>reorderToleranceMs</tt>, and MUST NOT
 come from a fixed timer or a fixed symbol count.  A receiver MUST
@@ -1551,7 +1576,57 @@ the reason Section 6.3.8 gives: a receiver uses the total only as a
 bound, <tt>RS_ID &lt; RSB_length</tt> and under <tt>reed-solomon</tt> also
 <tt>SSB_length + RSB_length &lt;= 255</tt>, so a receiver holding a catalog from
 before an append reads a smaller bound that excludes only symbols of
-layers it has not joined.</t>
+layers it has not joined.  A publisher MUST apply the raised total
+from a block onward in the serial order of Section 7.5, generating
+the repair symbols of that block and of every block after it under
+the raised total or one raised later and those of every block
+before it under a smaller one, whatever order its encoder generates
+the repair symbols of blocks in, so that RSB_length is
+non-decreasing in that order.  The other order needs care: a block's
+RSB_length is the total in force when its repair symbols were
+generated (Section 7.1), so the repair packets of a block generated
+under the previous total carry that total, which is O_n for the
+appended layer n and below O_n + P_n, and a receiver that joins layer
+n can take such a packet after the catalog that lists the layer: the
+packets of a block are sent over the span of Section 5.1
+(<tt>interleaveDepthMs</tt>), a relay delivers from its cache, and a unicast
+repair (Section 11.4) returns the repair objects of an older block.
+The check below therefore applies, for a held layer above 0, to a
+repair packet of that layer's own track, which carries a symbol
+generated under a total at or above its O_i + P_i whatever block it
+belongs to, and, for every held layer, to a block at or after, in
+the serial order of their SS_Start (Section 7.5), in which the total
+never falls (above), one of which the receiver has received a
+repair packet carrying at least that layer's O_i + P_i; for a layer
+above 0, a block before it whose packets of other layers carry less
+was generated before the append, carries no symbol of the layer, and
+those packets are the symbols of the layers the receiver holds
+below it, under the coordinates of Section 6.3.2 unchanged; for
+layer 0, no block carries less than its P_0 where the catalog gives
+the flow's own count, and under a block total read from an AL-FEC
+message (below) a block before it whose packets carry less was
+generated under a previous total, which every packet of it carries,
+those of layer 0's own track included.  Layer 0 has no clause of
+its own track: its O_0 is 0 and its symbols' coordinates depend on
+no published count, so a catalog whose layer 0 carries a block
+total read from an AL-FEC message rather than the flow's own count
+(<xref target="MOQ-MMT"></xref> Section 12.2), or that message held in place of a
+catalog (Section 12), under which a packet of that track generated
+under a previous total carries less, fails a receiver closed on no
+conforming packet.
+Within a consumer protected under a flow of the
+bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2, whether or
+not that profile governs it for its blocks (Section 7.4), the packet
+that anchors the check and the packet it tests are both repair
+packets that profile has admitted (step 2 of its Section 7.2.7): a
+symbol of an unlisted track reaches the consumer under the
+integrity protection of a MoQ unicast path, which vouches for the
+relay and not for the publisher, so the total it carries attests to
+no coordinate the publisher is using; it anchors nothing, and one
+whose RSB_length is below the O_i + P_i of a layer the receiver
+holds is discarded, leaving the state of every block unchanged, so
+that a relay on that path cannot stop FEC for the source track with
+one packet.</t>
 <t>A publisher MUST NOT renumber the <tt>repairLayer</tt> of a published layer,
 and MUST NOT change the <tt>repairSymbols</tt> of a published layer, while
 any receiver may still be consuming the source track.  Rule 2 of
@@ -1583,29 +1658,66 @@ check below cannot tell that case from a genuine coordinate
 disagreement.  Both present as nothing but a smaller total.  The
 receivers holding the highest layer are also the lossiest ones, and
 they cannot recover by observation: absence of symbols is precisely
-the loss condition the layer was joined to repair, so they learn of
-the withdrawal only at the next catalog refresh, which this document
-does not bound.</t>
-<t>Append-only is what makes the check below sound.  RSB_length is
-monotonically non-decreasing over the lifetime of a source encoding,
-so a wire RSB_length below a held layer's O_i + P_i is always a
-genuine violation: no operation this document defines produces one.</t>
+the loss condition the layer was joined to repair, so but for the
+check below, which fails closed those of them that hold a layer
+below it, on the smaller total the packets of that layer carry,
+they would learn of the withdrawal only at the next catalog
+refresh, which this document does not bound, as one holding the
+withdrawn layer alone, which no packet reaches after the
+withdrawal, does.</t>
+<t>Append-only, applied from a block onward, is what makes the check
+below sound.  RSB_length is monotonically non-decreasing over the
+lifetime of a source encoding in the serial order of Section 7.5,
+as the append rule above requires, and a symbol of a layer above 0
+is generated only under a total at or above that layer's O_i + P_i,
+so a wire RSB_length below a held layer's O_i + P_i on a packet of
+that layer's track, the layer being above 0, or on a block at or
+after one that carried that O_i + P_i, is always a genuine
+violation: no operation this document defines produces one.</t>
 <t>A receiver MUST fail closed when, for any layer i it holds, the
-RSB_length carried on any repair packet of the same FEC instance is
-less than O_i + P_i derived from its own catalog: its own layer's
-RS_ID range does not fit under the bound the publisher is advertising,
-so the two disagree about coordinates the receiver is actively using.
-It MUST NOT treat such a packet as a symbol to discard.  In the
+RSB_length carried on a repair packet of that layer's track, i
+being above 0, or on a repair packet of the same FEC instance of a
+block at or after, in the serial order of Section 7.5, one of which
+it has received a repair packet carrying at least O_i + P_i, is
+less than the O_i + P_i derived from its own catalog, or from the
+AL-FEC message for a receiver that holds layer 0 under that message
+alone (Section 12): its own layer's RS_ID range
+does not fit under the bound the publisher is advertising, so the
+two disagree about coordinates the receiver is actively using.  It
+MUST NOT treat such a packet as a symbol to discard.  In the
 renumbering example above the total falls from 56 to 40 while the
-receiver's O_2 + P_2 is 56, so the check catches it.</t>
+receiver's O_2 + P_2 is 56, so the check catches it on the first
+packet of layer 2 it receives after the change, whenever it joined.</t>
 <t>That check is a backstop and not a substitute for the publisher
 requirement.  It does not catch a change that leaves the total at or
 above the receiver's derived bound, for example an increase to a lower
 layer's <tt>repairSymbols</tt>, which shifts every higher offset while
-raising the total.  That case is silent on the wire, which is why the
-protection is the prohibition on the publisher rather than validation
-at the receiver.  A wire RSB_length larger than the receiver's derived
-total is not an error in itself: that is the append case above.</t>
+raising the total.  Nor does it catch, for a receiver that joins a
+withdrawn highest layer under a catalog that still lists it, the
+withdrawal itself unless a block generated while the layer was
+published, after its append and before the withdrawal, reaches it:
+no packet of that layer is generated after the withdrawal, the
+packets of the layers below carry, on every block generated after
+it, a total below O_i + P_i, which anchors the check on none of
+them, and their coordinates are unchanged by the withdrawal, so a
+receiver that takes no such block decodes from the layers below and
+learns of the withdrawal only at the next catalog refresh, while
+one that takes a packet of such a block, by the routes of the
+append paragraph above, whose packets carry that O_i + P_i, has the
+check anchored and, where it holds a layer below the withdrawn
+one, fails closed on the first block that reaches it carrying the
+smaller total at or after, in the serial order of Section 7.5, a
+block of which it has received a repair packet carrying that
+O_i + P_i, as a receiver that had joined the layer and holds one
+below it does, while one holding the withdrawn layer
+alone, which no repair packet reaches after the withdrawal, learns
+of it at that refresh as well.  The first case is silent on the
+wire, and the second where no such block arrives or the receiver
+holds the withdrawn layer alone, which is why the protection is the
+prohibition on the publisher rather than validation at the
+receiver.
+A wire RSB_length larger than the receiver's derived total is not an
+error in itself: that is the append case above.</t>
 </section>
 </section>
 
@@ -1777,7 +1889,8 @@ of the packet's FEC instance (Section 6.4.1).</t>
 for the block: the instance's total repair count P when the block's
 repair symbols are generated, identical on every repair packet of the
 block.  A layer does not carry its own P_i.  The value rises when a
-layer is appended (Section 6.3.9).</t>
+layer is appended, from a block onward in the serial order of
+Section 7.5 (Section 6.3.9).</t>
 <t><strong>RS_ID (24 bits)</strong>: The zero-based index of this repair symbol
 among the block's P repair symbols.  The Encoding Symbol ID is
 derived as ESI = SSB_length + RS_ID (Section 7.2): under <tt>raptorq</tt> it
@@ -1918,10 +2031,11 @@ track contradicts the catalog (Section 5.2).</t>
 decoder's working memory, RFC 6330 permits dividing each block into N
 sub-blocks (the Number of Sub-Blocks field of the OTI).  The derived
 OTI of Section 4.2 fixes N = 1, so catalog-signaled sessions do not
-use sub-blocks; sub-block operation by broadcast systems that carry
-an explicit OTI is described informatively in Section 12.2.
-A publisher using MMTP packaging under <tt>iso-ssbg1-v1</tt> therefore uses
-ssbg_mode1 without sub-blocks, and never ssbg_mode2.</t>
+use sub-blocks; the AL-FEC message of <xref target="ISO.23008-1"></xref> carries no OTI,
+and the split source blocks of its Clause C.2.2 are the two-stage
+coding structure, which this document does not use.  A publisher
+using MMTP packaging under <tt>iso-ssbg1-v1</tt> therefore uses ssbg_mode1
+without sub-blocks, and never ssbg_mode2.</t>
 </section>
 
 <section anchor="short-source-blocks"><name>Short Source Blocks</name>
@@ -1995,6 +2109,32 @@ whose range [SS_Start, SS_Start + SSB_length) overlaps a different
 block that it has already accepted, in each case leaving the state of
 every block unchanged.  Under <tt>reed-solomon</tt> it also discards a repair
 packet that fails the checks of Section 4.5.</t>
+<t>Within a consumer that the bc-provenance profile of <xref target="MOQ-MULTICAST"></xref>
+Section 7.2 governs for its blocks, one protected under a flow whose
+endpoint lists its source track (step 2 of its Section 7.2.7; a
+consumer protected under no such flow, as one a repair-only endpoint
+feeds while the receiver takes the source track over MoQ unicast
+alone, is for this paragraph, Section 9 and Section 11.4 a consumer
+outside that profile, while the scoping of the check of Section
+6.3.9 to admitted packets reaches it where it is protected under
+any flow of the profile, as it reaches every consumer so
+protected), a block that only symbols of
+an unlisted
+track have delimited (a track that no endpoint of a flow the
+consumer is protected under lists, as that step defines it: one no
+multicast endpoint the receiver holds lists, holding being joined to
+its group, reading its manifest track or receiving the broadcast
+that carries the flow, or one a held endpoint lists while the
+consumer is not yet protected under its flow; Section 6.3.6) is
+provisional: it yields to a repair packet the profile has admitted
+whose (SS_Start, SSB_length) conflicts with it, as that step
+specifies, and the rules of the previous paragraph then apply among
+admitted packets.  A provisional block is held for decoding only:
+it has no ts and no FEC deadline (Section 9), and the SS_IDs in its
+range that the receiver lacks belong, for Section 11.4, to blocks
+the receiver holds no repair packet of, as if the block were not
+delimited; such a symbol reveals no run of lost SS_IDs, which a
+packet the profile admits above them alone reveals.</t>
 </section>
 
 <section anchor="ss-id-wrap-and-repair-group-ids"><name>SS_ID Wrap and Repair Group IDs</name>
@@ -2131,8 +2271,15 @@ inclusive Group range</t>
 SSB_length that a block can have (Section 7.4), so the block that
 contains x starts at most K - 1 SS_IDs before x;</li>
 <li>S_prev is the SS_Start of the last block that the receiver has
-delimited that ends before x.  When the receiver has delimited no
-such block, the first term is absent and the range is
+delimited that ends before x.  Within a consumer that the
+bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2 governs for
+its blocks (Section 7.4), only a block that a repair packet the
+profile has admitted delimits counts here: a provisional block,
+one that only symbols of an unlisted track (Section 7.4) have
+delimited, is no such block, as its (SS_Start, SSB_length) is
+unverified and the block that contains x may start within its
+range.  When the receiver has delimited no such block, the first
+term is absent and the range is
 [ max(ext(x) - (K - 1), 0), ext(x) ];</li>
 <li>ext(x) is x extended relative to ext(S_prev) when S_prev exists,
 and otherwise relative to the reference value r of the receiver's
@@ -2156,6 +2303,16 @@ the Group's objects (Section 11.4.2), type 0x04 (Absolute Range) with
 StartGroup ext(SS_Start), StartObject the first and EndObject the last
 Object ID that it requests (an inclusive range,
 <xref target="I-D.ietf-moq-transport"></xref> Section 3.3.1), and EndGroupDelta 0.</t>
+<t>Either form is answered only by a relay that caches the repair
+objects it receives, datagram-delivered ones included, and serves
+them by FETCH.  At the time of writing not every relay does: some
+decline a FETCH of objects delivered as datagrams, and some serve no
+FETCH at all.  A block's repair objects share one Group (above), so a
+hop that carries no Object IDs for datagram-delivered objects
+delivers only the first repair object of each Group, one repair
+symbol per block, however many the publisher sent.  A publisher
+whose receivers sit behind such a hop can send repair objects on
+streams, which carry every object's Object ID.</t>
 <t>The 32-bit wrap of SS_ID and SS_Start is that of <xref target="ISO.23008-1"></xref>.  The
 extended SS_Start, and its use as a MoQ Group ID, are defined by this
 document, outside <xref target="ISO.23008-1"></xref>.</t>
@@ -2755,9 +2912,10 @@ assignment taken from the trailing Source FEC Payload ID of an A3SA
 verified packet is unauthenticated.  A receiver that requires
 authenticated FEC block assignment MUST obtain it from an integrity
 mechanism, other than A3SA signing, whose coverage includes the
-complete MMTP packet, the trailer included.  The moq-provenance profile
-is not such a mechanism: its authenticated bytes exclude the Source
-FEC Payload ID (<xref target="MOQ-MULTICAST"></xref> Section 7.2.4).</t>
+complete MMTP packet, the trailer included.  Version 2 of the
+bc-provenance profile (<xref target="MOQ-MULTICAST"></xref> Section 7.2) is such a
+mechanism: its digest covers the whole UDP payload as transmitted,
+the Source FEC Payload ID included.</t>
 <t>For MoQ-only receivers (no A3SA verification), the trailing 4-byte
 Source FEC Payload ID remains the canonical identifier by which a
 source packet is placed in its block (Section 8.3).  QUIC transport
@@ -2883,7 +3041,22 @@ block whose first packet the receiver did not receive is one that it
 first learns of from a later signal -- a later source or repair
 packet of the block, a packet of a successor block, or a FETCH
 response that covers the block (Section 7.5) -- and its <tt>ts</tt> is the
-arrival time of that signal.  When <tt>interleaveDepthMs</tt> is positive,
+arrival time of that signal.  Within a consumer that the
+bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2 governs for
+its blocks (Section 7.4), the packet whose receipt anchors <tt>ts</tt> is
+the first packet of the block, in the order received, that the
+profile admits, whenever it admits it (a datagram held on a miss
+and admitted later keeps its receipt time), and a symbol of an
+unlisted track (Section 7.4) is neither that packet nor such a
+signal, whether or not a repair packet the profile admits later
+delimits the same block; a block that only such symbols have
+delimited is held for decoding only: it has no <tt>ts</tt> and no FEC
+deadline,
+whatever packets the profile admits into or above its range, and the
+SS_IDs in its range that the receiver lacks are runs of Section
+11.4, each with the <tt>ts</tt> the packet admitted above it gives, as step
+2 of <xref target="MOQ-MULTICAST"></xref> Section 7.2.7 specifies.
+When <tt>interleaveDepthMs</tt> is positive,
 the base FEC deadline is:</t>
 
 <artwork><![CDATA[base_deadline = ts + interleaveDepthMs
@@ -2928,7 +3101,15 @@ NOT discard the block before that deadline, or while a unicast repair
 FETCH for it is outstanding (Section 11.4.2), except under a memory
 cap.  A block so discarded is treated from then on as having reached
 its FEC deadline unrecovered and, on a track whose blocks Section
-11.4.1 classifies, of unknown class.  The
+11.4.1 classifies, of unknown class.  Within a consumer that the
+bc-provenance profile governs for its blocks (Section 7.4), the
+policy discards a block that has no <tt>ts</tt>, one that only symbols of
+an unlisted track have delimited, before any block that has a <tt>ts</tt>,
+on a track that derives no FEC deadline as on one that does, and
+such a discard is neither a reached deadline nor a
+signal: it gives the block no deadline and no class, drops its repair
+symbols and returns its source symbols to the undelimited state of
+Section 7.4 (step 2 of <xref target="MOQ-MULTICAST"></xref> Section 7.2.7).  The
 policy is not signaled, and a receiver MUST keep it separate from the
 catalog values: it does not change <tt>interleaveDepthMs</tt>,
 <tt>reorderToleranceMs</tt>, or a deadline derived from them, and discarding
@@ -3105,6 +3286,15 @@ wire-visible stream priority mechanism.  A repair track's catalog
 <tt>priority</tt> is the Publisher Priority of its objects, and Section 5.1.1
 states how a subscriber chooses its subscriber priority for the
 track.</t>
+<t>Not every MoQ Transport implementation applies these priorities to
+objects delivered as datagrams.  At the time of writing, some stacks
+send every datagram ahead of all stream data whatever its Publisher
+Priority, and others give the datagrams of a connection one priority,
+so on such a hop a repair track delivered as datagrams can precede
+the source track it protects, whatever priorities the two carry.  A
+publisher keeps repair from delaying its source on such a hop by
+sending a block's repair objects only after it has sent the block's
+source objects.</t>
 <t>Under congestion, this priority separation ensures:</t>
 
 <ol spacing="compact">
@@ -3256,10 +3446,13 @@ FEC-reconstructed object was never carried in a single packet and is
 therefore not individually covered by a packet hash; it inherits trust
 transitively from the verified surviving symbols used to reconstruct
 it.  Deployments requiring per-object authentication of recovered data
-can additionally apply an object-level scheme (for example the
-manifest-based moq-provenance profile of <xref target="MOQ-MULTICAST"></xref>
-Section 7.2) computed below the FEC layer, which survives
-reconstruction.</t>
+can additionally apply a scheme that authenticates every multicast
+symbol before it enters the decoder, repair symbols included, and,
+whenever a symbol of its decode was not so authenticated, checks a
+recovered packet against its own digest or, where it can derive no
+coordinate to hash with, withholds it (for example version 2 of
+the manifest-based bc-provenance profile of <xref target="MOQ-MULTICAST"></xref>
+Section 7.2, whose receiver procedure is its Section 7.2.7).</t>
 </li>
 <li><t><strong>Repair channel versus unicast repair.</strong>  A publisher using this
 scheme broadcasts repair symbols on the multicast channel (the repair
@@ -3307,14 +3500,29 @@ and 11.4.4.</t>
 to recover every block, whatever its class, from the source and repair
 symbols received on its multicast and AMT paths, together with any it
 receives on other paths (Section 8.3), up to the block's FEC deadline.
-The rest of this section governs only a block that is still
+Within a consumer that the bc-provenance profile of <xref target="MOQ-MULTICAST"></xref>
+Section 7.2 governs for its blocks (Section 7.4), a symbol of an
+unlisted track (Section 7.4) enters a decode only as step 2 of
+<xref target="MOQ-MULTICAST"></xref> Section 7.2.7 allows, which takes none into a
+decode of a block that two decodes with such symbols' help have left
+unrecovered; the attempt continues from the symbols the profile
+admits.  The rest of this section governs only a block that is still
 unrecovered at that deadline: the receiver does not hold all of its
 SSB_length source symbols (Section 7.4), and decoding from the
-symbols it holds has not recovered them.</t>
+symbols it holds has not recovered them.  Within such a consumer, a
+source symbol the profile has not admitted, received or recovered, is
+not held for this purpose (step 2 of <xref target="MOQ-MULTICAST"></xref>
+Section 7.2.7).</t>
 <t>A run of SS_IDs that the receiver lacks and that lies in no block it
 has delimited belongs to one or more blocks of which it holds no
 repair packet (Section 7.4).  For this section the receiver treats
-such a run as one block of the instance: Section 11.4.1
+such a run as one block of the instance (within a consumer that the
+bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2 governs for
+its blocks, Section 7.4, a block only symbols of an unlisted track
+have delimited being no block the receiver has delimited, and the
+run one only once a packet the profile has admitted lies above it,
+step 2 of <xref target="MOQ-MULTICAST"></xref> Section 7.2.7):
+Section 11.4.1
 classifies it from the source packets the receiver holds on either
 side of it, and its repair is requested by the Group range of
 Section 7.5, whose response also delimits the blocks it covers.</t>
@@ -3421,7 +3629,15 @@ video.</t>
 <t>When a keyframe-bearing block is still unrecovered at its FEC
 deadline, a receiver that holds a MoQ session with a relay serving the
 block's repair track MUST request on-demand unicast repair for it,
-with the priority of Section 11.4.5.  The request is a FETCH
+with the priority of Section 11.4.5, unless the block lies below a
+RAP the receiver has already admitted complete (the repair would be
+moot on completion, below); within a consumer that the
+bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2 governs for
+its blocks (Section 7.4), a block only symbols of an unlisted track
+(Section 7.4) have delimited reaches no deadline and is never
+requested, the SS_IDs it covers that the receiver lacks being runs
+of this section (step 2 of <xref target="MOQ-MULTICAST"></xref> Section 7.2.7).  The
+request is a FETCH
 <xref target="I-D.ietf-moq-transport"></xref>, over QUIC, of the block's
 repair-track group, whose Group ID is the block's extended SS_Start,
 or, for a run that the receiver has not delimited, of the Group range
@@ -3441,7 +3657,9 @@ receiver MUST NOT delay this request behind any non-keyframe or audio
 repair; Section 11.4.6 covers its interplay with a keyframe overlay.
 A FETCH completes or fails by MoQ Transport events, its last object
 or an error; a receiver MUST NOT declare it failed on a locally chosen
-timeout.</t>
+timeout.  A relay answers it only where it caches the repair track's
+objects, datagram-delivered ones included (Section 7.5); where it
+does not, the FETCH fails by those events.</t>
 <t>Only a keyframe-bearing block may stall video.  While its unicast
 repair is outstanding, the receiver MAY hold video presentation for
 it.  The block is unrecoverable when its unicast repair fails or
@@ -3459,7 +3677,8 @@ Section 11.4.6), it conceals the block's remaining loss as for a
 non-keyframe block (Section 11.4.3).</t>
 <t>If the next RAP arrives complete before a keyframe repair completes,
 the repair is moot: the receiver resumes from that RAP and SHOULD
-cancel the FETCH.</t>
+cancel the FETCH; a block that reaches its deadline already below
+such a RAP is not requested at all.</t>
 </section>
 
 <section anchor="other-video-blocks"><name>Other Video Blocks</name>
@@ -3561,8 +3780,9 @@ audio repair by a Group range.</t>
 <li><t>A receiver MUST NOT issue a non-keyframe or audio repair FETCH
 while a keyframe repair FETCH is outstanding on the same session,
 and SHOULD cancel its outstanding non-keyframe and audio repair
-FETCHes when a keyframe-bearing block reaches its FEC deadline
-unrecovered.</t>
+FETCHes when it requests the repair of a keyframe-bearing block
+that reaches its FEC deadline unrecovered; a block whose repair
+Section 11.4.2 does not request cancels nothing.</t>
 </li>
 </ol>
 <t>Priorities follow the ranges of Section 10.  A keyframe repair FETCH
@@ -3615,99 +3835,34 @@ FT=1 data unit.</t>
 </section>
 
 <section anchor="atsc-3-0-compatibility"><name>ATSC 3.0 Compatibility</name>
-<t>This specification is designed for interoperability with ATSC A/331
-<xref target="ATSC-A331"></xref> Application-Layer FEC.</t>
-<t><xref target="ATSC-A331"></xref> protects its two delivery protocols differently.  When
-it applies AL-FEC to file delivery over ROUTE, it requires the repair
-protocol of its Annex A.4, which uses RaptorQ: the S-TSID <tt>fecOTI</tt> is
-the <xref target="RFC6330"></xref> OTI, which Section 12.1 maps to the derived OTI of
-Section 4.2.  When it applies AL-FEC to MMTP sessions, it requires the
-AL-FEC framework of <xref target="ISO.23008-1"></xref> Annex C and leaves the FEC code to
-in-band signaling, so it requires no particular code for MMTP.  There
-the AL-FEC message names the code by its <xref target="ISO.23008-10"></xref> code point,
-3 for <tt>raptorq</tt> and 1 for <tt>reed-solomon</tt> (Section 4.1).  An
-implementation that claims compatibility with A/331 ROUTE AL-FEC, the
-mapping of Section 12.1, MUST support &quot;raptorq&quot; (Section 4.3); an
-A/331 MMTP session needs no particular code.</t>
-
-<section anchor="mapping-to-a-331-al-fec"><name>Mapping to A/331 AL-FEC</name>
-<table>
-<thead>
-<tr>
-<th>ATSC A/331 Concept</th>
-<th>MoQ FEC Equivalent</th>
-</tr>
-</thead>
-
-<tbody>
-<tr>
-<td><tt>&lt;FECParameters&gt;</tt></td>
-<td>Catalog <tt>fec</tt> field</td>
-</tr>
-
-<tr>
-<td><tt>&lt;RepairFlow&gt;</tt></td>
-<td>Repair track subscription</td>
-</tr>
-
-<tr>
-<td><tt>fecOTI</tt> (in S-TSID)</td>
-<td>Derived OTI (Section 4.2)</td>
-</tr>
-
-<tr>
-<td>Source TOI range</td>
-<td>Group ID range per Section 8</td>
-</tr>
-
-<tr>
-<td><tt>maximumDelay</tt></td>
-<td>No direct mapping to <tt>interleaveDepthMs</tt>; calculate the source-to-associated-repair delivery delay from the ROUTE schedule (<xref target="MOQ-MMT"></xref> Sections 12.2-12.3)</td>
-</tr>
-
-<tr>
-<td><tt>percentRepair</tt></td>
-<td>From P and K (<xref target="MOQ-MMT"></xref> Sections 12.2-12.3)</td>
-</tr>
-</tbody>
-</table><t><tt>percentRepair</tt> is not carried in the catalog; it is converted to and
-from <tt>repairSymbols</tt> by the informative rules of <xref target="MOQ-MMT"></xref>
-Sections 12.2 and 12.3.</t>
-<t>Publishers ingesting ATSC 3.0 broadcasts can preserve the original
-FEC parameters and pass them through in the catalog <tt>fec</tt> field.
-<tt>percentRepair</tt> in particular is not passed through verbatim: the
-catalog carries P rather than a percentage, and <tt>percentRepair</tt> is
-converted as above.</t>
-<t>The table maps parameters, and applies under either block profile.  A
-ROUTE source symbol is a slice of a FEC transport object, which is a
-delivery object followed by padding and its 4-byte size
-(<xref target="ATSC-A331"></xref> Annex A.4.2.2), so it matches the source symbols of
-neither profile.  A publisher that ingests ROUTE therefore forms its
-own source symbols, and generates its own repair symbols, under the
-track's block profile.</t>
-</section>
-
-<section anchor="sub-blocks-in-broadcast-systems"><name>Sub-Blocks in Broadcast Systems</name>
-<t>This subsection is informative broadcast-interoperability guidance,
-not an interoperability requirement of this document.  A broadcast
-system that carries an explicit <xref target="RFC6330"></xref> OTI, such as the A/331
-S-TSID <tt>fecOTI</tt>, can signal N &gt; 1 sub-blocks (Section 7.3); the
-ISO 23008-1 AL-FEC message carries no OTI, and the split source
-blocks of <xref target="ISO.23008-1"></xref> are the two-stage FEC coding structure of
-Clause C.2.2, which this document does not use.</t>
-<t>Under <xref target="RFC6330"></xref> Section 4.4.1.2, sub-blocking splits each T-byte
-symbol into N sub-symbols of TL x Al or TS x Al octets.  Every
-sub-block holds one sub-symbol from each source symbol of the block,
-and every encoding symbol, source or repair, carries one sub-symbol of
-every sub-block.  Sub-blocks therefore reduce the decoder's working
-memory (<xref target="RFC6330"></xref> Section 4.4.1.1).  They change neither the number
-of source or repair symbols, nor the repair overhead, nor the recovery
-latency: a receiver can decode the sub-blocks one at a time, but each
-sub-block is decodable exactly when the whole block is, from the same
-received ESIs.  The derived OTI of Section 4.2 fixes N = 1, so a MoQ
-receiver never sees sub-blocks, and a publisher that ingests such a
-flow forms its own source symbols (Section 12.1).</t>
-</section>
+<t>This specification is designed for interoperability with the
+Application-Layer FEC of ATSC A/331 <xref target="ATSC-A331"></xref> MMTP sessions.
+<xref target="ATSC-A331"></xref> applies AL-FEC to an MMTP session, when it applies it
+at all, through the AL-FEC framework of <xref target="ISO.23008-1"></xref> Annex C and
+requires no FEC code of its own (its Section 8.1.2.5): the framework
+carries whichever code the AL-FEC message names by its
+<xref target="ISO.23008-10"></xref> code point.  The codes are this document's to
+specify, and it specifies two, &quot;reed-solomon&quot; (code point 1,
+mandatory to implement) and &quot;raptorq&quot; (code point 3, OPTIONAL)
+(Sections 4.1 and 4.3); <xref target="MOQ-MMT"></xref> Section 8.3 gives the
+AL-FEC message a publisher sends for a track of either, and an MMTP
+session whose AL-FEC message names any other code is outside this
+document until the registry of Section 15.2 lists that code.  A
+publisher that ingests an A/331 MMTP session takes the FEC parameters
+of its tracks from that message and the asset locations of the MP
+table (<xref target="MOQ-MMT"></xref> Section 12.2), and a receiver that consumes the
+session without the catalog takes them from the message alone,
+holding the one repair flow as layer 0 under the block total the
+message bounds, which stands for its O_0 + P_0 in the check of
+Section 6.3.9, applied to layer 0 by its anchored clause alone, so
+that a packet of the flow generated under the previous total, which
+the message can precede (<xref target="MOQ-MMT"></xref> Section 8.3), fails it closed
+on nothing.  An
+MMTP session carries no <xref target="RFC6330"></xref> OTI: the derived OTI of
+Section 4.2 fixes N = 1, and sub-blocks are never used
+(Section 7.3).  ROUTE delivery, whose repair protocol (Annex A.4 of
+<xref target="ATSC-A331"></xref>) is RaptorQ-based, is outside the scope of this
+document.</t>
 </section>
 
 <section anchor="interaction-with-cmaf-packaging"><name>Interaction with CMAF Packaging</name>
@@ -3827,13 +3982,21 @@ consistency by checking that decoded data matches expected patterns
 (e.g., valid media container structure).</t>
 </li>
 <li><t><strong>Source Authentication</strong>: SSM limits which sources reach a
-receiver (<xref target="MOQ-MULTICAST"></xref> Section 7.1), and the moq-provenance
-profile authenticates content (<xref target="MOQ-MULTICAST"></xref> Section 7.2).</t>
+receiver (<xref target="MOQ-MULTICAST"></xref> Section 7.1), and version 2 of the
+bc-provenance profile (<xref target="MOQ-MULTICAST"></xref> Section 7.2) authenticates
+the datagrams themselves, repair symbols included, with a digest
+that covers the whole UDP payload, the Source FEC Payload ID
+included (Section 8.5).</t>
 </li>
 <li><t><strong>Block Integrity</strong>: Receivers MAY implement block-level checksums
-to detect corrupted recovery.  If decoded source data fails
-integrity checks, receivers SHOULD request retransmission via
-unicast fallback.</t>
+to detect corrupted recovery.  A block whose decoded source data
+fails such a check, or, within a consumer that the bc-provenance
+profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2 governs for its blocks
+(Section 7.4), whose recovered packets step 2 of its Section 7.2.7
+does not admit, is unrecovered: Section 11.4 governs it from its
+FEC deadline, and the receiver requests unicast repair for it only
+as that section directs, never by the multicast-to-unicast
+failover of <xref target="MOQ-MULTICAST"></xref>, which replaces the multicast path.</t>
 </li>
 <li><t><strong>Repair Policy Inputs</strong>: The in-band evidence that Section 11.4.1
 classifies blocks from, and the SSB_length by which Section 7.4
@@ -3850,9 +4013,10 @@ inconsistent (Section 7.4).  Deployments
 exposed to injection SHOULD authenticate source and repair packets
 with an integrity mechanism whose coverage includes the complete
 packet, the Source FEC Payload ID and the Repair FEC Payload ID
-included (Section 8.5).  The moq-provenance profile
-(<xref target="MOQ-MULTICAST"></xref> Section 7.2) authenticates source packet bytes
-but not the trailer or repair packets.</t>
+included (Section 8.5).  Version 2 of the bc-provenance profile
+(<xref target="MOQ-MULTICAST"></xref> Section 7.2) is such a mechanism: its digest
+covers the whole UDP payload of source and repair packets, both
+Payload IDs included.</t>
 </li>
 </ol>
 </section>
@@ -4560,7 +4724,6 @@ the source symbols at ESIs 1 and 2:</t>
 as an RFC.</t>
 
 <ul spacing="compact">
-<li>Added Marc E. Fiuczynski as an author.</li>
 <li>Removed Section 5.4 (Relay Extensibility Requirements) and its
 item in the Introduction.  Its first rule contradicted
 <xref target="I-D.ietf-moq-transport"></xref> Section 9, under which an unknown control
@@ -4628,8 +4791,9 @@ object the track's default Publisher Priority, states the profile's
 applicability, and works an example.</li>
 <li>Abstract and Section 1: the document defines two block profiles, and
 the ATSC 3.0 and ARIB compatibility statement concerns the MMTP
-profile.  Section 1 promises an ATSC 3.0 mapping only, and points to
-<xref target="MOQ-MMT"></xref> for ARIB STD-B60 carriage.</li>
+profile.  Section 1 promises an ATSC 3.0 MMTP compatibility
+statement only, and points to <xref target="MOQ-MMT"></xref> for ARIB STD-B60
+carriage.</li>
 <li>Section 2: the Repair Track, Source Block, Source Symbol, SS_ID,
 Interleave Depth, Keyframe Overlay and Block Profile definitions
 cover both profiles, and Protected Object Unit is defined.</li>
@@ -4648,6 +4812,9 @@ whose <tt>blockProfile</tt> admits its <tt>packaging</tt>, instead of requiring
 defined only under <tt>iso-ssbg1-v1</tt>, and a catalog that declares one
 for a track under <tt>moq-object-v1</tt> fails closed.  Section 6.4 states
 why.</li>
+<li>Section 5.1.1: an overlay's <tt>sourceSymbols</tt> MUST be &gt;= 1, a floor
+that -00 did not state.  Section 6.3.4, rule 13 makes it a catalog
+rule a receiver fails closed on.</li>
 <li>Section 5.2: loc and cmaf tracks have no in-band FEC signaling.</li>
 <li>Section 5.3: the FEC Source Info Property carries the SS_ID of an
 object's first source symbol under <tt>moq-object-v1</tt>, where it is the
@@ -4665,8 +4832,6 @@ packets, and Section 8.3 scopes cross-path combining per profile.</li>
 and the conformance cases are stated per profile.</li>
 <li>Sections 11.1, 11.2 and 11.3: multicast carries mmtp tracks only, and
 a loc or cmaf track reaches it through an mmtp rendition track.</li>
-<li>Section 12.1: the A/331 mapping is of parameters, and ROUTE source
-symbols match neither profile.</li>
 <li>Section 13: rewritten.  A cmaf track can be protected directly under
 <tt>moq-object-v1</tt>, or carried as an mmtp track, which is also its route
 to multicast.</li>
@@ -4682,23 +4847,26 @@ It is the systematic Cauchy Reed-Solomon code over GF(2^8) of
 field, matrix, encoding, short blocks and decoding.  Its parameters
 come from the catalog and the Repair FEC Payload ID, with no OTI.  A
 repair packet whose SSB_length + RSB_length exceeds 255, or whose
-RS_ID is not below RSB_length, is discarded, except that the
-fail-closed check of Section 6.3.9 takes precedence.  Where the
-restatement and <xref target="ISO.23008-10"></xref> differ, the ISO text governs.</li>
+RS_ID is not below RSB_length, is discarded, except that, on a
+packet of the own track of a held layer above 0 or on a block to
+which the fail-closed check of Section 6.3.9 applies, that check
+takes precedence.  Where the restatement and <xref target="ISO.23008-10"></xref>
+differ, the
+ISO text governs.</li>
 <li>Abstract, Sections 1, 4 and 5.1: the document fully specifies two
 schemes.  Reed-Solomon is now the mandatory-to-implement scheme;
-RaptorQ, mandatory in -00, is optional and required where ATSC 3.0
-ROUTE compatibility is claimed (Section 12).  <tt>symbolSize</tt> need not
-be a multiple of 8 under Reed-Solomon, and Section 4.5 gives a
-catalog example.</li>
+RaptorQ, mandatory in -00, is optional (Section 4.3).  <tt>symbolSize</tt>
+need not be a multiple of 8 under Reed-Solomon, is at least 1 under
+every profile and at least 14 under <tt>iso-ssbg1-v1</tt>, and Section 4.5
+gives a catalog example.</li>
 <li>Section 4.1: both codes are systematic and correspond to the
 <xref target="ISO.23008-10"></xref> code points 3 and 1.  The RaptorQ entry states its
 decoding overhead.</li>
 <li>Section 4.3: retitled &quot;Algorithm Requirements&quot; (it was &quot;Other FEC
 Algorithms&quot;).  It gives the rationale for Reed-Solomon as the
-mandatory scheme and for keeping RaptorQ: block size and ATSC 3.0
-ROUTE.  <xref target="ATSC-A331"></xref> requires RaptorQ for ROUTE and leaves the
-MMTP code to in-band signaling.</li>
+mandatory scheme and for keeping RaptorQ: block size.  It states
+that the MMT AL-FEC framework and <xref target="ATSC-A331"></xref> require no FEC
+code for an MMTP session, so this document specifies the codes.</li>
 <li>Sections 2, 3 and 5.2: definitions and decoder configuration cover
 both codes.</li>
 <li>Section 5.1.2: the worked catalog's overlay is valid only under
@@ -4716,8 +4884,15 @@ Section 4.4 (by RS_ID alone), a repair symbol does not depend on P.
 The section states conditions (a) to (d) under which an algorithm
 admits repair layers and the overlay, and the Reed-Solomon code
 meets them, with K + totalP at most 255.</li>
-<li>Section 6.3.4: rule 7 admits <tt>reed-solomon</tt>, and new rule 12 bounds
-K + totalP by 255 for each Reed-Solomon FEC instance.</li>
+<li>Section 6.3.4: rule 7 admits <tt>reed-solomon</tt>, new rule 12 bounds
+K + totalP by 255 for each Reed-Solomon FEC instance, and new rule
+13 makes the range rules of Sections 5.1 and 5.1.1 (<tt>sourceSymbols</tt>
+at least 1, <tt>repairSymbols</tt> at least 1 when a repair track is
+published and on each repair track where declared, an overlay's
+<tt>sourceSymbols</tt> at least 1, now stated in Section 5.1.1,
+<tt>symbolSize</tt> at least 1 and, under <tt>iso-ssbg1-v1</tt>, at least 14,
+and a multiple of 8 under <tt>raptorq</tt>) catalog rules a receiver
+fails closed on.</li>
 <li>Sections 6.3.9 and 6.4.1: a layer append, and a keyframe overlay,
 stay within rule 12 under Reed-Solomon.  Section 6.4.1 gives a valid
 Reed-Solomon overlay.</li>
@@ -4730,12 +4905,15 @@ recovery condition and packet checks.</li>
 <li>Sections 7.6.2 and 7.6.7: Reed-Solomon limits the largest protected
 object, and the example is valid only under RaptorQ.</li>
 <li>Section 9: the recovery condition follows the track's algorithm.</li>
-<li>Section 12: states which FEC codes <xref target="ATSC-A331"></xref> requires for ROUTE
-and for MMTP.</li>
+<li>Section 12: ATSC 3.0 compatibility is MMTP only.  The ROUTE mapping
+of A/331 AL-FEC of -00 (the S-TSID <tt>fecOTI</tt>, RepairFlow and
+<tt>overhead</tt> rules) and the sub-block guidance are removed, and the
+section states that <xref target="ATSC-A331"></xref> requires no particular code for
+an MMTP session and that the codes are this document's to specify.</li>
 <li>New Section 14.7: Reed-Solomon decoding cost and the absence of
 integrity protection.</li>
 <li>Section 15.2: the Reed-Solomon entry references <xref target="ISO.23008-10"></xref>
-Clause 6 and Section 4.4, and the code is specified for
+Clause 6 and Sections 4.4 and 4.5, and the code is specified for
 interoperation.</li>
 <li>New Appendix C: Reed-Solomon test vectors.  The appendix of changes
 becomes Appendix D.</li>
@@ -4748,11 +4926,43 @@ to Publisher Priority 240 (rule 3), and the 56403 bound applies
 under <tt>raptorq</tt> only (rule 6).</li>
 <li>Sections 6.3.8, 6.3.9 and 7.1: RSB_length is the total repair count
 when a block's repair symbols are generated, so it rises when a layer
-is appended.  Under Reed-Solomon a receiver also checks
-SSB_length + RSB_length against 255.</li>
-<li>Sections 7.3 and 12.2: sub-blocks are described as <xref target="RFC6330"></xref>
-defines them: they split each symbol and reduce decoder memory, and
-they change neither the symbol counts nor the recovery latency.</li>
+is appended, which a publisher MUST apply from a block onward in the
+serial order of Section 7.5, every block at or after it generated
+under the raised total or one raised later and every block before it
+under a smaller one whatever order its encoder generates blocks in
+(a rule -00 did not state, on which the check rests), and the repair
+packets of a
+block generated before an append carry the previous total, below the
+O_i + P_i of the appended layer, and can reach a receiver that joined
+the layer after the catalog that lists it.  The fail-closed check of
+Section 6.3.9
+therefore applies, for a held layer above 0, to a packet of that
+layer's own track, whose symbol was generated under a total at or
+above its O_i + P_i, and for every held layer to a block at or
+after, in the serial order of Section 7.5, one of which the
+receiver has received a repair packet carrying at least that
+layer's O_i + P_i; layer 0, whose coordinates depend on no
+published count, has no clause of its own track, which lets a
+catalog, or the message held in its place, give it a block total
+read from an AL-FEC message (<xref target="MOQ-MMT"></xref> Section 12.2; Section
+12); the check of -00,
+unscoped, fired on a conforming append.  Within a consumer
+protected under a flow of the
+bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2, governed
+for its blocks or not, the packet that anchors the check and the
+packet it tests are ones that profile admitted, so a symbol of an
+unlisted track delivered over
+a MoQ unicast path neither anchors nor trips it, and one below a
+held layer's bound is discarded.  A receiver that joins a withdrawn
+highest layer under a catalog that still lists it is caught only
+where a block generated while the layer was published reaches it
+and it holds a layer below, and otherwise learns of the withdrawal
+at the next catalog refresh, which Section 6.3.9 now states.
+Under Reed-Solomon a receiver
+also checks SSB_length + RSB_length against 255.</li>
+<li>Section 7.3: sub-blocks are described as <xref target="RFC6330"></xref> defines them,
+and no session this document targets carries an OTI, so none uses
+them.</li>
 <li>Section 8.5: <xref target="ATSC-A360"></xref> is cited as a reference, and A3SA is the
 ATSC 3.0 Security Authority.</li>
 <li>Sections 11 and 11.1: TreeDN is native SSM plus AMT relays, and the
@@ -4763,13 +4973,16 @@ number than every repair-track subscription the receiver holds on the
 session.</li>
 <li>Sections 6.1 and 13: BCP 14 keywords are no longer used for a
 naming convention or in an informative section.</li>
-<li>Sections 7.6.5, 12.1 and 14.4: no requirement rests on an
+<li>Sections 7.6.5, 12 and 14.4: no requirement rests on an
 informative reference.  Secure Objects and Common Encryption are
-examples, and the ATSC 3.0 ingest guidance uses no BCP 14 keyword.</li>
+examples, and the ATSC 3.0 ingest guidance sets no requirement of
+its own: the one BCP 14 keyword in Section 12 restates the status
+Section 4.3 gives &quot;raptorq&quot;.</li>
 <li>Section 14.3: the overhead bound applies by default to layer 0 of the
 base instance, since further layers are added on demand.</li>
 <li>Section 14.4: deployments that authenticate packets need a mechanism
-that covers the FEC Payload IDs, which moq-provenance does not.</li>
+that covers the FEC Payload IDs; version 2 of the bc-provenance
+profile does.</li>
 <li>Sections 5.1 and 15: the algorithm registry carries the catalog
 identifier and gives guidance to the designated expert, and a new
 &quot;MoQ FEC Block Profiles&quot; registry (Section 15.4) holds the
@@ -4782,15 +4995,74 @@ covers the block's send span.</li>
 11.4 set requirements on its endpoints and legs.  Added
 <xref target="ATSC-A360"></xref>, <xref target="I-D.ietf-moq-secure-objects"></xref> and <xref target="ISO.23001-7"></xref>
 as informative and <xref target="RFC8126"></xref> as normative.</li>
-<li>Sections 8.5, 11.3 and 14.4: the content authentication profile of
-<xref target="MOQ-MULTICAST"></xref> Section 7.2 is called &quot;moq-provenance&quot;, its name in
-that document's -01 revision (&quot;bc-provenance&quot; in -00).</li>
-<li>Section 12.1: the A/331 repair ratio that converts to and from
-<tt>repairSymbols</tt> is <tt>percentRepair</tt>, as in <xref target="MOQ-MMT"></xref> Sections 12.2
-and 12.3, not <tt>overhead</tt>.</li>
+<li>Sections 8.5, 11.3 and 14.4 name version 2 of the bc-provenance
+profile of <xref target="MOQ-MULTICAST"></xref> Section 7.2, whose digest covers the
+Source FEC Payload ID of source packets and the Repair FEC Payload
+ID of repair packets.  Section 11.3 item 3 describes a per-object
+scheme that authenticates every multicast symbol before it enters
+the decoder and checks a recovered packet against its own digest
+or withholds it.</li>
+<li>Section 7.4 states that, within a consumer the bc-provenance
+profile governs for its blocks (one protected under a flow whose
+endpoint lists its source track; one a repair-only endpoint feeds
+while the source track comes over MoQ unicast alone is outside the
+profile for Sections 7.4, 9 and 11.4), a block delimited only by
+symbols of an unlisted track (one that no endpoint of a flow the
+consumer is protected under lists: one no multicast endpoint the
+receiver holds lists, holding being joined to its group, reading
+its manifest track or receiving the broadcast that carries the
+flow, or one a held endpoint lists while the consumer is not yet
+protected under its flow) is provisional and yields to an admitted
+repair packet that conflicts with it, as <xref target="MOQ-MULTICAST"></xref>
+Section 7.2.7 specifies, the fail-closed rule then applying among
+admitted packets, and that such symbols reveal no run of lost
+SS_IDs.  Section 6.3.6 states that a consumer is protected under
+an endpoint's flow only while the receiver holds the endpoint.</li>
+<li>Sections 9 and 11.4 state that, within such a consumer, a symbol
+of an unlisted track enters a decode only as step 2 of
+<xref target="MOQ-MULTICAST"></xref> Section 7.2.7 allows, which bounds the decodes a
+block takes with such symbols' help, that a source symbol the
+profile has not admitted is not held in deciding whether a block
+is unrecovered at its FEC deadline, that the packet whose receipt
+anchors a block's ts is the first packet of the block, in receipt
+order, that the profile admits, whenever it admits it, never such
+a symbol, that a block only such symbols
+have delimited is held for decoding only, with no ts and no FEC
+deadline whatever packets are admitted into or above its range,
+the SS_IDs it covers that the receiver lacks being runs of
+Section 11.4 as if it were not delimited, and
+that the open-block bound discards a block that has no ts before
+any block that has a ts; Section 7.5 states that, within such a
+consumer, such a block is never the S_prev of the Group range,
+only a block that a repair packet the profile has admitted
+delimits counting there; Section 14.4 item 4 sends a decode
+that fails an integrity check, and, within such a consumer, one
+whose recovered packets step 2 of <xref target="MOQ-MULTICAST"></xref> Section 7.2.7
+does not admit, to Section 11.4 instead of to the unicast fallback;
+Section 11.4.2 requests no repair for a block that reaches its
+deadline below a RAP the receiver has admitted complete, nor,
+within such a consumer, for a block only symbols of an unlisted
+track have delimited, which reaches no deadline, and Section
+11.4.5 item 3
+cancels no non-keyframe or audio repair at the deadline of a block
+Section 11.4.2 does not request.</li>
 <li>Section 15.3: &quot;MoQ Streaming Format&quot; is now &quot;MOQT Streaming Format&quot;,
 the name that <xref target="I-D.ietf-moq-msf"></xref> uses.</li>
+<li>Sections 7.5, 10 and 11.4.2: notes on implementations at the time
+of writing.  Some MoQ Transport stacks do not apply Publisher
+Priority to datagram-delivered objects, so a publisher keeps repair
+from delaying its source by sending a block's repair objects after
+the block's source objects; the repair FETCH is answered only by a
+relay that caches datagram-delivered objects and serves them by
+FETCH; and a hop that carries no Object IDs for datagram-delivered
+objects delivers only the first repair object of each Group.</li>
 </ul>
+</section>
+
+<section anchor="acknowledgments" numbered="false"><name>Acknowledgments</name>
+<t>Marc E. Fiuczynski reviewed this revision and reported how relays
+and MoQ Transport stacks of the time handle datagram-delivered
+repair objects (Sections 7.5, 10 and 11.4.2).</t>
 </section>
 
 </back>
