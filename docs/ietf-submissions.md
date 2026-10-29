@@ -72,3 +72,31 @@ submission:
 The three document pages and archive XML were verified after authentication; the
 archive XML is byte-identical to the submitted source hashes above. Track future
 revisions through the same Datatracker process and update [the publication issue](https://paperclip.blockcast.net/BLO/issues/BLO-10812).
+
+## draft-ramadan-mboned-mcast-manifest-00 (29 October 2026)
+
+The MBONED individual draft was submitted on 29 October 2026 from the XML of
+commit [`62b907ddd73754793041c49ef9ae01d49e1e1486`](https://github.com/Blockcast/moqcast-draft/tree/62b907ddd73754793041c49ef9ae01d49e1e1486)
+on `main` (the content of `af8c814` with the explicit date set to the upload
+day). Only the XML was uploaded, through the submission API
+(`POST https://datatracker.ietf.org/api/submission`, which takes the same
+email authentication round-trip as the form); the author completed the
+authentication and the draft is posted as revision `-00`. It names
+`workgroup=mboned` and is an individual submission, not an MBONED adoption.
+
+| Draft | Submission receipt | Published document |
+| --- | --- | --- |
+| `draft-ramadan-mboned-mcast-manifest-00` | [171216](https://datatracker.ietf.org/submit/status/171216/) | [Manifest document](https://datatracker.ietf.org/doc/draft-ramadan-mboned-mcast-manifest/) · [XML](https://www.ietf.org/archive/id/draft-ramadan-mboned-mcast-manifest-00.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-mboned-mcast-manifest-00.txt) |
+
+The uploaded XML checksum, matched byte for byte against the archive copy after
+posting:
+
+```text
+00f5fd777e39d1fdc84a35c5c2fd9949d44f6795db4e735a2f1d598668e89559  draft-ramadan-mboned-mcast-manifest-00.xml
+```
+
+Validation before upload: mmark 2.2.48, `xmllint --noout --nonet`, xml2rfc 3.34.0
+with no unresolved anchors in the rendered text, idnits 3.1.0 with zero nits in
+submission mode, and the 21 repository contracts in
+`tests/test_moqcast_contracts.py`. State endpoint:
+<https://datatracker.ietf.org/api/submission/171216/status>.
