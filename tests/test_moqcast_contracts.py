@@ -74,10 +74,10 @@ class PublishedExamples(unittest.TestCase):
             self.fail(f"published example section is missing: {start!r}")
 
     def test_multicast_revision_specifies_receiver_owned_dns_health(self):
-        markdown = (ROOT / "draft-ramadan-moq-multicast-01.md").read_text(encoding="utf-8")
-        xml = (ROOT / "draft-ramadan-moq-multicast-01.xml").read_text(encoding="utf-8")
-        self.assertIn('value = "draft-ramadan-moq-multicast-01"', markdown)
-        self.assertIn('docName="draft-ramadan-moq-multicast-01"', xml)
+        markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
+        xml = (ROOT / "draft-ramadan-moq-multicast-02.xml").read_text(encoding="utf-8")
+        self.assertIn('value = "draft-ramadan-moq-multicast-02"', markdown)
+        self.assertIn('docName="draft-ramadan-moq-multicast-02"', xml)
         self.assertIn('anchor="receiver-owned-dns-candidate-discovery"', xml)
         for text in (markdown, xml):
             self.assertIn("DNS answer order", text)
@@ -157,11 +157,11 @@ class PublishedExamples(unittest.TestCase):
             return next(block for _, block in fences(text[text.index("Record (196 octets):") :]))
 
         ours = appendix("draft-ramadan-mboned-mcast-manifest-00.md", "# Test Vectors\n")
-        theirs = appendix("draft-ramadan-moq-multicast-01.md", "# Test Vectors: bc-provenance Version 2\n")
+        theirs = appendix("draft-ramadan-moq-multicast-02.md", "# Test Vectors: bc-provenance Version 2\n")
         mine, moq = table(ours), table(theirs)
         self.assertGreaterEqual(len(mine), 10)
         for label, value in mine.items():
-            self.assertEqual(value, moq.get(label), f"Appendix A value {label!r} differs from draft-ramadan-moq-multicast-01")
+            self.assertEqual(value, moq.get(label), f"Appendix A value {label!r} differs from draft-ramadan-moq-multicast-02")
         self.assertEqual(record(ours), record(theirs))
 
     def test_mboned_rate_arithmetic_is_consistent(self):
@@ -235,7 +235,7 @@ class PublishedExamples(unittest.TestCase):
             self.assertIn("Neither counter wraps within an epoch", " ".join(text.split()))  # hard-wrapped source
 
     def test_amt_discovery_combinations_are_unambiguous(self):
-        for name in ("draft-ramadan-moq-multicast-01.md", "draft-ramadan-moq-multicast-01.xml"):
+        for name in ("draft-ramadan-moq-multicast-02.md", "draft-ramadan-moq-multicast-02.xml"):
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertIn('"relay": "amt.example.com"', text)
             self.assertIn('"discovery": "dns"', text)
@@ -243,7 +243,7 @@ class PublishedExamples(unittest.TestCase):
             self.assertNotIn('"discovery": "driad",\n      "relay":', text)
             if name.endswith(".md"):
                 self.assertIn("**relay** (string, OPTIONAL)", text)
-        markdown = (ROOT / "draft-ramadan-moq-multicast-01.md").read_text(encoding="utf-8")
+        markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
         self.assertIn("discovery` is omitted and `relay` is a hostname", markdown)
         self.assertIn("discovery` is omitted and `relay` is a literal", markdown)
 
