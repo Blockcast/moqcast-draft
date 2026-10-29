@@ -97,6 +97,7 @@ posting:
 
 Validation before upload: mmark 2.2.48, `xmllint --noout --nonet`, xml2rfc 3.34.0
 with no unresolved anchors in the rendered text, idnits 3.1.0 with zero nits in
-submission mode, and the 21 repository contracts in
-`tests/test_moqcast_contracts.py`. State endpoint:
+submission mode, and the 21 tests under `tests/` (`python3 -m pytest -q
+tests`: 14 draft contracts in `tests/test_moqcast_contracts.py` and 7
+Reed-Solomon vector checks in `tests/test_rs_vectors.py`). State endpoint:
 <https://datatracker.ietf.org/api/submission/171216/status>.
