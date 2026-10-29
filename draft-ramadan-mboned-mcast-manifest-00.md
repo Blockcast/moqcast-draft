@@ -79,9 +79,13 @@ document of (#the-well-known-document) carries the same grant from
 the source address itself, and a DORMS record remains one way to
 deliver the same parameters.  The threat model is that
 of [@?I-D.ietf-mboned-multicast-security]: its integrity baseline
-(Section 2.3), injection rule (Section 2.7.2),
-cross-origin authorization (Section 2.7.3) and referrer-check property
-(Section 2.8.1) are met by construction ((#security-considerations)).
+(Section 2.3), injection rule (Section 2.7.2) and cross-origin
+authorization (Section 2.7.3) are met by construction, and what its
+Section 2.8.1 asks of a multicast protocol in place of a referrer
+check, that a client can unilaterally reject multicast data delivered
+for objects referenced by pages the server has not authorized, the
+well-known document's grant to a named origin delivers
+((#fetching-the-document), (#security-considerations)).
 
 This document defines the digest ((#digest)), the manifest record and
 its signature ((#manifest-record)), what a sender emits and when
@@ -90,9 +94,10 @@ its signature ((#manifest-record)), what a sender emits and when
 a well-known document that carries them
 ((#flow-metadata-and-the-well-known-document)), an optional
 per-datagram trailer scheme for low-rate flows
-((#the-ed25519-trailer-1-scheme)), and the registries for the scheme
-identifiers and the well-known URI ((#iana-considerations)).  It
-leaves to a profile how a receiver obtains the metadata (the
+((#the-ed25519-trailer-1-scheme)), and the registry of scheme
+identifiers and the registration of the well-known URI
+((#iana-considerations)).  It leaves to a profile how a receiver
+obtains the metadata (the
 well-known document, a DORMS record, an application catalog or
 provisioning), how the 32-octet `ctx` field of the record is derived
 from the application context, if at all
@@ -133,6 +138,9 @@ are in (#test-vectors).
 **SSM**: Source-Specific Multicast [@!RFC4607].
 
 **AMT**: Automatic Multicast Tunneling [@!RFC7450].
+
+**TESLA**: Timed Efficient Stream Loss-Tolerant Authentication
+[@?RFC4082] [@?RFC5776].
 
 **ASM**: Any-Source Multicast, the service model of [@!RFC4607]
 Section 1 in which any host may send to `G`; the sender of an ASM
@@ -199,8 +207,9 @@ Data datagrams are untouched: no header, no trailer and no parsing
 are added to them.  Their authenticity comes from a separate stream
 of signed records on the same `(S, G)` at `manifestPort`.  For each
 protected flow the sender computes a digest over every datagram the
-flow emits, repair symbols included; collects digests into windows of
-at most 37 datagrams or `manifestTimerMs`, whichever closes first;
+flow emits, Forward Error Correction (FEC) repair symbols included
+where a flow carries them; collects digests into windows of at most
+37 datagrams or `manifestTimerMs`, whichever closes first;
 places each window in a fixed-layout manifest record; signs the
 record with a dedicated Ed25519 key [@!RFC8032] under a
 network-identity prefix; and emits the record on the flow's manifest
@@ -247,9 +256,9 @@ Every datagram the sender emits in a protected flow has a digest:
 D = H(pseudoheader || payload)
 ~~~
 
-`payload` is the entire UDP payload as transmitted, any Forward
-Error Correction (FEC) payload identifier or trailer the application
-appends included, so a verified
+`payload` is the entire UDP payload as transmitted, any FEC payload
+identifier or trailer the application appends included, so a
+verified
 digest also authenticates whatever the datagram carries about its
 place in a repair block.  This document authenticates received
 datagrams: what a receiver reconstructs from admitted datagrams alone
@@ -327,8 +336,9 @@ the wire with IPv4 and UDP headers and 1364 with IPv6, which leaves
 room for AMT encapsulation [@!RFC7450] on a 1500-octet path.  Digest
 `i` of a record covers `sequence = first_seq + i`.
 
-`flags`: bit 0, epoch end ((#receiver-behavior)); bits 1 to 7
-reserved, MUST be zero on send and ignored on receipt.
+`flags`: bit 0, the least significant bit of the octet (mask 0x01),
+epoch end ((#receiver-behavior)); bits 1 to 7 reserved, MUST be zero
+on send and ignored on receipt.
 
 `sent` is the sender's clock when the record is signed, truncated to
 whole seconds since 1970-01-01T00:00:00Z with leap seconds excluded,
@@ -394,7 +404,11 @@ flow `(S, G, port)` that its metadata declares protected
 ((#flow-parameters)).  A flow has one `manifestPort`, which no other
 flow of the same `(S, G)` shares ((#flow-parameters)); its `sequence`
 counter (below) and its `mseq` counter ((#manifest-record)) are kept
-per `(kid, epoch)`.
+per `(kid, epoch)`.  `mseq` starts at any value and increases by one
+for every window the flow closes under one `(kid, epoch)`, in
+emission order, which the replay floor of (#receiver-behavior)
+(`highest_mseq - 64`) and the twin deadline of (#sender-behavior)
+(before the signed record of window `mseq + 64`) assume.
 
 `sequence` is a 64-bit counter the sender assigns per `(flow, kid,
 epoch)`: it starts at any value and increases by one for every
@@ -429,7 +443,7 @@ it arrives above the replay floor of (#receiver-behavior), however
 fast the flow closes windows; RECOMMENDED is to transmit it
 immediately after the signed record of window `mseq + 2` and before
 the first datagram that record covers, or on its own at the
-`maxAuthDelayMs / 2` deadline when window `mseq + 2` has not opened by
+`maxAuthDelayMs / 2` deadline when window `mseq + 2` has not closed by
 then.  The two copies then bracket the window's datagrams: a
 contiguous loss burst that removes both copies has removed every
 datagram between them, and a datagram that survives such a burst has a
@@ -665,9 +679,10 @@ fails, the receiver discards that flow's state as it does on a
 datagram included, and returns to the join state of step 1, so a
 record a retired key signed before the re-fetch cannot hold the flow
 afterwards.  Revocation is key removal, effective within one metadata
-lifetime.  The metadata lifetime is the cache lifetime of
-(#fetching-the-document) for a receiver that uses the well-known
-document, and whatever bounds the validity of a DORMS record, a
+lifetime.  The metadata lifetime is the lifetime that
+(#fetching-the-document) derives from the response's Cache-Control
+for a receiver that uses the well-known document, and whatever bounds
+the validity of a DORMS record, a
 catalog or a provisioning otherwise.
 
 ## Generation Change
@@ -694,15 +709,21 @@ the grace period a record arriving on that path meets, which records
 raise or start them, and a deadline after which no record of the
 previous epoch is admitted on any path, reckoned from the time the
 current epoch became current, since on such a profile a path can see
-the new epoch's records late or not at all; it MUST also specify how
-a record verified on one path is treated when its copy arrives on
-the other, and how the pending expiry and the admitted-digest
-retention of step 1 account for the lead of one path over the other.
-[@?MOQ-MULTICAST] Section 7.2.7 does so for a MoQ manifest track,
-with the previous-epoch deadline at the bound of its Section 7.2.5
-plus `maxAuthDelayMs + 2 x manifestTimerMs` after the current epoch
-became current.  A profile that adds no path applies this document
-as written.
+the new epoch's records late or not at all; it MUST also specify
+which verification budget of step 1 a record arriving on each path
+charges, with the count of dropped records that goes with it, how a
+record verified on one path is treated when its copy arrives on the
+other, and by how much the pending-entry expiry and the
+admitted-digest retention of step 1 are widened for a record on that
+path, so that the lead of one path over the other does not expire an
+entry before the datagrams it covers arrive.  [@?MOQ-MULTICAST]
+Section 7.2.7 does so for a MoQ manifest track: one budget per path,
+each with its count; the previous-epoch deadline at the bound of its
+Section 7.2.5 plus `maxAuthDelayMs + 2 x manifestTimerMs` after the
+current epoch became current; and the pending expiry and the
+admitted-digest retention widened by the mirror's lead, the bound of
+that section until one is measured.  A profile that adds no path
+applies this document as written.
 
 ## Clocks
 
@@ -729,9 +750,10 @@ and outside the freshness tolerance that lookup alone, a miss, before
 the epoch floor, the replay floor or the freshness check drops it,
 the second copy of a verified record one lookup and one hash.  With
 one verification per 37 datagrams, a Cortex-A53 without SHA2
-instructions spends about 0.26 of a core at 100 Mbit/s and at most
-0.43 of a core under a record flood at a budget of 1000/s; a core
-with SHA2 instructions spends a fraction of that.
+instructions spends about 0.26 of a core at 100 Mbit/s and, under a
+record flood at a budget of 1000/s, about 0.43 of a core on signature
+checks, the hashing of the flow's own datagrams continuing beside
+them; a core with SHA2 instructions spends a fraction of that.
 
 # Flow Metadata and the Well-Known Document
 
@@ -758,8 +780,9 @@ other names maps them one to one.
   (#receiver-behavior) separates them.
 - **G** (REQUIRED): the group address, of the same address family as
   `S`.  Wherever a receiver matches metadata to a flow it compares `S`
-  and `G` as IP addresses, never as strings
-  ((#the-well-known-document)).
+  and `G` as IP addresses, never as strings, and an address of one
+  family never matches one of the other, an IPv4-mapped IPv6 address
+  being of the IPv6 family ((#the-well-known-document)).
 - **port** (REQUIRED): the UDP destination port of the data
   datagrams, and the source port from which the sender emits every
   datagram of the flow ((#digest)).
@@ -785,11 +808,14 @@ other names maps them one to one.
   `firstEpoch` signs every later epoch.  `kid` values MUST be unique
   within the key set and `firstEpoch` values MUST be distinct within
   the array.  A receiver that takes its keys from metadata whose key
-  set repeats a `kid` or a `firstEpoch` holds no key set: it admits
-  nothing from the flows that metadata covers, as it does on a flow
-  whose records carry an algorithm it does not implement
-  ((#receiver-behavior)); a receiver that pins keys is unaffected,
-  since its key set comes from the pin.  A receiver drops, before
+  set repeats a `kid` or a `firstEpoch`, or names a `publicKey` that
+  is not 32 octets, holds no key set for the flow or flows that key
+  set is attached to (below): it admits nothing
+  from them, as it does on a flow whose records carry an algorithm it
+  does not implement ((#receiver-behavior)), and the other flows of
+  the same metadata, with key sets of their own, are unaffected; a
+  receiver that pins keys is unaffected, since its key set comes from
+  the pin.  A receiver drops, before
   verification, a record whose `epoch` is outside its `kid`'s range
   ((#receiver-behavior)), so a retired key cannot carry a receiver
   past its successor's `firstEpoch`.
@@ -822,8 +848,7 @@ that finds a `keys` array of no or more than four entries, a `port`
 or `manifestPort` of 0, a `maxBitrate` that is not a positive
 integer, or `port`, `manifestPort`, `streamId`, `kid`, `firstEpoch`
 or `minEpoch` outside its field width, MUST decline the flow.  The
-browser profile clamps
-(`maxAuthDelayMs` to 50 and 1000).
+browser profile clamps `maxAuthDelayMs` (to 50 and 1000).
 
 `maxAuthDelayMs`, `manifestTimerMs` and `maxBitrate` are per flow.
 `keys` and `minEpoch` are per key set; the metadata attaches a key
@@ -891,8 +916,10 @@ receiver that implements this document would otherwise misread the
 new format.
 
 **channels** (array, REQUIRED): one object per flow the source
-serves to such receivers.  Each carries **source** (`S`, an IP
-literal, equal to the address the document was fetched from),
+serves to such receivers.  A document that is not a JSON object, or
+whose `channels` is not an array, lists no channel.  Each carries
+**source** (`S`, an IP literal, equal to the address the document
+was fetched from),
 **group** (`G`), **port**, **maxBitrate** and an **integrity**
 object with **scheme** and, for `manifest-ed25519-2`,
 **manifestPort**, **streamId**, **minEpoch**, **maxAuthDelayMs**,
@@ -903,15 +930,34 @@ defines it; `publicKey` is base64url-encoded without padding
 only.  A receiver matches a flow by `(S, G, port)` exactly, comparing
 `source` and `group` to `S` and `G` as IP addresses after parsing
 their textual forms, not as strings, since an IPv6 literal has several
-textual forms; `source` and `group` MUST be IP address literals, never
-names, and a receiver ignores a channel whose address members are not.
-It ignores a channel it cannot match, every channel whose
-`(S, G, port)` another channel of the same document also declares,
-one whose ports violate (#flow-parameters), and one whose `scheme` it
-does not implement.  The document describes SSM flows only, since it
-is fetched from `S`; an ASM flow's metadata is delivered by other
-means.  A receiver bounds the size of the document and the number of
-channels by local policy.
+textual forms; `source` and `group` MUST be IP address literals in the
+IPv4address or IPv6address form of [@!RFC3986] Section 3.2.2
+(dotted-decimal with no leading zeros; IPv6 without brackets or a
+zone identifier), never names, of one address family, that of the
+address the document was fetched from, and a receiver ignores a channel whose address members
+are not; an IPv4-mapped IPv6 literal is of the IPv6 family and does
+not match an IPv4 address, the families themselves having to match.
+It ignores an element of `channels` that is not a JSON object, a
+channel it cannot match, every channel whose `(S, G, port)` another
+channel of the same document also declares, one whose ports violate
+(#flow-parameters), one that lacks a member this section or
+(#flow-parameters) marks REQUIRED for its `scheme`, or carries a
+member of this section under a JSON value of a kind other than the
+one named here (a number with an integer value for `port`, `kid`,
+`firstEpoch` and each member this section or (#flow-parameters)
+calls an integer, a string for `source`, `group`, `scheme` and
+`publicKey`, an object for `integrity` and for each element of
+`keys`, an array for `keys`), a member of the wrong kind being
+absent, so that a REQUIRED one leaves the channel ignored and an
+OPTIONAL one takes its default, one whose `keys` array yields no key
+set (no or more than four entries, a repeated `kid` or `firstEpoch`,
+or a `publicKey` that is not 43 base64url characters decoding to 32
+octets, (#flow-parameters)), and one whose `scheme` it does not
+implement; each of these is ignored alone, and the other channels of
+the document are unaffected.  The document describes SSM flows only,
+since it is fetched from `S`; an ASM flow's metadata is delivered by
+other means.  A receiver bounds the size of the document and the
+number of channels by local policy.
 
 ## Fetching the Document
 
@@ -930,11 +976,19 @@ NOT follow a redirect, and it sends no credentials.
 A receiver that acts on behalf of a web origin sends that origin in
 the Origin request header, as the CORS protocol of [@!WHATWG-FETCH]
 does, and the response MUST carry an Access-Control-Allow-Origin
-header naming that origin; a wildcard is not consent, and such a
-receiver MUST treat a response carrying one as listing no channel
-for its origin.  A sender that publishes for every origin echoes the
-request's Origin and sends `Vary: Origin`, as [@!WHATWG-FETCH] asks
-of any response whose Access-Control-Allow-Origin is not a single
+header naming that origin; a wildcard is not consent, nor is a
+response that carries no Access-Control-Allow-Origin header or one
+naming another origin or the string `null`, which names no origin,
+and such a receiver MUST treat each of them as
+listing no channel for its origin and MUST NOT use it for that
+origin.  A receiver acting for an origin that serializes to `null`
+sends no Origin header and treats the response as listing no channel
+for it, and a sender MUST NOT send
+`Access-Control-Allow-Origin: null`.  A sender that publishes for
+every origin echoes the request's Origin, a `null` Origin excepted,
+which it answers as it answers a request that carries no Origin
+header, and sends `Vary: Origin`, as [@!WHATWG-FETCH] asks of any
+response whose Access-Control-Allow-Origin is not a single
 static value, so that a cache, the receiver's own or one shared on
 the path to `S`, does not serve one origin's response, or the
 response to a request that carried no Origin header, to another
@@ -947,36 +1001,46 @@ the CORS-like cross-origin authorization that
 receiver that acts for no origin sends no Origin header and ignores
 the response header.
 
-A receiver caches the document for the lifetime the response's
-Cache-Control gives it, clamped to 60 s at least and 24 h at most; a
-response that gives no usable lifetime (no Cache-Control, or one that
-carries no-store, no-cache or no max-age) is cached for the minimum,
-60 s, the value any shorter lifetime is clamped to.  The receiver
-re-fetches the document when that lifetime expires; such a re-fetch
+A receiver keeps the parameters it took from the document for a
+metadata lifetime ((#key-rotation-and-re-fetch)) derived from the
+response's Cache-Control and clamped to 60 s at least and 24 h at
+most: the value of the max-age directive ([@!RFC9111] Section
+5.2.2.1) less the response's current age, reckoned as Section 4.2.3
+of that document does from the Age and Date header fields and the
+receiver's own request and response times; Expires, s-maxage and
+heuristic freshness (its Sections 5.3, 5.2.2.10 and 4.2.2) are not
+consulted.  A response with no Cache-Control, with no max-age or a
+max-age that is not a non-negative integer, or one that carries
+no-store or no-cache (its Sections 5.2.2.5 and 5.2.2.4), gives the
+minimum, 60 s.  This lifetime governs the parameters the receiver
+holds, not the HTTP response: any HTTP cache the receiver's fetch
+passes through follows [@!RFC9111] as usual, so a no-store response
+is not stored and a no-cache one is not reused without validation.
+The receiver re-fetches the document when that lifetime expires; such a re-fetch
 that fails, or returns a response the receiver cannot use (one that
 does not verify as this section requires, is not the document of
 (#the-well-known-document), carries a `version` the receiver does not
-implement, or carries the wildcard above), is treated as a document
-that lists no channel for the flow, since a receiver that kept the
-expired document would let an attacker that can block the fetch keep
+implement, or carries no consent for its origin, as above), is
+treated as a document that lists no channel for the flow, since a
+receiver that kept the expired document would let an attacker that
+can block the fetch keep
 a withdrawn grant or a removed key in force past its lifetime; a flow
 whose channel,
 key set or origin grant the re-fetched document no longer lists is
 left (a key set that still names a key but drops the current `kid` is
 a key-set change under (#key-rotation-and-re-fetch), not a
 withdrawal),
-so withdrawal of consent is effective within one cache lifetime, and
-a sender that wants faster withdrawal publishes a short lifetime or
+so withdrawal of consent is effective within one metadata lifetime,
+and a sender that wants faster withdrawal publishes a short lifetime or
 stops signing.  A record with an unknown `kid` triggers at most one
 re-fetch per 30 s per receiver ((#key-rotation-and-re-fetch)); a
 re-fetch so triggered that fails, or returns a response the receiver
-cannot use, leaves the cached document in force until its lifetime
-expires, since the records that triggered it are unauthenticated and
+cannot use, leaves the parameters the receiver holds in force until
+their lifetime expires, since the records that triggered it are unauthenticated and
 are dropped either way, and treating that failure as a withdrawal
 would let any host that can inject one such record and keep the
 server's answer from the receiver make every receiver that holds the
-metadata leave the flow at once.  The cache lifetime is the metadata
-lifetime of that section.
+metadata leave the flow at once.
 
 # The ed25519-trailer-1 Scheme
 
@@ -1121,8 +1185,8 @@ holds a secret: the verification keys are public, so a compromised
 or malicious receiver can forge nothing that another receiver
 admits, the asymmetric authentication of each content unit before
 any use that Section 2.4.4 of [@?I-D.ietf-mboned-multicast-security]
-asks for; the signing key is the flow's only secret
-((#sender-responsibilities)).
+asks for; for a receiver that pins keys, the signing key is the
+flow's only long-term secret ((#sender-responsibilities)).
 
 ## Threat Model
 
@@ -1161,11 +1225,15 @@ that hold an out-of-band key pin.  The digest algorithm is inside the
 signed record, so a rewrite can declare the flow unprotected,
 substitute keys or lower `minEpoch`; the pin catches the first two
 and the per-`kid` epoch floor kept with it ((#receiver-behavior)) the
-third, except at a receiver's first join under a `kid`, where a
-lowered `minEpoch` admits records of an earlier epoch signed with a
-still-listed `kid` until a record of the current epoch is verified,
-and after that as the previous epoch (step 1 of (#processing)), so
-rotated-out keys SHOULD be removed promptly.  A rewrite that raises
+third, except where a lowered `minEpoch` admits records of an earlier
+epoch signed with a still-listed `kid`: every earlier epoch at a
+receiver's first join under that `kid`, and at any later join the
+highest epoch verified under it, which the floor keeps rather than
+drops, so a holder of a still-listed retired key signs fresh records
+of that epoch; either is admitted until a record of the current epoch
+is verified, and after that as the previous epoch (step 1 of
+(#processing)), so rotated-out keys SHOULD be removed promptly.  A
+rewrite that raises
 `minEpoch` costs a receiver, pinned or not, that session's data and
 nothing more, since neither carries a metadata value past the
 session ((#receiver-behavior)).  Rewriting any other parameter of the
@@ -1205,6 +1273,35 @@ record admitted another copy of the same datagram is not.  A receiver
 SHOULD report records that the budget dropped for want of a token as
 loss as well, so that a sustained record flood is visible to the
 application rather than ending in silence.
+
+Joining `(S, G)` delivers to the receiver's host every datagram the
+network forwards for `(S, G)`, on every port, before any
+verification: multicast routing selects on addresses, not on UDP
+ports.  Section 8.2 of
+[@?I-D.ietf-mboned-ambi] describes what that does outside the
+receiver, a datagram injected into a subscribed group reaching an
+unrelated application on the host that listens on the unspecified
+address at another port, and recommends that senders list every flow
+they send in their metadata and that a firewall block multicast
+traffic to the unsecured ports of an `(S, G)` that carries secured
+traffic; a receiver that implements this document is not that
+application, but it pays for every datagram on `port` and
+`manifestPort` as (#cost) states, so an attacker that can inject into
+the group spends the receiver's link before any check, and, where it
+sends as `S` (or as `senderAddress` on an ASM flow, (#source-check)),
+its hashing budget as well; a datagram from any other source costs
+the one comparison of (#cost).  This document bounds the price per
+datagram and the state: a datagram on `port` that passes the source
+check costs one hash and space in the hold queue, which is bounded in
+octets, until it expires, when
+it is dropped as unauthenticated, loss the application sees (step 2
+of (#processing)); one on `manifestPort` costs at most one
+verification inside the budget of step 1.  The link capacity the
+injected traffic takes and the rate at which the receiver keeps
+hashing it are bounded by nothing here: a ceiling on the datagrams a
+receiver accepts from a joined group, counted before verification,
+and what it does when the ceiling is exceeded, belong to the
+profile's ingress ceiling (the browser profile leaves the group).
 
 A receiver that holds the metadata naming the successor key accepts
 the retired `kid` only below the successor's `firstEpoch`
@@ -1269,13 +1366,28 @@ defaults).
 
 ## Sender Responsibilities
 
-The signing key is the flow's only secret: a sender that loses it to
-an attacker has given that attacker the flow until the key is removed
-from the metadata and every receiver has re-fetched or been
-re-provisioned, so a sender SHOULD keep a successor key published
-ahead of need ((#key-rotation-and-re-fetch)) and remove a retired key
-promptly.  A sender MUST NOT reuse an epoch under a `kid`
-((#keys-epochs-and-sequence-numbers)), which requires it to keep the
+For a receiver that pins keys, the signing key is the flow's only
+long-term secret: a sender that loses it to an attacker has given
+that attacker the flow until the key is removed from the metadata and
+every receiver has re-fetched or been re-provisioned, so a sender
+SHOULD keep a successor key published ahead of need
+((#key-rotation-and-re-fetch)) and remove a retired key promptly.
+The key that replaces a compromised one MUST carry a `kid` that no
+earlier key of the key set has carried: a receiver that pins keys
+keeps across sessions the highest `epoch` it has verified under each
+pinned `kid` ((#receiver-behavior)), an attacker holding the key can
+have raised that floor under the old `kid` past every epoch the
+sender will use (the newest key's range has no upper bound,
+(#flow-parameters)), and a replacement under the same `kid` would be
+dropped at join by every such receiver.
+For a receiver that takes its keys from the well-known document there
+is a second one, the private key of the TLS certificate for `S`, or
+whatever else authenticates the metadata channel a profile uses: its
+compromise lets an attacker publish keys of its own to every such
+receiver ((#trust-in-the-well-known-document)), so the sender guards
+it as it guards the signing key.  A sender MUST NOT reuse an epoch
+under a `kid` ((#keys-epochs-and-sequence-numbers)), which requires
+it to keep the
 last epoch used under each `kid` across restarts, or to start under a
 new `kid` after a restart whose state is lost; an epoch reused under a
 `kid` reopens the windows of its first use to replay at a receiver
@@ -1303,17 +1415,35 @@ the budget of step 1 of (#processing), since one verification admits
 up to 37 datagrams.  The scheme's signed message binds `S`, `G`,
 `port`, `epoch` and `seq` but not `streamId`, and carries no
 domain-separation prefix: a datagram cannot be moved to another flow,
-epoch or position, but a key reused across generations of one
-`(S, G, port)` would let a datagram of one generation verify in
-another, and a key used under any other scheme or protocol is not
-separated from that use.  That is a known limitation of the scheme as
+epoch or position, and the scheme has no generation in the sense of
+(#conventions-and-terminology), since a flow using it declares no
+`streamId` ((#flow-parameters)); a sender restart is marked by `epoch`
+alone ((#keys-epochs-and-sequence-numbers)).  What keeps a datagram
+emitted before a restart out of the flow after it is `epoch` and `seq`
+in the signed message: the receiver drops a datagram of an epoch below
+the current one and one whose `seq` is below the window or already
+seen within it, and (#keys-epochs-and-sequence-numbers) forbids a
+sender to reuse an epoch under a `kid` across restarts, so a replayed
+datagram of an earlier epoch is admitted only at join, or on the
+return to the join state of (#the-ed25519-trailer-1-scheme), before a
+datagram of a later epoch has verified (below); a sender that reused
+an epoch under a `kid` across restarts would let the earlier datagrams
+verify at the positions the window has not yet seen and, with a `seq`
+above the right edge, move the window past the genuine datagrams that
+follow, which the receiver then drops.  A key used under any other scheme or
+protocol is not separated from that use.  That is a known limitation
+of the scheme as
 (#the-ed25519-trailer-1-scheme) defines it, which the author may
 change in a later revision of this document.  The scheme carries no
-emission time
-and its metadata no `minEpoch`, so at join a receiver is exposed to
-replay of an earlier epoch under a still-listed key until it
-verifies a datagram of a later epoch; removing retired keys promptly
-bounds that exposure to the current key's epochs.
+emission time and its metadata no `minEpoch`, so at join a receiver
+is exposed to replay of an earlier epoch under a still-listed key
+until it verifies a datagram of a later epoch, and to replay of the
+current epoch's earlier datagrams, each verifying as genuine, until a
+later datagram of that epoch verifies and moves the window's right
+edge past them, after which a replay 1024 or more below that edge,
+or already seen inside the window, is dropped
+((#the-ed25519-trailer-1-scheme)); removing retired keys promptly
+bounds the first exposure to the current key's epochs.
 
 ## Trust in the Well-Known Document
 
@@ -1328,7 +1458,7 @@ sends none ([@!RFC9525] Section 7.4).  The per-origin grant restricts
 which pages may join a flow, not who may fetch the document, which is
 public; a sender that does not want a flow's keys and parameters
 public does not publish them there.  The fetch is itself a unicast
-connection to `S`, repeated every cache lifetime, that gives the
+connection to `S`, repeated every metadata lifetime, that gives the
 operator of `S` the receiver's address, the time of each request and,
 from the Origin header, the page the receiver acts for, and lets an
 on-path observer infer the subscription from traffic to a known `S`;
@@ -1350,9 +1480,7 @@ exhaust the network's join state, the attack that
 ## Well-Known URI Registration
 
 IANA is requested to register the following in the "Well-Known URIs"
-registry, following the template of [@!RFC8615] Section 3.1, or, if
-the provisional entry for this URI suffix described below is in the
-registry at publication, to update that entry to the following:
+registry, following the template of [@!RFC8615] Section 3.1:
 
 - URI suffix: multicast-receive
 - Change controller: IETF
@@ -1361,16 +1489,15 @@ registry at publication, to update that entry to the following:
 - Status: permanent
 - Related information: none.
 
-The URI is intended for use while this document is an Internet-Draft.
-The author requests, by the procedure of [@!RFC8615] Section 3.1 and
-under the Specification Required policy of its Section 5.1, a
-provisional registration of the same URI suffix with the author as
-change controller and this Internet-Draft as its specification
-document, "provisional" being the status its Section 3.1 gives a
-value not yet defined by a Standards Track RFC or other open
-standard; that request is made before publication, to the registry
-and its experts rather than in this section, and asks nothing of IANA
-beyond the update above.
+Pending publication, the author will request a provisional
+registration of the same URI suffix through the registry's own
+procedure ([@!RFC8615] Section 3.1, under the Specification Required
+policy of its Section 5.1), with this Internet-Draft as its
+specification document and the author as change controller,
+"provisional" being the status its Section 3.1 gives a value not
+defined by a Standards Track RFC or other open standard; the
+permanent entry above replaces that provisional entry on
+publication.
 
 ## Multicast Datagram Integrity Schemes Registry
 
@@ -1390,8 +1517,7 @@ initial contents are:
 | 4 | | this document | reserved for a TESLA profile |
 | 5-255 | | | unassigned |
 
-Value 4 is reserved for a profile of Timed Efficient Stream
-Loss-Tolerant Authentication (TESLA) ([@?RFC4082], [@?RFC5776]) and
+Value 4 is reserved for a TESLA profile ([@?RFC4082], [@?RFC5776]) and
 is not to be assigned until such a profile exists
 with an implementation on a receive-only receiver and an
 authenticated bound on the receiver's clock, which TESLA requires and
@@ -1424,6 +1550,7 @@ policy.
   <front>
     <title>Multicast Delivery and Endpoint Discovery for Media over QUIC</title>
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
+      <organization>Blockcast</organization>
     </author>
     <date year='2026' month='October' day='26'/>
   </front>
@@ -1560,9 +1687,9 @@ floor and consume-once rule interact with nothing.  AMBI names its
 hash algorithm in its YANG model; this document carries a Named
 Information Suite ID in the signed record.
 
-**ALTA** ([@?I-D.krose-mboned-alta], Asymmetric Loss-Tolerant
-Authentication).  AMBI's Section 4.1 reserves a place for ALTA,
-which authenticates a multicast stream with an
+**ALTA** (Asymmetric Loss-Tolerant Authentication,
+[@?I-D.krose-mboned-alta]).  AMBI's Section 4.1 reserves a place for
+ALTA, which authenticates a multicast stream with an
 acyclic graph of message authentication codes (MACs) and regularly
 paced digital signatures.  This document instead signs each window
 once and relies on the twin for loss: one signature per 37 datagrams,

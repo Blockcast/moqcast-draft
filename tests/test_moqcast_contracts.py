@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import ipaddress
 import json
 import re
 import sys
@@ -25,10 +27,14 @@ ROOT = draft_root()
 
 def fences(text: str, language: str | None = None):
     lines = text.splitlines()
-    for i, opener in enumerate(lines):
-        if language is None and opener.strip() != "~~~":
+    i = 0
+    while i < len(lines):
+        opener = lines[i]
+        if language is None and not re.fullmatch(r"\s*~~~(\s+\w+)?\s*", opener):
+            i += 1
             continue
         if language is not None and not re.fullmatch(rf"\s*~~~\s+{language}\s*", opener):
+            i += 1
             continue
         end = i + 1
         while end < len(lines) and lines[end].strip() != "~~~":
@@ -36,6 +42,7 @@ def fences(text: str, language: str | None = None):
         if end == len(lines):
             raise AssertionError(f"unterminated fence at line {i + 1}")
         yield i + 1, "\n".join(lines[i + 1 : end])
+        i = end + 1  # resume after the closer, which is not an opener
 
 
 def catalogs():
@@ -104,6 +111,58 @@ class PublishedExamples(unittest.TestCase):
             document = json.loads(raw)
             self.assertEqual(document["version"], 1, f"well-known example at line {line}")
             self.assertTrue(document["channels"], f"well-known example at line {line}")
+
+    def test_mboned_well_known_example_obeys_its_own_rules(self):
+        # Sections 8.1/8.2: address literals of one family, 1..4 keys with distinct kid and
+        # firstEpoch, publicKey 43 unpadded base64url characters for 32 octets, manifestPort != port.
+        markdown = (ROOT / "draft-ramadan-mboned-mcast-manifest-00.md").read_text(encoding="utf-8")
+        channels = 0
+        for line, raw in fences(markdown, "json"):
+            for channel in json.loads(raw)["channels"]:
+                where = f"well-known example at line {line}"
+                source, group = (ipaddress.ip_address(channel[k]) for k in ("source", "group"))
+                self.assertEqual(source.version, group.version, where)
+                integrity = channel["integrity"]
+                keys = integrity["keys"]
+                self.assertTrue(1 <= len(keys) <= 4, where)
+                for member in ("kid", "firstEpoch"):
+                    self.assertEqual(len({key[member] for key in keys}), len(keys), where)
+                for key in keys:
+                    self.assertRegex(key["publicKey"], r"^[A-Za-z0-9_-]{43}$", where)
+                    self.assertEqual(len(base64.urlsafe_b64decode(key["publicKey"] + "=")), 32, where)
+                if integrity["scheme"] == "manifest-ed25519-2":
+                    self.assertNotEqual(integrity["manifestPort"], channel["port"], where)
+                channels += 1
+        self.assertGreater(channels, 0)
+
+    def test_mboned_appendix_a_vectors_equal_moq_multicast_appendix_a(self):
+        def appendix(name: str, heading: str) -> str:
+            text = (ROOT / name).read_text(encoding="utf-8")
+            start = text.index(heading)
+            end = text.find("\n# ", start + 1)
+            return text[start : len(text) if end < 0 else end]
+
+        def table(text: str) -> dict:
+            values, label = {}, None
+            for _, block in fences(text):
+                for raw in block.splitlines():
+                    head, sep, tail = raw.partition(":")
+                    if sep and not raw.startswith(" "):
+                        label, values[label] = head.strip(), [tail.strip()]
+                    elif label is not None and raw.startswith(" "):
+                        values[label].append(raw.strip())
+            return {key: " ".join(filter(None, value)) for key, value in values.items()}
+
+        def record(text: str) -> str:
+            return next(block for _, block in fences(text[text.index("Record (196 octets):") :]))
+
+        ours = appendix("draft-ramadan-mboned-mcast-manifest-00.md", "# Test Vectors\n")
+        theirs = appendix("draft-ramadan-moq-multicast-01.md", "# Test Vectors: bc-provenance Version 2\n")
+        mine, moq = table(ours), table(theirs)
+        self.assertGreaterEqual(len(mine), 10)
+        for label, value in mine.items():
+            self.assertEqual(value, moq.get(label), f"Appendix A value {label!r} differs from draft-ramadan-moq-multicast-01")
+        self.assertEqual(record(ours), record(theirs))
 
     def test_amt_discovery_combinations_are_unambiguous(self):
         for name in ("draft-ramadan-moq-multicast-01.md", "draft-ramadan-moq-multicast-01.xml"):
