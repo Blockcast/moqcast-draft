@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "ops"
 workgroup = "mboned"
 submissiontype = "IETF"
-date = "2026-11-01T00:00:00Z"
+date = "2026-10-29T00:00:00Z"
 keyword = ["multicast", "AMBI", "authentication", "manifest", "Ed25519", "SSM"]
 
 [seriesInfo]

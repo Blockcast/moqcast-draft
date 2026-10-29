@@ -6,7 +6,7 @@
 <title abbrev="Multicast Manifests">Signed Digest Manifests for Multicast Datagram Authentication</title><seriesInfo value="draft-ramadan-mboned-mcast-manifest-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="November" day="1"></date>
+</address></author><date year="2026" month="October" day="29"></date>
 <area>ops</area>
 <workgroup>mboned</workgroup>
 <keyword>multicast</keyword>
