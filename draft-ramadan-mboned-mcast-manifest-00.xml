@@ -359,10 +359,19 @@ at a fixed offset, and the signature is the last 64 octets.</t>
 </tr>
 </tbody>
 </table><t>Length is <tt>132 + 32 x count</tt> octets, 164 to 1316.  The cap of 37
-digests is an MTU choice: the 1316-octet maximum is 1344 octets on
-the wire with IPv4 and UDP headers and 1364 with IPv6, which leaves
-room for AMT encapsulation <xref target="RFC7450"></xref> on a 1500-octet path.  Digest
-<tt>i</tt> of a record covers <tt>sequence = first_seq + i</tt>.</t>
+digests is an MTU choice, so that a record and every header it
+acquires on the way travel as one unfragmented datagram on a
+1500-octet path: at 37 digests the record is 1316 octets, 1344 on the
+wire with IPv4 and UDP headers and 1364 with IPv6, and 1394 or 1414
+once an AMT relay <xref target="RFC7450"></xref> adds its own IPv4 or IPv6 header, UDP
+header and 2-octet Multicast Data header around the IPv6 datagram,
+which leaves 86 to 106 octets for one further tunnel or extension
+header on the path (an IPv4 record through an IPv4 relay is 1374
+octets, leaving 126).  A record of 39 digests would still fit a
+1500-octet path through AMT; one of 42 (1476 octets, 1504 under IPv4
+and UDP) would not fit even without it, and neither leaves that room,
+whatever the address family of record or relay.  Digest <tt>i</tt> of a
+record covers <tt>sequence = first_seq + i</tt>.</t>
 <t><tt>flags</tt>: bit 0, the least significant bit of the octet (mask 0x01),
 epoch end (<xref target="receiver-behavior"></xref>); bits 1 to 7 reserved, MUST be zero
 on send and ignored on receipt.</t>
