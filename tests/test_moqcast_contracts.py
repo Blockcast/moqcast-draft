@@ -304,7 +304,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertGreater(seen, 0)
 
     def test_mmt_negative_time_rows_compute_admission_and_unique_groups(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-01.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
         part = self.sec(text, "Negative authored timestamps use", "### Catalog Signaling")
         anchor = int(re.search(r"presentationAnchorTicks:\s*(-?\d+)", part).group(1))
         duration = int(re.search(r"groupDurationTicks:\s*(\d+)", part).group(1))
@@ -345,7 +345,7 @@ class PublishedExamples(unittest.TestCase):
         return vector, (lambda ticks: (ticks - anchor) // duration)
 
     def test_mmt_published_bframe_and_tick_only_examples(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-01.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
         definition = " ".join(self.sec(text, "- `ticks` is", "- `groupDurationTicks`").split())
         self.assertIn("first AU in decode order", definition)
         self.assertNotIn("presentation order", definition)
@@ -374,7 +374,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertEqual((track["timescale"], track["groupDurationTicks"]), (44100, 1470))
 
     def test_mmt_open_gop_leading_pictures_yield_increasing_groups(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-01.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
         vector, group = self.decode_order_vector(text)
         closed, open_gop = vector["mpuSamplePtsInDecodeOrder"]
         self.assertEqual(closed[0], min(closed))  # closed GOP: both selections agree

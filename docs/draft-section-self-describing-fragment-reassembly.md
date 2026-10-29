@@ -10,7 +10,7 @@ Not yet integrated into a submission draft.
 > conformance specification; its RFC 2119 terms describe a proposed extension
 > only. The coordinate table and examples are retained for design history and
 > must not replace the current requirements in
-> [draft-ramadan-moq-mmt-01.md](../draft-ramadan-moq-mmt-01.md), Sections 4–5,
+> [draft-ramadan-moq-mmt-02.md](../draft-ramadan-moq-mmt-02.md), Sections 4–5,
 > or ISO/IEC 23008-1:2023, Clauses 8 and 9.3.2.3. In particular, ISO defines a
 > timed-MFU `offset` inside the referenced sample, a hint-track `offset` from
 > the containing `mdat` in Clause 8.3.3, and no byte-offset field in the
