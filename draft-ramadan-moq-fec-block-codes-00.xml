@@ -1,0 +1,1115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-block-codes-00" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+
+<front>
+<title abbrev="MoQ FEC Block Codes">Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ</title><seriesInfo value="draft-ramadan-moq-fec-block-codes-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
+</postal><email>omar@blockcast.net</email>
+</address></author><date year="2026" month="October" day="29"></date>
+<area>wit</area>
+<workgroup>moq</workgroup>
+<keyword>FEC</keyword>
+<keyword>MoQ</keyword>
+<keyword>Reed-Solomon</keyword>
+<keyword>RaptorQ</keyword>
+<keyword>erasure code</keyword>
+
+<abstract>
+<t>This document specifies two block Forward Error Correction (FEC) schemes
+for the FEC mechanism of Media over QUIC (MoQ): the systematic
+Reed-Solomon erasure code over GF(2^8) of ISO/IEC 23008-10, which is
+mandatory to implement, and RaptorQ (RFC 6330), which is optional.  For
+each scheme it gives the registered identifier, the derivation of the
+decoder's parameters from the instance's configuration and the Repair
+FEC Payload ID with no in-session signaling, the bounds on block size
+and symbol size, the decoding overhead, and how the scheme supports
+repair layers.  It restates the Reed-Solomon code and gives test vectors
+for it.</t>
+</abstract>
+
+</front>
+
+<middle>
+
+<section anchor="introduction"><name>Introduction</name>
+<t><xref target="MOQ-FEC-CORE"></xref> specifies how FEC repair data is carried alongside
+source media in MoQ without naming an FEC code.  Its Section
+4.2 states the properties that a
+block FEC scheme must have to be used with that mechanism, and the
+information that a scheme's specification must give.  This document
+specifies two such schemes: the systematic Reed-Solomon erasure code
+over GF(2^8) of <xref target="ISO.23008-10"></xref>, which is mandatory to implement, and
+RaptorQ <xref target="RFC6330"></xref>, which is optional.  For each it gives the scheme
+identifier (<xref target="scheme-identifiers"></xref>), the derivation of the decoder's
+parameters (<xref target="reed-solomon"></xref>, <xref target="raptorq"></xref>), the bounds the scheme imposes
+on a configuration and on a repair object (<xref target="scheme-bounds"></xref>), how its
+repair symbols are numbered and generated (<xref target="repair-symbols"></xref>) and how it
+supports repair layers (<xref target="repair-layers"></xref>).  For Reed-Solomon it also
+restates the code (<xref target="rs-code"></xref>), because <xref target="ISO.23008-10"></xref> is not freely
+available, and gives test vectors (<xref target="test-vectors"></xref>).</t>
+
+<section anchor="relation-to-other-documents"><name>Relation to Other Documents</name>
+<t>This document is one of a set.  <xref target="MOQ-FEC-CORE"></xref> defines the mechanism:
+source symbols, blocks, repair tracks and layers, the repair object
+format, recovery, and the configuration data model whose scheme
+parameter carries an identifier of this document.  <xref target="MOQ-FEC-CATALOG"></xref>
+encodes that data model in the MSF and CMSF catalogs.  <xref target="MOQ-MMT"></xref>
+defines the &quot;iso-ssbg1-v1&quot; block profile for tracks packaged as MMTP
+packets and maps the identifiers of this document to the FEC code points
+that its AL-FEC message carries.  <xref target="MOQ-FEC-MULTICAST"></xref> covers multicast
+delivery of protected tracks.  The text of this document is taken from
+<xref target="I-D.ramadan-moq-fec"></xref>; <xref target="changes-from-draft-ramadan-moq-fec-01"></xref> lists
+what moved here and what changed.</t>
+</section>
+</section>
+
+<section anchor="conventions-and-definitions"><name>Conventions and Definitions</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;,
+&quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and
+&quot;OPTIONAL&quot; in this document are to be interpreted as described in BCP 14
+<xref target="RFC2119"></xref> <xref target="RFC8174"></xref> when, and only when, they appear in all
+capitals, as shown here.</t>
+<t>This document uses the terms of <xref target="MOQ-FEC-CORE"></xref> Section
+2.  The ones it relies on are
+restated here; the others are as that section defines them.</t>
+<t><strong>FEC Instance</strong>: One independent FEC encoding over a sequence of source
+symbols, with its own source symbol bound K, symbol size T, SS_ID space,
+block partition, repair symbols and repair tracks.  A source track has
+one or more FEC instances (<xref target="MOQ-FEC-CORE"></xref> Section
+5.1).</t>
+<t><strong>Source Symbol</strong>: A T-byte unit of source data that an FEC instance
+encodes.  Source symbols are formed from source objects by the
+instance's block profile (<xref target="MOQ-FEC-CORE"></xref> Section
+5.2).</t>
+<t><strong>Repair Symbol</strong>: A T-byte unit generated by the FEC scheme from the
+source symbols of one block.</t>
+<t><strong>SS_ID</strong>: The 32-bit sequence number of a source symbol within its FEC
+instance.  It wraps modulo 2^32 (<xref target="MOQ-FEC-CORE"></xref> Section
+7.6).</t>
+<t><strong>Source Block</strong>: A run of SSB_length consecutive source symbols, 1 &lt;=
+SSB_length &lt;= K, over which a block FEC scheme encodes.  A block is the
+SS_ID range [SS_Start, SS_Start + SSB_length) and is identified by its
+SS_Start.</t>
+<t><strong>SS_Start and SSB_length</strong>: The first SS_ID of a source block and the
+block's source symbol count, carried in the Repair FEC Payload ID of
+every repair object of the block (<xref target="MOQ-FEC-CORE"></xref> Section
+7.5).</t>
+<t><strong>FEC Block</strong>: The combination of SSB_length source symbols and P repair
+symbols; the ISO encoding symbol block (<xref target="ISO.23008-1"></xref> 3.1.5).</t>
+<t><strong>Encoding Symbol ID (ESI)</strong>: The index of a symbol within its block: a
+source symbol's serial distance from SS_Start, and SSB_length + RS_ID
+for a repair symbol.</t>
+<t><strong>RS_ID</strong>: The zero-based index of a repair symbol among the repair
+symbols of its block.</t>
+<t><strong>RSB_length</strong>: The number of repair symbols generated for a block, the
+instance's total repair count P when the block's repair symbols are
+generated, carried in the Repair FEC Payload ID of every repair object
+of the block (<xref target="MOQ-FEC-CORE"></xref> Section 7.5).</t>
+<t><strong>Repair Layer</strong>: One of possibly several repair tracks of one FEC
+instance, each carrying a disjoint range of RS_IDs for every block
+(<xref target="MOQ-FEC-CORE"></xref> Section 7.3).  Layer 0 is the base
+layer.</t>
+<t><strong>RS_ID Offset</strong>: The first Repair Symbol ID a layer may use; O_i for
+layer i (<xref target="MOQ-FEC-CORE"></xref> Section 7.3.1).</t>
+<t><strong>Object Transmission Information (OTI)</strong>: Parameters required to
+configure a RaptorQ decoder, as defined in <xref target="RFC6330"></xref>.</t>
+<t><strong>Block Profile</strong>: The rules that fix how source symbols are formed from
+source objects and how blocks are delimited and identified
+(<xref target="MOQ-FEC-CORE"></xref> Section
+5.2).</t>
+<t>K, P and T denote an instance's <tt>sourceSymbols</tt>, its total repair count
+over all its repair layers, and its <tt>symbolSize</tt> (<xref target="MOQ-FEC-CORE"></xref>
+Section 10.1); P_i is the repair count of layer
+i.</t>
+</section>
+
+<section anchor="scheme-identifiers"><name>Scheme Identifiers</name>
+<t>FEC scheme identifiers are registered in the &quot;MoQ FEC Schemes&quot; registry
+(<xref target="MOQ-FEC-CORE"></xref> Section 15.2); the scheme
+parameter of an FEC instance (<xref target="MOQ-FEC-CORE"></xref> Section
+10.1) carries the string identifier, and the
+catalog binding encodes it (<xref target="MOQ-FEC-CATALOG"></xref> Section
+3.1).  This document defines two:</t>
+<t><strong>&quot;raptorq&quot;</strong>: RaptorQ fountain code per <xref target="RFC6330"></xref>.  Can recover from
+loss of any symbols as long as SSB_length symbols (source or repair),
+plus a small decoding overhead (<xref target="repair-layers"></xref>), are received.  It is
+OPTIONAL (<xref target="mandatory-to-implement"></xref>).</t>
+<t><strong>&quot;reed-solomon&quot;</strong>: The systematic Reed-Solomon erasure code over
+GF(2^8) of <xref target="ISO.23008-10"></xref> Clause 6, restated in <xref target="rs-code"></xref>.  It
+recovers a block from any SSB_length of its distinct source and repair
+symbols.  An FEC instance under it holds at most 255 source and repair
+symbols per block (<xref target="scheme-bounds"></xref>).  It is the mandatory-to-implement
+scheme (<xref target="mandatory-to-implement"></xref>).</t>
+<t>Both codes are systematic: the source symbols of a block are among its
+encoding symbols, so a receiver uses the source symbols it receives as
+they arrive.  The two identifiers correspond to the FEC code points 3
+(the &quot;6330 code&quot;) and 1 (the RS code) of <xref target="ISO.23008-10"></xref> Table 1, which
+an AL-FEC message carries in <tt>fec_code_id_for_repair_flow</tt> (<xref target="MOQ-MMT"></xref>
+Section 8.3).</t>
+</section>
+
+<section anchor="core-requirements"><name>Requirements of the Core Met by These Schemes</name>
+<t><xref target="MOQ-FEC-CORE"></xref> Section 4.2 lists
+eight properties that a block scheme must have and that its
+specification must establish.  This section states, for each, where this
+document establishes it for &quot;reed-solomon&quot; and for &quot;raptorq&quot;.</t>
+
+<ol>
+<li><t><strong>Erasure code.</strong> &quot;reed-solomon&quot; recovers a block from any SSB_length
+of its distinct source and repair symbols (<xref target="rs-code"></xref>).  &quot;raptorq&quot;
+can recover from loss of any symbols as long as SSB_length symbols
+(source or repair), plus a small decoding overhead, are received
+(<xref target="RFC6330"></xref>; <xref target="repair-layers"></xref>).</t>
+</li>
+<li><t><strong>Systematic.</strong> Both codes are systematic: the source symbols of a
+block are among its encoding symbols, so a receiver uses the source
+symbols it receives as they arrive (<xref target="scheme-identifiers"></xref>).  Under
+&quot;reed-solomon&quot; the source symbols themselves are sent unchanged
+(<xref target="rs-code"></xref>); under &quot;raptorq&quot; they occupy ESIs 0 to SSB_length - 1 of
+the <xref target="RFC6330"></xref> source block (<xref target="repair-symbols"></xref>).</t>
+</li>
+<li><t><strong>Fixed symbol size.</strong> Under both schemes every source and repair
+symbol is exactly T bytes.  &quot;raptorq&quot; requires T to be a multiple of
+8, the Symbol Alignment of its derived OTI (<xref target="raptorq-oti"></xref>);
+&quot;reed-solomon&quot; imposes no alignment (<xref target="rs-parameters"></xref>).</t>
+</li>
+<li><t><strong>Index-fixed repair.</strong> Under either scheme, a repair symbol is fixed
+by its block and its RS_ID alone, whichever layer carries it: RaptorQ
+through its open Encoding Symbol ID space, and the Reed-Solomon code
+of this document through a Cauchy generator matrix whose column j
+depends on RS_ID j alone (<xref target="repair-layers"></xref>).</t>
+</li>
+<li><t><strong>Parameters from configuration and the wire.</strong> Under both schemes
+the decoder of each block is configured from the instance's
+configuration and the block's Repair FEC Payload ID, and no other
+signaling is defined: <xref target="raptorq-oti"></xref> derives the RaptorQ OTI, and
+<xref target="rs-parameters"></xref> the Reed-Solomon parameters.</t>
+</li>
+<li><t><strong>Stated bounds.</strong> <xref target="scheme-bounds"></xref> states, for each scheme, the
+largest K, the largest SSB_length + RSB_length and the largest RS_ID,
+and the constraint on T.</t>
+</li>
+<li><t><strong>Stated recovery condition.</strong> The decoding overhead e is 0 under
+&quot;reed-solomon&quot;, which is maximum distance separable, and under
+&quot;raptorq&quot; a small number of symbols with the residual failure
+probabilities of <xref target="RFC6330"></xref> (<xref target="repair-layers"></xref>).</t>
+</li>
+<li><t><strong>Deterministic and verifiable.</strong> Both codes are deterministic:
+<xref target="rs-code"></xref> fixes the field, the generator matrix and the order of
+symbols, and <xref target="RFC6330"></xref> fixes every table and index of RaptorQ.
+<xref target="test-vectors"></xref> gives test vectors that tell the Reed-Solomon
+construction of this document apart from other systematic
+Reed-Solomon constructions over GF(2^8).  <xref target="raptorq-test-vectors"></xref>
+gives RaptorQ test vectors that fix, for a block of this document,
+the OTI that <xref target="raptorq-oti"></xref> derives and the Encoding Symbol ID that
+<xref target="repair-symbols"></xref> gives each RS_ID.</t>
+</li>
+</ol>
+<t>Both schemes support repair layers (<xref target="repair-layers"></xref>), which
+<xref target="MOQ-FEC-CORE"></xref> Section 4.2 asks a
+scheme specification to state.  &quot;reed-solomon&quot; is maximum distance
+separable; &quot;raptorq&quot; is not, but is close to it at every block size of
+<xref target="scheme-bounds"></xref>.  <xref target="security-considerations"></xref> states the decoding cost
+of &quot;reed-solomon&quot; and, for &quot;raptorq&quot;, points at the decoder of
+<xref target="RFC6330"></xref>.</t>
+</section>
+
+<section anchor="reed-solomon"><name>Reed-Solomon</name>
+
+<section anchor="rs-code"><name>The Code</name>
+<t>The &quot;reed-solomon&quot; scheme is the systematic Reed-Solomon erasure code
+over GF(2^8) of <xref target="ISO.23008-10"></xref> Clause 6, to which that document
+assigns FEC code point 1 (its Table 1).  This section restates the code,
+because <xref target="ISO.23008-10"></xref> is not freely available.  If this restatement
+and <xref target="ISO.23008-10"></xref> Clause 6 differ, <xref target="ISO.23008-10"></xref> governs.
+<xref target="test-vectors"></xref> gives test vectors.</t>
+<t><strong>Field.</strong> The code works in GF(2^8) defined by the primitive polynomial
+x^8 + x^4 + x^3 + x^2 + 1 (0x11D), the polynomial that <xref target="RFC5510"></xref>
+Section 8.1 gives for m = 8.  alpha is a root of that polynomial and is
+represented by the byte 0x02.  A byte with bits b_7 (the most
+significant) down to b_0 represents the element b_7 alpha^7 + b_6
+alpha^6 + ... + b_1 alpha + b_0.  Addition is the bitwise exclusive OR
+of bytes, and multiplication is the product of polynomials modulo 0x11D,
+so alpha^8 is 0x1D.  This document defines the code over GF(2^8) only.</t>
+<t><strong>Generator matrix.</strong> The code is generated by G = [I | A], where I is
+an identity matrix and A is a Cauchy matrix (<xref target="ISO.23008-10"></xref> Clause 6.2
+writes G = [I; A]).  Row i of A belongs to the source symbol at ESI i,
+and column j to the repair symbol whose RS_ID is j.  The entries of A
+are:</t>
+
+<artwork><![CDATA[A_{i,j} = 1 / (x_i + y_j)
+x_i     = alpha^(254 - i)
+y_j     = alpha^j
+]]></artwork>
+<t>A block that holds SSB_length source symbols and RSB_length repair
+symbols uses rows 0 to SSB_length - 1 and columns 0 to RSB_length - 1 of
+A.  x_i and y_j differ whenever i + j &lt; 254, so every entry the block
+uses is defined when SSB_length + RSB_length is at most 255, the bound
+of <xref target="ISO.23008-10"></xref> Clause 6.2.  An entry depends on i and j alone: not
+on K, not on SSB_length and not on P.</t>
+<t><strong>Encoding.</strong> Every symbol of a block is T bytes long.  Let s_i be the
+source symbol at ESI i (<xref target="MOQ-FEC-CORE"></xref> Section
+5.5), for i from 0 to SSB_length - 1.  The
+repair symbol r_j whose RS_ID is j is computed one byte position at a
+time, as <xref target="RFC5510"></xref> Section 8.4 applies its code to symbols: for each
+byte position u from 0 to T - 1,</t>
+
+<artwork><![CDATA[r_j[u] = sum over i < SSB_length of A_{i,j} * s_i[u]
+]]></artwork>
+<t>where the sum and the products are computed in GF(2^8).  The source
+symbols themselves are sent unchanged.</t>
+<t><strong>Short blocks.</strong> A block whose SSB_length is less than K uses only the
+first SSB_length rows of A.  Its repair symbols equal those of a block
+of K source symbols whose symbols at ESIs SSB_length to K - 1 are all
+zero, because a zero symbol adds nothing to any sum.  No zero symbol is
+sent or counted in SSB_length (<xref target="MOQ-FEC-CORE"></xref> Section
+5.4).</t>
+<t><strong>Decoding.</strong> Every square submatrix of a Cauchy matrix is invertible
+(<xref target="ISO.23008-10"></xref> Clause 6.2), so the code is maximum distance
+separable: a receiver that holds any SSB_length distinct symbols of a
+block, source and repair in any mix, recovers every source symbol of the
+block.  Let M be the set of ESIs of the source symbols it lacks, and R a
+set of |M| RS_IDs of repair symbols that it holds.  For each byte
+position u and each j in R:</t>
+
+<artwork><![CDATA[sum over i in M of A_{i,j} * s_i[u]
+    = r_j[u] + sum over i < SSB_length, i not in M,
+               of A_{i,j} * s_i[u]
+]]></artwork>
+<t>The square matrix of the entries A_{i,j} with i in M and j in R is a
+submatrix of A and is therefore invertible.  The receiver inverts it
+once per block and applies the result at every byte position.  Any
+decoding method that yields the same source symbols is acceptable.</t>
+<t>The field is that of <xref target="RFC5510"></xref>, but the generator matrix is not the
+Vandermonde-derived matrix of <xref target="RFC5510"></xref> Section 8.2, and this document
+uses neither the FEC Payload IDs nor the source block partitioning of
+<xref target="RFC5510"></xref>.  Several systematic Reed-Solomon constructions over GF(2^8)
+are in use, and they produce different repair symbols from the same
+source symbols.  <xref target="test-vectors"></xref> gives test vectors that tell this
+construction apart from the others.</t>
+</section>
+
+<section anchor="rs-parameters"><name>Parameters</name>
+<t>As for RaptorQ (<xref target="raptorq-oti"></xref>), no decoder configuration is carried on
+the wire, and the code has no OTI to carry.  When an instance's scheme
+is &quot;reed-solomon&quot;, receivers MUST configure the decoder of each FEC
+block from the instance's configuration (<xref target="MOQ-FEC-CORE"></xref> Section
+10.1) and the block's Repair FEC Payload ID
+(<xref target="MOQ-FEC-CORE"></xref> Section 7.5), under the
+source symbol construction of the instance's block profile
+(<xref target="MOQ-FEC-CORE"></xref> Section
+5.2), as follows:</t>
+
+<ul spacing="compact">
+<li><strong>Symbol size</strong>: T = <tt>symbolSize</tt>.  Every source and repair symbol is
+exactly T bytes.  The RaptorQ rule that T is a multiple of 8
+(<xref target="raptorq-oti"></xref>) does not apply.</li>
+<li><strong>Rows</strong>: SSB_length, the block's source symbol count.  The source
+symbol whose SS_ID is x is row (x - SS_Start) mod 2^32 of A, which is
+its ESI (<xref target="MOQ-FEC-CORE"></xref> Section 5.5).</li>
+<li><strong>Columns</strong>: the repair symbol whose RS_ID is j is column j of A.  Its
+ESI, SSB_length + RS_ID (<xref target="repair-symbols"></xref>), still identifies it
+within its block, but the column depends on RS_ID alone.</li>
+<li><strong>Column count</strong>: RSB_length, the instance's total repair count P
+(<xref target="MOQ-FEC-CORE"></xref> Section 7.5).</li>
+</ul>
+<t>This derivation is normative and complete: a receiver that has an
+instance's configuration requires no additional signaling to configure
+its decoder (<xref target="MOQ-FEC-CORE"></xref> Section
+4.2, requirement 5).  As under
+RaptorQ, its per-block inputs travel in the Repair FEC Payload ID of
+every repair object of the block.</t>
+<t>The configuration keeps every FEC instance under &quot;reed-solomon&quot; within
+the bound of <xref target="rs-code"></xref>: K + P is at most 255, where K is the instance's
+<tt>sourceSymbols</tt> and P its total repair count over all its repair layers
+(<xref target="scheme-bounds"></xref>).  SSB_length + RSB_length is then at most 255 in
+every block.  In addition to the checks of <xref target="MOQ-FEC-CORE"></xref> Section
+5.4, a receiver MUST discard a repair
+object of such an instance whose SSB_length + RSB_length exceeds 255, or
+whose RS_ID is not less than RSB_length, leaving the state of every
+block unchanged.  Neither object carries a symbol of a code that
+<xref target="rs-code"></xref> defines.  A repair object whose RSB_length is less than O_i +
+P_i for a layer i that the receiver holds goes to one of two rules.
+When the object is on that layer's own track, i above 0, or belongs to
+a block to which the check of <xref target="MOQ-FEC-CORE"></xref> Section
+7.3.2 applies, that check handles it: it
+fails closed and stops FEC for the instance.  Otherwise this rule
+applies, and the receiver discards the object only if it breaks one of
+the two conditions above.  Such an object is one of a block generated
+before an append, carrying no symbol of layer i, or one of layer 0's
+track generated under a previous total (<xref target="MOQ-FEC-CORE"></xref> Section
+7.3.2).</t>
+<t>Repair layers (<xref target="MOQ-FEC-CORE"></xref> Section 7.3) carry
+disjoint ranges of columns: layer i carries columns O_i to O_i + P_i - 1
+(<xref target="MOQ-FEC-CORE"></xref> Section 7.3.1).  A column
+depends on its RS_ID alone, so a repair symbol is the same whichever
+layer carries it and whatever other layers exist, and symbols from any
+subset of layers combine in one decode.  Each FEC instance of a source
+track, including an instance that overlaps another (<xref target="MOQ-FEC-CORE"></xref>
+Section 8.4), has its own rows, numbered from
+its own SS_IDs, its own columns and its own bound: K + P is at most 255
+in each instance, whatever another instance of the track uses.</t>
+<t>For example, this configuration, shown in the shape of the catalog
+binding (<xref target="MOQ-FEC-CATALOG"></xref>), protects a LOC video track under
+&quot;reed-solomon&quot;:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "version": 1,
+  "tracks": [
+    {
+      "name": "video",
+      "packaging": "loc",
+      "isLive": true,
+      "codec": "avc1.64001f",
+      "width": 1280,
+      "height": 720,
+      "framerate": 30,
+      "bitrate": 2500000,
+      "fec": [
+        {
+          "instanceId": 0,
+          "scheme": "reed-solomon",
+          "blockProfile": "moq-object-v1",
+          "sourceSymbols": 32,
+          "repairSymbols": 8,
+          "symbolSize": 1320,
+          "interleaveDepthMs": 200,
+          "reorderToleranceMs": 40,
+          "repairTrack": "video/repair"
+        }
+      ]
+    },
+    {
+      "name": "video/repair",
+      "packaging": "fec-repair",
+      "isLive": true,
+      "source": "video",
+      "instanceId": 0,
+      "repairLayer": 0,
+      "repairSymbols": 8,
+      "priority": 240
+    }
+  ]
+}
+]]></sourcecode>
+<t>K + P is 32 + 8 = 40, within the bound.  A full block uses rows 0 to 31
+and columns 0 to 7 of A, and its repair objects carry SSB_length 32 and
+RSB_length 8.  A short block of 20 source symbols uses rows 0 to 19 and
+the same columns, and its repair objects carry SSB_length 20.  The
+repair symbol with RS_ID 3 is column 3 in both blocks, at ESI 35 in the
+first and ESI 23 in the second.  The full block recovers once the
+receiver holds any 32 of its 40 symbols, and the short block once it
+holds any 20 of its 28.  The bound of <xref target="scheme-bounds"></xref> leaves room for
+repair layers (<xref target="MOQ-FEC-CORE"></xref> Section 7.3.2)
+of at most 215 more repair symbols in all, since 32 + 8 + 215 = 255, and
+<xref target="MOQ-FEC-CORE"></xref> Section 14.4 recommends far fewer.</t>
+</section>
+</section>
+
+<section anchor="raptorq"><name>RaptorQ</name>
+
+<section anchor="raptorq-oti"><name>Object Transmission Information</name>
+<t>An RFC 6330 decoder is configured by the Object Transmission Information
+(OTI): the 8-byte Common FEC OTI (Section 3.3.2 of <xref target="RFC6330"></xref>) and the
+4-byte Scheme-Specific FEC OTI (Section 3.3.3 of <xref target="RFC6330"></xref>), totaling
+12 bytes:</t>
+
+<artwork><![CDATA[RaptorQ OTI {
+  Transfer Length (40),
+  Reserved (8),
+  Symbol Size (16),
+  Number of Source Blocks (8),
+  Number of Sub-Blocks (16),
+  Symbol Alignment (8),
+}
+]]></artwork>
+<t>This specification does not carry the OTI on the wire.  When an
+instance's scheme is &quot;raptorq&quot;, receivers MUST construct the OTI of each
+FEC block from the instance's configuration (<xref target="MOQ-FEC-CORE"></xref> Section
+10.1) and the block's SSB_length, which every
+repair object of the block carries (<xref target="MOQ-FEC-CORE"></xref> Section
+7.5), under the source symbol construction of
+the instance's block profile (<xref target="MOQ-FEC-CORE"></xref> Section
+5.2), as follows:</t>
+
+<ul spacing="compact">
+<li><strong>Transfer Length</strong>: F = SSB_length x T, where SSB_length is the
+block's source symbol count and T is <tt>symbolSize</tt>, exact because every
+source symbol of a block profile is exactly T bytes.  It is never
+computed from the cumulative size of source objects, which a receiver
+that has lost objects could not know, and never from <tt>sourceSymbols</tt>,
+which bounds SSB_length but is not the size of any particular block
+(<xref target="MOQ-FEC-CORE"></xref> Section 5.4).  From
+this F an <xref target="RFC6330"></xref> decoder derives that document's K as SSB_length,
+and from K its own K' (<xref target="RFC6330"></xref> Section 5.3.1).</li>
+<li><strong>Symbol Size</strong>: T = <tt>symbolSize</tt>.</li>
+<li><strong>Number of Source Blocks</strong>: Z = 1.  Each FEC block is decoded as an
+independent RFC 6330 object containing a single source block.  Blocks
+are identified by the SS_Start of the Repair FEC Payload ID of repair
+objects, and source symbols are placed in them by SS_ID
+(<xref target="MOQ-FEC-CORE"></xref> Section 5.5) -- not by
+the RFC 6330 Z partitioning.</li>
+<li><strong>Number of Sub-Blocks</strong>: N = 1.  Sub-blocking is not used; the MMTP
+block profile states the same for its sub-block mode (<xref target="MOQ-MMT"></xref>
+Section 7.1).</li>
+<li><strong>Symbol Alignment</strong>: Al = 8.  <tt>symbolSize</tt> MUST be a multiple of 8
+(<xref target="scheme-bounds"></xref>).</li>
+</ul>
+<t>This derivation is normative and complete: a receiver that has an
+instance's configuration requires no additional signaling to configure
+its decoder (<xref target="MOQ-FEC-CORE"></xref> Section
+4.2, requirement 5).  Its one
+per-block input, SSB_length, travels in the Repair FEC Payload ID of
+every repair object of the block, so a receiver holding any repair
+symbol of a block holds the block's SSB_length.</t>
+<t>Under &quot;raptorq&quot;, a block of SSB_length source symbols is an <xref target="RFC6330"></xref>
+source block whose K, in the notation of <xref target="RFC6330"></xref>, is SSB_length; the
+K of <xref target="MOQ-FEC-CORE"></xref> is the configured bound instead.  The extension of
+that source block to K' symbols by padding (<xref target="RFC6330"></xref> Section 5.3.1)
+happens inside the encoder and the decoder and is not visible on the
+wire, and this document defines no K' of its own.</t>
+<t>The Symbol Alignment does not affect the symbols.  In <xref target="RFC6330"></xref> Al
+governs only the division of a symbol into sub-symbols across the N
+sub-blocks (its Section 4.4.1.2), and with N = 1 every symbol is one
+contiguous run of T bytes whatever Al is.  A library that fixes Al at
+another value, such as 1, therefore produces the same source and repair
+symbols for the same F, T and K, and conforms to this document; the Al
+= 8 of the derived OTI records that <tt>symbolSize</tt> is a multiple of 8
+(<xref target="scheme-bounds"></xref>), and nothing else depends on it.</t>
+<t>For example, for an instance with K = 32 and T = 1312, a full block
+(SSB_length = K = 32) has Transfer Length F = SSB_length x T = 32 x 1312
+= 41,984 bytes, Symbol Size T = 1312, Z = 1, N = 1, Al = 8.  No
+in-session message is required.</t>
+</section>
+</section>
+
+<section anchor="scheme-bounds"><name>Scheme Bounds</name>
+<t><xref target="MOQ-FEC-CORE"></xref> Section 4.2,
+requirement 6, asks a scheme to state the largest K, the largest
+SSB_length + RSB_length and the largest RS_ID that its construction
+supports, and <xref target="MOQ-FEC-CORE"></xref> Section 10.3 applies those
+bounds to a configuration before FEC starts.  This section is the one
+place that states them for the two schemes of this document.  A receiver
+rejects a configuration, and discards a repair object, outside them
+(<xref target="MOQ-FEC-CORE"></xref> Sections 10.3 and
+7.5).</t>
+<t>Under &quot;reed-solomon&quot;:</t>
+
+<ul spacing="compact">
+<li>K + P is at most 255 for each FEC instance: its <tt>sourceSymbols</tt> plus
+the <tt>repairSymbols</tt> of all its repair layers.  Every entry of A that a
+block of the instance uses is then defined (<xref target="rs-code"></xref>).  SSB_length +
+RSB_length is therefore at most 255 in every block, and the largest
+RS_ID, RSB_length - 1, is at most 253.</li>
+<li>A publisher that appends a repair layer MUST keep the instance within
+this bound with the new total (<xref target="MOQ-FEC-CORE"></xref> Section
+7.3.2).</li>
+<li>T is at least 1, and no alignment applies (<xref target="rs-parameters"></xref>).</li>
+</ul>
+<t>Under &quot;raptorq&quot;:</t>
+
+<ul spacing="compact">
+<li>K is at most 56403 for each FEC instance.  <xref target="RFC6330"></xref> extends a
+source block of K source symbols to K' symbols, the smallest value at
+least K in its Table 2 (<xref target="RFC6330"></xref> Section 5.3.1), and 56403 is the
+largest such value, K'_max (<xref target="RFC6330"></xref> Section 5.1.2), so a RaptorQ
+source block holds at most 56403 source symbols.</li>
+<li><tt>symbolSize</tt> is a multiple of 8, the fixed Symbol Alignment of the
+derived OTI (<xref target="raptorq-oti"></xref>), so the least T this scheme admits is 8.
+A block profile can place a larger floor on T, as the MMTP block
+profile does (<xref target="MOQ-MMT"></xref> Section 7.1); that floor
+is the profile's rule, not a bound of this scheme, and under it the
+least T is the smallest multiple of 8 at or above the floor.  A
+RaptorQ symbol size off the Symbol Alignment fits no derived OTI.</li>
+<li>The largest Encoding Symbol ID of <xref target="RFC6330"></xref> is 2^24 - 1 (its Section
+3.2), the bound that <xref target="MOQ-FEC-CORE"></xref> Section 10.3
+already places on K + P - 1 for every scheme, so &quot;raptorq&quot; adds no
+bound of its own on SSB_length + RSB_length or on RS_ID.</li>
+</ul>
+</section>
+
+<section anchor="repair-layers"><name>Repair Layers</name>
+<t>Both schemes support repair layers (<xref target="MOQ-FEC-CORE"></xref> Section
+7.3).  Layering needs a code whose repair symbols are
+identified by ESI alone and whose repair symbol for a given ESI does not
+depend on how many repair symbols the block generates in total.  Only
+then do repair symbols from disjoint ESI ranges on separate tracks
+remain symbols of one code, and only then can a receiver add a layer
+without the publisher re-encoding.  RaptorQ has this property by
+construction, through its open Encoding Symbol ID space (<xref target="RFC6330"></xref>).
+The property is not particular to fountain codes.  A systematic
+Reed-Solomon code whose generator matrix is Vandermonde-derived
+(<xref target="RFC5510"></xref> Section 8.2.1) or Cauchy-derived has it too, provided the
+field element that defines each repair column is fixed by the symbol's
+index in the code and never by P.  <xref target="RFC5510"></xref> fixes it as alpha^j for
+the Encoding Symbol ID j, so a repair column is fixed by SSB_length and
+RS_ID together, through ESI = SSB_length + RS_ID.  The Cauchy
+construction of <xref target="rs-code"></xref> fixes y_j as alpha^j for RS_ID j, so a repair
+column is fixed by RS_ID alone.  Each repair symbol is then one fixed
+column of that matrix, independent of the code length n = K + P, and the
+field size is the only bound: K + P is at most 2^m - 1 over GF(2^m) for
+the <xref target="RFC5510"></xref> construction, and at most 2^m for a Cauchy construction
+in general.  The construction of <xref target="rs-code"></xref>, whose x_i and y_j are
+nonzero powers of alpha, allows 2^m - 1, that is 255.  A Reed-Solomon
+code in generator-polynomial form lacks the property: its parity is the
+remainder modulo a polynomial of degree n - K, so its symbols for one P
+are not valid for another.</t>
+<t>The &quot;reed-solomon&quot; code of <xref target="rs-code"></xref> meets the conditions of
+<xref target="MOQ-FEC-CORE"></xref> Section 4.2 for a
+scheme that supports layers: column j of A depends on RS_ID j alone,
+through y_j = alpha^j, and not on P or on SSB_length; layer i carries
+columns O_i to O_i + P_i - 1 (<xref target="rs-parameters"></xref>); and <xref target="scheme-bounds"></xref>
+bounds K + P by 255 for each FEC instance.  Under &quot;raptorq&quot;, layer i
+carries, for every block, the repair symbols whose Encoding Symbol IDs
+are SSB_length + O_i to SSB_length + O_i + P_i - 1 of the block's
+<xref target="RFC6330"></xref> source block (<xref target="repair-symbols"></xref>), and <xref target="scheme-bounds"></xref>
+bounds K.</t>
+<t>A receiver that has subscribed a set of layers recovers a block whenever
+the number of lost symbols, source and repair together, does not exceed
+C - e, where C is the total P over the layers it holds and e is the
+decoding overhead of the instance's scheme: 0 under &quot;reed-solomon&quot;,
+which is maximum distance separable (<xref target="rs-code"></xref>), and under &quot;raptorq&quot; a
+small number of symbols (roughly 1e-2, 1e-4, and 1e-6 residual failure
+at 0, 1, and 2 symbols of overhead per <xref target="RFC6330"></xref>).</t>
+</section>
+
+<section anchor="repair-symbols"><name>Repair Symbols</name>
+<t>For RaptorQ, repair symbols are generated per <xref target="RFC6330"></xref> Section 5.3.
+The source symbols of a block occupy ESIs 0 to SSB_length - 1 in SS_ID
+order, and the Encoding Symbol ID (ESI) of a repair symbol starts at
+SSB_length, the block's K in the notation of <xref target="RFC6330"></xref> (<xref target="RFC6330"></xref>
+Section 5.3.1): ESI = SSB_length + RS_ID, both fields taken from the
+Repair FEC Payload ID (<xref target="MOQ-FEC-CORE"></xref> Section
+7.5).  The Internal Symbol IDs of <xref target="RFC6330"></xref>,
+which start the repair symbols at that document's K', are internal to
+its encoder and decoder and never appear on the wire.</t>
+<t>For Reed-Solomon, repair symbols are generated per <xref target="rs-code"></xref>.  Source
+and repair symbols carry the same ESIs as under RaptorQ, so ESI =
+SSB_length + RS_ID still identifies a repair symbol within its block,
+but the code takes the symbol's column of A from its RS_ID alone
+(<xref target="rs-parameters"></xref>).</t>
+<t>Under &quot;raptorq&quot; the block is a RaptorQ source block of SSB_length source
+symbols, whose decoder is configured with F = SSB_length x T
+(<xref target="raptorq-oti"></xref>); under &quot;reed-solomon&quot; SSB_length is the number of rows
+of A that the block uses (<xref target="rs-parameters"></xref>).</t>
+<t>A short source block (<xref target="MOQ-FEC-CORE"></xref> Section
+5.4) is encoded as a block of its
+SSB_length source symbols, at ESIs 0 to SSB_length - 1 in SS_ID order:
+under &quot;raptorq&quot; a RaptorQ source block with F = SSB_length x T
+(<xref target="raptorq-oti"></xref>), and under &quot;reed-solomon&quot; the first SSB_length rows of
+A (<xref target="rs-code"></xref>).  No padding symbol is transmitted, and none is counted
+in SSB_length or F.  The padding of the block to K' symbols in the
+notation of <xref target="RFC6330"></xref> (<xref target="RFC6330"></xref> Section 5.3.1) is part of RaptorQ
+encoding and decoding, performed inside the encoder and the decoder.  A
+short block is recoverable once the source and repair symbols the
+receiver holds together number at least SSB_length, plus the decoding
+overhead of <xref target="repair-layers"></xref>, which is zero under &quot;reed-solomon&quot;.</t>
+</section>
+
+<section anchor="mandatory-to-implement"><name>Mandatory-to-Implement Scheme</name>
+<t>Reed-Solomon is the mandatory-to-implement FEC scheme: an implementation
+that performs FEC decoding under <xref target="MOQ-FEC-CORE"></xref> MUST support
+&quot;reed-solomon&quot;, which <xref target="reed-solomon"></xref> fully specifies.  &quot;raptorq&quot; is
+OPTIONAL.</t>
+<t>The MMT AL-FEC framework on which the MMTP block profile of <xref target="MOQ-MMT"></xref>
+rests (<xref target="ISO.23008-1"></xref> Annex C) requires no FEC code: it carries
+whichever code the AL-FEC message names by its <xref target="ISO.23008-10"></xref> code
+point, and ATSC 3.0, which applies AL-FEC to an MMTP session through
+that framework, requires none either (<xref target="ATSC-A331"></xref> Section 8.1.2.5;
+<xref target="MOQ-MMT"></xref> Section 10).  This document
+therefore specifies the codes it uses.  Reed-Solomon is the mandatory
+scheme because it is small to implement, recovers a block from exactly
+SSB_length of its symbols, and is a code of that framework
+(<xref target="ISO.23008-10"></xref> code point 1).  RaptorQ stays specified, code point 3,
+for its block size: it serves every block size this document allows.
+A RaptorQ block holds up to 56403 source symbols (<xref target="scheme-bounds"></xref>),
+while a Reed-Solomon block holds at most 255 source and repair symbols.
+At 8 Mb/s with symbols of 1200 bytes, 255 symbols are about 300 ms,
+and a Reed-Solomon block's 255 - P source symbols span less than that,
+so the multi-second interleave windows of
+<xref target="MOQ-FEC-CORE"></xref> Section 9.3 need RaptorQ
+at that rate.</t>
+<t>A receiver that does not implement the scheme of an FEC instance forgoes
+FEC for that instance, as <xref target="MOQ-FEC-CORE"></xref> Section
+4.5 specifies; an instance under &quot;raptorq&quot; is
+therefore protected only for the receivers that implement it.</t>
+</section>
+
+<section anchor="security-considerations"><name>Security Considerations</name>
+<t>The security considerations of <xref target="MOQ-FEC-CORE"></xref> apply.  <xref target="MOQ-FEC-CORE"></xref>
+Section 14.3 bounds a receiver's work per
+instance; this section gives the Reed-Solomon figures.  Under &quot;raptorq&quot;
+the cost of decoding a block is that of an <xref target="RFC6330"></xref> decoder for a
+source block of SSB_length symbols of T bytes (<xref target="raptorq-oti"></xref>), which
+<xref target="RFC6330"></xref> Section 5.4 describes; this document gives no closer
+figure.</t>
+<t>The configuration bounds the cost of &quot;reed-solomon&quot; decoding.  A block
+has at most 255 source and repair symbols (<xref target="scheme-bounds"></xref>), so the
+number of source symbols a receiver recovers in it, E, is at most
+min(SSB_length, RSB_length), which is at most 127.  The receiver inverts
+one E x E matrix per block and performs about E x SSB_length x T
+multiplications in GF(2^8) to form and apply the result (<xref target="rs-code"></xref>).
+One open block holds at most 255 x T bytes of symbols.</t>
+<t>The code provides no integrity protection, as RaptorQ provides none
+(<xref target="MOQ-FEC-CORE"></xref> Section 14.2).  A decoder that is given
+a corrupted or injected symbol yields wrong source symbols and reports
+no error, and when it decodes from exactly SSB_length symbols the code
+itself cannot reveal the error.  The checks of the block profile
+(<xref target="MOQ-FEC-CORE"></xref> Section 9.2 for
+&quot;moq-object-v1&quot;, and <xref target="MOQ-MMT"></xref> Section 7.1 for MMTP
+packets) reject some wrong results.  A receiver that holds more than
+SSB_length symbols of a block can also re-encode the recovered block and
+compare the result with the symbols it did not use: a mismatch shows
+that some symbol it holds is not what the publisher encoded.</t>
+</section>
+
+<section anchor="iana-considerations"><name>IANA Considerations</name>
+<t>This document requests the registration of two entries in the &quot;MoQ FEC
+Schemes&quot; registry that <xref target="MOQ-FEC-CORE"></xref> Section
+15.2 creates:</t>
+<table>
+<thead>
+<tr>
+<th>Identifier</th>
+<th>Class</th>
+<th>Layers</th>
+<th>Reference</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>&quot;reed-solomon&quot;</td>
+<td>block</td>
+<td>yes</td>
+<td><xref target="ISO.23008-10"></xref> Clause 6; this document, <xref target="reed-solomon"></xref></td>
+</tr>
+
+<tr>
+<td>&quot;raptorq&quot;</td>
+<td>block</td>
+<td>yes</td>
+<td><xref target="RFC6330"></xref>; this document, <xref target="raptorq"></xref></td>
+</tr>
+</tbody>
+</table><t>The Identifier is the string that the scheme parameter of an FEC
+instance carries (<xref target="MOQ-FEC-CORE"></xref> Section
+10.1).  When reviewing a registration in that
+registry, the designated expert checks that the specification gives the
+scheme's symbol construction, the derivation of its decoder parameters
+from the configuration and the Repair FEC Payload ID, and the semantics
+of its repair objects (<xref target="MOQ-FEC-CORE"></xref> Section
+4.2), and that it states whether the
+scheme admits repair layers (<xref target="MOQ-FEC-CORE"></xref> Section
+7.3).</t>
+</section>
+
+</middle>
+
+<back>
+<references><name>References</name>
+<references><name>Normative References</name>
+<reference anchor="ISO.23008-10" target="">
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 10: MPEG media transport forward error correction (FEC) codes</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year="2015"></date>
+  </front>
+  <seriesInfo name="ISO/IEC" value="23008-10:2015"></seriesInfo>
+</reference>
+<reference anchor="MOQ-FEC-CORE" target="">
+  <front>
+    <title>Forward Error Correction for Media over QUIC: Core Mechanism</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
+      <organization>Rutgers University</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-00"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.6330.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
+</references>
+<references><name>Informative References</name>
+<reference anchor="ATSC-A331" target="https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/">
+  <front>
+    <title>Signaling, Delivery, Synchronization, and Error Protection</title>
+    <author>
+      <organization>ATSC</organization>
+    </author>
+    <date year="2026" month="February"></date>
+  </front>
+  <seriesInfo name="ATSC" value="A/331:2026-02"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ramadan-moq-fec.xml"/>
+<reference anchor="ISO.23008-1" target="">
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 1: MPEG media transport (MMT)</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year="2023"></date>
+  </front>
+  <seriesInfo name="ISO/IEC" value="23008-1:2023"></seriesInfo>
+</reference>
+<reference anchor="MOQ-FEC-CATALOG" target="">
+  <front>
+    <title>Catalog Binding for Forward Error Correction in Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
+</reference>
+<reference anchor="MOQ-FEC-MULTICAST" target="">
+  <front>
+    <title>Forward Error Correction for Multicast Delivery of Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-00"></seriesInfo>
+</reference>
+<reference anchor="MOQ-MMT" target="">
+  <front>
+    <title>MPEG Media Transport (MMT) Packaging for Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.5510.xml"/>
+</references>
+</references>
+
+<section anchor="test-vectors"><name>Reed-Solomon Test Vectors</name>
+<t>This appendix is informative.  It gives values of the <tt>reed-solomon</tt>
+code of <xref target="rs-code"></xref>, so that an implementation can check its field
+arithmetic, its matrix A and the order of its symbols.  Bytes are in
+hexadecimal, and a symbol is written as its T bytes in order.  Two
+separate implementations of <xref target="rs-code"></xref> computed these values.  They have
+not been checked against an implementation of <xref target="ISO.23008-10"></xref>.</t>
+<t>The field.  The powers of alpha fix the polynomial (alpha^8 = 1d) and
+the representation of elements as bytes (alpha^7 = 80):</t>
+
+<sourcecode type="json"><![CDATA[{
+  "vector": "field",
+  "polynomial": "11d",
+  "alphaPowers": {"0": "01", "1": "02", "7": "80", "8": "1d",
+                  "9": "3a", "254": "8e", "255": "01"},
+  "inverses": {"02": "8e", "03": "f4", "1d": "83"}
+}
+]]></sourcecode>
+<t>Entries of A, with the x_i and y_j that define them.  A_{253,0} and
+A_{0,253} lie at the edge of the bound: a block that uses either has
+SSB_length + RSB_length = 255.</t>
+
+<sourcecode type="json"><![CDATA[{
+  "vector": "matrix",
+  "entries": [
+    {"i": 0, "j": 0, "x": "8e", "y": "01", "A": "f5"},
+    {"i": 0, "j": 1, "x": "8e", "y": "02", "A": "53"},
+    {"i": 1, "j": 0, "x": "47", "y": "01", "A": "a6"},
+    {"i": 1, "j": 1, "x": "47", "y": "02", "A": "4e"},
+    {"i": 3, "j": 2, "x": "d8", "y": "04", "A": "99"},
+    {"i": 31, "j": 7, "x": "09", "y": "80", "A": "31"},
+    {"i": 253, "j": 0, "x": "02", "y": "01", "A": "f4"},
+    {"i": 0, "j": 253, "x": "8e", "y": "47", "A": "f7"}
+  ]
+}
+]]></sourcecode>
+<t>A block of four one-byte source symbols, and its repair symbols at
+RS_IDs 0 to 2:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "vector": "encode",
+  "T": 1,
+  "SSB_length": 4,
+  "source": ["01", "02", "03", "04"],
+  "RS_ID": [0, 1, 2],
+  "repair": ["cc", "ce", "83"]
+}
+]]></sourcecode>
+<t>A short block.  K is 8, and the block holds three two-byte source
+symbols.  Its repair symbols are also those of a full block of eight
+source symbols whose last five are zero.  A receiver that holds the
+source symbol at ESI 0 and both repair symbols recovers the source
+symbols at ESIs 1 and 2:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "vector": "short-block",
+  "T": 2,
+  "K": 8,
+  "SSB_length": 3,
+  "source": ["0102", "0304", "0506"],
+  "RS_ID": [0, 1],
+  "repair": ["d43a", "d016"],
+  "received": {"ESI": [ 0 ], "RS_ID": [0, 1]},
+  "recovered": ["0304", "0506"]
+}
+]]></sourcecode>
+<t>Two repair layers over the block of the third vector, with K = 4.  Layer
+0 carries RS_IDs 0 and 1 (P_0 = 2, O_0 = 0), and layer 1 carries RS_IDs
+2 and 3 (P_1 = 2, O_1 = 2), so RSB_length is 4.  The symbols at RS_IDs 0
+to 2 equal those of the third vector, whose block has a total repair
+count of 3: a column does not depend on P.  A receiver that holds layer
+1 alone, with the source symbols at ESIs 0 and 3, recovers the source
+symbols at ESIs 1 and 2:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "vector": "layers",
+  "T": 1,
+  "K": 4,
+  "SSB_length": 4,
+  "RSB_length": 4,
+  "source": ["01", "02", "03", "04"],
+  "layers": [
+    {"repairLayer": 0, "RS_ID": [0, 1], "repair": ["cc", "ce"]},
+    {"repairLayer": 1, "RS_ID": [2, 3], "repair": ["83", "20"]}
+  ],
+  "received": {"ESI": [0, 3], "RS_ID": [2, 3]},
+  "recovered": ["02", "03"]
+}
+]]></sourcecode>
+</section>
+
+<section anchor="raptorq-test-vectors"><name>RaptorQ Test Vectors</name>
+<t>This appendix is informative.  It gives values of the &quot;raptorq&quot; scheme
+for a full block and a short block of one instance, so that an
+implementation of <xref target="RFC6330"></xref> can check the
+OTI that <xref target="raptorq-oti"></xref> derives from the instance's configuration and
+the block's SSB_length, and the Encoding Symbol ID that
+<xref target="repair-symbols"></xref> gives each RS_ID.  Bytes are in hexadecimal, and a
+symbol is written as its T bytes in order.  <xref target="RFC6330"></xref> fixes the
+symbols themselves, and independent implementations of it agree on
+these values.</t>
+<t>A full block of four 8-byte source symbols (K = SSB_length = 4 and
+T = 8, the least symbol size of <xref target="scheme-bounds"></xref>), and its repair
+symbols at RS_IDs 0 to 2.  The derived OTI is F = 32, T = 8, Z = 1,
+N = 1, Al = 8.  The encoder extends the block to K' = 10 symbols
+internally (<xref target="RFC6330"></xref> Section 5.3.1 and Table 2); the repair symbol
+at RS_ID j has ESI = SSB_length + j on the wire and, inside
+<xref target="RFC6330"></xref>, ISI = ESI + K' - K:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "vector": "raptorq-encode",
+  "T": 8,
+  "SSB_length": 4,
+  "OTI": {"F": 32, "T": 8, "Z": 1, "N": 1, "Al": 8},
+  "Kprime": 10,
+  "source": ["0102030405060708", "090a0b0c0d0e0f10",
+             "1112131415161718", "191a1b1c1d1e1f20"],
+  "RS_ID": [0, 1, 2],
+  "ESI": [4, 5, 6],
+  "ISI": [10, 11, 12],
+  "repair": ["b5f2cf7c41063b7d", "3f1e015c43627db5",
+             "16ecba0553a9ff31"]
+}
+]]></sourcecode>
+<t>A short block (<xref target="MOQ-FEC-CORE"></xref> Section
+5.4) of the same instance: K = 4 and T = 8
+as above, but the block holds SSB_length = 3 source symbols, the first
+three of the full block above.  The derived OTI is F = SSB_length x T =
+24, T = 8, Z = 1, N = 1, Al = 8, so an <xref target="RFC6330"></xref> decoder derives K =
+3 and, as above, K' = 10: the encoder pads the block to K' with seven
+zero symbols rather than six, and the repair symbols differ from those
+of the full block at the same ISIs.  The repair symbol at RS_ID j has
+ESI = SSB_length + j = 3 + j on the wire and ISI = ESI + K' - K = 10 +
+j.  A receiver that holds the source symbols at ESIs 0 and 2 and the
+repair symbol at RS_ID 0 recovers the source symbol at ESI 1:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "vector": "raptorq-short-block",
+  "T": 8,
+  "K": 4,
+  "SSB_length": 3,
+  "OTI": {"F": 24, "T": 8, "Z": 1, "N": 1, "Al": 8},
+  "Kprime": 10,
+  "source": ["0102030405060708", "090a0b0c0d0e0f10",
+             "1112131415161718"],
+  "RS_ID": [0, 1, 2],
+  "ESI": [3, 4, 5],
+  "ISI": [10, 11, 12],
+  "repair": ["8323437e1ebede12", "21635de7d99ba5e1",
+             "7fc8a5bbd6610c02"],
+  "received": {"ESI": [0, 2], "RS_ID": [0]},
+  "recovered": ["090a0b0c0d0e0f10"]
+}
+]]></sourcecode>
+</section>
+
+<section anchor="changes-from-draft-ramadan-moq-fec-01"><name>Changes from draft-ramadan-moq-fec-01</name>
+<t>This appendix is informative.  It lists what this document takes from
+<xref target="I-D.ramadan-moq-fec"></xref> (the &quot;-01&quot; below), and every sentence that is
+new or changed rather than moved.</t>
+<t>What moved here, by -01 section:</t>
+
+<ul spacing="compact">
+<li>-01 Section 2: the &quot;Object Transmission Information (OTI)&quot;, &quot;FEC
+Block&quot; and &quot;RS_ID Offset&quot; definitions
+(<xref target="conventions-and-definitions"></xref>), and the RaptorQ K' text of the
+&quot;Source Block&quot; definition (<xref target="raptorq-oti"></xref>).</li>
+<li>-01 Section 4.1 (FEC Algorithms) is <xref target="scheme-identifiers"></xref>.  The
+one-byte Value column of the -01 registry is gone, as it is in the
+core's registry, so the parenthetical values 0x01 and 0x02 are
+dropped.</li>
+<li>-01 Section 4.2 (RaptorQ Object Transmission Information) is
+<xref target="raptorq-oti"></xref>, with the OTI numbers of -01 Appendix A.1 as its
+example.</li>
+<li>-01 Section 4.3 (Algorithm Requirements), lines on the
+mandatory-to-implement designation and the reasons for the two codes,
+is <xref target="mandatory-to-implement"></xref>.  The sentence closing the list of
+ISO/IEC 23008-10 codes to the two of -01, and the sentence on
+registered values other than &quot;none&quot;, &quot;raptorq&quot; and &quot;reed-solomon&quot;, are
+not carried: the core's scheme registration model replaces them.  The
+paragraph on receivers that do not implement a scheme is in the core
+(Section 4.5); <xref target="mandatory-to-implement"></xref>
+keeps one sentence that cites it.</li>
+<li>-01 Section 4.4 (Reed-Solomon Code) is <xref target="rs-code"></xref>.</li>
+<li>-01 Section 4.5 (Reed-Solomon Parameters) is <xref target="rs-parameters"></xref>.</li>
+<li>-01 Section 5.1, the clause that T is a multiple of 8 under
+&quot;raptorq&quot;, the fixed Symbol Alignment of the derived OTI, and the
+least T it implies under each block profile, is in <xref target="scheme-bounds"></xref>.</li>
+<li>-01 Section 6.3.2, the decoding-overhead numbers, and -01 Section
+6.3.3, the scheme part (the index-fixed property as RaptorQ and the
+Cauchy construction have it, and the statement that &quot;reed-solomon&quot;
+meets the conditions for layers), are <xref target="repair-layers"></xref>.  The -01
+conditions (a) to (d) are the core's (Section
+4.2).</li>
+<li>-01 Section 6.3.4, rule 6 (K at most 56403 under &quot;raptorq&quot;), rule 12
+(K + P at most 255 under &quot;reed-solomon&quot;) and the scheme parts of rule
+13 (T a multiple of 8 under &quot;raptorq&quot;), and -01 Section 6.3.9's clause
+that an append keeps a &quot;reed-solomon&quot; instance within rule 12, are
+<xref target="scheme-bounds"></xref>.</li>
+<li>-01 Section 7.1, the RaptorQ and Reed-Solomon clauses of the
+SSB_length field definition, -01 Section 7.2 (Repair Symbols) and the
+RaptorQ and Reed-Solomon clauses of -01 Section 7.4 (Short Source
+Blocks) are <xref target="repair-symbols"></xref>; the RaptorQ and Reed-Solomon clauses
+of the -01 Section 7.1 RS_ID field definition are not carried
+separately, since the two paragraphs from -01 Section 7.2 state the
+same.</li>
+<li>-01 Section 14.7 (Reed-Solomon Considerations) is
+<xref target="security-considerations"></xref>.</li>
+<li>-01 Section 15.2, the &quot;raptorq&quot; and &quot;reed-solomon&quot; registry entries
+and the designated-expert guidance, is
+<xref target="iana-considerations"></xref>.  The core creates the registry; this document
+registers the two schemes.</li>
+<li>-01 Appendix C (Reed-Solomon Test Vectors) is <xref target="test-vectors"></xref>,
+unchanged.</li>
+</ul>
+<t>Changes to carried text:</t>
+
+<ul spacing="compact">
+<li>Citations of -01 sections are re-pointed at the core, the catalog
+binding and the MMT draft.  &quot;Algorithm&quot; is &quot;scheme&quot;, &quot;repair packet&quot;
+is &quot;repair object&quot;, and &quot;the catalog <tt>fec</tt> object&quot; and &quot;catalog
+fields&quot; are &quot;the instance's configuration&quot;, following the core's data
+model.  The scheme is named per FEC instance rather than per track.</li>
+<li><xref target="ISO.23008-1"></xref> is an informative reference: this document cites it
+only to name the ISO encoding symbol block in the &quot;FEC Block&quot;
+definition, where -01 Section 2 wrote &quot;(3.1.5)&quot; alone, and for the
+AL-FEC framework in <xref target="mandatory-to-implement"></xref>.  -01 cited it
+normatively for its MMTP profile, which is now <xref target="MOQ-MMT"></xref>.</li>
+<li>The Reed-Solomon discard rule of -01 Section 4.5 is restated against
+the fail-closed check of the core (Section
+7.3.2) in place of -01 Section 6.3.9, and
+its reference to &quot;the checks of Section 7.4&quot; at the core's short-block
+rules; the sentence that routes a repair object whose RSB_length is
+below O_i + P_i is written as two cases, one per rule.</li>
+<li>The 300 ms sentence of -01 Section 4.3, carried in
+<xref target="mandatory-to-implement"></xref>, &quot;such a block spans at most about 300 ms
+of media&quot;, now reads &quot;255 symbols are about 300 ms, and a
+Reed-Solomon block's 255 - P source symbols span less than that&quot;,
+since 255 is the source-plus-repair ceiling.</li>
+<li>The keyframe-overlay sentence of -01 Section 4.5 is generalized to any
+FEC instance of a track, including an overlapping instance: &quot;Each FEC
+instance of a source track, including an instance that overlaps
+another, has its own rows, numbered from its own SS_IDs, its own
+columns and its own bound: K + P is at most 255 in each instance,
+whatever another instance of the track uses.&quot;</li>
+<li>The -01 Section 4.5 example catalog, an MMTP track under
+&quot;iso-ssbg1-v1&quot;, is re-rendered as a LOC track under &quot;moq-object-v1&quot; in
+the shape of the catalog binding, with the same K, P and T; the
+arithmetic that follows it is unchanged.</li>
+<li>In <xref target="raptorq-oti"></xref>, &quot;Catalog-signaled sessions do not use sub-blocking
+(Section 7.3)&quot; is &quot;Sub-blocking is not used; the MMTP block profile
+states the same for its sub-block mode&quot;, and &quot;every source symbol of
+either block profile&quot; is &quot;every source symbol of a block profile&quot;.</li>
+<li>The &quot;Subsets need not be prefixes&quot; example of -01 Section 6.3.2,
+written against the -01 worked catalog, is not carried; the core
+states the rule.</li>
+<li>The -01 Section 6.3.3 sentence restricting repair layers and the
+overlay to the two codes is not carried; the core's validation rule
+replaces it.</li>
+<li>The -01 Section 7.2 sentence that repair symbol generation for other
+registered algorithms is not specified, and the -01 Section 6.3.3
+sentence that a specification of another algorithm can admit repair
+layers and the overlay on the same terms, are not carried: the core's
+scheme registration model and validation rule replace them.</li>
+<li>In the designated-expert sentence of -01 Section 15.2 carried in
+<xref target="iana-considerations"></xref>, &quot;(Section 4.3)&quot; and &quot;(Section 6.3.3)&quot; are
+re-pointed at the core, and &quot;and the keyframe overlay&quot; is not
+carried: the keyframe overlay is the MMTP profile's (<xref target="MOQ-MMT"></xref>
+Section 7.4).</li>
+<li>The &quot;raptorq&quot; clause of the <tt>symbolSize</tt> definition of -01 Section
+5.1, which gave the least T as 8 under &quot;moq-object-v1&quot; and 16 under
+&quot;iso-ssbg1-v1&quot;, is carried into <xref target="scheme-bounds"></xref> reduced to this
+scheme's own bound, a least T of 8.  The floor of 14 that
+&quot;iso-ssbg1-v1&quot; places on T, and the 16 that follows from it under
+&quot;raptorq&quot;, are the MMTP block profile's rule and are stated by
+<xref target="MOQ-MMT"></xref> Section 7.1.</li>
+</ul>
+<t>New sentences (bridging text that a stand-alone document needs; none
+adds a requirement beyond those of -01 and the core):</t>
+
+<ul spacing="compact">
+<li>The Abstract and the Introduction, including &quot;Relation to Other
+Documents&quot;.</li>
+<li>In <xref target="conventions-and-definitions"></xref>: the lead-in sentence on the core's
+terms, the &quot;RSB_length&quot; definition, and the sentence defining K, P, T
+and P_i.</li>
+<li><xref target="core-requirements"></xref>, entirely: it restates where each requirement of
+the core is established.</li>
+<li><xref target="raptorq-test-vectors"></xref>, entirely: RaptorQ test vectors for a full
+block and a short block.  -01 Appendix C gave test vectors for
+Reed-Solomon only; the core's requirement 8 asks for them of every
+registered scheme.</li>
+<li>In <xref target="raptorq-oti"></xref>: the paragraph that the Symbol Alignment does not
+affect the symbols, so an <xref target="RFC6330"></xref> implementation that fixes Al at
+another value conforms.</li>
+<li>In <xref target="scheme-bounds"></xref>: the opening paragraph; &quot;the largest RS_ID,
+RSB_length - 1, is at most 253&quot;; &quot;T is at least 1, and no alignment
+applies&quot;; and the RaptorQ item on the 24-bit Encoding Symbol ID.</li>
+<li>In <xref target="repair-layers"></xref>: the opening sentence, and the sentence mapping a
+&quot;raptorq&quot; layer's RS_ID range to Encoding Symbol IDs.</li>
+<li>In <xref target="repair-symbols"></xref>: the lead-in &quot;A short source block ... is
+encoded as&quot; that frames the carried short-block clauses.</li>
+<li>In <xref target="mandatory-to-implement"></xref>: the sentence citing the core for
+unimplemented schemes.</li>
+<li>In <xref target="security-considerations"></xref>: the opening paragraph.</li>
+<li>In <xref target="iana-considerations"></xref>: the request sentence and the Identifier
+sentence.</li>
+</ul>
+</section>
+
+<section anchor="acknowledgements" numbered="false"><name>Acknowledgements</name>
+<t>The split of <xref target="I-D.ramadan-moq-fec"></xref> into a core mechanism and companion
+documents follows a proposal by Marc E. Fiuczynski.  Two separate
+implementations of the Reed-Solomon code computed the test vectors of
+<xref target="test-vectors"></xref>.</t>
+</section>
+
+</back>
+
+</rfc>
