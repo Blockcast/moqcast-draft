@@ -196,10 +196,10 @@ class PublishedExamples(unittest.TestCase):
         stem = "draft-ramadan-mboned-mcast-manifest-00"
         texts = {suffix: " ".join((ROOT / f"{stem}.{suffix}").read_text(encoding="utf-8").split()) for suffix in ("md", "xml")}
         pattern = (
-            r"one unfragmented datagram on a (\d+)-octet path: at (\d+) digests the record is (\d+) octets, "
+            r"one unfragmented datagram on a (\d+)-octet path\. At (\d+) digests the record is (\d+) octets: "
             r"(\d+) on the wire with IPv4 and UDP headers and (\d+) with IPv6, and (\d+) or (\d+) once an AMT relay "
-            r".{0,40}? adds its own IPv4 or IPv6 header, UDP header and (\d+)-octet Multicast Data header around the IPv6 datagram, "
-            r"which leaves (\d+) to (\d+) octets .*? \(an IPv4 record through an IPv4 relay is (\d+) octets, leaving (\d+)\)\. "
+            r".{0,40}? adds its own IPv4 or IPv6 header, UDP header and (\d+)-octet Multicast Data header around the IPv6 datagram\. "
+            r"That leaves (\d+) to (\d+) octets .*?; an IPv4 record through an IPv4 relay is (\d+) octets, leaving (\d+)\. "
             r"A record of (\d+) digests would still fit a (\d+)-octet path through AMT; one of (\d+) \((\d+) octets, (\d+) under IPv4 and UDP\) would not fit"
         )
         groups = {}
@@ -221,8 +221,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertGreater(132 + 32 * (fits + 1) + ipv6 + udp + amt + ipv6, mtu)
         self.assertEqual((over_record, over_v4), (132 + 32 * over, 132 + 32 * over + ipv4 + udp))
         self.assertGreater(over_v4, mtu)
-        self.assertIn("`164 <= len <= 1316`", texts["md"])
-        self.assertEqual(1316, 132 + 32 * cap)
+        self.assertIn(f"`164 <= len <= {record}`", texts["md"])  # step 1 bounds the record by the same size
 
     def test_mboned_replay_floor_is_written_without_unsigned_underflow(self):
         stem = "draft-ramadan-mboned-mcast-manifest-00"
