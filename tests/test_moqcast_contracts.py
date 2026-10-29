@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import ipaddress
 import json
 import re
 import sys
@@ -25,10 +27,14 @@ ROOT = draft_root()
 
 def fences(text: str, language: str | None = None):
     lines = text.splitlines()
-    for i, opener in enumerate(lines):
-        if language is None and opener.strip() != "~~~":
+    i = 0
+    while i < len(lines):
+        opener = lines[i]
+        if language is None and not re.fullmatch(r"\s*~~~(\s+\w+)?\s*", opener):
+            i += 1
             continue
         if language is not None and not re.fullmatch(rf"\s*~~~\s+{language}\s*", opener):
+            i += 1
             continue
         end = i + 1
         while end < len(lines) and lines[end].strip() != "~~~":
@@ -36,6 +42,7 @@ def fences(text: str, language: str | None = None):
         if end == len(lines):
             raise AssertionError(f"unterminated fence at line {i + 1}")
         yield i + 1, "\n".join(lines[i + 1 : end])
+        i = end + 1  # resume after the closer, which is not an opener
 
 
 def catalogs():
@@ -85,6 +92,116 @@ class PublishedExamples(unittest.TestCase):
             self.assertIn("Membership Update", text)
             self.assertIn("leave", text)
             self.assertIn("operator provisioning system", text)
+
+    def test_mboned_manifest_draft_md_and_xml_agree_on_docname(self):
+        stem = "draft-ramadan-mboned-mcast-manifest-00"
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        self.assertIn(f'value = "{stem}"', markdown)
+        self.assertIn(f'docName="{stem}"', xml)
+        self.assertIn('anchor="hash-algorithms"', xml)
+        self.assertIn('anchor="signature-context-binding"', xml)
+        for text in (markdown, xml):
+            self.assertIn("manifest-ed25519-2", text)
+            self.assertIn("ed25519-trailer-1", text)
+            self.assertIn("mcast-manifest-v2", text)
+            self.assertIn("132 + 32 x count", text)
+            self.assertIn("multicast-receive", text)
+        for line, raw in fences(markdown, "json"):
+            document = json.loads(raw)
+            self.assertEqual(document["version"], 1, f"well-known example at line {line}")
+            self.assertTrue(document["channels"], f"well-known example at line {line}")
+
+    def test_mboned_well_known_example_obeys_its_own_rules(self):
+        # Sections 8.1/8.2: address literals of one family, 1..4 keys with distinct kid and
+        # firstEpoch, publicKey 43 unpadded base64url characters for 32 octets, manifestPort != port.
+        markdown = (ROOT / "draft-ramadan-mboned-mcast-manifest-00.md").read_text(encoding="utf-8")
+        channels = 0
+        for line, raw in fences(markdown, "json"):
+            for channel in json.loads(raw)["channels"]:
+                where = f"well-known example at line {line}"
+                source, group = (ipaddress.ip_address(channel[k]) for k in ("source", "group"))
+                self.assertEqual(source.version, group.version, where)
+                integrity = channel["integrity"]
+                keys = integrity["keys"]
+                self.assertTrue(1 <= len(keys) <= 4, where)
+                for member in ("kid", "firstEpoch"):
+                    self.assertEqual(len({key[member] for key in keys}), len(keys), where)
+                for key in keys:
+                    self.assertRegex(key["publicKey"], r"^[A-Za-z0-9_-]{43}$", where)
+                    self.assertEqual(len(base64.urlsafe_b64decode(key["publicKey"] + "=")), 32, where)
+                if integrity["scheme"] == "manifest-ed25519-2":
+                    self.assertNotEqual(integrity["manifestPort"], channel["port"], where)
+                channels += 1
+        self.assertGreater(channels, 0)
+
+    def test_mboned_appendix_a_vectors_equal_moq_multicast_appendix_a(self):
+        def appendix(name: str, heading: str) -> str:
+            text = (ROOT / name).read_text(encoding="utf-8")
+            start = text.index(heading)
+            end = text.find("\n# ", start + 1)
+            return text[start : len(text) if end < 0 else end]
+
+        def table(text: str) -> dict:
+            values, label = {}, None
+            for _, block in fences(text):
+                for raw in block.splitlines():
+                    head, sep, tail = raw.partition(":")
+                    if sep and not raw.startswith(" "):
+                        label, values[label] = head.strip(), [tail.strip()]
+                    elif label is not None and raw.startswith(" "):
+                        values[label].append(raw.strip())
+            return {key: " ".join(filter(None, value)) for key, value in values.items()}
+
+        def record(text: str) -> str:
+            return next(block for _, block in fences(text[text.index("Record (196 octets):") :]))
+
+        ours = appendix("draft-ramadan-mboned-mcast-manifest-00.md", "# Test Vectors\n")
+        theirs = appendix("draft-ramadan-moq-multicast-01.md", "# Test Vectors: bc-provenance Version 2\n")
+        mine, moq = table(ours), table(theirs)
+        self.assertGreaterEqual(len(mine), 10)
+        for label, value in mine.items():
+            self.assertEqual(value, moq.get(label), f"Appendix A value {label!r} differs from draft-ramadan-moq-multicast-01")
+        self.assertEqual(record(ours), record(theirs))
+
+    def test_mboned_rate_arithmetic_is_consistent(self):
+        text = " ".join((ROOT / "draft-ramadan-mboned-mcast-manifest-00.md").read_text(encoding="utf-8").split())
+
+        def numbers(pattern: str):
+            match = re.search(pattern, text)
+            self.assertIsNotNone(match, pattern)
+            return [int(v.replace(",", "")) if v.replace(",", "").isdigit() else float(v) for v in match.groups()]
+
+        auth_delay, _low, _high = numbers(r"\*\*maxAuthDelayMs\*\* \(integer, OPTIONAL, default (\d+), range (\d+) to (\d+)\)")
+        timer, timer_min = numbers(r"\*\*manifestTimerMs\*\* \(integer, OPTIONAL, default (\d+), at least (\d+)\)")
+        count_rate, mbit, octets = numbers(r"at most 37 datagrams per `manifestTimerMs` \((\d+) per second at the default, about (\d+) Mbit/s of (\d+)-octet datagrams\)")
+        self.assertEqual(count_rate, 37 * 1000 // timer)
+        self.assertEqual(mbit, round(count_rate * octets * 8 / 1e6))
+        (ceiling,) = numbers(r"MUST NOT close windows on one flow faster than (\d+) per second")
+        depth, refill = numbers(r"a token bucket of depth (\d+) refilled at (\d+) tokens per second")
+        self.assertEqual(ceiling, refill)
+        self.assertEqual(1000 // timer_min, ceiling)  # the timer alone never closes more windows than the ceiling
+        pps, big_mbit, big, small_mbit, small = numbers(r"at the count cap that is ([\d,]+) datagrams per second, about (\d+) Mbit/s of (\d+)-octet datagrams and about (\d+) Mbit/s of (\d+)-octet ones")
+        self.assertEqual(pps, 37 * ceiling)
+        self.assertEqual((big_mbit, small_mbit), (round(pps * big * 8 / 1e6), round(pps * small * 8 / 1e6)))
+        (entries,) = numbers(r"holds at most `37 x \(64 \+ 1000 x \(maxAuthDelayMs \+ 2 x manifestTimerMs\) / 1000\)` entries, ([\d,]+) at the defaults")
+        self.assertEqual(entries, 37 * (depth + refill * (auth_delay + 2 * timer) // 1000))
+        megabytes, rate = numbers(r"`maxAuthDelayMs x maxBitrate / 8000` octets, ([\d.]+) MB at (\d+) Mbit/s")
+        self.assertEqual(megabytes, auth_delay * rate / 8000)
+        (floor,) = numbers(r"`mseq \+ (\d+) <= highest_mseq\(kid, epoch\)`")
+        self.assertIn(f"before the signed record of window `mseq + {floor}`, so that at most {floor - 1} later records precede it", text)
+        self.assertIn(f"nor close more than `{depth} + {refill} x t` windows in any interval of `t` seconds", text)
+
+    def test_mboned_replay_floor_is_written_without_unsigned_underflow(self):
+        stem = "draft-ramadan-mboned-mcast-manifest-00"
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        self.assertIn("`mseq + 64 <= highest_mseq(kid, epoch)`", markdown)
+        self.assertIn("mseq + 64 &lt;= highest_mseq(kid, epoch)", xml)
+        for text in (markdown, xml):
+            self.assertNotIn("highest_mseq(kid, epoch) - 64", text)
+            self.assertNotIn("highest_mseq - 64", text)
+            self.assertIn("Neither counter wraps within an epoch", " ".join(text.split()))  # hard-wrapped source
 
     def test_amt_discovery_combinations_are_unambiguous(self):
         for name in ("draft-ramadan-moq-multicast-01.md", "draft-ramadan-moq-multicast-01.xml"):
