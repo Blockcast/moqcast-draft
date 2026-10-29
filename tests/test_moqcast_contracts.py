@@ -86,6 +86,25 @@ class PublishedExamples(unittest.TestCase):
             self.assertIn("leave", text)
             self.assertIn("operator provisioning system", text)
 
+    def test_mboned_manifest_draft_md_and_xml_agree_on_docname(self):
+        stem = "draft-ramadan-mboned-mcast-manifest-00"
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        self.assertIn(f'value = "{stem}"', markdown)
+        self.assertIn(f'docName="{stem}"', xml)
+        self.assertIn('anchor="hash-algorithms"', xml)
+        self.assertIn('anchor="signature-context-binding"', xml)
+        for text in (markdown, xml):
+            self.assertIn("manifest-ed25519-2", text)
+            self.assertIn("ed25519-trailer-1", text)
+            self.assertIn("mcast-manifest-v2", text)
+            self.assertIn("132 + 32 x count", text)
+            self.assertIn("multicast-receive", text)
+        for line, raw in fences(markdown, "json"):
+            document = json.loads(raw)
+            self.assertEqual(document["version"], 1, f"well-known example at line {line}")
+            self.assertTrue(document["channels"], f"well-known example at line {line}")
+
     def test_amt_discovery_combinations_are_unambiguous(self):
         for name in ("draft-ramadan-moq-multicast-01.md", "draft-ramadan-moq-multicast-01.xml"):
             text = (ROOT / name).read_text(encoding="utf-8")
