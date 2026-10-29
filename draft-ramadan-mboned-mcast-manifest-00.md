@@ -407,8 +407,9 @@ counter (below) and its `mseq` counter ((#manifest-record)) are kept
 per `(kid, epoch)`.  `mseq` starts at any value and increases by one
 for every window the flow closes under one `(kid, epoch)`, in
 emission order, which the replay floor of (#receiver-behavior)
-(`highest_mseq - 64`) and the twin deadline of (#sender-behavior)
-(before the signed record of window `mseq + 64`) assume.
+(`mseq + 64 <= highest_mseq`) and the twin deadline of
+(#sender-behavior) (before the signed record of window `mseq + 64`)
+assume.
 
 `sequence` is a 64-bit counter the sender assigns per `(flow, kid,
 epoch)`: it starts at any value and increases by one for every
@@ -418,7 +419,12 @@ is unrelated to any sequence number the payload carries.  Digest `i`
 of a record covers `sequence = first_seq + i`, so one window is a
 contiguous run of the flow.  A datagram the sender emits twice (a
 carousel) has two sequences and two digests.  An application MUST NOT
-assume that `sequence` continues across an `epoch` change.
+assume that `sequence` continues across an `epoch` change.  Neither
+counter wraps within an epoch: a sender ends the epoch (the record
+whose `flags` bit 0 is set, (#manifest-record)) before either would
+exceed 2^64 - 1, and the comparisons this document states on them,
+`mseq + 64 <= highest_mseq` included, are integer comparisons that an
+implementation evaluates without unsigned underflow or overflow.
 
 # Sender Behavior
 
@@ -426,9 +432,21 @@ A sender closes a window after 37 datagrams or after `manifestTimerMs`
 since the window opened, whichever comes first; the timer governs only
 while the flow emits at most 37 datagrams per `manifestTimerMs` (1850
 per second at the default, about 21 Mbit/s of 1400-octet datagrams),
-and the count cap governs above that.  A sender MAY raise
+and the count cap governs above that.  A sender MUST NOT close
+windows on one flow faster than 1000 per second, the rate at which a
+receiver's verification budget refills (step 1 of (#processing); its
+depth of 64 absorbs jitter), nor close more than `64 + 1000 x t`
+windows in any interval of `t` seconds, the envelope of that bucket,
+which its bursts share with the network's jitter: at the count cap
+that is 37,000 datagrams per second, about 414 Mbit/s of 1400-octet datagrams and
+about 59 Mbit/s of 200-octet ones, and a stream above it is carried
+as several flows, each with its own `port` and `manifestPort`
+((#flow-parameters)), or by another scheme.  A sender above the
+ceiling starves its own receivers, whose budgets drop its records and
+expire its windows as loss ((#threat-model)).  A sender MAY raise
 `manifestTimerMs` to at most `maxAuthDelayMs / 4` on low-rate flows;
-`manifestTimerMs` is at least 1 ((#flow-parameters)).
+`manifestTimerMs` is at least 1 ((#flow-parameters)), so the timer
+alone never closes more than 1000 windows per second.
 
 The signed record MUST be transmitted immediately before the first
 datagram it covers (only the twin of an earlier window MAY come
@@ -575,9 +593,10 @@ variable-length interpretation before a cryptographic check:
    the current epoch and is not
    the previous epoch within its grace period (below), or, when no
    record has yet been verified, is below `minEpoch` or below the
-   pinned floor for its `kid`; `mseq <= highest_mseq(kid, epoch) - 64`
+   pinned floor for its `kid`; `mseq + 64 <= highest_mseq(kid, epoch)`
    (replay floor, none before a record of that `(kid, epoch)` has
-   raised `highest_mseq`, no upper bound); `mseq` is above the `mseq`
+   raised `highest_mseq`, no upper bound; the sum does not wrap,
+   (#keys-epochs-and-sequence-numbers)); `mseq` is above the `mseq`
    that closed the epoch, once a verified record has closed it;
    `sent` is more than `7 s + maxAuthDelayMs` behind, or more than
    6 s ahead of, the receiver's UTC clock (freshness: the sender's

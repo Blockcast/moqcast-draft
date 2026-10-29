@@ -426,8 +426,9 @@ counter (below) and its <tt>mseq</tt> counter (<xref target="manifest-record"></
 per <tt>(kid, epoch)</tt>.  <tt>mseq</tt> starts at any value and increases by one
 for every window the flow closes under one <tt>(kid, epoch)</tt>, in
 emission order, which the replay floor of <xref target="receiver-behavior"></xref>
-(<tt>highest_mseq - 64</tt>) and the twin deadline of <xref target="sender-behavior"></xref>
-(before the signed record of window <tt>mseq + 64</tt>) assume.</t>
+(<tt>mseq + 64 &lt;= highest_mseq</tt>) and the twin deadline of
+<xref target="sender-behavior"></xref> (before the signed record of window <tt>mseq + 64</tt>)
+assume.</t>
 <t><tt>sequence</tt> is a 64-bit counter the sender assigns per <tt>(flow, kid,
 epoch)</tt>: it starts at any value and increases by one for every
 datagram the flow emits, in emission order, repair symbols included.
@@ -436,7 +437,12 @@ is unrelated to any sequence number the payload carries.  Digest <tt>i</tt>
 of a record covers <tt>sequence = first_seq + i</tt>, so one window is a
 contiguous run of the flow.  A datagram the sender emits twice (a
 carousel) has two sequences and two digests.  An application MUST NOT
-assume that <tt>sequence</tt> continues across an <tt>epoch</tt> change.</t>
+assume that <tt>sequence</tt> continues across an <tt>epoch</tt> change.  Neither
+counter wraps within an epoch: a sender ends the epoch (the record
+whose <tt>flags</tt> bit 0 is set, <xref target="manifest-record"></xref>) before either would
+exceed 2^64 - 1, and the comparisons this document states on them,
+<tt>mseq + 64 &lt;= highest_mseq</tt> included, are integer comparisons that an
+implementation evaluates without unsigned underflow or overflow.</t>
 </section>
 </section>
 
@@ -445,9 +451,21 @@ assume that <tt>sequence</tt> continues across an <tt>epoch</tt> change.</t>
 since the window opened, whichever comes first; the timer governs only
 while the flow emits at most 37 datagrams per <tt>manifestTimerMs</tt> (1850
 per second at the default, about 21 Mbit/s of 1400-octet datagrams),
-and the count cap governs above that.  A sender MAY raise
+and the count cap governs above that.  A sender MUST NOT close
+windows on one flow faster than 1000 per second, the rate at which a
+receiver's verification budget refills (step 1 of <xref target="processing"></xref>; its
+depth of 64 absorbs jitter), nor close more than <tt>64 + 1000 x t</tt>
+windows in any interval of <tt>t</tt> seconds, the envelope of that bucket,
+which its bursts share with the network's jitter: at the count cap
+that is 37,000 datagrams per second, about 414 Mbit/s of 1400-octet datagrams and
+about 59 Mbit/s of 200-octet ones, and a stream above it is carried
+as several flows, each with its own <tt>port</tt> and <tt>manifestPort</tt>
+(<xref target="flow-parameters"></xref>), or by another scheme.  A sender above the
+ceiling starves its own receivers, whose budgets drop its records and
+expire its windows as loss (<xref target="threat-model"></xref>).  A sender MAY raise
 <tt>manifestTimerMs</tt> to at most <tt>maxAuthDelayMs / 4</tt> on low-rate flows;
-<tt>manifestTimerMs</tt> is at least 1 (<xref target="flow-parameters"></xref>).</t>
+<tt>manifestTimerMs</tt> is at least 1 (<xref target="flow-parameters"></xref>), so the timer
+alone never closes more than 1000 windows per second.</t>
 <t>The signed record MUST be transmitted immediately before the first
 datagram it covers (only the twin of an earlier window MAY come
 between them), so the sender holds at most one window of data: 20 ms
@@ -589,9 +607,10 @@ that adds a path (<xref target="additional-record-paths"></xref>)); <tt>epoch</t
 the current epoch and is not
 the previous epoch within its grace period (below), or, when no
 record has yet been verified, is below <tt>minEpoch</tt> or below the
-pinned floor for its <tt>kid</tt>; <tt>mseq &lt;= highest_mseq(kid, epoch) - 64</tt>
+pinned floor for its <tt>kid</tt>; <tt>mseq + 64 &lt;= highest_mseq(kid, epoch)</tt>
 (replay floor, none before a record of that <tt>(kid, epoch)</tt> has
-raised <tt>highest_mseq</tt>, no upper bound); <tt>mseq</tt> is above the <tt>mseq</tt>
+raised <tt>highest_mseq</tt>, no upper bound; the sum does not wrap,
+<xref target="keys-epochs-and-sequence-numbers"></xref>); <tt>mseq</tt> is above the <tt>mseq</tt>
 that closed the epoch, once a verified record has closed it;
 <tt>sent</tt> is more than <tt>7 s + maxAuthDelayMs</tt> behind, or more than
 6 s ahead of, the receiver's UTC clock (freshness: the sender's

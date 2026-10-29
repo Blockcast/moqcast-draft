@@ -164,6 +164,45 @@ class PublishedExamples(unittest.TestCase):
             self.assertEqual(value, moq.get(label), f"Appendix A value {label!r} differs from draft-ramadan-moq-multicast-01")
         self.assertEqual(record(ours), record(theirs))
 
+    def test_mboned_rate_arithmetic_is_consistent(self):
+        text = " ".join((ROOT / "draft-ramadan-mboned-mcast-manifest-00.md").read_text(encoding="utf-8").split())
+
+        def numbers(pattern: str):
+            match = re.search(pattern, text)
+            self.assertIsNotNone(match, pattern)
+            return [int(v.replace(",", "")) if v.replace(",", "").isdigit() else float(v) for v in match.groups()]
+
+        auth_delay, _low, _high = numbers(r"\*\*maxAuthDelayMs\*\* \(integer, OPTIONAL, default (\d+), range (\d+) to (\d+)\)")
+        timer, timer_min = numbers(r"\*\*manifestTimerMs\*\* \(integer, OPTIONAL, default (\d+), at least (\d+)\)")
+        count_rate, mbit, octets = numbers(r"at most 37 datagrams per `manifestTimerMs` \((\d+) per second at the default, about (\d+) Mbit/s of (\d+)-octet datagrams\)")
+        self.assertEqual(count_rate, 37 * 1000 // timer)
+        self.assertEqual(mbit, round(count_rate * octets * 8 / 1e6))
+        (ceiling,) = numbers(r"MUST NOT close windows on one flow faster than (\d+) per second")
+        depth, refill = numbers(r"a token bucket of depth (\d+) refilled at (\d+) tokens per second")
+        self.assertEqual(ceiling, refill)
+        self.assertEqual(1000 // timer_min, ceiling)  # the timer alone never closes more windows than the ceiling
+        pps, big_mbit, big, small_mbit, small = numbers(r"at the count cap that is ([\d,]+) datagrams per second, about (\d+) Mbit/s of (\d+)-octet datagrams and about (\d+) Mbit/s of (\d+)-octet ones")
+        self.assertEqual(pps, 37 * ceiling)
+        self.assertEqual((big_mbit, small_mbit), (round(pps * big * 8 / 1e6), round(pps * small * 8 / 1e6)))
+        (entries,) = numbers(r"holds at most `37 x \(64 \+ 1000 x \(maxAuthDelayMs \+ 2 x manifestTimerMs\) / 1000\)` entries, ([\d,]+) at the defaults")
+        self.assertEqual(entries, 37 * (depth + refill * (auth_delay + 2 * timer) // 1000))
+        megabytes, rate = numbers(r"`maxAuthDelayMs x maxBitrate / 8000` octets, ([\d.]+) MB at (\d+) Mbit/s")
+        self.assertEqual(megabytes, auth_delay * rate / 8000)
+        (floor,) = numbers(r"`mseq \+ (\d+) <= highest_mseq\(kid, epoch\)`")
+        self.assertIn(f"before the signed record of window `mseq + {floor}`, so that at most {floor - 1} later records precede it", text)
+        self.assertIn(f"nor close more than `{depth} + {refill} x t` windows in any interval of `t` seconds", text)
+
+    def test_mboned_replay_floor_is_written_without_unsigned_underflow(self):
+        stem = "draft-ramadan-mboned-mcast-manifest-00"
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        self.assertIn("`mseq + 64 <= highest_mseq(kid, epoch)`", markdown)
+        self.assertIn("mseq + 64 &lt;= highest_mseq(kid, epoch)", xml)
+        for text in (markdown, xml):
+            self.assertNotIn("highest_mseq(kid, epoch) - 64", text)
+            self.assertNotIn("highest_mseq - 64", text)
+            self.assertIn("Neither counter wraps within an epoch", " ".join(text.split()))  # hard-wrapped source
+
     def test_amt_discovery_combinations_are_unambiguous(self):
         for name in ("draft-ramadan-moq-multicast-01.md", "draft-ramadan-moq-multicast-01.xml"):
             text = (ROOT / name).read_text(encoding="utf-8")
