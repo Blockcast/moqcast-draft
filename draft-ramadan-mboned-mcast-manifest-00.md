@@ -331,10 +331,19 @@ at a fixed offset, and the signature is the last 64 octets.
 | 68 + 32 x count | 64 | Ed25519 signature |
 
 Length is `132 + 32 x count` octets, 164 to 1316.  The cap of 37
-digests is an MTU choice: the 1316-octet maximum is 1344 octets on
-the wire with IPv4 and UDP headers and 1364 with IPv6, which leaves
-room for AMT encapsulation [@!RFC7450] on a 1500-octet path.  Digest
-`i` of a record covers `sequence = first_seq + i`.
+digests is an MTU choice: a record and every header it acquires on
+the way travel as one unfragmented datagram on a 1500-octet path.  At
+37 digests the record is 1316 octets: 1344 on the wire with IPv4 and
+UDP headers and 1364 with IPv6, and 1394 or 1414 once an AMT relay
+[@!RFC7450] adds its own IPv4 or IPv6 header, UDP header and 2-octet
+Multicast Data header around the IPv6 datagram.  That leaves 86 to
+106 octets for one further tunnel or extension header on the path; an
+IPv4 record through an IPv4 relay is 1374 octets, leaving 126.  A
+record of 39 digests would still fit a 1500-octet path through AMT;
+one of 42 (1476 octets, 1504 under IPv4 and UDP) would not fit even
+without it, and neither leaves that room, whatever the address family
+of record or relay.  Digest `i` of a record covers
+`sequence = first_seq + i`.
 
 `flags`: bit 0, the least significant bit of the octet (mask 0x01),
 epoch end ((#receiver-behavior)); bits 1 to 7 reserved, MUST be zero
