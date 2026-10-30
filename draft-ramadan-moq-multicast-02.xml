@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
-<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-multicast-01" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-multicast-02" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
 <front>
-<title abbrev="MoQ Multicast">Multicast Delivery and Endpoint Discovery for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-multicast-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<title abbrev="MoQ Multicast">Multicast Delivery and Endpoint Discovery for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-multicast-02" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="October" day="26"></date>
+</address></author><date year="2026" month="October" day="29"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>multicast</keyword>
@@ -85,14 +85,35 @@ packet_id 0 signaling sub-flow, whose MP table locates the Asset by
 source address, group address, port and packet_id (Section 5).  A
 receiver without the catalog
 takes the FEC configuration from the AL-FEC message
-(<xref target="MOQ-MMT"></xref> Section 8.3) when the flow carries one.  A receiver
+(<xref target="MOQ-MMT"></xref> Section 8.3) when the flow carries
+one.  A receiver
 that holds the catalog takes both from the catalog, which remains
-authoritative for media and FEC parameters (Section 4.1;
-<xref target="MOQ-FEC"></xref> Section 5.2).  A catalog-provided service name or relay
+authoritative for media and FEC parameters (Section 4.1; the FEC
+instance configuration of Section 10
+of <xref target="MOQ-FEC-CORE"></xref>).  A catalog-provided service name or relay
 address is only a discovery input; it is not proof that an upstream
 is reachable or healthy.
 ATSC 3.0 and ARIB STD-B60 <xref target="ARIB-B60"></xref> receivers consume MMTP over
 SSM as their native delivery path.</t>
+</section>
+
+<section anchor="relation-to-other-documents"><name>Relation to Other Documents</name>
+<t>The FEC that this document applies on multicast paths is specified
+by four companion documents.  <xref target="MOQ-FEC-CORE"></xref> defines the
+scheme-independent FEC mechanism for MoQ and the FEC instance
+configuration that a catalog carries; <xref target="MOQ-FEC-BLOCK"></xref> specifies
+the Reed-Solomon scheme, which is mandatory to implement, and the
+optional RaptorQ scheme; <xref target="MOQ-FEC-CATALOG"></xref> defines the catalog
+encoding of that configuration, including the <tt>fec-repair</tt> packaging
+value and the per-instance fields over which <tt>params_hash</tt>
+(<xref target="signature-context-binding"></xref>) is defined; and <xref target="MOQ-FEC-MULTICAST"></xref>
+defines FEC on multicast delivery paths, including repair-only
+endpoints, the receiver repair policy and block classification.
+<xref target="MOQ-MMT"></xref> defines the MMTP packaging that multicast endpoints
+carry, and the part of that FEC that is specific to MMTP packets: the
+&quot;iso-ssbg1-v1&quot; block profile, the Source FEC Payload ID and the
+keyframe overlay.  The -01 revision of this document cited that
+material as <xref target="I-D.ramadan-moq-fec"></xref>.</t>
 </section>
 </section>
 
@@ -229,15 +250,16 @@ form for a service that has multiple upstreams.</t>
 top-level <tt>multicast</tt> field containing an <tt>endpoints</tt> array for
 endpoint discovery.</t>
 <t>The catalog is the MSF catalog track, named <tt>catalog</tt>
-(<xref target="I-D.ietf-moq-msf"></xref> Section 5; <xref target="MOQ-MMT"></xref> Section 12).</t>
+(<xref target="I-D.ietf-moq-msf"></xref> Section 5; <xref target="MOQ-MMT"></xref> Section
+13).</t>
 
 <section anchor="multicast-endpoint-format"><name>Multicast Endpoint Format</name>
 <t>The <tt>multicast</tt> field is a root-level extension member of the MSF
 catalog; the catalog envelope for this suite is described in
-<xref target="MOQ-MMT"></xref> Section 12.  <xref target="I-D.ietf-moq-msf"></xref> Section 5 permits
-producers to add fields and requires parsers to ignore fields they
-do not understand: parsers that do not support multicast MUST
-ignore it.</t>
+<xref target="MOQ-MMT"></xref> Section 13.  <xref target="I-D.ietf-moq-msf"></xref>
+Section 5 permits producers to add fields and requires parsers to
+ignore fields they do not understand: parsers that do not support
+multicast MUST ignore it.</t>
 <t>The <tt>multicast</tt> field contains an <tt>endpoints</tt> array listing one or
 more multicast groups.  A single-endpoint deployment uses a
 one-element array:</t>
@@ -322,13 +344,15 @@ track identifier used in the MoQ catalog.  The name is resolved
 in the namespace of the catalog track (<xref target="I-D.ietf-moq-msf"></xref>
 Section 5.2.2); an endpoint MUST NOT list a track whose catalog
 entry declares another namespace.  The named track MUST
-be a track whose <tt>packaging</tt> is <tt>mmtp</tt> (<xref target="MOQ-MMT"></xref> Section 12.1)
-or a <tt>fec-repair</tt> track that repairs such a track (<xref target="MOQ-FEC"></xref>
-Section 5.1.1).</li>
+be a track whose <tt>packaging</tt> is <tt>mmtp</tt> (<xref target="MOQ-MMT"></xref> Section
+13.1)
+or a <tt>fec-repair</tt> track that repairs such a track
+(<xref target="MOQ-FEC-CATALOG"></xref> Section 3.3).</li>
 <li><strong>packetId</strong> (integer, REQUIRED): MMTP packet_id used for
 packet-level track routing on multicast.  Maps directly to the
-Packet ID field in the MMTP header (Section 3.1 of
-<xref target="MOQ-MMT"></xref>).  The value is an integer in the range 1..65535.
+Packet ID field in the MMTP header (Section
+3.1 of <xref target="MOQ-MMT"></xref>).  The value is an
+integer in the range 1..65535.
 Each value MUST denote exactly one MMTP packet sub-flow across
 all endpoints of the MMT sending entity (Section 2) for the
 lifetime of the delivery session, not merely within one <tt>(S, G,
@@ -344,12 +368,13 @@ carries that track's one sub-flow, under one value.  Media that
 the sending entity packetizes separately for several endpoints,
 such as audio packetized once per rung, MUST be published as a
 separate track for each packetization, with its own name, value,
-<tt>fec</tt> object and repair tracks, because the copies differ in the
-bytes that FEC protects (<xref target="MOQ-FEC"></xref> Section 7.3).  packet_id 0 is
+<tt>fec</tt> array and repair tracks, because the copies differ in the
+bytes that FEC protects (<xref target="MOQ-MMT"></xref> Section 7.1).
+packet_id 0 is
 reserved for the sending entity's MMTP signaling sub-flow
-(<xref target="MOQ-MMT"></xref> Section 3.1; Section 5), which arrives on the same
-tuples as the media; a publisher MUST NOT advertise it for a
-track.</li>
+(<xref target="MOQ-MMT"></xref> Section 3.1; Section 5), which
+arrives on the same tuples as the media; a publisher MUST NOT
+advertise it for a track.</li>
 </ul>
 <t><strong>bandwidth</strong> (integer, RECOMMENDED): Aggregate bandwidth of this
   endpoint in bits per second, defined as the sum of the UDP payload
@@ -396,14 +421,15 @@ that the <tt>name</tt> field does not permit.</t>
 (Section 5).  To offer a track packaged as loc <xref target="I-D.ietf-moq-loc"></xref>
 or cmaf <xref target="I-D.ietf-moq-cmsf"></xref> on multicast, a publisher also
 publishes an mmtp rendition of the same media: a separate track whose
-<tt>packaging</tt> is <tt>mmtp</tt>, with its own name, <tt>packetId</tt>, <tt>fec</tt> object
+<tt>packaging</tt> is <tt>mmtp</tt>, with its own name, <tt>packetId</tt>, <tt>fec</tt> array
 and repair tracks, in the same <tt>altGroup</tt> as the loc or cmaf track
 (Section 6.1).  The endpoint lists the mmtp rendition track.  A
 receiver that holds the loc or cmaf track over MoQ receives the mmtp
 rendition track on multicast in its place.  The two tracks are
-separate FEC instances (<xref target="MOQ-FEC"></xref> Section 6.4.1), so symbols of
-one never repair the other, and the multi-path combining of
-Section 6 applies within the mmtp rendition track only.</t>
+separate FEC instances (<xref target="MOQ-FEC-CORE"></xref> Section
+5.1), so symbols of one never repair the other,
+and the multi-path combining of Section 6 applies within the mmtp
+rendition track only.</t>
 <t>Subscribers receiving a catalog with multicast endpoints MAY
 auto-connect to the multicast group when multicast APIs are
 available and multicast delivery is preferred (UDP socket access,
@@ -585,21 +611,28 @@ QUIC streams.  MMTP provides track routing (packet_id), send
 timestamps, sequencing (packet_sequence_number), FEC framing (FEC
 Type and the Source/Repair FEC Payload IDs) and random access
 signaling (RAP flag) in its packet header, and fragmentation (FI) in
-the MPU-mode payload header (<xref target="MOQ-MMT"></xref> Sections 3.1 and 4.2).
-For a MoQ receiver, FEC configuration (the RaptorQ OTI, or the
-Reed-Solomon parameters) comes from the catalog (<xref target="MOQ-FEC"></xref>
-Sections 4.2, 4.5 and 5.2); a receiver without the catalog relies on
-the in-band signaling below.</t>
+the MPU-mode payload header (<xref target="MOQ-MMT"></xref> Sections
+3.1 and 4.2).
+For a MoQ receiver, FEC configuration (the FEC instance configuration
+of Section 10 of <xref target="MOQ-FEC-CORE"></xref>, and
+the scheme parameters that a block FEC scheme derives from it,
+Sections 5.2 and 6.1 of
+<xref target="MOQ-FEC-BLOCK"></xref>) comes from the catalog (<xref target="MOQ-FEC-CATALOG"></xref>
+Section 4); a receiver without the catalog
+relies on the in-band signaling below.</t>
 <t>Frame-sized LOC <xref target="I-D.ietf-moq-loc"></xref> or CMAF <xref target="I-D.ietf-moq-cmsf"></xref>
 objects exceed a UDP datagram, while the MMTP MPU-mode payload format
 fragments media into MTU-sized packets (<xref target="ISO.23008-1"></xref>
-Clause 9.3.2; <xref target="MOQ-MMT"></xref> Section 5.2).  Multicast carriage therefore
-uses MMTP: an endpoint lists only mmtp tracks and their repair
+Clause 9.3.2; <xref target="MOQ-MMT"></xref> Section
+5.2).  Multicast
+carriage therefore uses MMTP: an endpoint lists only mmtp tracks
+and their repair
 tracks, and a loc or cmaf track reaches multicast through an mmtp
 rendition track (Section 4.1).</t>
 <t>No additional multicast framing, encapsulation, or header format is
 needed.  The MMTP packet format is defined in <xref target="ISO.23008-1"></xref>
-Clause 9.2, as profiled in <xref target="MOQ-MMT"></xref> Section 3.1.</t>
+Clause 9.2, as profiled in <xref target="MOQ-MMT"></xref> Section
+3.1.</t>
 <t>This design means the same MMTP packet can be delivered via three
 transports without modification:</t>
 <table>
@@ -634,9 +667,10 @@ for a track, for the <tt>(S, G, port)</tt> multicast tuple (Section 4.1) on
 which the packet arrived, <tt>S</tt> being the packet's source address as
 this section matches it, by an endpoint that the receiver has not
 ignored under Section 4.1.  Packets of the MMTP signaling flow
-(packet_id 0) are handled per <xref target="MOQ-MMT"></xref> Section 3.1.  FEC source
-and repair packets are distinguished by the MMTP FEC Type field
-(<xref target="MOQ-MMT"></xref> Section 3.1).</t>
+(packet_id 0) are handled per <xref target="MOQ-MMT"></xref> Section
+3.1.  FEC source and repair packets are
+distinguished by the MMTP FEC Type field (<xref target="MOQ-MMT"></xref> Section
+3.1).</t>
 <t>A publisher MUST identify in band the Assets of every MMTP packet
 flow that it sends to a multicast endpoint, whether a receiver
 obtains the flow over native SSM or ASM or through an AMT relay
@@ -648,13 +682,15 @@ packet for packet, as Section 4.1 requires of any sub-flow carried on
 several endpoints (<xref target="ISO.23008-1"></xref> Clause 9.2.3).  All endpoints of
 the sending entity carry one Package.  The sub-flow carries a PA
 message (message_id 0x0000; <xref target="ISO.23008-1"></xref> Clause 10.3.2,
-Table 21), in the signaling message mode of <xref target="MOQ-MMT"></xref> Section 3.1,
-with the tables that <xref target="ISO.23008-1"></xref> Clause 10.3.1 requires of a PA
+Table 21), in the signaling message mode of <xref target="MOQ-MMT"></xref> Section
+3.1, with the tables that <xref target="ISO.23008-1"></xref>
+Clause 10.3.1 requires of a PA
 message, among them a PA table (Clause 10.3.7, Table 26) and the
 complete MP table of the Package (table_id 0x20, Clause 10.3.9,
 Table 29), never a subset.  The MP table MUST describe as an Asset
-each track, other than a <tt>fec-repair</tt> track (<xref target="MOQ-FEC"></xref>
-Section 5.1), that any endpoint of the sending entity lists, and MUST
+each track, other than a <tt>fec-repair</tt> track (<xref target="MOQ-FEC-CATALOG"></xref>
+Section 3.3), that any endpoint of the
+sending entity lists, and MUST
 locate it at each endpoint that carries it, and at no other, by an
 MMT_general_location_info of location_type 0x01 (IPv4) or 0x02 (IPv6)
 that gives the endpoint's group address and port, the track's
@@ -692,10 +728,12 @@ sub-flow once per endpoint, as identical copies with the same
 packet_sequence_number; it acts on one copy of each packet, whether a
 PA message or an AL-FEC message, and ignores the rest.  An endpoint
 that lists only <tt>fec-repair</tt> tracks (a repair-only endpoint,
-<xref target="MOQ-FEC"></xref> Section 6.3.6) carries no Asset and need not carry the
-sub-flow.  A receiver that holds the catalog routes a repair-only
-endpoint's <tt>packetId</tt> values from the catalog (<xref target="MOQ-FEC"></xref>
-Section 6.3.6).  A receiver without the catalog cannot discover a
+<xref target="MOQ-FEC-MULTICAST"></xref> Section 4)
+carries no Asset and need not carry the sub-flow.  A receiver that
+holds the catalog routes a repair-only endpoint's <tt>packetId</tt> values
+from the catalog (<xref target="MOQ-FEC-MULTICAST"></xref> Section
+4).  A receiver without the catalog
+cannot discover a
 repair-only endpoint, because the MP table locates only Assets and
 the AL-FEC message names a repair flow by <tt>packetId</tt> without a
 location, so repair carried on a repair-only endpoint reaches only
@@ -703,12 +741,13 @@ catalog-holding receivers.</t>
 <t>For a receiver that holds the catalog, the endpoint's <tt>packetId</tt>
 values remain authoritative: it routes packets by them as above,
 needs no PA message, and handles packet_id 0 per <xref target="MOQ-MMT"></xref>
-Section 3.1.  A PA message is never carried as a MoQ object
-(<xref target="MOQ-MMT"></xref> Section 4.2).</t>
+Section 3.1.  A PA message is never carried as
+a MoQ object (<xref target="MOQ-MMT"></xref> Section 4.2).</t>
 <t>The Multicast QUIC row corresponds to <xref target="QUIC-MULTICAST"></xref>, which adds
 QUIC's per-packet AEAD and integrity.  The mapping of MMTP packets
-onto its DATAGRAM frames, and the use of <xref target="MOQ-FEC"></xref> on that channel,
-are described, informatively, in <xref target="MOQ-FEC"></xref> Section 11.3.</t>
+onto its DATAGRAM frames, and the use of FEC <xref target="MOQ-FEC-CORE"></xref> on that
+channel, are described, informatively, in <xref target="MOQ-FEC-MULTICAST"></xref>
+Section 3.4.</t>
 </section>
 
 <section anchor="multi-path-delivery"><name>Multi-Path Delivery</name>
@@ -716,15 +755,17 @@ are described, informatively, in <xref target="MOQ-FEC"></xref> Section 11.3.</t
 both MoQ unicast (QUIC/WebTransport) and multicast (UDP/SSM/AMT)
 paths simultaneously.  Because the same MMTP packets are used on all
 transports, receivers can combine symbols from any path for FEC
-recovery <xref target="MOQ-FEC"></xref>.</t>
+recovery (<xref target="MOQ-FEC-CORE"></xref> Section 5.5).</t>
 <t>When symbols arrive from multiple paths simultaneously, receivers:</t>
 
 <ol spacing="compact">
-<li>MUST deduplicate symbols within one FEC instance (<xref target="MOQ-FEC"></xref>
-Section 6.4.1) -- a source track's base instance together with all
-of its repair layers, or its keyframe overlay -- using SS_ID as the
-unique key of a source symbol and (SS_Start, RS_ID) as that of a
-repair symbol (<xref target="MOQ-FEC"></xref> Section 8.3)</li>
+<li>MUST deduplicate symbols within one FEC instance (<xref target="MOQ-FEC-CORE"></xref>
+Section 5.1) -- a source track's base instance
+together with all of its repair layers, or its keyframe overlay
+(<xref target="MOQ-MMT"></xref> Section 7.4) -- using SS_ID as
+the unique key of a source symbol and (SS_Start, RS_ID) as that of
+a repair symbol (<xref target="MOQ-FEC-CORE"></xref> Section
+5.5)</li>
 <li>MAY combine source and repair symbols received on different
 paths in either direction: source symbols via multicast with
 repair symbols via MoQ/QUIC, or source symbols via reliable
@@ -747,8 +788,8 @@ Delivery can begin in the middle of a group.</li>
 is Relative Start (0x01) with StartGroup 1 also delivers the
 current group from its start, on a fill fetch stream
 (<xref target="I-D.ietf-moq-transport"></xref> Section 3.4).  This is the join of
-<xref target="MOQ-MMT"></xref> Section 6.1, and the one to use when the receiver
-cannot decode from the middle of a group.</li>
+<xref target="MOQ-MMT"></xref> Section 6.1, and the one
+to use when the receiver cannot decode from the middle of a group.</li>
 <li>Relative Start (0x01) with StartGroup 0 starts at the next group.</li>
 </ul>
 <t>No coordinate mapping between multicast SS_IDs and MoQ Group IDs is
@@ -762,8 +803,8 @@ in place.</t>
 <t>Packaging is advertised per track in the catalog, and a subscriber
 subscribes by name to the tracks whose packaging it supports.  The
 <tt>altGroup</tt> catalog field (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.12,
-profiled in <xref target="MOQ-MMT"></xref> Section 4.4) groups alternatives of the same
-content in different packaging formats.</t>
+profiled in <xref target="MOQ-MMT"></xref> Section 4.4) groups
+alternatives of the same content in different packaging formats.</t>
 </section>
 
 <section anchor="per-block-unicast-repair"><name>Per-Block Unicast Repair</name>
@@ -771,18 +812,22 @@ content in different packaging formats.</t>
 repair symbols it receives on its multicast paths.  For a block that
 in-band FEC leaves unrecovered at its FEC deadline, a receiver that
 holds a MoQ session (Section 1.1) applies the receiver repair policy
-of <xref target="MOQ-FEC"></xref> Section 11.4, which repairs a keyframe-bearing block
+of Section 6 of <xref target="MOQ-FEC-MULTICAST"></xref>,
+which repairs a keyframe-bearing block
 by a FETCH <xref target="I-D.ietf-moq-transport"></xref> of the block's repair-track
 group.  That group's ID is the block's extended SS_Start
-(<xref target="MOQ-FEC"></xref> Section 7.5): the SS_Start from the Repair FEC Payload
+(<xref target="MOQ-FEC-CORE"></xref> Section 7.6):
+the SS_Start from the Repair FEC Payload
 ID of a multicast repair packet of the block, extended with the wrap
 epoch to a value in [0, 2^62).  MoQ Transport Group IDs range up to
 2^64 - 1 (<xref target="I-D.ietf-moq-transport"></xref> Section 8.1); repair Group IDs
-use only [0, 2^62), as <xref target="MOQ-FEC"></xref> Section 7.5 specifies.
+use only [0, 2^62), as <xref target="MOQ-FEC-CORE"></xref> Section
+7.6 specifies.
 A receiver that takes its repair from multicast has usually received
 no repair-track Group ID over MoQ.  Before its first FETCH it
-therefore establishes the wrap epoch, as <xref target="MOQ-FEC"></xref> Section 7.5
-specifies, unless it has received such a Group ID or has observed the
+therefore establishes the wrap epoch, as <xref target="MOQ-FEC-CORE"></xref> Section
+7.6 specifies, unless it has
+received such a Group ID or has observed the
 FEC instance from its first block.  To do so, it sends a TRACK_STATUS
 request for the repair track (<xref target="I-D.ietf-moq-transport"></xref>
 Section 9.13).  The epoch comes from the Group of the Largest Object
@@ -791,11 +836,13 @@ LARGEST_OBJECT parameter (<xref target="I-D.ietf-moq-transport"></xref> Section 
 of the REQUEST_OK (TRACK_STATUS_OK) that answers it.  For
 lost source packets whose block it has not delimited, because it
 holds no repair packet of that block, the receiver instead fetches
-the Group range that <xref target="MOQ-FEC"></xref> Section 7.5 derives from a lost
+the Group range that <xref target="MOQ-FEC-CORE"></xref> Section
+7.7 derives from a lost
 SS_ID.  No other coordinate mapping is needed, and the returned
 symbols are deduplicated per item 1 of Section 6.  A receiver without
 a MoQ session cannot request unicast repair; it relies on in-band FEC
-and, where published, the keyframe overlay (<xref target="MOQ-FEC"></xref> Section 6.4).</t>
+and, where published, the keyframe overlay (<xref target="MOQ-MMT"></xref> Section
+7.4).</t>
 <t>A relay that does not hold the requested objects fetches them
 upstream (<xref target="I-D.ietf-moq-transport"></xref> Sections 3.2.3 and 7.6).  A
 FETCH for a repair-track group that neither the relay nor any
@@ -831,8 +878,8 @@ new SUBSCRIBE.</li>
 <t>The receiver does not pause its other subscriptions, such as those
 to the catalog track, any manifest track (Section 7.2.5), and any
 repair layer that no endpoint it holds carries and that it combines
-with multicast source symbols (Section 6, item 2; <xref target="MOQ-FEC"></xref>
-Section 6.3.6).</t>
+with multicast source symbols (Section 6, item 2;
+<xref target="MOQ-FEC-MULTICAST"></xref> Section 4).</t>
 <t>On failover (Section 6), the receiver resumes a paused subscription
 with a REQUEST_UPDATE that sets FORWARD to 1.  FILL_PARAMETERS
 carried while a subscription is paused opens no fill fetch stream,
@@ -934,10 +981,12 @@ sender emits twice (a carousel) has two sequences and two digests.</t>
 ]]></artwork>
 <t><tt>payload</tt> is the entire UDP payload as transmitted, including the
 trailing Source FEC Payload ID when the packet's FEC Type is 1
-(<xref target="MOQ-FEC"></xref> Section 8.5), so a verified digest also authenticates
+(<xref target="MOQ-MMT"></xref> Section 7.2), so a verified
+digest also authenticates
 the FEC block assignment of a received packet.  A packet the decoder
 recovers carries no Source FEC Payload ID and none is re-appended for
-delivery (<xref target="MOQ-FEC"></xref> Section 7.3); when its admission needs a digest,
+delivery (<xref target="MOQ-MMT"></xref> Section 7.1); when its
+admission needs a digest,
 the receiver appends the base SS_ID its position in the base block
 implies, for the hash only (<xref target="receiver-enforcement-and-state"></xref>).</t>
 <t><tt>pseudoheader</tt> is the AMBI pseudoheader of <xref target="I-D.ietf-mboned-ambi"></xref>
@@ -1102,8 +1151,8 @@ The MoQ context is bound inside the record by <tt>ctx</tt>:</t>
 
 params_hash = H("BCPV2-params"
     || lp16(codec) || u32(timescale) || u32(groupDurationTicks)
-    || lp16(fecAlgorithm) || u32(sourceSymbols) || u32(repairSymbols)
-    || u32(symbolSize) || u32(interleaveDepthMs))
+    || m * ( lp16(scheme) || u32(sourceSymbols) || u32(repairSymbols)
+           || u32(symbolSize) || u32(interleaveDepthMs) ))
 ]]></artwork>
 <t>both with the record's <tt>hash_alg</tt>.  The <tt>field</tt> values are the <tt>f</tt>
 Track Namespace Fields, in order, of the one MoQ namespace the sending
@@ -1117,17 +1166,35 @@ order.  <tt>params_hash</tt> is taken from the catalog
 entry of the endpoint's lowest-<tt>packetId</tt> media track or, for an
 endpoint that lists only <tt>fec-repair</tt> tracks, from the catalog entry
 of the source track that its lowest-<tt>packetId</tt> repair track repairs:
-the track its <tt>depends</tt> names or, on layer 0, the track whose
-<tt>fec.repairTrack</tt> names it (<xref target="MOQ-FEC"></xref> Section 5.1.1).  <tt>codec</tt> is
+the track its <tt>source</tt> names or, where it carries none, the track
+one of whose FEC instances names it as its <tt>repairTrack</tt>
+(<xref target="MOQ-FEC-CATALOG"></xref> Section 3.2).  <tt>codec</tt> is
 that entry's MSF field; <tt>timescale</tt> is its timescale and
 <tt>groupDurationTicks</tt> its group duration in <tt>timescale</tt> ticks, both as
-<xref target="MOQ-MMT"></xref> Section 4.4.2 resolves them; <tt>fecAlgorithm</tt> is the
-<tt>algorithm</tt> member of its <tt>fec</tt> object and the other four are its
-same-named members (<xref target="MOQ-FEC"></xref> Section 5.1).  An absent
-<tt>interleaveDepthMs</tt> is encoded as <tt>u32(0)</tt>; an entry with no <tt>fec</tt>
-object is encoded as <tt>lp16(&quot;none&quot;)</tt> followed by four <tt>u32(0)</tt>; an
-entry for which <xref target="MOQ-MMT"></xref> Section 4.4.2 resolves no <tt>timescale</tt> or
-no group duration, as it need not for a track that is not
+<xref target="MOQ-MMT"></xref> Section 4.4.2
+resolves them; the <tt>m</tt> tuples are the
+entry's FEC instances, the members of its <tt>fec</tt> array
+(<xref target="MOQ-FEC-CATALOG"></xref> Section 3.1), in
+ascending <tt>instanceId</tt>, one tuple per instance, each tuple's five
+values being the instance's same-named fields, <tt>scheme</tt> the
+registered scheme identifier (<xref target="MOQ-FEC-CORE"></xref> Section
+15.2); neither <tt>m</tt> nor an <tt>instanceId</tt>
+is encoded, and the concatenation is unambiguous because every field
+but the length-prefixed <tt>scheme</tt> is fixed-width.  <tt>blockProfile</tt>,
+<tt>reorderToleranceMs</tt>, <tt>instanceId</tt>, <tt>repairTrack</tt>, <tt>symbolTrack</tt> and
+the per-track fields of <xref target="MOQ-FEC-CATALOG"></xref>, an enhancement layer's
+<tt>repairSymbols</tt> included, are deliberately unbound, although
+<tt>blockProfile</tt> and <tt>reorderToleranceMs</tt> are part of the instance's
+geometry (<xref target="MOQ-FEC-CORE"></xref> Section 10.1):
+<tt>params_hash</tt> binds the five per-instance values that -01 bound, so
+the -01 inputs and vectors are unchanged.  An absent <tt>interleaveDepthMs</tt>
+is encoded as <tt>u32(0)</tt>; an entry with no
+<tt>fec</tt> array, or an empty one, is encoded as <tt>lp16(&quot;none&quot;)</tt> followed by
+four <tt>u32(0)</tt>, distinct from every instance because <xref target="MOQ-FEC-CORE"></xref>
+Section 15.2 reserves &quot;none&quot; and no
+scheme may take it; an entry for which <xref target="MOQ-MMT"></xref> Section
+4.4.2 resolves no <tt>timescale</tt>
+or no group duration, as it need not for a track that is not
 mmtp-packaged (<xref target="multicast-packet-format"></xref>), is encoded as <tt>u32(0)</tt> for
 that value.  A flow carried without a MoQ catalog sets <tt>ctx</tt>
 to 32 zero octets.  A MoQ receiver recomputes <tt>ctx</tt> from the catalog
@@ -1510,7 +1577,8 @@ raises the lead recording again the digests of the marked pairs
 it handles (steps 1 and 2); for each open block of a protected
 consumer, the number of decodes, at most two, taken with the help
 of symbols of unlisted tracks (step 2) that have left it
-unrecovered, block state under the bound of <xref target="MOQ-FEC"></xref> Section 9
+unrecovered, block state under the bound of <xref target="MOQ-FEC-CORE"></xref> Section
+9.4
 released with the block (step 2); on a receiver that can request
 unicast repair, for each open block that has an FEC deadline, the
 admission time of the first packet, source or repair, admitted into
@@ -1519,8 +1587,9 @@ packet of highest SS_ID admitted at or below its lower bounding
 packet, or the packet admitted above it where the instance has
 admitted none below), and for each base instance the admission time
 of the source packet of highest SS_ID it has admitted in the stream
-generation, kept under the serial number arithmetic of <xref target="MOQ-FEC"></xref>
-Section 7.5 (step 2); two hold queues of
+generation, kept under the serial number arithmetic of
+<xref target="MOQ-FEC-CORE"></xref> Section 7.6
+(step 2); two hold queues of
 <tt>(digest, datagram, expiry)</tt> entries in arrival order,
 <tt>digest</tt> being absent from an entry until the first record of the
 flow is verified (step 2): one for the datagrams a MoQ unicast path
@@ -1723,8 +1792,9 @@ not admitted under step 1 or 2, on whatever carrier it arrived
 overlay or the packet_id 0 consumer that has admitted a datagram of
 a protected flow is a protected consumer, protected under each flow
 a datagram of which it has admitted (one that a source endpoint and
-a repair-only endpoint both feed, <xref target="MOQ-FEC"></xref> Section 6.3.6, under
-both), and a symbol admitted under any flow of the multicast object
+a repair-only endpoint both feed, <xref target="MOQ-FEC-MULTICAST"></xref> Section
+4, under both), and a symbol
+admitted under any flow of the multicast object
 is an admitted symbol in every consumer it reaches: a packet of a
 track that the endpoint of a flow the consumer is protected under
 lists, reaching it over any path, a MoQ unicast path included, is a
@@ -1738,7 +1808,8 @@ against the records of a <tt>manifestTrack</tt> (<xref target="emission-and-cade
 a consumer protected under one flow of the object is such a
 subscriber for the tracks of a flow it is not yet protected under,
 as one that a repair-only endpoint feeds is for a source track the
-receiver takes over MoQ unicast (<xref target="MOQ-FEC"></xref> Section 6.3.6).
+receiver takes over MoQ unicast (<xref target="MOQ-FEC-MULTICAST"></xref> Section
+4).
 On failover a receiver that reads no manifest track discards its
 protected consumers and continues as such a subscriber; one that
 does MAY keep them.  A receiver holds an endpoint while it is
@@ -1748,7 +1819,8 @@ the flow (<xref target="broadcast-carriage"></xref>), and a consumer is protecte
 under a
 flow only while the receiver holds the flow's endpoint: when the
 receiver ceases to hold one, on the failover above or on dropping
-a repair layer (<xref target="MOQ-FEC"></xref> Section 6.3.6), it discards that
+a repair layer (<xref target="MOQ-FEC-MULTICAST"></xref> Section
+4), it discards that
 flow's state as on a <tt>streamId</tt> change (above) and, since no
 further record of the flow will arrive, the flow's hold queues
 with the datagrams they hold, a drop that is no expiry and counts
@@ -1766,7 +1838,8 @@ within a protected consumer that deduplication keeps an admitted
 symbol over an unadmitted one of the same key.  For a consumer, a
 track that no endpoint of a flow it is protected under lists is
 an unlisted track, one whose symbols reach the consumer only over
-a MoQ unicast path (<xref target="MOQ-FEC"></xref> Section 6.3.6): a track that no
+a MoQ unicast path (<xref target="MOQ-FEC-MULTICAST"></xref> Section
+4): a track that no
 endpoint the receiver holds lists, or one that an endpoint the
 receiver holds lists while the consumer is not yet protected
 under that endpoint's flow, its join still completing or its
@@ -1776,24 +1849,30 @@ track is not a datagram of any flow the consumer is protected
 under: it MAY enter a FEC instance under that path's own
 integrity protection, which vouches for the relay and not for the
 publisher, neither anchoring nor tripping the fail-closed check of
-<xref target="MOQ-FEC"></xref> Section 6.3.9 (that section), and the admission that
+<xref target="MOQ-FEC-CORE"></xref> Section 7.3.2 (that
+section), and the admission that
 makes the consumer protected
 under a flow that lists the track ends this for that track, the
 discard above dropping each such symbol the consumer still holds
 and a provisional block those symbols delimited returning its
-source symbols to the undelimited state of <xref target="MOQ-FEC"></xref>
-Section 7.4.  The rules of this step from here to
+source symbols to the undelimited state of <xref target="MOQ-FEC-CORE"></xref>
+Section 5.4.  The rules of this step
+from here to
 its end, for blocks, decodes and recovered packets, govern a FEC
 instance or keyframe overlay only while it is protected under a
 flow whose endpoint lists its source track.  One protected under
 no such flow, as one that a repair-only endpoint feeds while the
 receiver takes the source track over MoQ unicast alone
-(<xref target="MOQ-FEC"></xref> Section 6.3.6), the track unlisted or the join of
+(<xref target="MOQ-FEC-MULTICAST"></xref> Section 4),
+the track unlisted or the join of
 the endpoint that lists it still completing, is a MoQ subscriber
 outside this profile for its blocks: the symbols it admitted
 enter its decodes as admitted symbols, its other packets are what
-the MoQ session delivers, and <xref target="MOQ-FEC"></xref> Sections 7.4, 9 and
-11.4 govern its blocks as those of a consumer outside this
+the MoQ session delivers, and Sections
+5.4, 9.3
+and 9.4 of <xref target="MOQ-FEC-CORE"></xref> and Section
+6 of <xref target="MOQ-FEC-MULTICAST"></xref> govern
+its blocks as those of a consumer outside this
 profile, until the admission that makes it protected under a flow
 whose endpoint lists the track (a record of that flow, from
 <tt>manifestPort</tt> or its <tt>manifestTrack</tt>, admitting a source packet
@@ -1801,27 +1880,32 @@ under step 1 or this step), at which the discard above applies.
 Within a protected consumer the block
 extent such a symbol signals is provisional: a block that only
 such symbols have delimited yields to an admitted repair packet
-whose (SS_Start, SSB_length) conflicts with it under <xref target="MOQ-FEC"></xref>
-Section 7.4, the receiver discarding the provisional block's repair
+whose (SS_Start, SSB_length) conflicts with it under
+<xref target="MOQ-FEC-CORE"></xref> Section 5.4, the
+receiver discarding the provisional block's repair
 symbols, returning its source symbols to the undelimited state of
 that section and accepting the admitted packet, so that the
 first-accepted rule of that section discards an admitted repair
 packet only for conflict with another admitted one; such a symbol
 that conflicts with a block an admitted repair packet has
 delimited is discarded as that section requires.  Nor is such a
-symbol the later signal of <xref target="MOQ-FEC"></xref> Section 9 or the packet
+symbol the later signal of <xref target="MOQ-FEC-CORE"></xref> Section
+9.3 or the packet
 whose receipt anchors a block's ts there, whether or not an
 admitted repair packet later delimits the block the symbol
 delimited (that block's ts is the receipt time of the first
 packet of it, in the order received, that this profile admits),
 nor does a
 block only such symbols have delimited take any SS_ID out of a
-run or stand as the S_prev of the Group range of <xref target="MOQ-FEC"></xref>
-Section 7.5: within a protected consumer such a block is held for
+run or stand as the S_prev of the Group range of <xref target="MOQ-FEC-CORE"></xref>
+Section 7.7: within a
+protected consumer such a block is held for
 decoding only, has no ts and no FEC deadline, whatever packets
 are admitted into or above its range before or after the symbol,
 and requests no repair, and the SS_IDs in its range that the
-receiver lacks are, for <xref target="MOQ-FEC"></xref> Sections 9 and 11.4, runs
+receiver lacks are, for <xref target="MOQ-FEC-CORE"></xref> Section
+9.3 and <xref target="MOQ-FEC-MULTICAST"></xref>
+Section 6, runs
 between the packets the receiver has admitted and the blocks
 admitted packets have delimited, as if the provisional block were
 not delimited, each revealed and given its ts only by a packet
@@ -1837,34 +1921,40 @@ ago, delimit a block that takes its ts from that old admission
 and is past its deadline on arrival, by one whose <tt>SSB_length</tt>
 reaches past what the publisher is sending, delimit a block that
 reaches a deadline before the rest of its range is sent, and
-force the repair request of <xref target="MOQ-FEC"></xref> Section 11.4.2 any of
+force the repair request of <xref target="MOQ-FEC-MULTICAST"></xref> Section
+6.2 any of
 those ways, or, by one whose range covers a run that has a ts,
 take the run's deadline and repair request away, or, by one whose
 range ends just below a lost SS_ID, narrow the run's Group range
 to exclude the block that contains it.  Under the
 open-block bound
-of <xref target="MOQ-FEC"></xref> Section 9 the receiver discards a block that has
+of <xref target="MOQ-FEC-CORE"></xref> Section 9.4 the receiver
+discards a block that has
 no ts before any block that has a ts, whether or not the track
 derives an FEC deadline, so that the
 blocks such symbols delimit, however many a relay sends, evict
 under a memory cap no block of the multicast path; such a discard
 gives the block no deadline and no class, forces no repair
 request, drops the block's repair symbols and returns its source
-symbols to the undelimited state of <xref target="MOQ-FEC"></xref> Section 7.4.  The
+symbols to the undelimited state of <xref target="MOQ-FEC-CORE"></xref> Section
+5.4.  The
 receiver
 decodes a block from admitted symbols where they suffice and uses
 such symbols only for the shortfall.  A packet the base instance
 recovers with such a symbol's help is admitted by its digest like
 a received datagram, against the pending entries of its window,
 hashed with the base SS_ID its position in the base block implies
-(SS_Start + ESI, <xref target="MOQ-FEC"></xref> Section 8.3) appended for the hash
-only (<xref target="MOQ-FEC"></xref> Sections 7.3 and 8.5), and on a miss is held in
+(SS_Start + ESI, <xref target="MOQ-FEC-CORE"></xref> Section
+5.5) appended for the hash only
+(<xref target="MOQ-MMT"></xref> Sections 7.1 and
+7.2), and on a miss is held in
 the MoQ unicast path's hold queue, under that queue's expiry and
 bound, since only such a symbol, which that path alone delivers,
 made the decode possible, so that its octets and its expiry count
 toward nothing of the multicast path.  A recovered packet that
 leaves the queue unadmitted, at expiry or on overflow, is not a
-symbol the receiver holds for <xref target="MOQ-FEC"></xref> Section 11.4: a block
+symbol the receiver holds for <xref target="MOQ-FEC-MULTICAST"></xref> Section
+6: a block
 of which the receiver has not admitted every one of its
 SSB_length source symbols, received or recovered, is unrecovered
 for that section and for the release below, at its FEC deadline
@@ -1882,12 +1972,14 @@ admitted symbols alone, and the admission of a held packet, remain
 open to it; a held
 packet admitted after the deadline recovers the block as a
 received datagram admitted then would, and the receiver SHOULD
-cancel a repair FETCH then outstanding for it, as <xref target="MOQ-FEC"></xref>
-Section 11.4.2 has it for a repair the next RAP makes moot.  A
+cancel a repair FETCH then outstanding for it, as
+<xref target="MOQ-FEC-MULTICAST"></xref> Section 6.2
+has it for a repair the next RAP makes moot.  A
 packet recovered from admitted symbols
 alone, by the base instance or a keyframe overlay, is admitted with
 them; a packet only the overlay recovers with the help of such a
-symbol has no base SS_ID to hash with (<xref target="MOQ-FEC"></xref> Section 7.3) and
+symbol has no base SS_ID to hash with (<xref target="MOQ-MMT"></xref> Section
+7.1) and
 is not delivered.  A receiver that can request unicast repair
 (<xref target="per-block-unicast-repair"></xref>) keeps, instead of letting them
 expire, the pending entries of each open block that has an FEC
@@ -1900,7 +1992,8 @@ on the multicast path, and under the bound of
 a lead, so no span reckoned from the lead in force at the
 admission names them all; the admitted packet is not necessarily
 the packet
-whose receipt set the block's ts in <xref target="MOQ-FEC"></xref> Section 9: a
+whose receipt set the block's ts in <xref target="MOQ-FEC-CORE"></xref> Section
+9.3: a
 datagram held on a miss is admitted, by step 1, after one that a
 verified record admitted on arrival, and a symbol of an unlisted
 track no step admits, nor does one set a ts, so a block only such
@@ -1910,10 +2003,13 @@ they are, below), until that
 deadline (the receiver keeps the admission time with the block).
 A
 run of lost SS_IDs that the receiver has not delimited
-(<xref target="per-block-unicast-repair"></xref>) is one such block (<xref target="MOQ-FEC"></xref>
-Section 11.4) of which it holds no packet, and the receiver
+(<xref target="per-block-unicast-repair"></xref>) is one such block
+(<xref target="MOQ-FEC-MULTICAST"></xref> Section 6)
+of which it holds no packet, and the receiver
 learns of the run, and of the block's deadline, only from a packet
-admitted above it (<xref target="MOQ-FEC"></xref> Sections 7.4 and 9; step 2), by
+admitted above it (<xref target="MOQ-FEC-CORE"></xref> Sections
+5.4 and
+9.3; step 2), by
 when the run's entries would have expired; so for each base
 instance it also keeps the entries pending at the admission of
 the source packet of highest SS_ID it has admitted, and those
@@ -1924,14 +2020,17 @@ this anchor however high its SS_ID) until it admits a source
 packet of the instance above that SS_ID; a source packet admitted
 below it moves neither that anchor nor the entries so kept
 (highest, above and below in SS_ID, and the gap below, under the
-serial number arithmetic of <xref target="MOQ-FEC"></xref> Section 7.5, so that the
+serial number arithmetic of <xref target="MOQ-FEC-CORE"></xref> Section
+7.6, so that the
 anchor follows SS_ID across its wrap to 0).  A gap
 in SS_ID between the two reveals lost SS_IDs, of such a run or of
-a block that a repair packet alone has delimited (<xref target="MOQ-FEC"></xref>
-Section 7.4); each takes the entries so kept as its own from the
+a block that a repair packet alone has delimited (<xref target="MOQ-FEC-CORE"></xref>
+Section 5.4); each takes the entries
+so kept as its own from the
 admission of the source packet of highest SS_ID admitted at or
 below its lower bounding packet (lower and upper in SS_ID order,
-<xref target="MOQ-FEC"></xref> Section 11.4.1; a bounding packet can itself be such
+<xref target="MOQ-FEC-MULTICAST"></xref> Section 6.1; a
+bounding packet can itself be such
 a symbol), or of the packet admitted above it where the instance
 has admitted none below it;
 otherwise the entries whose expiry has passed by the admission of
@@ -1942,13 +2041,16 @@ unlisted track the response returns have delimited is provisional
 as above and takes none, the run keeping its entries, against
 which the decode of that block admits its recovered packets,
 until the run is recovered or its requested repair, the FETCH on
-each layer it needs (<xref target="MOQ-FEC"></xref> Section 11.4.2), completes
+each layer it needs (<xref target="MOQ-FEC-MULTICAST"></xref> Section
+6.2), completes
 without recovering it, fails or is cancelled.
-They are block state under the bound of <xref target="MOQ-FEC"></xref> Section 9 and
+They are block state under the bound of <xref target="MOQ-FEC-CORE"></xref> Section
+9.4 and
 are released when the block is recovered, when its deadline passes
 with no repair requested, when a requested repair, the FETCH on
 each layer it needs, completes without recovering the block, fails
-or is cancelled (<xref target="MOQ-FEC"></xref> Section 11.4.2), or when the block is
+or is cancelled (<xref target="MOQ-FEC-MULTICAST"></xref> Section
+6.2), or when the block is
 discarded under that bound.</t>
 </li>
 </ol>
@@ -2128,9 +2230,11 @@ SS_ID out of a run, and delimits a block that is decoded only, never
 requested, the SS_IDs it covers that the receiver lacks staying runs
 that admitted packets alone reveal, and the
 blocks only such symbols delimit are discarded under the open-block
-bound of <xref target="MOQ-FEC"></xref> Section 9 before any block that has a ts,
+bound of <xref target="MOQ-FEC-CORE"></xref> Section 9.4 before any
+block that has a ts,
 so it forces no repair request, evicts no block of the multicast
-path and fails no check of <xref target="MOQ-FEC"></xref> Section 6.3.9 closed, step 2
+path and fails no check of <xref target="MOQ-FEC-CORE"></xref> Section
+7.3.2 closed, step 2
 of <xref target="receiver-enforcement-and-state"></xref>; a
 corrupt symbol of an unlisted track it delivers leaves unrecovered
 only a block the admitted symbols could not recover alone, costs at
@@ -2435,7 +2539,7 @@ at 5 s.  A
 receiver bounds all of these
 by local policy, and the
 pending entries it keeps for unicast repair by the open-block bound
-of <xref target="MOQ-FEC"></xref> Section 9.</t>
+of <xref target="MOQ-FEC-CORE"></xref> Section 9.4.</t>
 </li>
 </ul>
 </section>
@@ -2495,15 +2599,48 @@ catalog extension (Section 4) requires no registration.</t>
   </front>
   <seriesInfo name="ISO/IEC" value="23008-1:2023"></seriesInfo>
 </reference>
-<reference anchor="MOQ-FEC" target="">
+<reference anchor="MOQ-FEC-BLOCK" target="">
   <front>
-    <title>Forward Error Correction for Media over QUIC</title>
+    <title>Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ</title>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="26"></date>
+    <date year="2026" month="October" day="29"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-01"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-00"></seriesInfo>
+</reference>
+<reference anchor="MOQ-FEC-CATALOG" target="">
+  <front>
+    <title>Catalog Binding for Forward Error Correction in Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
+</reference>
+<reference anchor="MOQ-FEC-CORE" target="">
+  <front>
+    <title>Forward Error Correction for Media over QUIC: Core Mechanism</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
+      <organization>Rutgers University</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-00"></seriesInfo>
+</reference>
+<reference anchor="MOQ-FEC-MULTICAST" target="">
+  <front>
+    <title>Forward Error Correction for Multicast Delivery of Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-00"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MMT" target="">
   <front>
@@ -2511,9 +2648,9 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="26"></date>
+    <date year="2026" month="October" day="29"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-01"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.4607.xml"/>
@@ -2541,6 +2678,7 @@ catalog extension (Section 4) requires no registration.</t>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-mboned-multicast-security.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-loc.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ramadan-moq-fec.xml"/>
 <reference anchor="QUIC-MULTICAST" target="https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/">
   <front>
     <title>Multicast Extension for QUIC</title>
@@ -2597,7 +2735,7 @@ namespace           : ["example.arena"] (f = 1)
 endpoint packetIds  : [1, 2]
 params (for params_hash):
   codec="avc1.640028" timescale=90000 groupDurationTicks=3000
-  fecAlgorithm="raptorq" sourceSymbols=32 repairSymbols=16
+  scheme="raptorq" sourceSymbols=32 repairSymbols=16
   symbolSize=1312 interleaveDepthMs=133
 datagram 0 payload  : 0x11 repeated 1400 times
 datagram 1 payload  : 0x22 repeated 1400 times
@@ -2642,9 +2780,82 @@ c380d808
 ]]></artwork>
 </section>
 
-<section anchor="changes-since-draft-ramadan-moq-multicast-00"><name>Changes Since draft-ramadan-moq-multicast-00</name>
+<section anchor="change-log"><name>Change Log</name>
 <t>This appendix is informative.  It is to be removed before publication
 as an RFC.</t>
+
+<section anchor="changes-since-draft-ramadan-moq-multicast-01"><name>Changes Since draft-ramadan-moq-multicast-01</name>
+
+<ul spacing="compact">
+<li>References: draft-ramadan-moq-fec-01 is split into a core
+mechanism document and companions, and every citation of it now
+names the document that carries the cited text: <xref target="MOQ-FEC-CORE"></xref>
+for FEC instances, source symbol location, blocks and short
+blocks, the layer-set check, SS_ID wrap and repair Group IDs,
+repair FETCH ranges, deadlines and block span, receiver state, the
+configuration data model and the scheme registry;
+<xref target="MOQ-FEC-CATALOG"></xref> for the <tt>fec-repair</tt> packaging value, the
+signaling model and the instance and track fields;
+<xref target="MOQ-FEC-BLOCK"></xref> for the scheme parameters; <xref target="MOQ-FEC-MULTICAST"></xref>
+for repair-only endpoints, multicast QUIC, the receiver repair
+policy, block classification and keyframe-bearing blocks; and
+<xref target="MOQ-MMT"></xref>, now cited at its -02 revision, for the iso-ssbg1-v1
+block profile, the Source FEC Payload ID and the keyframe overlay,
+which moved there.  Every citation of a <xref target="MOQ-MMT"></xref> section now
+names the section of that document's -02 revision.  The -01
+entries below keep their historical section numbers, now cited as
+<xref target="I-D.ramadan-moq-fec"></xref>.</li>
+<li>New Section 1.2, Relation to Other Documents: an informative
+paragraph names the FEC document set and what each document
+defines.  All four of its sentences are new; it adds no
+requirement.</li>
+<li>Sections 1.1 and 5: the FEC configuration that a receiver takes
+from the catalog is now described as the FEC instance configuration
+of <xref target="MOQ-FEC-CORE"></xref> and the scheme parameters that a block FEC
+scheme of <xref target="MOQ-FEC-BLOCK"></xref> derives from it, in place of the
+RaptorQ OTI and the Reed-Solomon parameters.</li>
+<li><xref target="multicast-endpoint-format"></xref>: the separately packetized copy and
+the mmtp rendition each carry their own <tt>fec</tt> array, the array of
+FEC instance objects of <xref target="MOQ-FEC-CATALOG"></xref> Section
+3.1, in place of -01's <tt>fec</tt> object.</li>
+<li><xref target="signature-context-binding"></xref>: <tt>params_hash</tt> is defined over the
+per-instance fields of <xref target="MOQ-FEC-CATALOG"></xref>.  After <tt>codec</tt>,
+<tt>timescale</tt> and <tt>groupDurationTicks</tt> it carries the entry's FEC
+instances in ascending <tt>instanceId</tt>, each as <tt>lp16(scheme)</tt>,
+<tt>u32(sourceSymbols)</tt>, <tt>u32(repairSymbols)</tt>, <tt>u32(symbolSize)</tt> and
+<tt>u32(interleaveDepthMs)</tt>, with no instance count and no
+<tt>instanceId</tt> field; an entry without FEC carries <tt>lp16(&quot;none&quot;)</tt>
+and four <tt>u32(0)</tt> as in -01.  <tt>scheme</tt> is the field -01 named
+<tt>fecAlgorithm</tt>, so for an entry with one FEC instance the octets
+hashed are identical to -01's.  New sentence: neither <tt>m</tt> nor an
+<tt>instanceId</tt> is encoded, and the concatenation is unambiguous
+because every field but the length-prefixed <tt>scheme</tt> is
+fixed-width; it adds no requirement.  One further new sentence and one
+new clause, each adding no requirement: the fields that <tt>params_hash</tt> leaves unbound
+are named as deliberate, and the no-FEC encoding is stated to be
+distinct from every instance because <xref target="MOQ-FEC-CORE"></xref> Section
+15.2 reserves &quot;none&quot;.  The source
+track of a
+repair-only endpoint's repair track is the track its <tt>source</tt>
+names or the track whose instance names it as <tt>repairTrack</tt>, in
+place of <tt>depends</tt> and <tt>fec.repairTrack</tt>.</li>
+<li><xref target="test-vectors-bc-provenance-version-2"></xref>: <tt>params_hash</tt>, <tt>ctx</tt>,
+<tt>signature</tt> and the record are unchanged from -01: the example's
+entry has one FEC instance, which the -02 layout of
+<xref target="signature-context-binding"></xref> hashes to the same octets.  In the
+listed inputs the label <tt>fecAlgorithm</tt> is renamed <tt>scheme</tt>.</li>
+<li><xref target="multi-path-delivery"></xref>: the keyframe overlay in item 1 now cites
+<xref target="MOQ-MMT"></xref>.</li>
+<li>Sections 4 and 4.1: the catalog envelope and the <tt>mmtp</tt> packaging
+value are now cited by section of <xref target="MOQ-MMT"></xref> at its -02
+numbering.</li>
+<li>Editorial: every heading carries an explicit anchor; no existing
+anchor changes.  The change log is now one appendix with a
+subsection per revision, as in <xref target="MOQ-MMT"></xref>.</li>
+</ul>
+</section>
+
+<section anchor="changes-since-draft-ramadan-moq-multicast-00"><name>Changes Since draft-ramadan-moq-multicast-00</name>
 
 <ul spacing="compact">
 <li>Section 1: added a paragraph on TreeDN <xref target="RFC9706"></xref> as an incremental
@@ -2702,13 +2913,15 @@ the S-TSID with FEC parameters of -00.</li>
 mmtp rendition rule of Section 4.1.  It no longer says that
 multicast carriage uses MMTP &quot;regardless of a track's unicast
 packaging&quot;.  The catalog-derived FEC configuration now also covers
-the Reed-Solomon parameters (<xref target="MOQ-FEC"></xref> Section 4.5).  The
-transport table drops the QUIC datagram row, because <xref target="MOQ-MMT"></xref>
-Section 4.3 sends the objects of an mmtp track only in subgroups.
+the Reed-Solomon parameters (<xref target="I-D.ramadan-moq-fec"></xref> Section 4.5).
+The transport table drops the QUIC datagram row, because <xref target="MOQ-MMT"></xref>
+Section 4.3 sends the objects of an mmtp track
+only in subgroups.
 The mapping of MMTP packets onto Multicast QUIC DATAGRAM frames,
-and the use of <xref target="MOQ-FEC"></xref> on that channel, are now described,
-informatively, in <xref target="MOQ-FEC"></xref> Section 11.3, which that document's
--01 makes informative, rather than specified there.</li>
+and the use of <xref target="I-D.ramadan-moq-fec"></xref> on that channel, are now
+described, informatively, in <xref target="I-D.ramadan-moq-fec"></xref> Section 11.3,
+which that document's -01 makes informative, rather than specified
+there.</li>
 <li>Section 6: failover uses the joins of <xref target="I-D.ietf-moq-transport"></xref>
 Section 3.5 (LOCATION_FILTER Next Object or Relative Start, and
 FILL_PARAMETERS for the current group).  These replace the &quot;Largest
@@ -2732,10 +2945,10 @@ Section 1.1 calls multicast an additional delivery path instead of
 an optimized one, and Section 3 calls MoQ/WebTransport the fallback
 that every client supports instead of the universal fallback.  The
 examples of Section 4.1 use a documentation address.</li>
-<li>References: <xref target="MOQ-MMT"></xref> and <xref target="MOQ-FEC"></xref> now name their -01
-revisions, and <xref target="MOQ-FEC"></xref> lists both of its authors.  ATSC A/331,
-ATSC A/322, ARIB STD-B60 and FIPS 180-4 are now cited; BLAKE3 is no
-longer cited.</li>
+<li>References: <xref target="MOQ-MMT"></xref> and <xref target="I-D.ramadan-moq-fec"></xref> now name their
+-01 revisions, and <xref target="I-D.ramadan-moq-fec"></xref> lists both of its
+authors.  ATSC A/331, ATSC A/322, ARIB STD-B60 and FIPS 180-4 are
+now cited; BLAKE3 is no longer cited.</li>
 <li><xref target="content-authentication"></xref> replaces bc-provenance version 1 with
 version 2; the BCPV1 <tt>manifest_object</tt>, its &quot;BCPV1-sig&quot; prefix,
 the <tt>compaction</tt> member, the Merkle Tree Hash and the 198-octet
@@ -2799,8 +3012,8 @@ cancel a repair FETCH outstanding for it; a
 packet only the overlay recovers with such help is not delivered,
 and a symbol of an unlisted track gives no block or run its ts or
 FEC deadline and neither anchors nor trips the fail-closed check
-of <xref target="MOQ-FEC"></xref> Section 6.3.9, a block only such symbols delimit
-being decoded
+of <xref target="I-D.ramadan-moq-fec"></xref> Section 6.3.9, a block only such symbols
+delimit being decoded
 only, with no ts and no deadline, the lost SS_IDs in its range
 staying runs that a packet admitted above them reveals, and a
 block with no ts being
@@ -2822,8 +3035,8 @@ entries of an open block with an FEC deadline and, since a run of
 lost SS_IDs is revealed only by a packet admitted above it, those
 pending at the admission of the source packet of highest SS_ID
 each base instance has admitted and those inserted after it,
-as block state under the bound of <xref target="MOQ-FEC"></xref> Section 9; step 1
-drops
+as block state under the bound of <xref target="I-D.ramadan-moq-fec"></xref>
+Section 9; step 1 drops
 the other held copy of a datagram it admits, which counts toward
 nothing; a record meets a 64-deep replay floor per <tt>(kid, epoch)</tt>,
 and a record of the previous epoch is admitted within a grace
@@ -2897,6 +3110,7 @@ gateway on SSM, discards a datagram whose IP source address is not
 the endpoint's sender before parsing or hashing it
 (<xref target="receiver-enforcement-and-state"></xref>).</li>
 </ul>
+</section>
 </section>
 
 </back>
