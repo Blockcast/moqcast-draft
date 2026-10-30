@@ -843,7 +843,7 @@ that cadence.</li>
 not an integer millisecond value:</t>
 
 <sourcecode type="json"><![CDATA[{
-  "version": "draft-01",
+  "version": 1,
   "tracks": [{
     "name": "video-30fps",
     "packaging": "mmtp",
@@ -2596,7 +2596,7 @@ be inferred safely from received objects.</t>
 <t>Example, with the <tt>data</tt> value shortened:</t>
 
 <sourcecode type="json"><![CDATA[{
-  "version": "draft-01",
+  "version": 1,
   "tracks": [{
     "name": "video",
     "packaging": "mmtp",
@@ -3280,6 +3280,9 @@ document uses and points at <xref target="MOQ-FEC-CORE"></xref> for the rest, an
 Abstract and Section 1 say that this document defines the block
 profile, the overlay and the ATSC 3.0 interworking.  Sections 10 to 14
 of -01 are now Sections 11 to 15.</t>
+</li>
+<li><t>The worked catalogs carry <tt>&quot;version&quot;: 1</tt>, the catalog version of
+<xref target="MOQ-FEC-CATALOG"></xref>, in place of the <tt>&quot;draft-01&quot;</tt> string of -01.</t>
 </li>
 <li><t>Sentences that are new rather than moved, listed verbatim with the -01
 text they replace where one exists:</t>
@@ -3995,13 +3998,11 @@ K = 125 / 625 = 20%</tt>.</t>
 </li>
 <li><t>Audio: 128,000 bit/s x 1.0 s / 8 = 16,000 bytes of media per group;
 the upper-bound capacity of one full block is <tt>K x (T - 22) = 32 x 490
-= 15,680</tt> bytes.  The media therefore needs at least `ceil(16,000 /</t>
-
-<ol spacing="compact" start="490" type="%d)">
-<li>= 33<tt>source packets and at least two K=32 blocks; packetization
-and metadata can require more.  Repair overhead is</tt>P / K = 8 / 32 =
-25%`.</li>
-</ol></li>
+= 15,680</tt> bytes.  The media therefore needs at least
+<tt>ceil(16,000 / 490) = 33</tt> source packets and at least two K=32 blocks;
+packetization and metadata can require more.  Repair overhead is
+<tt>P / K = 8 / 32 = 25%</tt>.</t>
+</li>
 </ul>
 <t>The publisher must choose the actual source-packet count and block
 boundaries so that every packet, including FT=0 and FT=1 metadata, fits

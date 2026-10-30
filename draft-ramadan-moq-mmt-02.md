@@ -834,7 +834,7 @@ not an integer millisecond value:
 
 ~~~ json
 {
-  "version": "draft-01",
+  "version": 1,
   "tracks": [{
     "name": "video-30fps",
     "packaging": "mmtp",
@@ -2607,7 +2607,7 @@ Example, with the `data` value shortened:
 
 ~~~ json
 {
-  "version": "draft-01",
+  "version": 1,
   "tracks": [{
     "name": "video",
     "packaging": "mmtp",
@@ -3276,6 +3276,8 @@ re-pointed.  The section numbers in the -00 entry below are those of
   profile, the overlay and the ATSC 3.0 interworking.  Sections 10 to 14
   of -01 are now Sections 11 to 15.
 
+- The worked catalogs carry `"version": 1`, the catalog version of
+  [@!MOQ-FEC-CATALOG], in place of the `"draft-01"` string of -01.
 - Sentences that are new rather than moved, listed verbatim with the -01
   text they replace where one exists:
 
@@ -3984,10 +3986,10 @@ capacity gives a media ceiling, not a packetization plan:
 
 - Audio: 128,000 bit/s x 1.0 s / 8 = 16,000 bytes of media per group;
   the upper-bound capacity of one full block is `K x (T - 22) = 32 x 490
-  = 15,680` bytes.  The media therefore needs at least `ceil(16,000 /
-  490) = 33` source packets and at least two K=32 blocks; packetization
-  and metadata can require more.  Repair overhead is `P / K = 8 / 32 =
-  25%`.
+  = 15,680` bytes.  The media therefore needs at least
+  `ceil(16,000 / 490) = 33` source packets and at least two K=32 blocks;
+  packetization and metadata can require more.  Repair overhead is
+  `P / K = 8 / 32 = 25%`.
 
 The publisher must choose the actual source-packet count and block
 boundaries so that every packet, including FT=0 and FT=1 metadata, fits
