@@ -11,7 +11,7 @@ bandwidth comparison → marketing/deployment docs.
 > implementation paths, numeric estimates, and ARIB/ATSC and S-TSID examples
 > are illustrative historical material; they do not establish ISO/IEC, MoQ,
 > ARIB, or ATSC conformance. Use
-> [draft-ramadan-moq-mmt-01.md](../draft-ramadan-moq-mmt-01.md) and
+> [draft-ramadan-moq-mmt-02.md](../draft-ramadan-moq-mmt-02.md) and
 > [draft-ramadan-moq-fec-01.md](../draft-ramadan-moq-fec-01.md) for current
 > protocol requirements, together with ISO/IEC 23008-1:2023 Clauses 9.3.2,
 > 9.3.3, and Annex C and the applicable broadcast standard for deployment
