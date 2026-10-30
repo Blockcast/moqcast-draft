@@ -1,0 +1,1239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-catalog-00" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+
+<front>
+<title abbrev="MoQ FEC Catalog Binding">Catalog Binding for Forward Error Correction in Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-catalog-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
+</postal><email>omar@blockcast.net</email>
+</address></author><date year="2026" month="October" day="29"></date>
+<area>wit</area>
+<workgroup>moq</workgroup>
+<keyword>FEC</keyword>
+<keyword>MoQ</keyword>
+<keyword>catalog</keyword>
+<keyword>MSF</keyword>
+<keyword>CMSF</keyword>
+
+<abstract>
+<t>This document binds the Forward Error Correction (FEC) configuration
+data model of the MoQ FEC core mechanism to the catalog of the MOQT
+Streaming Format (MSF) and to its Common Media Application Format
+(CMAF) profile.  It defines the track-level &quot;fec&quot; array of FEC
+instance objects, the fields with which a repair track or a symbol
+track describes its own role, the packaging values &quot;fec-repair&quot; and
+&quot;fec-source&quot;, the validation rules that are specific to the catalog
+encoding, and the handling of unknown keys, so that a receiver that
+obtains a track's catalog entry can configure its decoder without
+in-session signaling.</t>
+</abstract>
+
+</front>
+
+<middle>
+
+<section anchor="introduction"><name>Introduction</name>
+<t>Forward Error Correction (FEC) for Media over QUIC (MoQ)
+<xref target="I-D.ietf-moq-transport"></xref> is specified by <xref target="MOQ-FEC-CORE"></xref> as a
+mechanism that names no FEC code and no packaging.  Its configuration
+is a data model (<xref target="MOQ-FEC-CORE"></xref> Section
+10): the parameters that describe a
+source track's FEC instances and the tracks that serve them, and the
+rules a receiver applies to them.  The core does not define their
+encoding.</t>
+<t>This document is that encoding for the catalog of the MOQT Streaming
+Format (MSF) <xref target="I-D.ietf-moq-msf"></xref> and of its CMAF profile
+<xref target="I-D.ietf-moq-cmsf"></xref>.  It adds one track-level field, the <tt>fec</tt>
+array of FEC instance objects, two packaging values, <tt>&quot;fec-repair&quot;</tt>
+and <tt>&quot;fec-source&quot;</tt>, and the fields with which a repair track or a
+symbol track describes its own role.  The catalog <tt>fec</tt> array is the
+authoritative FEC signaling for every receiver that obtains the
+track's catalog entry; no in-session signaling is required.</t>
+
+<section anchor="relation-to-other-documents"><name>Relation to Other Documents</name>
+<t>This document is a companion of <xref target="MOQ-FEC-CORE"></xref>, which defines the
+mechanism, the configuration data model and the &quot;moq-object-v1&quot; block
+profile.  The FEC schemes that an instance's <tt>scheme</tt> field names are
+defined by <xref target="MOQ-FEC-BLOCK"></xref>, which registers &quot;reed-solomon&quot;,
+mandatory to implement, and &quot;raptorq&quot;, optional.  The MMTP block
+profile &quot;iso-ssbg1-v1&quot; and its in-band signaling are defined by
+<xref target="MOQ-MMT"></xref>, and FEC on multicast delivery paths by
+<xref target="MOQ-FEC-MULTICAST"></xref>.  The <tt>multicast</tt> field that the worked
+catalog of <xref target="complete-catalog"></xref> carries uses the multicast
+endpoint format defined in <xref target="MOQ-MULTICAST"></xref>.  Much of the text of
+this document is taken from <xref target="I-D.ramadan-moq-fec"></xref>;
+<xref target="changes-from-draft-ramadan-moq-fec-01"></xref> lists what moved here and
+what changed.</t>
+</section>
+</section>
+
+<section anchor="conventions-and-definitions"><name>Conventions and Definitions</name>
+<t>The key words &quot;MUST&quot;, &quot;MUST NOT&quot;, &quot;REQUIRED&quot;, &quot;SHALL&quot;, &quot;SHALL NOT&quot;,
+&quot;SHOULD&quot;, &quot;SHOULD NOT&quot;, &quot;RECOMMENDED&quot;, &quot;NOT RECOMMENDED&quot;, &quot;MAY&quot;, and
+&quot;OPTIONAL&quot; in this document are to be interpreted as described in
+BCP 14 <xref target="RFC2119"></xref> <xref target="RFC8174"></xref> when, and only when, they appear in all
+capitals, as shown here.</t>
+<t>This document uses the following terms of <xref target="MOQ-FEC-CORE"></xref>, whose
+definitions are repeated here.  Every other term, and the quantities
+K, T, P_i, O_i and RSB_length, have the meaning that <xref target="MOQ-FEC-CORE"></xref>
+Section 2 and Section
+7.3.1 give them.</t>
+<t><strong>Source Track</strong>: A MoQ track whose objects carry media, for example
+video or audio, and which an FEC instance protects.</t>
+<t><strong>FEC Instance</strong>: One independent FEC encoding over a sequence of
+source symbols, with its own source symbol bound K, symbol size T,
+SS_ID space, block partition, repair symbols and repair tracks.  A
+source track has one or more FEC instances (<xref target="MOQ-FEC-CORE"></xref> Section
+5.1).</t>
+<t><strong>Source Symbol</strong>: A T-byte unit of source data that an FEC instance
+encodes.  Source symbols are formed from source objects by the
+instance's block profile (<xref target="MOQ-FEC-CORE"></xref> Section
+5.2).</t>
+<t><strong>Repair Symbol</strong>: A T-byte unit generated by the FEC scheme from the
+source symbols of one block.</t>
+<t><strong>SS_ID</strong>: The 32-bit sequence number of a source symbol within its
+FEC instance.  It wraps modulo 2^32 (<xref target="MOQ-FEC-CORE"></xref> Section
+7.6).</t>
+<t><strong>Source Block</strong>: A run of SSB_length consecutive source symbols,
+1 &lt;= SSB_length &lt;= K, over which a block FEC scheme encodes.  A block
+is the SS_ID range [SS_Start, SS_Start + SSB_length) and is
+identified by its SS_Start.</t>
+<t><strong>Encoding Symbol ID (ESI)</strong>: The index of a symbol within its block:
+a source symbol's serial distance from SS_Start, and SSB_length +
+RS_ID for a repair symbol.</t>
+<t><strong>RS_ID</strong>: The zero-based index of a repair symbol among the repair
+symbols of its block.</t>
+<t><strong>Repair Track</strong>: A MoQ track whose objects each carry one repair
+symbol of one FEC instance (<xref target="MOQ-FEC-CORE"></xref> Section
+7).</t>
+<t><strong>Repair Layer</strong>: One of possibly several repair tracks of one FEC
+instance, each carrying a disjoint range of RS_IDs for every block
+(<xref target="MOQ-FEC-CORE"></xref> Section 7.3).  Layer 0 is the
+base layer.</t>
+<t><strong>Symbol Track</strong>: A MoQ track whose objects each carry exactly one
+source symbol of one FEC instance, grouped by block (<xref target="MOQ-FEC-CORE"></xref>
+Section 6.2).</t>
+<t><strong>Protected Object Unit</strong>: The bytes that one source object
+contributes to an FEC instance: its Location, its Immutable
+Properties and its payload, framed as <xref target="MOQ-FEC-CORE"></xref> Section
+5.2 specifies.</t>
+<t><strong>Block Profile</strong>: The rules that fix how source symbols are formed
+from source objects and how blocks are delimited and identified
+(<xref target="MOQ-FEC-CORE"></xref> Section
+5.2).</t>
+<t><strong>FEC Scheme</strong>: An FEC code together with the specification of its
+parameters, its symbol construction and its repair symbols, meeting
+<xref target="MOQ-FEC-CORE"></xref> Section 4.</t>
+</section>
+
+<section anchor="catalog-fields"><name>Catalog Fields</name>
+<t>The catalog is an MSF catalog <xref target="I-D.ietf-moq-msf"></xref>, delivered on the
+track named <tt>catalog</tt> (<xref target="I-D.ietf-moq-msf"></xref> Section 5).  This
+document adds one track-level field, the <tt>fec</tt> array defined in
+<xref target="instance-fields"></xref>, the repair-track and symbol-track fields of
+<xref target="track-fields"></xref>, and the two packaging values of
+<xref target="packaging-values"></xref>.  The FEC configuration is carried at the track
+level:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "version": 1,
+  "tracks": [
+    {
+      "name": "video",
+      "packaging": "loc",
+      "isLive": true,
+      "codec": "avc1.640028",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 30,
+      "bitrate": 4990000,
+      "fec": [
+        {
+          "instanceId": 0,
+          "scheme": "reed-solomon",
+          "blockProfile": "moq-object-v1",
+          "sourceSymbols": 200,
+          "symbolSize": 1100,
+          "repairSymbols": 40,
+          "interleaveDepthMs": 1000,
+          "reorderToleranceMs": 40,
+          "repairTrack": "video/repair"
+        }
+      ]
+    },
+    {
+      "name": "video/repair",
+      "packaging": "fec-repair",
+      "isLive": true,
+      "source": "video",
+      "instanceId": 0,
+      "repairLayer": 0,
+      "repairSymbols": 40,
+      "priority": 240
+    }
+  ]
+}
+]]></sourcecode>
+<t>A track declares FEC by carrying a <tt>fec</tt> array with at least one
+instance object.  A track whose entry has no <tt>fec</tt> member, or whose
+<tt>fec</tt> array is empty, declares no FEC instance; there is no <tt>scheme</tt>
+identifier that means &quot;no FEC&quot;.  <xref target="worked-catalog"></xref> works a
+layered configuration and a complete catalog through in full.</t>
+
+<section anchor="instance-fields"><name>Instance Fields</name>
+<t>The <tt>fec</tt> member of a source track entry is an array of FEC instance
+objects.  Each object carries the instance parameters of
+<xref target="MOQ-FEC-CORE"></xref> Section 10.1 as the JSON
+members below.  That section defines their meaning and the bounds a
+receiver checks; this section defines their encoding.  Member names
+are case sensitive.</t>
+<t><strong>instanceId</strong> (integer, OPTIONAL, default 0): The Instance ID, 0 to
+255, unique among the instance objects of the track.</t>
+<t><strong>scheme</strong> (string, REQUIRED): The FEC scheme identifier, a value
+registered in the &quot;MoQ FEC Schemes&quot; registry (<xref target="MOQ-FEC-CORE"></xref>
+Section 15.2).  <xref target="MOQ-FEC-BLOCK"></xref>
+Section 3 registers &quot;reed-solomon&quot;, which
+is mandatory to implement, and &quot;raptorq&quot;, which is optional.  A
+receiver that does not implement the scheme treats FEC as unavailable
+for the instance (<xref target="MOQ-FEC-CORE"></xref> Section
+4.5); it consumes the source track without
+FEC and does not subscribe to or join the instance's repair or symbol
+tracks.  An instance whose <tt>scheme</tt> member is absent names no scheme,
+and FEC for it is likewise unavailable.</t>
+<t><strong>blockProfile</strong> (string, REQUIRED): The block profile, a value
+registered in the &quot;MoQ FEC Block Profiles&quot; registry (<xref target="MOQ-FEC-CORE"></xref>
+Section 15.3).  There is no
+default.  Each profile admits only the source track <tt>packaging</tt>
+values its registration names (<xref target="MOQ-FEC-CORE"></xref> Section
+15.3): &quot;moq-object-v1&quot; admits any
+packaging whose objects carry their media as whole MoQ objects, <tt>loc</tt>
+and <tt>cmaf</tt> included (<xref target="MOQ-FEC-CORE"></xref> Section
+5.2), and
+&quot;iso-ssbg1-v1&quot; (<xref target="MOQ-MMT"></xref> Section 7.1) admits
+<tt>mmtp</tt>.  An instance whose <tt>blockProfile</tt> names a profile the
+receiver does not implement, or one that does not admit the track's
+<tt>packaging</tt>, is one for which FEC is unavailable, as for an
+unimplemented <tt>scheme</tt> (<xref target="MOQ-FEC-CORE"></xref> Section 10.3,
+rule 1, and Section 4.5); this is not a
+validation failure.  An instance whose <tt>blockProfile</tt> member is absent
+names no profile, and FEC for it is likewise unavailable.  The
+prohibition on inferring a profile from the wire, and the rule that a
+publisher does not change the profile of a published instance, are those
+of <xref target="MOQ-FEC-CORE"></xref> Section 10.1 (the profile is
+part of the instance's geometry) and are not restated here; this
+document only encodes the value.</t>
+<t><strong>sourceSymbols</strong> (integer, REQUIRED): K, the largest number of
+source symbols a block of the instance may hold.  MUST be &gt;= 1.  It
+is an upper bound, not the size of each block: a block holds
+SSB_length source symbols, 1 &lt;= SSB_length &lt;= K.  K counts source
+symbols, not objects: under &quot;moq-object-v1&quot; a source object
+contributes s(o) of them (<xref target="MOQ-FEC-CORE"></xref> Section
+5.2).</t>
+<t><strong>repairSymbols</strong> (integer, REQUIRED): P_0, the repair symbols per
+block on layer 0.  MUST be &gt;= 1.</t>
+<t><strong>symbolSize</strong> (integer, REQUIRED): T, bytes per symbol.  T MUST be
+at least 1 under every block profile: a zero-length symbol carries
+nothing.  All symbols of an instance have the same size; the byte
+layout of each source symbol is fixed by the instance's
+<tt>blockProfile</tt> and is not otherwise carried in the catalog.  Any
+alignment constraint on T is the scheme's (<xref target="MOQ-FEC-BLOCK"></xref> Section
+7), and any lower bound beyond 1 is the block
+profile's.</t>
+<t><strong>repairTrack</strong> (string, REQUIRED): The Track Name of the layer-0
+repair track, which is in the source track's Track Namespace
+(<xref target="MOQ-FEC-CORE"></xref> Section 7.1).</t>
+<t><strong>symbolTrack</strong> (string, OPTIONAL): The Track Name of the instance's
+symbol track (<xref target="MOQ-FEC-CORE"></xref> Section 6.2),
+which is in the source track's Track Namespace.</t>
+<t><strong>interleaveDepthMs</strong> (integer, OPTIONAL): When present, its value
+MUST be a non-negative integer.  A positive value is the largest send
+span of a block of the instance in milliseconds (<xref target="MOQ-FEC-CORE"></xref>
+Section 9.3); for a positive value it
+is a duration, never a count of frames, groups, samples, or symbols,
+and never a per-symbol interval.  An absent member supplies no
+catalog-signaled span.  A value of zero is a violation unless the
+instance's block profile gives it a meaning of its own
+(<xref target="MOQ-FEC-CORE"></xref> Section 10.1);
+&quot;moq-object-v1&quot; does not, and <xref target="MOQ-MMT"></xref> does for &quot;iso-ssbg1-v1&quot;.</t>
+<t><strong>reorderToleranceMs</strong> (number, OPTIONAL): A receiver-local allowance
+for packet reordering, network jitter, and local processing
+variance, in milliseconds (<xref target="MOQ-FEC-CORE"></xref> Section
+9.3).  It is a finite number greater
+than or equal to zero, fractional values included.  That section
+states what an explicit value of zero and an omitted member each
+mean, and that a receiver keeps the two distinct.</t>
+<t><strong>label</strong> (string, OPTIONAL): A description for people, for example
+&quot;key frames&quot;.  A receiver MUST NOT derive behaviour from it.</t>
+<t>The geometry of an instance, which a publisher does not change for
+the lifetime of the source encoding, is defined by <xref target="MOQ-FEC-CORE"></xref>
+Section 10.1.  The loss tolerance of an
+instance's layer set is derived from K and the layer counts
+(<xref target="MOQ-FEC-CORE"></xref> Section 7.3.1); it MUST
+NOT be signaled as a separate catalog field.</t>
+</section>
+
+<section anchor="track-fields"><name>Repair and Symbol Track Fields</name>
+<t>A track with <tt>&quot;packaging&quot;: &quot;fec-repair&quot;</tt> or <tt>&quot;packaging&quot;:
+&quot;fec-source&quot;</tt> describes its own role.  It carries the flat MSF track
+fields plus the members below, which encode the parameters of
+<xref target="MOQ-FEC-CORE"></xref> Section 10.2.
+Layer 0 of an instance is the track named by the instance's
+<tt>repairTrack</tt>; its entry MAY also carry <tt>source</tt>, <tt>instanceId</tt>,
+<tt>&quot;repairLayer&quot;: 0</tt> and <tt>repairSymbols</tt>, which MUST agree with the
+instance's corresponding field when present (<xref target="MOQ-FEC-CORE"></xref> Section
+10.3).  The symbol track named by an instance's
+<tt>symbolTrack</tt> MAY likewise carry <tt>source</tt> and <tt>instanceId</tt>.</t>
+<t><strong>source</strong> (string, REQUIRED except on a track that an instance's
+<tt>repairTrack</tt> or <tt>symbolTrack</tt> names): The Track Name of the source
+track this track serves.  The name MUST identify a track in the same
+catalog that carries a <tt>fec</tt> array declaring the instance this track
+serves (<xref target="validation"></xref>).</t>
+<t><strong>instanceId</strong> (integer, OPTIONAL): The Instance ID, 0 to 255, of the
+instance this track serves.  On a track that an instance's
+<tt>repairTrack</tt> or <tt>symbolTrack</tt> names it defaults to that instance
+and, if present, MUST equal it; otherwise it defaults to 0
+(<xref target="MOQ-FEC-CORE"></xref> Section
+10.2).</t>
+<t><strong>repairLayer</strong> (integer, REQUIRED on enhancement layers, OPTIONAL on
+layer 0, MUST NOT appear on a symbol track): The layer index
+(<xref target="MOQ-FEC-CORE"></xref> Section 7.3).</t>
+<t><strong>repairSymbols</strong> (integer, REQUIRED except on layer 0, MUST NOT
+appear on a symbol track; MUST be &gt;= 1): The repair symbols per block
+that this track carries, P_i.  For layer 0 the instance's
+<tt>repairSymbols</tt> is the authoritative P_0.</t>
+<t><strong>priority</strong> (integer, OPTIONAL): The Publisher Priority
+(<xref target="I-D.ietf-moq-transport"></xref> Section 5.1.1) of this track's objects:
+192 to 255 on a repair track, non-decreasing with <tt>repairLayer</tt>
+within an instance, and 240 on a layer-0 repair track that omits it;
+0 to 255 on a symbol track (<xref target="MOQ-FEC-CORE"></xref> Section
+10.3, rule 10, and Section
+10.2).  A publisher that
+declares it MUST give every object of the track this Publisher
+Priority, for example through the track's DEFAULT_PUBLISHER_PRIORITY
+Track Property (<xref target="I-D.ietf-moq-transport"></xref> Section 10.4).  A subscriber
+chooses its SUBSCRIBER_PRIORITY for the track as <xref target="MOQ-FEC-CORE"></xref>
+Section 11 states, and MAY use this value
+as that SUBSCRIBER_PRIORITY.</t>
+<t>A repair or symbol track carries no geometry field, whether as a flat
+field or inside a <tt>fec</tt> array of its own: <tt>scheme</tt>, <tt>blockProfile</tt>,
+<tt>mmtpMode</tt>, <tt>timescale</tt>, any <tt>groupDuration</tt> field, <tt>symbolSize</tt>,
+<tt>interleaveDepthMs</tt>, <tt>reorderToleranceMs</tt> and <tt>sourceSymbols</tt>
+(<xref target="MOQ-FEC-CORE"></xref> Section
+10.2).</t>
+<t>The <tt>repairTrack</tt>, <tt>symbolTrack</tt> and <tt>source</tt> fields carry only a
+Track Name (<xref target="I-D.ietf-moq-transport"></xref> Section 2.4.1), and a receiver
+resolves each in the source track's Track Namespace, as
+<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.14 does for <tt>depends</tt>.  Track names
+carry no meaning in any of this.  A receiver resolves every
+relationship from <tt>repairTrack</tt>, <tt>symbolTrack</tt>, <tt>source</tt>,
+<tt>instanceId</tt> and <tt>repairLayer</tt>; it does not infer one by parsing a
+track name or a name suffix, and a publisher does not rely on a
+receiver doing so (<xref target="MOQ-FEC-CORE"></xref> Section 7.1).</t>
+</section>
+
+<section anchor="packaging-values"><name>Packaging Values</name>
+<t>Repair tracks and symbol tracks are identified in the catalog by the
+<tt>packaging</tt> value.  A track with <tt>&quot;packaging&quot;: &quot;fec-repair&quot;</tt> carries
+repair objects (<xref target="MOQ-FEC-CORE"></xref> Section 7.5)
+for the instance that <xref target="track-fields"></xref> resolves, and a track with
+<tt>&quot;packaging&quot;: &quot;fec-source&quot;</tt> carries that instance's source symbols,
+one per object (<xref target="MOQ-FEC-CORE"></xref> Section 6.2).
+Neither carries directly renderable media.  The values extend the
+allowed packaging values of <xref target="I-D.ietf-moq-msf"></xref> Section 5.2.4 in
+the same manner as the <tt>cmaf</tt> value of <xref target="I-D.ietf-moq-cmsf"></xref>; see
+<xref target="iana-considerations"></xref>.  Receivers that do not implement this
+specification do not recognize the values and ignore such tracks.</t>
+</section>
+
+<section anchor="unknown-keys"><name>Unknown Keys</name>
+<t>A receiver MUST ignore a track-level key, or a key of an instance
+object, that it does not recognize, and MUST NOT treat its presence
+as an error, so that this suite can add fields without a flag day.
+Two keys defined by this document are exceptions, because ignoring
+either would change how the receiver must interpret the symbols it
+receives, which <xref target="MOQ-FEC-CORE"></xref> Section 10.3 requires
+a binding to prevent:</t>
+
+<ul spacing="compact">
+<li><tt>enhancementRepair</tt>, at track level or inside an instance object:
+a receiver MUST reject a catalog carrying it.  The member is not
+defined.  Repair layers are declared on their own repair-track
+entries (<xref target="track-fields"></xref>).</li>
+<li><tt>blockProfile</tt>: FEC is unavailable for an instance whose
+<tt>blockProfile</tt> names a profile the receiver does not implement
+(<xref target="MOQ-FEC-CORE"></xref> Section 10.3, rule 1), so the key
+is never ignored.</li>
+</ul>
+<t>A block profile's document can define further keys for the tracks it
+admits, and further exceptions among them.</t>
+</section>
+</section>
+
+<section anchor="signaling-model"><name>Signaling Model</name>
+<t>The catalog <tt>fec</tt> array (<xref target="catalog-fields"></xref>) is the authoritative FEC
+signaling for MoQ receivers, that is for every receiver that obtains
+the track's catalog entry.  Such a receiver has everything needed to
+discover and subscribe to the repair tracks (<xref target="MOQ-FEC-CORE"></xref> Section
+7) and to configure its decoder from the
+instance parameters and the scheme's parameter derivation
+(<xref target="MOQ-FEC-BLOCK"></xref>); no in-session signaling is required.</t>
+<t>A block profile may also define in-band FEC signaling carried with
+the media, which serves a receiver that consumes a flow without the
+catalog; <xref target="MOQ-MMT"></xref> defines one for &quot;iso-ssbg1-v1&quot;.  &quot;moq-object-v1&quot;
+defines none, so for a track under it the catalog is the only FEC
+signaling.  The precedence between in-band
+signaling and the catalog is that of <xref target="MOQ-FEC-CORE"></xref> Section
+10: in-band signaling does not
+contradict the catalog, the catalog governs for a MoQ receiver, and a
+MoQ receiver needs no in-band signaling to configure its decoder.</t>
+</section>
+
+<section anchor="validation"><name>Validation</name>
+<t>A receiver validates each instance of a catalog as <xref target="MOQ-FEC-CORE"></xref>
+Section 10.3 requires before starting FEC for it, and
+on any violation fails closed for that instance as that section
+states.  The rules of that section are not restated here.  The bounds
+on K, T, K + P and the largest RS_ID that it defers to the instance's
+scheme are, for the schemes of <xref target="MOQ-FEC-BLOCK"></xref>, those of
+<xref target="MOQ-FEC-BLOCK"></xref> Section 7: under
+&quot;reed-solomon&quot;, K plus the total repair count of the instance is at
+most 255.</t>
+<t>This document adds the rules of the encoding.  A receiver MUST
+validate all of them for an instance before starting FEC for it, and
+on any violation MUST fail closed for the instance as above.</t>
+
+<ol spacing="compact">
+<li>Types and ranges: every member of <xref target="instance-fields"></xref> and
+<xref target="track-fields"></xref> that is present has the JSON type, and is within
+the range, given there.  A member of another JSON type, or outside
+its range, is a violation.  A member that those sections mark
+REQUIRED and that is absent is a violation, except <tt>scheme</tt> and
+<tt>blockProfile</tt>: an instance that lacks either names no scheme or no
+profile, and FEC for it is unavailable rather than invalid
+(<xref target="instance-fields"></xref>).</li>
+<li>Naming: <tt>repairTrack</tt>, <tt>symbolTrack</tt> and <tt>source</tt> each name a
+track in the same catalog, resolved as <xref target="track-fields"></xref> states, and
+<tt>source</tt> names a track that carries a <tt>fec</tt> array declaring the
+instance that the track's <tt>instanceId</tt> selects.  Because every
+repair or symbol track serves exactly one instance
+(<xref target="MOQ-FEC-CORE"></xref> Section 10.3), a Track Name
+appears in at most one <tt>repairTrack</tt> or <tt>symbolTrack</tt> member of a
+catalog.</li>
+<li>Resolution of <tt>source</tt> and <tt>instanceId</tt>: on a track that an
+instance's <tt>repairTrack</tt> or <tt>symbolTrack</tt> names, <tt>source</tt> and
+<tt>instanceId</tt>, where present, equal that track and that instance;
+a track with <tt>&quot;packaging&quot;: &quot;fec-repair&quot;</tt> or <tt>&quot;fec-source&quot;</tt> that
+no instance names carries <tt>source</tt>, and otherwise is an orphan
+(rule 6).</li>
+<li>Unknown keys: the catalog carries no <tt>enhancementRepair</tt> member
+(<xref target="unknown-keys"></xref>).</li>
+<li>Republished subsets: an entity that republishes a subset of a
+catalog MUST NOT list a <tt>fec-repair</tt> or <tt>fec-source</tt> track whose
+source track it omits.</li>
+<li>No orphan repair or symbol track: every track whose <tt>packaging</tt>
+is <tt>fec-repair</tt> or <tt>fec-source</tt> is reachable from a source track,
+either by being named in an instance's <tt>repairTrack</tt> or
+<tt>symbolTrack</tt> or by naming that source in <tt>source</tt>
+(<xref target="MOQ-FEC-CORE"></xref> Section 10.3).  This rule binds
+once the catalog declares any FEC instance; a catalog that
+declares no FEC instance at all MAY carry an unreferenced
+<tt>fec-repair</tt> or <tt>fec-source</tt> track that nothing joins.  This rule
+is the one exception to the per-instance remedy: an orphan track
+is by definition associated with no instance, so there is no
+instance to stop.  The receiver does not join the orphan track
+and reports it without stopping FEC for any instance, as that
+section states; the report names the track's catalog path.</li>
+</ol>
+<t><xref target="MOQ-FEC-CORE"></xref> Section 7.3.2 adds one
+check that can only be made on received repair objects.</t>
+<t>The following are the fail-closed cases, written against the layered
+catalog of <xref target="layered-instances"></xref> (instance 0: K = 64,
+P_0 = 8, P_1 = 16, P_2 = 32; instance 1: K = 128, P = 32) so that
+each defect is one edit away from a valid catalog.  Each row violates
+the rule shown, and none of them is detectable from the wire.</t>
+<table>
+<thead>
+<tr>
+<th>Catalog defect</th>
+<th>Rule</th>
+<th>Why the wire cannot catch it</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td><tt>video/repair</tt> declares <tt>repairSymbols</tt> 16 while instance 0 declares <tt>repairSymbols</tt> 8</td>
+<td>Layer-0 agreement, <xref target="MOQ-FEC-CORE"></xref> Section 10.3</td>
+<td>Both readings are self-consistent: one derives O_1 = 8 and total 56, the other O_1 = 16 and total 64.  A repair symbol is identified by ESI alone, so a receiver that resolved P_0 the other way decodes with a shifted mapping and reports a corrupt block, not a catalog error.</td>
+</tr>
+
+<tr>
+<td>Two tracks declare <tt>&quot;repairLayer&quot;: 1</tt> for instance 0 of <tt>video</tt></td>
+<td>Contiguous layers, <xref target="MOQ-FEC-CORE"></xref> Section 10.3</td>
+<td>Both claim RS_ID 8 to 23.  Symbols from the two tracks are distinct on the wire but collide in ESI, so a decode fed from both sees duplicate encoding symbols and stalls short of K.</td>
+</tr>
+
+<tr>
+<td><tt>video/repair/2</tt> is present but no track declares layer 1</td>
+<td>Contiguous layers, <xref target="MOQ-FEC-CORE"></xref> Section 10.3</td>
+<td>O_2 is a function of P_1, which is absent, so the receiver has no offset for layer 2 at all.</td>
+</tr>
+
+<tr>
+<td><tt>video/repair/kf</tt> carries <tt>&quot;instanceId&quot;: 0</tt> while instance 1's <tt>repairTrack</tt> names it</td>
+<td>Rule 3</td>
+<td>Its repair objects would be read as instance 0's and placed in instance 0's ESI range, although they were encoded over instance 1's blocks of up to 128 symbols; a repair object carries its instance only through the catalog.</td>
+</tr>
+
+<tr>
+<td>A second instance object of <tt>video</tt> carries <tt>&quot;instanceId&quot;: 1</tt></td>
+<td>Unique Instance IDs, <xref target="MOQ-FEC-CORE"></xref> Section 10.3</td>
+<td>A source object's FEC Source Info Property carries one SS_ID per instance (<xref target="MOQ-FEC-CORE"></xref> Section 5.6), so a second instance 1 has no SS_ID on the wire.</td>
+</tr>
+
+<tr>
+<td><tt>video/repair/1</tt> carries <tt>symbolSize</tt> or a <tt>fec</tt> array of its own</td>
+<td>No geometry on a repair track, <xref target="MOQ-FEC-CORE"></xref> Section 10.3</td>
+<td>A repair track carrying its own geometry would declare an instance of its own, naming itself as layer 0, and bypass rule 6's reachability check.</td>
+</tr>
+</tbody>
+</table><t>A receiver MAY report several violations at once.</t>
+</section>
+
+<section anchor="naming-convention"><name>Naming Convention</name>
+<t>This section is informative.</t>
+<t>By convention, the layer-0 repair track's Track Name is the source
+track's Track Name followed by the seven bytes &quot;/repair&quot;:</t>
+<table>
+<thead>
+<tr>
+<th>Track Namespace</th>
+<th>Source Track Name</th>
+<th>Repair Track Name</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>(&quot;live&quot;)</td>
+<td>&quot;video&quot;</td>
+<td>&quot;video/repair&quot;</td>
+</tr>
+
+<tr>
+<td>(&quot;broadcast&quot;, &quot;video&quot;)</td>
+<td>&quot;1080p&quot;</td>
+<td>&quot;1080p/repair&quot;</td>
+</tr>
+
+<tr>
+<td>(&quot;stream&quot;)</td>
+<td>&quot;audio/en&quot;</td>
+<td>&quot;audio/en/repair&quot;</td>
+</tr>
+</tbody>
+</table><t>The name is a convention and not a resolution mechanism: a receiver
+resolves every repair track from the fields of <xref target="track-fields"></xref>, so
+the name serves only human readers, in logs and configuration.
+Enhancement layers, symbol tracks and further instances have no
+conventional name.  Names such as &quot;video/repair/1&quot; appear in the
+examples of this document for readability only.</t>
+</section>
+
+<section anchor="cmsf"><name>CMSF</name>
+<t>This section is informative.</t>
+<t>A cmaf track <xref target="I-D.ietf-moq-cmsf"></xref> carries the <tt>fec</tt> array of
+<xref target="instance-fields"></xref> exactly as any other track, and its repair and
+symbol tracks carry the fields of <xref target="track-fields"></xref>; the CMAF profile
+of the MSF catalog adds no member of its own to any of them, and this
+document adds none to the fields of <xref target="I-D.ietf-moq-cmsf"></xref>.</t>
+<t>Under &quot;moq-object-v1&quot;, which admits <tt>cmaf</tt> (<xref target="MOQ-FEC-CORE"></xref> Section
+15.3), a repair track protects a
+cmaf track directly.  Each object of the cmaf track holds one or more
+CMAF chunks (<xref target="I-D.ietf-moq-cmsf"></xref> Section 3.3) and forms one
+Protected Object Unit, and each Group begins with an object that
+contains a Stream Access Point (SAP) (<xref target="I-D.ietf-moq-cmsf"></xref>
+Section 3.4):</t>
+
+<artwork><![CDATA[+-------------------------------------------------+
+|              MoQ Track Namespace                |
++-------------------------------------------------+
+|                                                 |
+|  Source Track (packaging "cmaf")                |
+|  +-----------------------------------------+    |
+|  | Object {G, 0}: CMAF chunk with a SAP    |    |
+|  | Object {G, 1}: CMAF chunk               |    |
+|  | ...                                     |    |
+|  +-----------------------------------------+    |
+|                                                 |
+|  Repair Track (packaging "fec-repair")          |
+|  +-----------------------------------------+    |
+|  | Group ext(S0): repair for block at S0   |    |
+|  | Group ext(S1): repair for block at S1   |    |
+|  | ...                                     |    |
+|  +-----------------------------------------+    |
+|                                                 |
++-------------------------------------------------+
+]]></artwork>
+<t><xref target="MOQ-FEC-CORE"></xref> Section 13.2 states how a publisher chooses
+K and T for CMAF objects and how segment boundaries relate to blocks;
+the mmtp rendition of CMAF content is described by <xref target="MOQ-MMT"></xref>.</t>
+</section>
+
+<section anchor="security-considerations"><name>Security Considerations</name>
+<t>This document defines an encoding of the configuration data model of
+<xref target="MOQ-FEC-CORE"></xref> and introduces no mechanism beyond it.  The security
+considerations of <xref target="MOQ-FEC-CORE"></xref> Section
+14 apply, as do those of
+<xref target="I-D.ietf-moq-msf"></xref> for the catalog that carries the encoding.  The
+catalog is the receiver's authoritative FEC signaling
+(<xref target="signaling-model"></xref>), so an entity that can alter it can direct a
+receiver to join repair tracks that it would not otherwise join; the
+fail-closed validation of <xref target="validation"></xref> and the limits of
+<xref target="MOQ-FEC-CORE"></xref> Section 14.4 bound what such a
+catalog can cause.</t>
+</section>
+
+<section anchor="iana-considerations"><name>IANA Considerations</name>
+<t>This document defines the catalog <tt>packaging</tt> values &quot;fec-repair&quot; and
+&quot;fec-source&quot; (<xref target="packaging-values"></xref>) for repair tracks and symbol
+tracks, extending the allowed packaging values of the MOQT Streaming
+Format <xref target="I-D.ietf-moq-msf"></xref> Section 5.2.4.  If a registry of
+packaging values is established for that format, this document
+requests registration of:</t>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+<th>Reference</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>&quot;fec-repair&quot;</td>
+<td>Repair objects of an FEC instance</td>
+<td>This document</td>
+</tr>
+
+<tr>
+<td>&quot;fec-source&quot;</td>
+<td>Source symbols of an FEC instance, one per object</td>
+<td>This document</td>
+</tr>
+</tbody>
+</table></section>
+
+</middle>
+
+<back>
+<references><name>References</name>
+<references><name>Normative References</name>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-msf.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-transport.xml"/>
+<reference anchor="MOQ-FEC-BLOCK" target="">
+  <front>
+    <title>Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-00"></seriesInfo>
+</reference>
+<reference anchor="MOQ-FEC-CORE" target="">
+  <front>
+    <title>Forward Error Correction for Media over QUIC: Core Mechanism</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
+      <organization>Rutgers University</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-00"></seriesInfo>
+</reference>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
+</references>
+<references><name>Informative References</name>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ietf-moq-cmsf.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ramadan-moq-fec.xml"/>
+<reference anchor="MOQ-FEC-MULTICAST" target="">
+  <front>
+    <title>Forward Error Correction for Multicast Delivery of Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-00"></seriesInfo>
+</reference>
+<reference anchor="MOQ-MMT" target="">
+  <front>
+    <title>MPEG Media Transport (MMT) Packaging for Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
+</reference>
+<reference anchor="MOQ-MULTICAST" target="">
+  <front>
+    <title>Multicast Delivery and Endpoint Discovery for Media over QUIC</title>
+    <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
+      <organization>Blockcast</organization>
+    </author>
+    <date year="2026" month="October" day="29"></date>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-02"></seriesInfo>
+</reference>
+</references>
+</references>
+
+<section anchor="worked-catalog"><name>Worked Catalog</name>
+<t>This appendix is informative.</t>
+
+<section anchor="layered-instances"><name>Layered Instances</name>
+<t>Two FEC instances on one loc source track: instance 0 over every
+object, with three repair layers and a symbol track, and instance 1
+over the key frames only, with a longer span (<xref target="MOQ-FEC-CORE"></xref>
+Section 8.4).  Which objects belong to
+instance 1 is declared by each object's FEC Source Info Property
+(<xref target="MOQ-FEC-CORE"></xref> Section 5.6), not by
+the catalog:</t>
+
+<sourcecode type="json"><![CDATA[{
+  "version": 1,
+  "tracks": [
+    {
+      "name": "video",
+      "packaging": "loc",
+      "isLive": true,
+      "codec": "avc1.640028",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 30,
+      "bitrate": 4990000,
+      "fec": [
+        {
+          "instanceId": 0,
+          "scheme": "reed-solomon",
+          "blockProfile": "moq-object-v1",
+          "sourceSymbols": 64,
+          "symbolSize": 1200,
+          "repairSymbols": 8,
+          "interleaveDepthMs": 200,
+          "repairTrack": "video/repair",
+          "symbolTrack": "video/symbols",
+          "label": "all frames"
+        },
+        {
+          "instanceId": 1,
+          "scheme": "reed-solomon",
+          "blockProfile": "moq-object-v1",
+          "sourceSymbols": 128,
+          "symbolSize": 1200,
+          "repairSymbols": 32,
+          "interleaveDepthMs": 1000,
+          "repairTrack": "video/repair/kf",
+          "label": "key frames"
+        }
+      ]
+    },
+    {
+      "name": "video/symbols",
+      "packaging": "fec-source",
+      "isLive": true,
+      "source": "video",
+      "instanceId": 0,
+      "priority": 128
+    },
+    {
+      "name": "video/repair",
+      "packaging": "fec-repair",
+      "isLive": true,
+      "source": "video",
+      "instanceId": 0,
+      "repairLayer": 0,
+      "repairSymbols": 8,
+      "priority": 240
+    },
+    {
+      "name": "video/repair/1",
+      "packaging": "fec-repair",
+      "isLive": true,
+      "source": "video",
+      "instanceId": 0,
+      "repairLayer": 1,
+      "repairSymbols": 16,
+      "priority": 244
+    },
+    {
+      "name": "video/repair/2",
+      "packaging": "fec-repair",
+      "isLive": true,
+      "source": "video",
+      "instanceId": 0,
+      "repairLayer": 2,
+      "repairSymbols": 32,
+      "priority": 248
+    },
+    {
+      "name": "video/repair/kf",
+      "packaging": "fec-repair",
+      "isLive": true,
+      "source": "video",
+      "instanceId": 1,
+      "priority": 242
+    }
+  ]
+}
+]]></sourcecode>
+<t>A receiver derives the following for instance 0 from that catalog,
+the ESI column for a full block; none of it is carried on the wire:</t>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>P_i</th>
+<th>O_i</th>
+<th>RS_ID range</th>
+<th>ESI range (full block, SSB_length = 64)</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>0</td>
+<td>8</td>
+<td>0</td>
+<td>0 to 7</td>
+<td>64 to 71</td>
+</tr>
+
+<tr>
+<td>1</td>
+<td>16</td>
+<td>8</td>
+<td>8 to 23</td>
+<td>72 to 87</td>
+</tr>
+
+<tr>
+<td>2</td>
+<td>32</td>
+<td>24</td>
+<td>24 to 55</td>
+<td>88 to 119</td>
+</tr>
+</tbody>
+</table><t>The RS_ID ranges are fixed by the catalog.  The ESI ranges are those
+of a full block: a repair symbol's ESI is the block's SSB_length plus
+its RS_ID (<xref target="MOQ-FEC-CORE"></xref> Section 7.3.1),
+so in a short block every ESI range moves down by 64 - SSB_length
+while the RS_ID ranges do not move.</t>
+<t>The total repair count is 8 + 16 + 32 = 56, so RSB_length is 56 on
+every repair object of layers 0, 1 and 2 (<xref target="MOQ-FEC-CORE"></xref> Section
+7.5).  Instance 1 is a separate FEC
+instance and is not in that table: its own K is 128, its own P is
+32, its RS_ID range is 0 to 31, its ESI range in a full block is 128
+to 159, and its repair objects carry RSB_length 32.  Both instances
+are valid under &quot;reed-solomon&quot;: 64 + 56 = 120 and 128 + 32 = 160 are
+at most 255 (<xref target="MOQ-FEC-BLOCK"></xref> Section 7).
+The two instances share T, so the key-frame symbols a receiver takes
+on &quot;video/symbols&quot; can also count toward instance 1, as
+<xref target="MOQ-FEC-CORE"></xref> Section 8.4 describes.</t>
+<t>The layer arithmetic is the same under every block profile.</t>
+</section>
+
+<section anchor="complete-catalog"><name>Complete Catalog</name>
+<t>Complete catalog with FEC and multicast configuration for two mmtp
+tracks under &quot;iso-ssbg1-v1&quot; (<xref target="MOQ-MMT"></xref> Section 7.1):</t>
+
+<sourcecode type="json"><![CDATA[{
+  "version": 1,
+  "tracks": [
+    {
+      "name": "video",
+      "packaging": "mmtp",
+      "isLive": true,
+      "mmtpMode": "mfu",
+      "timescale": 90000,
+      "presentationAnchorTicks": 0,
+      "groupDurationMs": 1000,
+      "codec": "avc1.640028",
+      "width": 1920,
+      "height": 1080,
+      "framerate": 30,
+      "bitrate": 4990000,
+      "fec": [
+        {
+          "instanceId": 0,
+          "scheme": "reed-solomon",
+          "blockProfile": "iso-ssbg1-v1",
+          "sourceSymbols": 200,
+          "repairSymbols": 40,
+          "symbolSize": 1400,
+          "interleaveDepthMs": 1000,
+          "reorderToleranceMs": 40,
+          "repairTrack": "video/repair"
+        }
+      ]
+    },
+    {
+      "name": "video/repair",
+      "packaging": "fec-repair",
+      "isLive": true,
+      "source": "video",
+      "instanceId": 0,
+      "repairLayer": 0,
+      "repairSymbols": 40,
+      "priority": 240
+    },
+    {
+      "name": "audio",
+      "packaging": "mmtp",
+      "isLive": true,
+      "mmtpMode": "mfu",
+      "timescale": 48000,
+      "presentationAnchorTicks": 0,
+      "groupDurationMs": 1000,
+      "codec": "mp4a.40.2",
+      "samplerate": 48000,
+      "channelConfig": "2",
+      "bitrate": 128000,
+      "fec": [
+        {
+          "instanceId": 0,
+          "scheme": "reed-solomon",
+          "blockProfile": "iso-ssbg1-v1",
+          "sourceSymbols": 32,
+          "repairSymbols": 8,
+          "symbolSize": 512,
+          "interleaveDepthMs": 1000,
+          "reorderToleranceMs": 40,
+          "repairTrack": "audio/repair"
+        }
+      ]
+    },
+    {
+      "name": "audio/repair",
+      "packaging": "fec-repair",
+      "isLive": true,
+      "source": "audio",
+      "instanceId": 0,
+      "repairLayer": 0,
+      "repairSymbols": 8,
+      "priority": 240
+    }
+  ],
+  "multicast": {
+    "endpoints": [{
+      "sourceAddress": "198.51.100.100",
+      "groupAddress": "232.1.1.50",
+      "port": 5000,
+      "tracks": [
+        { "name": "video",        "packetId": 1 },
+        { "name": "video/repair", "packetId": 2 },
+        { "name": "audio",        "packetId": 3 },
+        { "name": "audio/repair", "packetId": 4 }
+      ]
+    }]
+  }
+}
+]]></sourcecode>
+<t>Parameter consistency: both tracks use one-second MMTP groups (one
+MPU per MoQ Group), and each has a 1000 ms source/repair send-span
+budget.  The group duration does not determine the FEC partition.  A
+worked capacity check must include the MMTP and MPU-mode headers, not
+only the media bitrate.  With no MMTP header extension, a timed FT=2
+packet has the following media capacity, depending on whether it
+starts a data unit (<xref target="MOQ-MMT"></xref>):</t>
+
+<artwork><![CDATA[FI=0 or FI=1: T - 2 (length) - 12 (MMTP) - 8 (MPU) - 14 (DU) = T - 36
+FI=2 or FI=3: T - 2 (length) - 12 (MMTP) - 8 (MPU)           = T - 22
+]]></artwork>
+<t>The source packet also carries a 4-byte Source FEC Payload ID on the
+wire, outside the protected packet and therefore outside these symbol
+budgets.  FT=0/FT=1 metadata consumes source packets but does not
+carry sample bytes, and any MMTP extension consumes additional space.
+Every protected MMTP packet still has to fit within <tt>T - 2</tt>.  Using
+the larger continuation capacity gives a media ceiling, not a
+packetization plan:</t>
+
+<ul spacing="compact">
+<li>Video: 4,990,000 bit/s x 1.0 s / 8 = 623,750 bytes of media per
+one-second group.  <tt>K x (T - 22) = 200 x 1378 = 275,600</tt> bytes is
+an upper bound on the media capacity of one full block.  The media
+therefore needs at least
+<tt>ceil(623,750 / 1378) = 453</tt> source packets and at least three
+K=200 blocks; MMTP metadata, fragmentation, and authored packet
+boundaries can require more.  Repair overhead is
+<tt>P / K = 40 / 200 = 20%</tt>, and K + P = 240 is within the
+&quot;reed-solomon&quot; bound of 255.</li>
+<li>Audio: 128,000 bit/s x 1.0 s / 8 = 16,000 bytes of media per group;
+the upper-bound capacity of one full block is
+<tt>K x (T - 22) = 32 x 490 = 15,680</tt> bytes.  The media therefore
+needs at least <tt>ceil(16,000 / 490) = 33</tt> source packets and at least
+two K=32 blocks; packetization and metadata can require more.  Repair
+overhead is <tt>P / K = 8 / 32 = 25%</tt>.</li>
+</ul>
+<t>The publisher chooses the actual source-packet count and block
+boundaries so that every packet, including FT=0 and FT=1 metadata,
+fits the selected symbol size and every block's repair fields describe
+the actual <tt>(SS_Start, SSB_length)</tt> partition.  These calculations are
+capacity examples, not a rule that one FEC block equals one Group.</t>
+<t>The catalog envelope is the MSF root (<xref target="I-D.ietf-moq-msf"></xref>
+Section 5.1); track entries carry the flat base track fields of
+<xref target="I-D.ietf-moq-msf"></xref> Section 5.2 (<tt>codec</tt>, <tt>width</tt>, <tt>samplerate</tt>,
+...) alongside the <tt>fec</tt> array this document defines, and inherit
+the namespace of the catalog track (<xref target="I-D.ietf-moq-msf"></xref>
+Section 5.2.2).  The <tt>multicast</tt> field uses the multicast endpoint
+format defined in <xref target="MOQ-MULTICAST"></xref> Section
+4.1: a one-element <tt>endpoints</tt>
+array.  Per <xref target="MOQ-MULTICAST"></xref> Sections
+4.1 and
+5, a multicast endpoint lists
+only mmtp tracks and their repair tracks, and a loc or cmaf track
+reaches multicast through an mmtp rendition track; symbol tracks are
+not listed on a multicast endpoint (<xref target="MOQ-FEC-MULTICAST"></xref> Section
+3.3).  Each track listed on the
+endpoint carries a <tt>packetId</tt> that routes its MMTP packets on the
+multicast UDP path.  Appendix
+D of <xref target="MOQ-FEC-CORE"></xref> gives a
+loc track under &quot;moq-object-v1&quot;, whose capacity is counted in
+Protected Object Units rather than MMTP packets.</t>
+</section>
+</section>
+
+<section anchor="changes-from-draft-ramadan-moq-fec-01"><name>Changes from draft-ramadan-moq-fec-01</name>
+<t>This appendix is informative.  Section numbers in it are those of
+<xref target="I-D.ramadan-moq-fec"></xref>.</t>
+<t>What moved here:</t>
+
+<ul spacing="compact">
+<li>-01 Section 5.1 (Catalog Fields): the catalog shape and the field
+definitions, to <xref target="catalog-fields"></xref> and <xref target="instance-fields"></xref>; the
+&quot;fec-repair&quot; packaging text, to <xref target="packaging-values"></xref>; the unknown-key
+rules and the <tt>enhancementRepair</tt> tombstone, to <xref target="unknown-keys"></xref>.  The
+parameter semantics (the meaning of <tt>sourceSymbols</tt>,
+<tt>interleaveDepthMs</tt>, the deadline formula, the block-profile admission
+check and the absent-profile case of -01 Section 5.1, the prohibition
+on inferring a profile, the rule that a publisher does not change a
+published profile, and the <tt>reorderToleranceMs</tt> range and
+omitted-versus-zero rule) are now stated by <xref target="MOQ-FEC-CORE"></xref> and
+cited, not restated.  The <tt>iso-ssbg1-v1</tt> bullet, the <tt>symbolSize</tt>
+lower bound of 14, the ISO meaning of a zero <tt>interleaveDepthMs</tt> and
+the AL-FEC text went to <xref target="MOQ-MMT"></xref>; the RaptorQ alignment of T went
+to <xref target="MOQ-FEC-BLOCK"></xref>.  The clause that the catalog of an mmtp track is
+extended as <xref target="MOQ-MMT"></xref> describes is not carried; <xref target="MOQ-MMT"></xref> states
+that extension itself.</li>
+<li>-01 Section 5.1.1 (Repair Track Fields), to <xref target="track-fields"></xref>; the
+<tt>scope</tt> and overlay <tt>sourceSymbols</tt> members went to <xref target="MOQ-MMT"></xref>.</li>
+<li>-01 Section 5.1.2 (Worked Catalog) and Appendix B (Catalog
+Example), re-rendered in the data model of <xref target="MOQ-FEC-CORE"></xref>, to
+<xref target="worked-catalog"></xref>.</li>
+<li>-01 Section 5.2 (Signaling Model), lines on catalog authority, to
+<xref target="signaling-model"></xref>; the AL-FEC paragraph went to <xref target="MOQ-MMT"></xref> and
+the sessionless-receiver paragraph to <xref target="MOQ-FEC-MULTICAST"></xref>.</li>
+<li>-01 Section 6.1 (Track Naming): the &quot;/repair&quot; convention and its
+table, to <xref target="naming-convention"></xref>; the Track Name resolution
+sentence, to <xref target="track-fields"></xref>.</li>
+<li>-01 Section 6.3: the republished-subset rule, to <xref target="validation"></xref>.</li>
+<li>-01 Section 6.3.2: the sentence that loss tolerance is not a
+catalog field, to <xref target="instance-fields"></xref>.</li>
+<li>-01 Section 6.3.4 (Catalog Rules and Fail-Closed Validation): the
+binding-specific rules and the defect table, to <xref target="validation"></xref>;
+the scheme-neutral rules are now <xref target="MOQ-FEC-CORE"></xref>'s and the
+scheme bounds <xref target="MOQ-FEC-BLOCK"></xref>'s.</li>
+<li>-01 Section 13 (Interaction with CMAF Packaging): the direct
+protection of a cmaf track and its diagram, to <xref target="cmsf"></xref>; the mmtp
+rendition went to <xref target="MOQ-MMT"></xref> and the segment-boundary paragraph
+to <xref target="MOQ-FEC-CORE"></xref>.</li>
+<li>-01 Section 15.3 (Catalog Packaging Value), to
+<xref target="iana-considerations"></xref>, now with &quot;fec-source&quot;.</li>
+</ul>
+<t>What changed in the carried text:</t>
+
+<ul spacing="compact">
+<li><tt>fec</tt> is an array of FEC instance objects, each with an
+<tt>instanceId</tt>, instead of one object; <tt>algorithm</tt> is renamed
+<tt>scheme</tt>; <tt>depends</tt> (an array of one name) is replaced by <tt>source</tt>
+(one Track Name); <tt>symbolTrack</tt>, the instance member <tt>label</tt>, the
+track member <tt>instanceId</tt> and the packaging value &quot;fec-source&quot; are
+new, from <xref target="MOQ-FEC-CORE"></xref>.</li>
+<li>The scheme value &quot;none&quot; is retired: a track without instance
+objects declares no FEC.</li>
+<li>The keyframe overlay (<tt>&quot;scope&quot;: &quot;keyframe&quot;</tt>) is no longer a
+catalog construct of this document; the layered example declares
+the key-frame protection as a second instance.</li>
+<li>In <xref target="track-fields"></xref>, <tt>repairLayer</tt> and <tt>repairSymbols</tt> are each
+forbidden on a symbol track, encoding the repair-only scope of
+<xref target="MOQ-FEC-CORE"></xref> Section
+10.2; -01 forbade
+<tt>repairLayer</tt> on an overlay only and placed no such limit on
+<tt>repairSymbols</tt>.</li>
+<li><tt>priority</tt> keeps the range 192 to 255 of -01 Section 5.1.1 on a
+repair track and is 0 to 255 on a symbol track, the type of
+<xref target="MOQ-FEC-CORE"></xref>; its entry now also states in brief the
+monotonicity rule and the layer-0 default of 240 of -01 rule 3,
+which <xref target="MOQ-FEC-CORE"></xref> Section 10.3, rule 10,
+carries and this document cites.</li>
+<li>The rule of -01 Section 5.1.1 that a subscriber should not
+subscribe to a repair track with a subscriber priority numerically
+lower than that of its source subscription is not restated;
+<xref target="MOQ-FEC-CORE"></xref> Section 11 states
+it, and <xref target="track-fields"></xref> cites that section instead.</li>
+<li>The -01 Section 5.1 receiver rule on a <tt>blockProfile</tt> that the
+receiver does not implement or that does not admit the track's
+<tt>packaging</tt>, the ban on inferring a profile from the wire and the ban
+on changing a published <tt>blockProfile</tt> are stated by <xref target="MOQ-FEC-CORE"></xref>
+(Section 10.3, rule 1, Section
+4.5 and Section
+10.1) and are cited from <xref target="instance-fields"></xref>
+and <xref target="unknown-keys"></xref> instead of being restated; the -01 rule for an
+omitted <tt>blockProfile</tt> keeps its outcome, that FEC is unavailable for
+the instance, without its keyword.</li>
+<li>A zero <tt>interleaveDepthMs</tt> is a violation unless the block profile
+gives it a meaning; under -01 it was equivalent to an absent field
+under &quot;moq-object-v1&quot;.</li>
+<li>&quot;moq-object-v1&quot; admits every packaging whose objects carry their
+media as whole MoQ objects, not only <tt>loc</tt> and <tt>cmaf</tt>, following
+<xref target="MOQ-FEC-CORE"></xref> Section 15.3;
+the signaling-model sentence that the loc and cmaf packagings
+define no in-band signaling now says that &quot;moq-object-v1&quot; defines
+none.</li>
+<li>The <tt>reorderToleranceMs</tt> requirements of -01 Section 5.1 (finite
+and non-negative, explicit zero distinct from absent) are not
+restated; <xref target="MOQ-FEC-CORE"></xref> Section 9.3
+states them and is cited.</li>
+<li>The examples use &quot;reed-solomon&quot; and satisfy K + P &lt;= 255: the
+complete catalog's video instance is K = 200, P = 40, T = 1400
+(was K = 625, P = 125, T = 1000 under &quot;raptorq&quot;), and the
+packet-budget arithmetic is recomputed for it; the layered
+example's second instance is K = 128, P = 32 (was an overlay with
+K = 256, P = 32).  The catalog <tt>version</tt> is 1.</li>
+<li>The republished-subset rule and the orphan rule cover
+&quot;fec-source&quot; tracks as well as &quot;fec-repair&quot; tracks.</li>
+<li>The unimplemented-scheme sentence of <xref target="instance-fields"></xref> now reads
+&quot;does not subscribe to or join the instance's repair or symbol
+tracks&quot;, as <xref target="MOQ-FEC-CORE"></xref> Section 4.5
+states; -01 named only repair tracks.</li>
+<li>The orphan rule's remedy of -01 rule 9 (refuse the orphan track,
+report its catalog path, stop FEC for nothing) is stated by
+<xref target="MOQ-FEC-CORE"></xref> Section 10.3 and not restated;
+rule 6 carries the exception that the rule binds once the catalog
+declares any instance, and names the catalog path as what the
+report carries.</li>
+<li>The defect table is rewritten against <xref target="layered-instances"></xref>: the two
+overlay rows become an <tt>instanceId</tt> row and a duplicate-instance row.</li>
+<li>The capacity notes of <xref target="complete-catalog"></xref> use no BCP 14
+keywords, because the appendix is informative; their &quot;has to fit&quot;
+and &quot;The publisher chooses&quot; are kept as plain description.</li>
+<li>The name-parsing rule of -01 Section 5.1.1 (a receiver resolves
+every relationship from the catalog fields, never from a track
+name) is now stated by <xref target="MOQ-FEC-CORE"></xref> Section
+7.1, which also binds the publisher;
+<xref target="track-fields"></xref> restates it without keywords and cites it.</li>
+</ul>
+<t>New sentences, not carried from -01:</t>
+
+<ul spacing="compact">
+<li>The sentences of the Abstract, of <xref target="introduction"></xref> and of
+<xref target="relation-to-other-documents"></xref>.</li>
+<li>In <xref target="conventions-and-definitions"></xref>: &quot;This document uses the
+following terms of <xref target="MOQ-FEC-CORE"></xref>, whose definitions are repeated
+here.  Every other term, and the quantities K, T, P_i, O_i and
+RSB_length, have the meaning that <xref target="MOQ-FEC-CORE"></xref> Section
+2 and Section
+7.3.1 give them.&quot;</li>
+<li>In <xref target="catalog-fields"></xref>: &quot;A track declares FEC by carrying a <tt>fec</tt>
+array with at least one instance object.  A track whose entry has
+no <tt>fec</tt> member, or whose <tt>fec</tt> array is empty, declares no FEC
+instance; there is no <tt>scheme</tt> identifier that means &quot;no FEC&quot;.&quot;</li>
+<li>In <xref target="instance-fields"></xref>, under <tt>scheme</tt>: &quot;An instance whose <tt>scheme</tt>
+member is absent names no scheme, and FEC for it is likewise
+unavailable.&quot;</li>
+<li>In <xref target="instance-fields"></xref>: &quot;That section defines their meaning and the
+bounds a receiver checks; this section defines their encoding.  Member
+names are case sensitive.&quot;; &quot;Any alignment constraint on T is the
+scheme's (<xref target="MOQ-FEC-BLOCK"></xref> Section 7), and any
+lower bound beyond 1 is the block profile's.&quot;; &quot;A value of zero is a
+violation unless the instance's block profile gives it a meaning of
+its own (<xref target="MOQ-FEC-CORE"></xref> Section 10.1);
+&quot;moq-object-v1&quot; does not, and <xref target="MOQ-MMT"></xref> does for &quot;iso-ssbg1-v1&quot;.&quot;;
+&quot;The geometry of an instance, which a publisher does not change for
+the lifetime of the source encoding, is defined by <xref target="MOQ-FEC-CORE"></xref>
+Section 10.1.&quot;; &quot;An instance whose
+<tt>blockProfile</tt> names a profile the receiver does not implement, or one
+that does not admit the track's <tt>packaging</tt>, is one for which FEC is
+unavailable, as for an unimplemented <tt>scheme</tt> (<xref target="MOQ-FEC-CORE"></xref>
+Section 10.3, rule 1, and Section
+4.5); this is not a validation failure.&quot;;
+&quot;An instance whose <tt>blockProfile</tt> member is absent names no profile,
+and FEC for it is likewise unavailable.&quot;; &quot;The prohibition on
+inferring a profile from the wire, and the rule that a publisher does
+not change the profile of a published instance, are those of
+<xref target="MOQ-FEC-CORE"></xref> Section 10.1 (the profile is
+part of the instance's geometry) and are not restated here; this
+document only encodes the value.&quot;; &quot;It is a finite number greater than
+or equal to zero, fractional values included.  That section states
+what an explicit value of zero and an omitted member each mean, and
+that a receiver keeps the two distinct.&quot;</li>
+<li>In <xref target="track-fields"></xref>: the last sentence of the first paragraph,
+which lets the symbol track named by an instance's <tt>symbolTrack</tt>
+carry <tt>source</tt> and <tt>instanceId</tt>.</li>
+<li>In <xref target="track-fields"></xref>: the sentence that a subscriber chooses its
+SUBSCRIBER_PRIORITY for the track as <xref target="MOQ-FEC-CORE"></xref> Section
+11 states and may use this value as
+that SUBSCRIBER_PRIORITY.</li>
+<li>In <xref target="unknown-keys"></xref>: &quot;A block profile's document can define further
+keys for the tracks it admits, and further exceptions among them.&quot;</li>
+<li>In <xref target="unknown-keys"></xref>: the <tt>blockProfile</tt> bullet now cites
+<xref target="MOQ-FEC-CORE"></xref> Section 10.3, rule 1, instead of
+restating the rule.</li>
+<li>In <xref target="validation"></xref>: &quot;The rules of that section are not restated
+here.&quot;; the second paragraph in full (the binding's own rules and
+their fail-closed remedy); rule 1 in full; in rule 2, &quot;Because
+every repair or symbol track serves exactly one instance
+(<xref target="MOQ-FEC-CORE"></xref> Section 10.3), a Track Name
+appears in at most one <tt>repairTrack</tt> or <tt>symbolTrack</tt> member of a
+catalog.&quot;; rule 3 in full; rule 4 in full; and the two rewritten
+defect-table rows.</li>
+<li>In <xref target="naming-convention"></xref>: &quot;Enhancement layers, symbol tracks and
+further instances have no conventional name.&quot;</li>
+<li>In <xref target="cmsf"></xref>: the first paragraph, and &quot;<xref target="MOQ-FEC-CORE"></xref> Section
+13.2 states how a publisher chooses K and T for CMAF
+objects and how segment boundaries relate to blocks; the mmtp
+rendition of CMAF content is described by <xref target="MOQ-MMT"></xref>.&quot;</li>
+<li>The sentences of <xref target="security-considerations"></xref>.</li>
+<li>In <xref target="layered-instances"></xref>: the introductory paragraph, &quot;Both
+instances are valid under &quot;reed-solomon&quot;: 64 + 56 = 120 and
+128 + 32 = 160 are at most 255 (<xref target="MOQ-FEC-BLOCK"></xref> Section
+7).&quot; (replacing -01's raptorq/overlay
+sentence), &quot;The two instances share T, so the key-frame symbols a
+receiver takes on &quot;video/symbols&quot; can also count toward instance 1,
+as <xref target="MOQ-FEC-CORE"></xref> Section 8.4
+describes.&quot; and
+&quot;The layer arithmetic is the same under every block profile.&quot;</li>
+<li>In <xref target="complete-catalog"></xref>: &quot;symbol tracks are not listed on a
+multicast endpoint (<xref target="MOQ-FEC-MULTICAST"></xref> Section
+3.3)&quot; and &quot;, and K + P = 240 is
+within the &quot;reed-solomon&quot; bound of 255&quot;.</li>
+</ul>
+</section>
+
+<section anchor="acknowledgements" numbered="false"><name>Acknowledgements</name>
+<t>Much of the text of this document is taken from
+<xref target="I-D.ramadan-moq-fec"></xref>.  The division of that document into
+<xref target="MOQ-FEC-CORE"></xref> and its companions follows a proposal by Marc E.
+Fiuczynski.</t>
+</section>
+
+</back>
+
+</rfc>
