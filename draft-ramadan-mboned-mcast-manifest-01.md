@@ -1167,16 +1167,19 @@ over IPv6, which fit a relay of either address family.
 
 The browser profile also bounds the hold queue of step 2 of
 (#processing) at 16 MB (128 ms at 1 Gbit/s), dropping and counting
-held data past it, and joins flows within its ceilings: 1 Gbit/s per
-flow and per page on every device, and 50 Mbit/s per flow and
-100 Mbit/s per page on a link the platform reports as metered.  A
-user agent may lower these ceilings but never raise them, and it
-lowers them alike on every device, so that no ceiling tells a page
-about its device.  It declines a flow whose `maxBitrate` exceeds the
-ceiling per flow or would take the sum of `maxBitrate` over the
-page's flows past the ceiling per page, and it leaves a flow whose
-`maxBitrate` a lowering, or a link that becomes metered, puts above
-the ceiling per flow.
+held data past it, and joins flows within its ceilings on every
+device: 1 Gbit/s per flow, and 1 Gbit/s in total over the flows of
+all the pages and frames that one user permission covers; 50 Mbit/s
+per flow and 100 Mbit/s in total on a link the platform reports as
+metered.  A user agent may lower these ceilings but never raise
+them, and it lowers them alike on every device, so that no ceiling
+tells a page about its device.  It declines a flow whose
+`maxBitrate` exceeds the ceiling per flow or would take the sum of
+`maxBitrate` over the flows that permission covers past the total,
+and it leaves a flow whose `maxBitrate` a lowering, or a link that
+becomes metered, puts above the ceiling per flow, then each flow
+that the same check, rerun over the remaining flows in the order
+they joined, would decline.
 
 The browser profile's authenticated-rate breaker leaves a flow whose
 authenticated rate stays above 1.25 x `maxBitrate` for 5 s, and its
