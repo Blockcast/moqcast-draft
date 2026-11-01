@@ -423,8 +423,7 @@ Each `(S, G, port)` multicast tuple, with `S` the endpoint's
 `sourceAddress` on an SSM endpoint, its `auth.senderAddress` on a
 protected ASM endpoint ((#digest)) and absent on an unprotected ASM
 endpoint, MUST be associated with at most one MoQ namespace and at
-most one endpoint object, and so MUST a protected endpoint's `(S, G,
-manifestPort)` tuple (Section 7.2.6).  Publishers requiring
+most one endpoint object.  Publishers requiring
 multiple independent streams MUST use distinct multicast groups or
 ports.  An MMT sending entity (Section 2) serves exactly one MoQ
 namespace, which is one MMT Package (Section 5); a publisher that
@@ -600,6 +599,9 @@ candidate that the subscriber validates with the AMT protocol before
 selection (Section 3.1).  DRIAD requires AMTRELAY (TYPE260) reverse
 DNS records on the source IP.  Publishers without reverse DNS control
 SHOULD provide a stable `relay` service hostname.
+(#explicit-congestion-notification) requires a relay and a gateway to
+carry the ECN field through the tunnel per [@!RFC6040] and
+[@!RFC9601] Section 6.1.4.
 
 {#atsc-3-0-broadcast-television}
 ### ATSC 3.0 (Broadcast Television)
@@ -654,8 +656,9 @@ transport hierarchy defined in Section 3.
 {#multicast-packet-format}
 # Multicast Packet Format
 
-All multicast delivery uses MMTP packets.  Each UDP datagram carries
-one MMTP packet -- the same packet format that MoQ objects carry on
+All multicast delivery uses MMTP packets.  Each UDP datagram, other
+than a manifest record on a protected endpoint ((#manifest-record)),
+carries one MMTP packet -- the same packet format that MoQ objects carry on
 QUIC streams.  MMTP provides track routing (packet_id), send
 timestamps, sequencing (packet_sequence_number), FEC framing (FEC
 Type and the Source/Repair FEC Payload IDs) and random access
@@ -696,7 +699,9 @@ transports without modification:
 
 Receivers on multicast demultiplex packets using the MMTP packet_id
 field, which maps to the `packetId` assigned in the multicast
-catalog endpoint (Section 4.1).  A receiver MUST NOT deliver to any
+catalog endpoint (Section 4.1).  On a protected endpoint a receiver
+splits off the manifest records by their first four octets before it
+reads packet_id ((#receiver-enforcement-and-state)).  A receiver MUST NOT deliver to any
 media or repair decoder a packet whose packet_id is not advertised
 for a track, for the `(S, G, port)` multicast tuple (Section 4.1) on
 which the packet arrived, `S` being the packet's source address as
@@ -787,6 +792,33 @@ QUIC's per-packet AEAD and integrity.  The mapping of MMTP packets
 onto its DATAGRAM frames, and the use of FEC [@!MOQ-FEC-CORE] on that
 channel, are described, informatively, in [@!MOQ-FEC-MULTICAST]
 Section 3.4.
+
+{#explicit-congestion-notification}
+## Explicit Congestion Notification
+
+A sender SHOULD set ECT(0) in the ECN field of every data datagram of
+a protected flow ((#protected-flows-and-sequence-numbers)) and of
+every manifest record of the flow, twins included, so that a queue
+that implements Explicit Congestion Notification (ECN) marks such a
+datagram Congestion Experienced (CE) where it would otherwise have
+dropped it ([@!RFC3168] Section 5); such a queue drops a Not-ECT
+datagram as it would without ECN.  A receiver MUST treat a datagram
+that arrives marked CE as it treats a lost one wherever it reacts to
+loss, in endpoint selection and in the failover from multicast to MoQ
+unicast ((#multi-path-delivery)): a multicast sender gets no
+feedback, so the receivers' reaction is the congestion response that
+[@!RFC3168] Section 5 and [@RFC8085] Sections 3.1.7 and 4.1 ask of a
+flow sent ECN-capable.  A receiver MUST NOT read a change of the
+sender's rate into the marks, since a mark set upstream of a
+replication point reaches every receiver below it.  An AMT relay and
+an AMT gateway ((#amt-automatic-multicast-tunneling)) MUST carry the
+ECN field of the encapsulated datagram through encapsulation and
+decapsulation per [@!RFC6040], as [@!RFC9601] Section 6.1.4 applies
+it to AMT: the gateway declares that support with the E flag of
+[@!RFC9601] Section 6.1.4.2, without which a relay clears the outer
+ECN field.  The digest of (#digest) covers the
+addresses, the ports and the payload of a datagram, not its ECN
+field, so a mark set on the path never fails a digest.
 
 {#multi-path-delivery}
 # Multi-Path Delivery
@@ -965,14 +997,15 @@ protected flow checks the source itself
 Multicast UDP delivery lacks the integrity protection that QUIC
 provides on unicast paths.  This section defines "bc-provenance"
 version 2, a manifest-provenance authentication profile.  For each
-protected flow the publisher computes a digest over every datagram
-the flow emits, repair symbols included; collects digests into
+protected flow the publisher computes a digest over every data
+datagram the flow emits, repair symbols included; collects digests into
 windows of at most 37 datagrams or `manifestTimerMs`, whichever
 closes first; places each window in a fixed-layout manifest record;
 signs the record with a dedicated broadcast Ed25519 key [@!RFC8032]
-under a network-identity prefix; and emits the record on the flow's
-manifest port immediately before the datagrams it covers, followed
-by a second copy.  Receivers verify one signature per window, hash
+under a network-identity prefix; and emits the record in band, on
+the flow's own `(S, G, port)`, immediately before the datagrams it
+covers, followed by a second copy.  Receivers verify one signature
+per window, hash
 each datagram once, and admit a datagram to reassembly, FEC decode
 or delivery only after its digest matches an entry of a verified
 manifest.
@@ -988,9 +1021,9 @@ Information Suite ID ((#hash-algorithms)); SHA-256 [@!FIPS180-4] is
 mandatory to implement.
 
 The record, digest pseudoheader, signature prefix and hash registry
-do not depend on MoQ; (#signature-context-binding),
-(#catalog-signaling) and (#broadcast-carriage) bind them
-to MoQ.
+do not depend on MoQ: they are the format of [@?MCAST-MANIFEST],
+restated here by value, and (#signature-context-binding),
+(#catalog-signaling) and (#broadcast-carriage) bind them to MoQ.
 
 All multi-octet integers are unsigned and big-endian; `u8`, `u16`,
 `u32` and `u64` are unsigned integers of that width; `lp16(x)` is a
@@ -1004,7 +1037,9 @@ are in (#test-vectors-bc-provenance-version-2).
 
 The protected unit is a flow: every datagram the sending entity
 emits to one endpoint `(S, G, port)` of (#multicast-endpoint-format)
-whose `auth` member is present ((#catalog-signaling)).  That is the
+whose `auth` member is present ((#catalog-signaling)), other than the
+manifest records ((#manifest-record)) it emits there; such a datagram
+is a data datagram.  That is the
 datagrams of every track the endpoint lists, repair tracks included,
 and the MMTP signaling sub-flow on packet_id 0
 ((#multicast-packet-format)) where the endpoint carries it.  A
@@ -1013,8 +1048,9 @@ A packet of a listed track that another path delivers to a consumer
 protected under the flow, one that has admitted a datagram of it, is
 a datagram of the flow as well (step 2 of
 (#receiver-enforcement-and-state)).
-A flow has one `manifestPort`, which no other flow of the same `(S,
-G)` shares ((#catalog-signaling)); its `sequence` counter (below) and
+A flow has one `port`, which no other flow of the same `(S, G)`
+shares ((#catalog-signaling)), so no port carries the data or the
+records of two flows; its `sequence` counter (below) and
 its `mseq` counter ((#manifest-record)) are kept per `(kid, epoch)`.
 
 `sequence` is a 64-bit counter the sender assigns per `(flow, kid,
@@ -1026,11 +1062,18 @@ records, never in data datagrams, and is unrelated to MoQ
 `sequence = first_seq + i`, so one window is a contiguous run of
 the flow.  A window MAY span a MoQ group boundary.  A datagram the
 sender emits twice (a carousel) has two sequences and two digests.
+Neither counter wraps within an epoch: a sender ends the epoch (the
+record whose `flags` bit 0 is set, (#manifest-record)) before either
+would exceed 2^64 - 1, and the comparisons this profile states on
+them are integer comparisons evaluated without unsigned underflow or
+overflow.
 
 {#digest}
 ### Digest
 
-Every datagram the sender emits in a protected flow has a digest:
+Every data datagram the sender emits in a protected flow, repair
+symbols included, has a digest; a manifest record is not a data
+datagram and has none:
 
 ~~~
 D = H(pseudoheader || payload)
@@ -1080,8 +1123,10 @@ on every path ((#broadcast-carriage); step 2 of
 {#manifest-record}
 ### Manifest Record
 
-A manifest record is one UDP datagram on `manifestPort` of the same
-`(S, G)` as the protected flow.  Every field except the signature is
+A manifest record is one UDP datagram that the sender emits from UDP
+source port `port` on the protected flow's own `(S, G, port)`,
+interleaved with the flow's data datagrams.  Every
+field except the signature is
 at a fixed offset, and the signature is the last 64 octets.
 
 | Offset | Size | Field |
@@ -1103,6 +1148,13 @@ Length is `132 + 32 x count` octets.  The cap of 37 digests is an MTU
 choice: the 1316-octet maximum is 1344 octets on the wire with IPv4
 and UDP headers and 1364 with IPv6, which leaves room for AMT
 encapsulation [@!RFC7450] on a 1500-octet path.
+
+`magic` is how a receiver tells a record from a data datagram on
+`port` ((#receiver-enforcement-and-state)), so a sender MUST NOT emit
+a data datagram whose first four octets are "MHM2".  No data datagram
+of a flow begins with them: each is an MMTP version 0 packet
+((#multicast-packet-format); [@!MOQ-MMT] Section 3.1), whose leading
+version field excludes the octet 0x4D ("M").
 
 `flags`: bit 0, epoch end ((#receiver-enforcement-and-state)); bits
 1 to 7 reserved, MUST be zero on send and ignored on receipt.
@@ -1134,11 +1186,11 @@ signed_message =
  || u32(streamId)
  || S                               # 4 or 16 octets
  || G                               # 4 or 16 octets
- || u16(manifestPort)
+ || u16(port)
  || record[0 .. len - 64)
 ~~~
 
-with `S`, `G`, `streamId` and `manifestPort` as declared for the
+with `S`, `G`, `streamId` and `port` as declared for the
 endpoint ((#digest), (#catalog-signaling)).  The prefix binds the flow's network identity; a receiver needs no
 catalog state to check it beyond those four values, which a MoQ
 receiver takes from the catalog and a broadcast-only receiver from its
@@ -1190,7 +1242,8 @@ the per-track fields of [@!MOQ-FEC-CATALOG], an enhancement layer's
 `blockProfile` and `reorderToleranceMs` are part of the instance's
 geometry ([@!MOQ-FEC-CORE] Section 10.1):
 `params_hash` binds the five per-instance values that -01 bound, so
-the -01 inputs and vectors are unchanged.  An absent `interleaveDepthMs`
+the -01 values of `params_hash` and `ctx` are unchanged
+((#test-vectors-bc-provenance-version-2)).  An absent `interleaveDepthMs`
 is encoded as `u32(0)`; an entry with no
 `fec` array, or an empty one, is encoded as `lp16("none")` followed by
 four `u32(0)`, distinct from every instance because [@!MOQ-FEC-CORE]
@@ -1215,7 +1268,13 @@ A sender closes a window after 37 datagrams or after `manifestTimerMs`
 since the window opened, whichever comes first; the timer governs only
 while the flow emits at most 37 datagrams per `manifestTimerMs` (1850
 per second at the default, about 21 Mbit/s of 1400-octet datagrams),
-and the count cap governs above that.  A sender MAY raise
+and the count cap governs above that.  A sender MUST NOT close more
+than `64 + V x t` windows on one flow in any interval of `t` seconds,
+a long-run rate of at most V per second, V being the rate at which the
+verification budgets of step 1 of (#receiver-enforcement-and-state)
+refill, computed from the endpoint's `bandwidth`; a sender above that
+ceiling starves its own receivers, whose budgets drop its records and
+expire its windows as loss ((#threat-model)).  A sender MAY raise
 `manifestTimerMs` to at most `maxAuthDelayMs / 4` on low-rate flows.
 
 The signed record MUST be transmitted immediately before the first
@@ -1226,11 +1285,11 @@ last datagram the record covers, no later than `maxAuthDelayMs / 2`
 after the record and before the signed record of window `mseq + 64`,
 so that at most 63 later records precede it and it arrives above the
 replay floor of (#receiver-enforcement-and-state), which only the
-records arriving on `manifestPort` raise, however fast the flow
+records arriving on `port` raise, however fast the flow
 closes windows; RECOMMENDED is to transmit it immediately after
 the signed record of window `mseq + 2` and before the first datagram
 that record covers, or on its own at the `maxAuthDelayMs / 2`
-deadline when window `mseq + 2` has not opened by then.  The two
+deadline when window `mseq + 2` has not closed by then.  The two
 copies then bracket the window's datagrams: a
 contiguous loss burst that removes both copies has removed every
 datagram between them, and a datagram that survives such a burst has a
@@ -1268,13 +1327,13 @@ track's unicast fallback is a MoQ subscription outside this profile,
 protected by the MoQ session alone, so a publisher that wants the
 fallback verified against its records MUST name one.  Records read
 from the manifest track charge a verification budget of their own,
-not the flow's `manifestPort` budget
+not the flow's `port` budget
 ((#receiver-enforcement-and-state)); a receiver that reads the
 manifest track while joined to the multicast path sees each record
 first on the shorter path and drops the later copy as already
 verified, matching its digests only where it raises the mirror's
 lead (step 1 of (#receiver-enforcement-and-state)), so where the
-mirror leads `manifestPort` it widens, by the mirror's lead and
+mirror leads `port` it widens, by the mirror's lead and
 under the bound
 below, the pending expiry of a mirrored record's entries and the
 time for which it keeps a digest it admits recorded as admitted: a
@@ -1284,7 +1343,7 @@ arriving up to the lead later, to be held and to expire as loss
 record is unknown when its entries are inserted, so the receiver
 keeps the lead as a per-flow value: the largest interval it has
 measured in the stream generation from the arrival of a record on
-the mirror to the arrival of the first copy on `manifestPort`,
+the mirror to the arrival of the first copy on `port`,
 which the lookup drops (a later copy on that path, the twin or one
 replayed within the retention, measures nothing; step 1 keeps the
 time and path of arrival, and a digest of the record's bytes, with
@@ -1325,14 +1384,14 @@ mirrored record's entries by W as well (step 1), since no lead
 covers the datagrams its relay delivers after the records that
 cover them: the widening is also its exposure at join to windows
 that old served by its relay ((#threat-model)), a record on
-`manifestPort` keeps the unwidened tolerance and pending expiry as
+`port` keeps the unwidened tolerance and pending expiry as
 the multicast path's hold queue keeps the unwidened expiry, and a
 receiver that needs more is replaying
 ((#receiver-enforcement-and-state)).  The bound caps the lead as
 well: a relay that leads the multicast path by more than the bound
 plus `maxAuthDelayMs` outruns the admitted digests the lead widens,
 and by more than that plus `2 x manifestTimerMs` the pending
-entries as well, and the copy on `manifestPort` of a record it
+entries as well, and the copy on `port` of a record it
 mirrors that far ahead, which the receiver keeps verified for as
 long as the freshness check of step 1 would pass it, or for as long
 after that as its `mseq` stays above the manifest track's replay
@@ -1349,9 +1408,9 @@ verified `7 s + maxAuthDelayMs` after its arrival on the manifest
 track, or for as long after that as its `mseq` stays above the
 manifest track's replay floor (the state list of that section), so
 under a relay leading by more than the longer of the two the copy
-on `manifestPort` misses the lookup, meets no freshness check and
+on `port` misses the lookup, meets no freshness check and
 is verified anew there, from that path's budget, admitting the
-datagrams of its window as any record on `manifestPort` does: such
+datagrams of its window as any record on `port` does: such
 a receiver fails over on a lead between the bound plus
 `maxAuthDelayMs` and that retention and, under a larger one,
 verifies every record on both paths instead; on a flow whose 64
@@ -1361,7 +1420,7 @@ windows, the lookup drops the copy, and such a receiver fails over
 as one that checks freshness does.  Under a lead beyond that
 retention such a receiver still loses windows at each epoch change,
 and so may fail over there: those of the previous epoch's records
-whose copies reach `manifestPort` past that epoch's deadline (step 1
+whose copies reach `port` past that epoch's deadline (step 1
 of (#receiver-enforcement-and-state)), and those of most of its 64
 latest records, whose copies the lookup drops because that epoch's
 replay floor, raised by no later record, keeps them verified.
@@ -1383,7 +1442,7 @@ as protected and carries the flow's parameters:
       "sig": "ed25519",
       "keys": [
         { "kid": 1,
-          "publicKey": "<32-byte Ed25519 key, base64url unpadded>",
+          "publicKey": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
           "firstEpoch": 1 }
       ],
       "minEpoch": 17
@@ -1398,7 +1457,6 @@ as protected and carries the flow's parameters:
         { "name": "video/repair", "packetId": 2 }
       ],
       "auth": {
-        "manifestPort": 5005,
         "streamId": 2864434397,
         "maxAuthDelayMs": 200,
         "manifestTimerMs": 20,
@@ -1438,7 +1496,7 @@ receiver past its successor's `firstEpoch`.
 **minEpoch** (integer, REQUIRED): the lowest `epoch` a receiver
 accepts at join (step 1 of (#receiver-enforcement-and-state)); after
 its first verified record the current epoch is the floor, with the
-previous epoch admitted on `manifestPort` until that path's grace
+previous epoch admitted on `port` until that path's grace
 period ends, or while that path has started none, and never past the
 bound
 of (#emission-and-cadence) plus `maxAuthDelayMs + 2 x manifestTimerMs`
@@ -1450,20 +1508,10 @@ epoch change, sender restart included, so a joiner with a current
 catalog cannot be fed an earlier epoch.
 
 Members of an endpoint's `auth`; a protected endpoint MUST also
-declare `bandwidth`, which bounds the receiver's hold queues:
+declare `bandwidth`, the sender's ceiling for the flow rather than its
+average, since it bounds the receiver's hold queues and sets its
+verification budgets ((#receiver-enforcement-and-state)):
 
-- **manifestPort** (integer, REQUIRED): destination port of the record
-  datagrams, twins included, on the endpoint's `(S, G)`; MUST differ
-  from the `port` of every endpoint of the same `(S, G)` in the catalog,
-  this endpoint included, and from the `manifestPort` of every other
-  such endpoint, so that no port of an `(S, G)` carries both data and
-  records, or the records of two flows.  `(S, G, manifestPort)` is a
-  multicast tuple under the one-namespace rule of
-  (#multicast-endpoint-format).  A receiver MUST ignore
-  ((#multicast-endpoint-format)) a protected endpoint whose ports
-  violate this.  Two ASM endpoints whose `senderAddress` differ MAY share
-  `groupAddress` and ports; the source check of
-  (#receiver-enforcement-and-state) separates them.
 - **streamId** (integer, REQUIRED): 32-bit value chosen per channel
   generation, bound into every digest and signature.
 - **senderAddress** (string, REQUIRED on an ASM endpoint, MUST NOT
@@ -1477,6 +1525,18 @@ declare `bandwidth`, which bounds the receiver's hold queues:
   the window timer of (#emission-and-cadence).
 - **manifestTrack** (string, OPTIONAL): the MoQ track mirroring the
   records ((#emission-and-cadence)).
+
+A protected endpoint's `port` MUST differ from the `port` of every
+other endpoint of the same `(S, G)` in the catalog, so that no port
+of an `(S, G)` carries the data or the records of two flows
+((#manifest-record)).
+A receiver MUST ignore ((#multicast-endpoint-format)) every protected
+endpoint that shares its `(S, G, port)` with another endpoint, and
+every protected endpoint whose `bandwidth` is absent or is not a
+positive integer.  Two
+ASM endpoints whose `senderAddress` differ MAY share `groupAddress`
+and `port`; the source check of (#receiver-enforcement-and-state)
+separates them.
 
 When the `multicast` object carries `auth`, every endpoint of the
 `multicast` object MUST carry `auth`; a receiver MUST ignore
@@ -1497,8 +1557,8 @@ MUST be able to pin "authentication required" for a broadcast
 independently of the catalog.  A receiver without the catalog (a
 broadcast-only receiver, or native SSM reception without a MoQ
 session) MUST be provisioned out of band with the keys, `firstEpoch` included,
-and `minEpoch` and, per protected flow, the `streamId`, `S`, `G`, `port`,
-`manifestPort` and `bandwidth` the catalog would declare
+and `minEpoch` and, per protected flow, the `streamId`, `S`, `G`, `port`
+and `bandwidth` the catalog would declare
 ((#catalog-signaling)), and any non-default `maxAuthDelayMs` and
 `manifestTimerMs`: the record carries none of them, and a broadcast
 carries the flow on those addresses and ports or not at all
@@ -1520,7 +1580,7 @@ admits nothing and treats the endpoint as one that yields no data
 ((#multicast-endpoint-format)).
 
 On an ASM endpoint a receiver MUST discard, before any parsing or
-hashing, a datagram on `port` or `manifestPort` whose IP source
+hashing, a datagram on `port` whose IP source
 address is not `senderAddress`; behind an AMT relay the address is
 that of the encapsulated header ((#multicast-packet-format)).  On an
 SSM endpoint reached natively the network enforces the source and a
@@ -1529,38 +1589,38 @@ receiver SHOULD still discard a datagram whose source address is not
 discard it, since nothing upstream of its gateway filters the
 encapsulated source address and [@!RFC7450] does not authenticate
 Multicast Data messages.
-A datagram that passes belongs to the flow `(S, G, port)` or `(S, G,
-manifestPort)` with `S` as in (#digest).
+A datagram that passes belongs to the flow `(S, G, port)` with `S`
+as in (#digest).
 
 State per flow: the current `epoch` with the `kid` that set it, the
-time at which that epoch became current, per path (`manifestPort` and
+time at which that epoch became current, per path (`port` and
 the manifest track) the grace period that ends
 `maxAuthDelayMs + 2 x manifestTimerMs` after the first record of the
 current epoch verified on that path or dropped there by the
 already-verified lookup of step 1 as its byte-identical copy, and,
-until the period on `manifestPort` ends or the previous epoch's
+until the period on `port` ends or the previous epoch's
 deadline passes, the previous `epoch`, the deadline being the bound
 of (#emission-and-cadence) plus `maxAuthDelayMs + 2 x manifestTimerMs`
 after the current epoch became current (step 1; a record on
-`manifestPort` meets its own path's period and the deadline, one read
+`port` meets its own path's period and the deadline, one read
 from the manifest track the earlier-started of the two periods, which
 ends before the deadline); the flow's
 `hash_alg`, fixed by its first verified
 record; per `(kid, epoch)` the verified `mseq` values above the
 replay floor of the path they arrived on, and those verified on the
 manifest track for as long as the freshness check of step 1 would
-pass a copy of them on `manifestPort`, their `sent` within
+pass a copy of them on `port`, their `sent` within
 `7 s + maxAuthDelayMs` behind the receiver's clock, or that long
 after their arrival on the manifest track where the receiver skips
 that check, whatever the floor (so that the lookup of step 1 still
-meets, and measures the lead from, a `manifestPort` copy arriving
+meets, and measures the lead from, a copy on `port` arriving
 after 64 or more further records were verified on the mirror, and
 drops as already verified every copy that check would pass: one
 arriving more than the bound of (#emission-and-cadence) plus
 `maxAuthDelayMs + 2 x manifestTimerMs` after the mirror's copy, the
 lead standing at the bound, then admits nothing, and the datagrams
 it covers expire, as that section says, rather than being verified
-anew on `manifestPort`; where the lead stands below the bound, the
+anew on `port`; where the lead stands below the bound, the
 first such copy raises it to the bound and handles the record's
 pairs again as step 1 says; a receiver that skips the check
 verifies anew a copy arriving after the retention and below the
@@ -1572,13 +1632,13 @@ time and path of its arrival, its `sent`, which that retention
 reads, the `hash_alg` digest of the record's bytes,
 per pair of the record, whether a datagram has been admitted against
 it and, for a record verified on the manifest track whose first copy
-on `manifestPort` has not yet arrived, the record's pairs, which a
+on `port` has not yet arrived, the record's pairs, which a
 raise of the lead re-handles (steps 1 and 2), per path the
 `highest_mseq` that the records
 arriving on it have
 raised (step 1) and, once a verified record has `flags` bit 0 set,
 the `mseq` that closed it; the verification budgets
-of step 1, one for `manifestPort` and one for the manifest track,
+of step 1, one for `port` and one for the manifest track,
 each with a count of the records it dropped; the mirror's lead
 ((#emission-and-cadence)), a multiple of `manifestTimerMs` or the
 bound, and whether the stream generation has measured one, the bound of that section applying until it has and
@@ -1589,7 +1649,7 @@ the pair that inserted it, an entry whose expiry the mirror's lead
 or W widened keeping its insertion time as well (step 1);
 the digests recorded as admitted, each until the expiry set when
 it was recorded, the time of recording plus `maxAuthDelayMs` plus
-the mirror's lead then in force, a copy on `manifestPort` that
+the mirror's lead then in force, a copy on `port` that
 raises the lead recording again the digests of the marked pairs
 it handles (steps 1 and 2); for each open block of a protected
 consumer, the number of decodes, at most two, taken with the help
@@ -1628,10 +1688,20 @@ datagram, and
 processes the next record as the first of the flow under the
 join-time floors of step 1.
 
+A datagram on `port` whose first four octets are the ASCII octets
+"MHM2" is a record candidate and goes through step 1; every other
+datagram on `port` is a data datagram and goes through step 2.
+Nothing else is read to decide.  The split follows the source check
+above and precedes any other processing of the datagram, the
+packet_id routing of (#multicast-packet-format) and the replay
+tracking of (#multicast-security) included.  A record candidate that fails a
+check of step 1 is dropped as step 1 says; it is never held, hashed
+as a data datagram or admitted.
+
 A receiver applies the following, in this order, with no
 variable-length interpretation before a cryptographic check:
 
-1.  **Record datagram** (on `manifestPort`, `magic` "MHM2").  Require
+1.  **Record datagram** (on `port`, `magic` "MHM2").  Require
    `164 <= len <= 1316` and `(len - 132) mod 32 == 0`.  Read the
    fixed-offset integers `magic`, `kid`, `epoch`, `mseq`, `count`,
    `hash_alg` and `sent` and the 32 octets of `ctx`.  Drop before any
@@ -1646,7 +1716,7 @@ variable-length interpretation before a cryptographic check:
    of the path and starts the path's grace period as a verified
    record would, below, and, where the verified copy arrived on the
    manifest track and this one is the record's first copy on
-   `manifestPort` (its pairs, kept until then, are released at this
+   `port` (its pairs, kept until then, are released at this
    arrival; a later copy there, the twin or one an injector replays
    within the retention, counts as a further arrival on the path and
    measures nothing), the interval between the two arrivals, rounded
@@ -1655,10 +1725,10 @@ variable-length interpretation before a cryptographic check:
    first measured in the stream generation and raises it if it
    exceeds it, a copy that raises it also handling this record and
    every record verified on the manifest track within the raised
-   lead before now whose first copy on `manifestPort` has not yet
+   lead before now whose first copy on `port` has not yet
    arrived (the verified entry keeps their pairs for this, this
    record's own bytes carrying its pairs), each pair of
-   such a record as below for a record on `manifestPort`, under the
+   such a record as below for a record on `port`, under the
    raised lead: a pair marked as having admitted a datagram has its
    digest recorded as admitted until `now + maxAuthDelayMs` plus
    the raised lead; one whose digest is pending has its entry's
@@ -1686,17 +1756,18 @@ variable-length interpretation before a cryptographic check:
    became current (below; a path on which no record of the current
    epoch has yet been verified, or dropped by the lookup above as its
    byte-identical copy, has started no grace period, so the previous
-   epoch stays admitted on `manifestPort` until the deadline passes
+   epoch stays admitted on `port` until the deadline passes
    or, once such a record starts that path's period, until that
    period ends, if sooner, and on the manifest track until the
    earlier-started of the two paths' periods ends), or, when no
    record has yet been
    verified, is below
-   `minEpoch` or below the pinned floor for its `kid`; `mseq <=
-   highest_mseq(kid, epoch) - 64`, the `highest_mseq` this record
-   meets (below; replay floor, none before a record of that
+   `minEpoch` or below the pinned floor for its `kid`;
+   `mseq + 64 <= highest_mseq(kid, epoch)`, the `highest_mseq` this
+   record meets (below; replay floor, none before a record of that
    `(kid, epoch)` has raised a `highest_mseq` this record meets, no
-   upper bound);
+   upper bound; the sum does not wrap,
+   (#protected-flows-and-sequence-numbers));
    `mseq` is above the `mseq` that closed the epoch, once a verified
    record has closed it; `sent` is more than `7 s + maxAuthDelayMs`
    behind, or more than 6 s ahead of, the receiver's UTC clock
@@ -1705,14 +1776,14 @@ variable-length interpretation before a cryptographic check:
    delivery of the twin; a receiver that widens its hold per
    (#emission-and-cadence) widens the behind tolerance by the same
    amount for a record read from the manifest track, and not for one
-   on `manifestPort`); `count != (len - 132) / 32`; `hash_alg` is not in the
+   on `port`); `count != (len - 132) / 32`; `hash_alg` is not in the
    receiver's accepted set, or differs from the flow's `hash_alg` once
    one is fixed; or, on a receiver that holds the catalog, `ctx`
    differs from the value recomputed from it (a receiver without the
    catalog carries `ctx` blind, (#signature-context-binding)).  The
    replay floor and the grace period a record meets are its path's:
-   a record on `manifestPort` meets the `highest_mseq` and the grace
-   period that the records arriving on `manifestPort`, verified or
+   a record on `port` meets the `highest_mseq` and the grace
+   period that the records arriving on `port`, verified or
    dropped by the lookup above as the record itself, have raised or
    started; a record read from the manifest track meets the higher
    of the two paths' `highest_mseq` values and the earlier-started
@@ -1722,16 +1793,19 @@ variable-length interpretation before a cryptographic check:
    mirror, or one the mirror loses, is tested against the multicast
    path's own cadence however far the mirror leads, and, while the
    mirror leads by no more than the bound of (#emission-and-cadence),
-   the previous epoch's deadline drops on `manifestPort` only a record
+   the previous epoch's deadline drops on `port` only a record
    of that epoch reordered more than
    `maxAuthDelayMs + 2 x manifestTimerMs` behind the new epoch's
    first record
    ((#threat-model)), and a mirror that lags the multicast path by
    the floor brings nothing a receiver still holds.  Charge the
    per-flow verification budget, a token
-   bucket of depth 64 refilled at 1000 tokens per second (a record
+   bucket of depth 64 refilled at V tokens per second,
+   `V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))` computed from
+   the flow's declared `maxBitrate` ([@?MCAST-MANIFEST]), which this
+   profile declares as the endpoint's `bandwidth` (a record
    read from the manifest track of (#emission-and-cadence) charges a
-   second bucket of the same shape, so a flood on `manifestPort`
+   second bucket of the same depth and refill, so a record flood on `port`
    cannot starve the mirror); drop and
    count a record that finds it empty (nothing before the signature
    tells a forged record from a genuine one, so a forged record spends
@@ -1745,7 +1819,7 @@ variable-length interpretation before a cryptographic check:
    `maxAuthDelayMs + 2 x manifestTimerMs` after the first record of
    the new epoch that arrives on it and is verified, or dropped by
    the lookup above as the record itself (this record starts it on
-   its own path now; `manifestPort`, while no such record has yet
+   its own path now; `port`, while no such record has yet
    arrived there, admits the previous epoch until one starts that
    path's period and then until that period ends, and the manifest
    track until the earlier-started of the two periods ends,
@@ -1784,7 +1858,8 @@ variable-length interpretation before a cryptographic check:
    ((#threat-model)).  If `flags` bit 0 is set the epoch is closed at this
    `mseq` ((#manifest-record)).
 
-2.  **Data datagram** (on `port`).  Compute `D` with the flow's
+2.  **Data datagram** (any other datagram on `port`).  Compute `D`
+   with the flow's
    `hash_alg` (a datagram that arrives before the first record of the
    flow is verified is held without a digest) and look it up in the
    pending table, which maps a digest to an ordered list of sequences
@@ -1892,7 +1967,7 @@ variable-length interpretation before a cryptographic check:
    its blocks as those of a consumer outside this
    profile, until the admission that makes it protected under a flow
    whose endpoint lists the track (a record of that flow, from
-   `manifestPort` or its `manifestTrack`, admitting a source packet
+   `port` or its `manifestTrack`, admitting a source packet
    under step 1 or this step), at which the discard above applies.
    Within a protected consumer the block
    extent such a symbol signals is provisional: a block that only
@@ -2084,7 +2159,7 @@ catalog with the `firstEpoch` at which it will sign, at least one
 catalog lifetime ahead; signs with it from that epoch; and raises
 `minEpoch`.  A receiver that holds that catalog accepts the retired
 `kid` below the successor's `firstEpoch` only, so records the retired
-key signs are admitted on `manifestPort` until that path's grace
+key signs are admitted on `port` until that path's grace
 period for the new epoch ends, or while that path has started none,
 but never past the bound of (#emission-and-cadence) plus
 `maxAuthDelayMs + 2 x manifestTimerMs` after the new epoch became
@@ -2120,7 +2195,7 @@ freshness tolerance that lookup alone, a miss, before the epoch
 floor, the replay floor or the freshness check drops it, the second
 copy of a verified record one lookup and one hash plus, where the
 first arrived on the manifest track and this is the first copy on
-`manifestPort` and raises the mirror's lead, the re-handling of its
+`port` and raises the mirror's lead, the re-handling of its
 own pairs and of the pairs kept for the records mirrored while it
 was in flight, which no later copy of the record repeats and which
 the lead's rise by multiples of `manifestTimerMs`
@@ -2130,13 +2205,24 @@ records the manifest track's bucket admitted within the raised lead
 (step 1),
 and a corrupt symbol
 of an unlisted track
-at most two decodes of its block.  With one verification per 37
+at most two decodes of its block.  Telling a record from a data
+datagram costs one four-octet comparison per datagram on `port`.  A
+datagram injected on `port` with the magic "MHM2" goes to step 1,
+where it is dropped before any cryptography or charges the
+verification budget as any injected record does, and it never
+occupies a hold queue.  One injected without the magic is a data
+datagram, as above.  With one verification per 37
 datagrams, a Cortex-A53 without
-SHA2 instructions spends about 0.26 of a core at 100 Mbit/s and at
-most 0.43 of a core under a record flood at a budget of 1000/s, or
-0.6 of a core on a receiver that also reads the manifest track, whose
-second bucket admits another 1000/s; a core with SHA2 instructions
-spends a fraction of that.
+SHA2 instructions spends about 0.26 of a core at 100 Mbit/s and,
+under a record flood at V's floor of 1000 verifications per second on
+`port`, at most 0.43 of a core on signature checks, or twice that,
+about 0.86, on a receiver that also reads the manifest track, whose
+second bucket admits another V per second; a core with SHA2
+instructions hashes in a fraction of that time, and its signature
+checks do not depend on them.  A record flood costs at most
+V verifications per second on each bucket, so these figures rise with
+V: 8,248 per second, V at 1 Gbit/s, is 0.33 of a 3 GHz Zen 3 core
+and 1.84 Cortex-A76 cores at 1.5 GHz, per bucket.
 
 {#threat-model}
 ### Threat Model
@@ -2149,7 +2235,7 @@ endpoint, stream generation, broadcast, key or epoch
 by `minEpoch` ((#catalog-signaling)) and, on a receiver that pins
 keys, by the epoch floor kept with the pin, and after the first
 verified record by the current epoch, the previous epoch admitted
-on `manifestPort` until that path's grace period ends, or while that
+on `port` until that path's grace period ends, or while that
 path has started none, and never past the previous epoch's deadline,
 the bound of (#emission-and-cadence) plus
 `maxAuthDelayMs + 2 x manifestTimerMs` after the current epoch became
@@ -2183,7 +2269,7 @@ loses no window to what the mirror omits, absent the injector of the
 availability paragraph below, and a relay that lets the
 receiver measure a small lead and then leads by more, within the
 bound of (#emission-and-cadence), gains nothing either, the copy on
-`manifestPort` that raises the lead re-admitting
+`port` that raises the lead re-admitting
 or re-inserting, under the raised lead, ahead of their datagrams,
 the digests of that
 record and of the records mirrored while it was in flight, for the
@@ -2216,15 +2302,16 @@ data and nothing more, since neither carries a catalog value past the
 session ((#receiver-enforcement-and-state)).
 Rewriting any other member of the endpoint or its `auth`
 only makes genuine records fail the signature or `ctx` check, or
-resizes the hold queues and pending expiry (`bandwidth`,
-`maxAuthDelayMs`, `manifestTimerMs`), which a receiver bounds by local
-policy ((#catalog-as-attack-surface)).
+resizes the verification budgets, the hold queues and pending expiry
+(`bandwidth`, `maxAuthDelayMs`, `manifestTimerMs`), which a receiver
+bounds by local policy ((#catalog-as-attack-surface)).
 
 The profile protects integrity, not availability.  A forged record
 passes every check of step 1 of (#receiver-enforcement-and-state) up
 to the signature, so each one spends a token of the verification
-budget: an attacker who sustains more than 1000 records per second on
-the manifest port (about 1.3 Mbit/s of 164-octet records) takes a
+budget: an attacker who sustains more than V records per second on
+`port` (about 1.3 Mbit/s of 164-octet records at V's floor,
+10.8 Mbit/s at 8,248) takes a
 share of the budget proportional to its rate, and at several times
 that rate both copies of a window lose their tokens and the flow
 yields no data.  The budget bounds the receiver's CPU, and the
@@ -2232,13 +2319,13 @@ lead's rise by multiples of `manifestTimerMs` bounds the
 re-handling a raise costs outside it (Cost,
 (#receiver-enforcement-and-state)); it does not
 raise the cost of this attack, and the record flood is not the
-cheapest availability attack on every protected flow: a datagram on
-the data port that matches no pending entry is held on the
+cheapest availability attack on every protected flow: a data datagram
+on `port` that matches no pending entry is held on the
 multicast path until it expires (step 2 of
 (#receiver-enforcement-and-state)), and those expiries are loss for
 the failover below, so an injector that sustains, with the same
 access as the record flood, the loss fraction at which the receiver
-fails over moves it to the unicast fallback for less than the 1000
+fails over moves it to the unicast fallback for less than the V
 records per second the record flood needs wherever that fraction of
 the flow's packet rate is below it, as on every audio flow and most
 low-rate video; only evicting genuine datagrams, by overflowing the
@@ -2263,7 +2350,7 @@ most two decodes of that block, and what a decode it corrupts
 recovers is held on, and expires from, that relay's own queue, step
 2 of (#receiver-enforcement-and-state)).
 A receiver that reads the manifest track
-has a second bucket of the same shape, so its ceiling is 2000
+has a second bucket of the same depth and refill, so its ceiling is 2V
 verifications per second, half of them spendable by its relay without
 spoofing anything (Cost, (#receiver-enforcement-and-state)).  On an SSM endpoint
 reached natively either flood must spoof `S` or be on path; on an ASM
@@ -2272,7 +2359,7 @@ behind an AMT gateway, where a flood need only spoof the relay's
 address toward the gateway ((#receiver-enforcement-and-state)).  With
 that access an injector forges nothing: a genuine record it reads
 from the manifest track, as any subscriber can, and sends on
-`manifestPort` more than `maxAuthDelayMs + 2 x manifestTimerMs`
+`port` more than `maxAuthDelayMs + 2 x manifestTimerMs`
 (240 ms at the defaults) before the multicast path delivers the
 datagrams it covers is verified there with unwidened pending
 entries, which expire before those datagrams arrive, so they are
@@ -2282,7 +2369,7 @@ lookup, admits nothing (step 1 of
 loss of every window for the failover below, at most 50 a second
 at the default `manifestTimerMs` on a flow the timer governs and
 one per 37 datagrams on a flow above 1850 datagrams a second
-((#emission-and-cadence)), less than the data-port injection above
+((#emission-and-cadence)), less than the data-datagram injection above
 needs wherever the failover fraction of the flow's packet rate
 exceeds that window rate, above 50 a second on the former and above
 a thirty-seventh of the packet rate on the latter, at a lead of at
@@ -2291,7 +2378,7 @@ below costs one record per `L - 63` windows.  On a receiver that
 reads the manifest track the outcome turns on arrival order.
 For a record the receiver's mirror delivers before the injector's
 copy, that copy, replayed from the mirror ahead of the sender's, is
-the record's first copy on `manifestPort` and measures the lead, so
+the record's first copy on `port` and measures the lead, so
 the sender's copy and the twin measure nothing and the re-handling
 that a raising copy affords (step 1 of
 (#receiver-enforcement-and-state)) is not afforded against it.
@@ -2306,11 +2393,11 @@ delivers the datagrams it covers, which the geometry of the attack
 (the injector's copy preceding those datagrams by more than
 `maxAuthDelayMs + 2 x manifestTimerMs`) meets up to the rounding,
 under `manifestTimerMs`: they are held and expire as a record the
-injector's copy brings to `manifestPort` first does below, the
+injector's copy brings to `port` first does below, the
 attack succeeding for every such record whose first copy on
-`manifestPort` the injector keeps supplying, with no race against
+`port` the injector keeps supplying, with no race against
 the mirror to win.  It ends at the first such record whose first
-copy on `manifestPort` is the sender's (the injector idle, or its
+copy on `port` is the sender's (the injector idle, or its
 copy lost or arriving after the sender's): that copy measures the
 interval from the mirror's delivery to its own arrival, which the
 geometry puts above the pinned lead, raises the lead to it (capped
@@ -2327,7 +2414,7 @@ datagrams it covers stays within that lead plus
 past it is not absorbed, since the sender's copy that would have
 raised the lead and afforded that re-handling is dropped by the
 lookup and measures nothing, so those datagrams are held and expire
-as below.  A record the injector's copy brings to `manifestPort`
+as below.  A record the injector's copy brings to `port`
 before the receiver's mirror delivers it is verified there with
 unwidened entries whatever lead the receiver has measured, and the
 mirror's later copy, dropped by the already-verified lookup,
@@ -2337,7 +2424,7 @@ injector wins that race on every record where its copy reaches the
 receiver sooner than the receiver's mirror does, its read of the
 manifest track and its injection path to the receiver counted
 together against the mirror's delivery delay.  The
-injector's copy also raises the `highest_mseq` of `manifestPort` and
+injector's copy also raises the `highest_mseq` of `port` and
 starts its grace period early, which drops the sender's copies of a
 record only where the injector's copies lead the multicast path at
 the receiver by 64 windows, less the windows by which the record's
@@ -2355,7 +2442,7 @@ epoch's first record starts the period that long before the
 multicast path delivers that record, which the last twins of the
 previous epoch immediately precede ((#emission-and-cadence)), so a
 record of the previous epoch, its own copy or its twin, that
-arrives on `manifestPort` within the excess of the lead over the
+arrives on `port` within the excess of the lead over the
 period before that record is dropped.  A copy the receiver's own
 mirror delivers meets the higher floor and the earlier-started
 period (step 1), so it is dropped as well where the injector's
@@ -2377,7 +2464,7 @@ where they lead the receiver's mirror by fewer windows, `M`, the
 records the mirror delivered before the injector's are verified
 there, their sender's copies dropped by the already-verified
 lookup, which precedes the floor in step 1, and their windows
-admitted as a record whose first copy on `manifestPort` is the
+admitted as a record whose first copy on `port` is the
 sender's has it above: that copy, dropped as already verified but
 the record's first on that port, measures the interval from the
 mirror's delivery to its own arrival and, where that exceeds the
@@ -2415,7 +2502,7 @@ that leads the multicast path by no more than the bound of
 (#emission-and-cadence) produces none, its admitted digests and
 pending entries outliving the lead the receiver applies, which that
 bound caps (step 1),
-the copy on `manifestPort` that raises that lead, when the relay
+the copy on `port` that raises that lead, when the relay
 leads by more than the receiver has measured, re-admitting or
 re-inserting, under the raised lead, before their datagrams arrive,
 the digests of that
@@ -2429,7 +2516,7 @@ held, and what the relay delivers or withholds on the mirror
 moving no replay floor and no grace period a multicast copy meets
 (step 1 of (#receiver-enforcement-and-state)); a receiver
 SHOULD also count records that
-the `manifestPort` bucket dropped for want of a token toward that
+the `port` bucket dropped for want of a token toward that
 failover, so a sustained record flood ends in the unicast fallback of
 (#emission-and-cadence), a MoQ subscription outside this profile
 unless the receiver verifies it against the records of a
@@ -2440,7 +2527,7 @@ multicast path: a relay that floods the mirror could otherwise move a
 receiver with a healthy multicast path onto itself.  A receiver that holds the catalog naming the successor key accepts
 the retired `kid` only below the successor's `firstEpoch`
 ((#catalog-signaling)), and records of the previous epoch on
-`manifestPort` until that path's grace period ends, or while that
+`port` until that path's grace period ends, or while that
 path has started none, and never past the bound of
 (#emission-and-cadence)
 plus `maxAuthDelayMs + 2 x manifestTimerMs` after the new epoch
@@ -2452,7 +2539,7 @@ first record is verified there, or dropped there as its
 byte-identical copy, and on any path for at most the bound of
 (#emission-and-cadence) plus `maxAuthDelayMs + 2 x manifestTimerMs`
 (5.24 s at the defaults) after the new epoch became current, however
-many of the new epoch's records an attacker drops on `manifestPort`.
+many of the new epoch's records an attacker drops on `port`.
 An attacker that drops
 every record of the new epoch on each path a receiver reads, the
 multicast path alone on a receiver that reads no manifest track,
@@ -2490,20 +2577,22 @@ Section 8.1.2.1; [@?ARIB-B60]): the flow's datagrams are the MMTP
 packets of one MMTP session, carried as the UDP datagrams the sender
 emits, each the whole MoQ UDP payload, trailer included, on the
 endpoint's `S`, `G` and `port`, and the records are the sender's
-record datagrams on `manifestPort` of the same `S` and `G`, both
+record datagrams on the same `S`, `G` and `port`, both
 copies ((#emission-and-cadence)), carried in the same IP multicast
-of the broadcast.  A broadcast that re-addresses either flow, or
+of the broadcast.  A broadcast that re-addresses the flow or its
+records, or
 carries the datagrams in any other form, is not covered: the
 pseudoheader binds `S`, `G` and the ports ((#digest)), and a record
 verifies as it was signed or not at all.  A broadcast-only receiver
-reads both UDP flows of the broadcast, forms the pseudoheader and
-`signed_message` from the endpoint's `S`, `G`, `port`, `streamId`
-and `manifestPort`, and holds those values and the keys by
+reads the flow's datagrams and records from the broadcast, forms the
+pseudoheader and
+`signed_message` from the endpoint's `S`, `G`, `port` and
+`streamId`, and holds those values and the keys by
 provisioning ((#receiver-enforcement-and-state)): the SLS of the
 service describes the MMTP session ([@!ATSC-A331] Section 7.2) and
-nothing of this profile, so `manifestPort` and the rest come from
+nothing of this profile, so `streamId` and the rest come from
 provisioning alone, and this document specifies no in-band carriage
-of them.  A record so read is a record on `manifestPort` for step 1
+of them.  A record so read is a record on `port` for step 1
 of (#receiver-enforcement-and-state), as on any multicast path.
 
 {#hash-algorithms}
@@ -2547,12 +2636,13 @@ catalog is therefore an attack vector:
   configured.
 
 - **Resource claims**: `bandwidth`, `maxAuthDelayMs` and
-  `manifestTimerMs` size the hold queues and pending table of
+  `manifestTimerMs` size the verification budgets, hold queues and
+  pending table of
   (#receiver-enforcement-and-state) and, with the manifest track's
   verification budget, the records verified on that track which a
   receiver retains for as long as the freshness check of step 1
-  would pass a copy of them on `manifestPort`, each with the pairs
-  kept until its first `manifestPort` copy arrives; the widening W
+  would pass a copy of them on `port`, each with the pairs
+  kept until its first copy on `port` arrives; the widening W
   of (#emission-and-cadence) enlarges the unicast path's queue and,
   on a receiver that applies no lead, the pending expiry of a
   mirrored record's entries, and the mirror's lead that expiry, the
@@ -2641,6 +2731,17 @@ catalog extension (Section 4) requires no registration.
     <date year='2026' month='October' day='29'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
+</reference>
+
+<reference anchor='MCAST-MANIFEST'>
+  <front>
+    <title>Signed Digest Manifests for Multicast Datagram Authentication</title>
+    <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
+      <organization>Blockcast</organization>
+    </author>
+    <date year='2026' month='October' day='29'/>
+  </front>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-mboned-mcast-manifest-01'/>
 </reference>
 
 <reference anchor='QUIC-MULTICAST' target='https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/'>
@@ -2736,7 +2837,6 @@ ed25519 publicKey   : 03a107bff3ce10be1d70dd18e74bc099
                       67e4d6309ba50d5f1ddc8664125531b8
 S, G                : 198.51.100.7, 232.10.20.30 (IPv4)
 port                : 5004 (src_port = dst_port)
-manifestPort        : 5005
 streamId            : 2864434397 (0xaabbccdd)
 kid, epoch, mseq    : 1, 17, 1
 first_seq           : 1000
@@ -2753,9 +2853,9 @@ datagram 1 payload  : 0x22 repeated 1400 times
 pseudoheader (20)   : c6336407e80a141e00110578138c138c
                       aabbccdd
 signed_message prefix (32 octets, "mcast-manifest-v2" NUL
-streamId S G manifestPort):
+streamId S G port):
                       6d636173742d6d616e69666573742d76
-                      3200aabbccddc6336407e80a141e138d
+                      3200aabbccddc6336407e80a141e138c
 ~~~
 
 The signed message is the 32-octet prefix followed by the first 132
@@ -2770,10 +2870,10 @@ params_hash         : 1f652ba84e4a44425da55ddffb24c079
                       1a3851a1d1022b4b47b30881146edf7c
 ctx                 : fe68177dd329ee6fdd668cb43ebdeb6d
                       2e4c2ae351fd25050ab68dd98af19214
-signature           : 9d5154a8e6beb7c472a09fa1e1d3d426
-                      b6042519343728835ed5c9416e615aad
-                      7ad335c0f0403aa8985e6b6979e5918d
-                      3d28e787ca29d55447930777c380d808
+signature           : b7bffcf63fc764c87438b55e521dccaf
+                      5e59177ae245aafe47fc1e15b7786795
+                      8e07f6ef2fa45c1162735ab5e2c1a942
+                      fe75cb6f8879f49d0b14a41f8306230d
 ~~~
 
 Record (196 octets):
@@ -2787,11 +2887,11 @@ Record (196 octets):
 c8fbe7779ab3b8f1c47d3f8be4d2a514
 f2ec20696f7d9007e81b73c9f54aff8c
 2f66bd6e8956bfa7e001789b986c328f
-9ed787519d5154a8e6beb7c472a09fa1
-e1d3d426b6042519343728835ed5c941
-6e615aad7ad335c0f0403aa8985e6b69
-79e5918d3d28e787ca29d55447930777
-c380d808
+9ed78751b7bffcf63fc764c87438b55e
+521dccaf5e59177ae245aafe47fc1e15
+b77867958e07f6ef2fa45c1162735ab5
+e2c1a942fe75cb6f8879f49d0b14a41f
+8306230d
 ~~~
 
 {#change-log}
@@ -2855,8 +2955,50 @@ as an RFC.
   repair-only endpoint's repair track is the track its `source`
   names or the track whose instance names it as `repairTrack`, in
   place of `depends` and `fec.repairTrack`.
-- (#test-vectors-bc-provenance-version-2): `params_hash`, `ctx`,
-  `signature` and the record are unchanged from -01: the example's
+- (#content-authentication): manifest records travel in band,
+  interleaved with the flow's data datagrams on its own `(S, G,
+  port)`, and a receiver tells a record from a data datagram by its
+  first four octets, "MHM2", which a sender never puts at the start of
+  a data datagram.  The endpoint `auth` member `manifestPort` is
+  removed, and the `signed_message` prefix of
+  (#signature-context-binding) binds `u16(port)` where it bound
+  `u16(manifestPort)`.  In (#test-vectors-bc-provenance-version-2)
+  the `manifestPort` input is dropped, the prefix binds port 5004,
+  and only the signature and the record are regenerated.
+- (#receiver-enforcement-and-state): both verification budgets, on
+  `port` and on the manifest track, refill at
+  `V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))` per second from
+  the endpoint's declared `bandwidth`, instead of at a fixed rate, as
+  [@?MCAST-MANIFEST] states, and (#emission-and-cadence) holds a
+  sender to the envelope of that bucket, at most `64 + V x t` windows
+  in any interval of `t` seconds;
+  (#receiver-enforcement-and-state) and (#threat-model) re-derive the
+  record-flood figures from V, and (#catalog-signaling),
+  (#threat-model) and (#catalog-as-attack-surface) add the budgets to
+  what `bandwidth` sizes.  On a protected endpoint `bandwidth` is the
+  sender's ceiling for the flow, and a receiver ignores a protected
+  endpoint whose `bandwidth` is absent or not a positive integer
+  ((#catalog-signaling)).
+- (#content-authentication) names [@?MCAST-MANIFEST], a new
+  informative reference, as the format it restates by value.  Step 1
+  of (#receiver-enforcement-and-state) writes the replay floor as
+  `mseq + 64 <= highest_mseq(kid, epoch)`, a sum that does not wrap,
+  in place of -01's subtraction, which underflows while
+  `highest_mseq` is below 64, and
+  (#protected-flows-and-sequence-numbers) states that neither counter
+  wraps within an epoch.  In (#emission-and-cadence) the twin goes on
+  its own at the `maxAuthDelayMs / 2` deadline when window `mseq + 2`
+  has not closed by then, where -01 said opened.
+- New (#explicit-congestion-notification): a sender SHOULD set ECT(0)
+  on the data datagrams and manifest records of a protected flow, a
+  receiver MUST treat a CE-marked datagram as a lost one wherever it
+  reacts to loss, and an AMT relay and gateway MUST carry the ECN
+  field through the tunnel per [@!RFC6040] as [@!RFC9601] Section
+  6.1.4 applies it to AMT; (#amt-automatic-multicast-tunneling)
+  points to it.  [@!RFC3168], [@!RFC6040] and [@!RFC9601] are new
+  normative references, and [@RFC8085] a new informative one.
+- (#test-vectors-bc-provenance-version-2): `params_hash` and `ctx`
+  are unchanged from -01: the example's
   entry has one FEC instance, which the -02 layout of
   (#signature-context-binding) hashes to the same octets.  In the
   listed inputs the label `fecAlgorithm` is renamed `scheme`.
@@ -2867,7 +3009,10 @@ as an RFC.
   numbering.
 - Editorial: every heading carries an explicit anchor; no existing
   anchor changes.  The change log is now one appendix with a
-  subsection per revision, as in [@!MOQ-MMT].
+  subsection per revision, as in [@!MOQ-MMT].  The catalog example of
+  (#catalog-signaling) shows the public key of
+  (#test-vectors-bc-provenance-version-2), base64url-encoded, in place
+  of a placeholder.
 
 {#changes-since-draft-ramadan-moq-multicast-00}
 ## Changes Since draft-ramadan-moq-multicast-00

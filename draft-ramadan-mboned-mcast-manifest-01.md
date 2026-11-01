@@ -10,7 +10,7 @@ keyword = ["multicast", "AMBI", "authentication", "manifest", "Ed25519", "SSM"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-mboned-mcast-manifest-00"
+value = "draft-ramadan-mboned-mcast-manifest-01"
 stream = "IETF"
 status = "standard"
 
@@ -27,12 +27,15 @@ organization = "Blockcast"
 
 This document defines a format for authenticating UDP datagrams
 delivered over IP multicast without changing them.  The sender
-computes a digest over every datagram of a flow, places the digests
+computes a digest over every data datagram of a flow, places the digests
 of up to 37 datagrams in a fixed-layout record, signs the record with
-Ed25519 under a prefix that names the flow, and sends it on a second
-port of the same source and group immediately before the datagrams it
-covers, followed by a byte-identical twin.  A receiver verifies one
-signature per record, hashes each datagram once, and delivers a
+Ed25519 under a prefix that names the flow, and sends it in band, on
+the flow's own source, group and port, immediately before the
+datagrams it covers, followed by a byte-identical twin.  Every record
+begins with four fixed octets, and no data datagram does, so a
+receiver tells records from data by those octets alone.  A receiver
+verifies one signature per record, hashes each datagram once, and
+delivers a
 datagram only after its digest matches an entry of a verified record;
 it needs no return channel.  A well-known document supplies a flow's
 keys and parameters.  A Media over QUIC profile and a browser profile
@@ -102,7 +105,7 @@ well-known document, a DORMS record, an application catalog or
 provisioning), how the 32-octet `ctx` field of the record is derived
 from the application context, if at all
 ((#signature-context-binding)), and whether records reach a receiver
-by any path other than the flow's manifest port
+by any path other than the flow's own port
 ((#additional-record-paths)).
 
 A receiver that implements this document enforces it: there is no
@@ -119,7 +122,8 @@ title "Multicast Receive for Secure Contexts", names the format
 `manifest-ed25519-2`, scheme 1 of
 (#multicast-datagram-integrity-schemes-registry), fetches the
 well-known document on a page's behalf and delivers to the page
-nothing that (#receiver-behavior) has not admitted.
+nothing that (#receiver-behavior) has not admitted; (#browser-profile)
+lists the rules it adds.
 
 # Conventions and Terminology
 
@@ -150,24 +154,25 @@ flow is the declared `senderAddress` of its metadata
 **Flow**: every datagram the sender emits to one `(S, G, port)`, `S`
 being the source address, `G` the group address and `port` the UDP
 destination port, that the flow's metadata declares protected
-((#flow-parameters)).  A sender that carries the same content on two
-`(S, G, port)` tuples has two flows.
+((#flow-parameters)), other than the records it emits there.  A
+sender that carries the same content on two `(S, G, port)` tuples has
+two flows.
 
-**Manifest port** (`manifestPort`): the UDP destination port, on the
-same `(S, G)` as the flow, of the flow's records.
+**Data datagram**: a datagram of a flow; no data datagram begins with
+the ASCII octets "MHM2" ((#sender-behavior)).
 
-**Record**: one UDP datagram on `manifestPort` that carries the
+**Record**: one UDP datagram on the flow's `port` that carries the
 digests of one window, signed ((#manifest-record)).  "Manifest record"
 and "record" are the same thing.
 
-**Window**: a contiguous run of at most 37 datagrams of a flow whose
-digests one record carries.
+**Window**: a contiguous run of at most 37 data datagrams of a flow
+whose digests one record carries.
 
 **Twin**: the byte-identical second copy of a record
 ((#sender-behavior)).
 
 **Path**: a route by which records reach a receiver.  This document
-defines one, the flow's `manifestPort`; a profile MAY add others
+defines one, in band on the flow's `port`; a profile MAY add others
 ((#additional-record-paths)).
 
 **Epoch**: a 32-bit counter carried in every record that increments
@@ -204,16 +209,18 @@ derived and which record paths exist.
 # Overview
 
 Data datagrams are untouched: no header, no trailer and no parsing
-are added to them.  Their authenticity comes from a separate stream
-of signed records on the same `(S, G)` at `manifestPort`.  For each
-protected flow the sender computes a digest over every datagram the
-flow emits, Forward Error Correction (FEC) repair symbols included
+are added to them.  Their authenticity comes from signed records
+that the sender interleaves with them on the flow's own
+`(S, G, port)`; every record begins with the four octets "MHM2", and
+no data datagram does.  For each protected flow the sender computes a
+digest over every data datagram the flow emits, Forward Error
+Correction (FEC) repair symbols included
 where a flow carries them; collects digests into windows of at most
 37 datagrams or `manifestTimerMs`, whichever closes first;
 places each window in a fixed-layout manifest record; signs the
 record with a dedicated Ed25519 key [@!RFC8032] under a
-network-identity prefix; and emits the record on the flow's manifest
-port immediately before the datagrams it covers, followed by a second
+network-identity prefix; and emits the record on the flow's `port`
+immediately before the datagrams it covers, followed by a second
 copy.  Receivers verify one signature per window, hash each datagram
 once, and admit a datagram to delivery only after its digest matches
 an entry of a verified manifest.
@@ -250,7 +257,8 @@ implement it.  A flow's metadata names the scheme the flow uses.
 
 # Digest
 
-Every datagram the sender emits in a protected flow has a digest:
+Every data datagram the sender emits in a protected flow has a
+digest; a record has none:
 
 ~~~
 D = H(pseudoheader || payload)
@@ -292,9 +300,10 @@ input is declared in the flow's metadata or provisioned with it
 ((#receiver-behavior)), so a receiver forms the pseudoheader without
 reading anything from the datagram but its length, and one digest
 verifies the same bytes whatever carrier delivers the datagram.  A
-carrier that re-addresses either flow, or carries the datagrams in
-any other form, is not covered: the pseudoheader binds `S`, `G` and
-the ports, and a record verifies as it was signed or not at all.
+carrier that re-addresses the flow or its records, or carries the
+datagrams in any other form, is not covered: the pseudoheader binds
+`S`, `G` and the ports, and a record verifies as it was signed or not
+at all.
 
 ## Hash Algorithms
 
@@ -311,9 +320,11 @@ same `hash_alg` for the life of a flow generation (`streamId`,
 
 # Manifest Record
 
-A manifest record is one UDP datagram on `manifestPort` of the same
-`(S, G)` as the protected flow.  Every field except the signature is
-at a fixed offset, and the signature is the last 64 octets.
+A manifest record is one UDP datagram on the protected flow's own
+`(S, G, port)`; its first four octets, "MHM2", tell it apart from the
+flow's data datagrams ((#processing)).  Every field except the
+signature is at a fixed offset, and the signature is the last 64
+octets.
 
 | Offset | Size | Field |
 |---|---|---|
@@ -371,11 +382,11 @@ signed_message =
  || u32(streamId)
  || S                               # 4 or 16 octets
  || G                               # 4 or 16 octets
- || u16(manifestPort)
+ || u16(port)
  || record[0 .. len - 64)
 ~~~
 
-with `S`, `G`, `streamId` and `manifestPort` as declared for the flow
+with `S`, `G`, `streamId` and `port` as declared for the flow
 ((#digest), (#flow-parameters)), and the signature is the 64-octet
 Ed25519 signature of [@!RFC8032] Section 5.1 (the PureEdDSA variant,
 with no prehash and an empty context) under the key that `kid` names.
@@ -410,8 +421,10 @@ would start below the `kid`'s last epoch starts under a new `kid`
 
 The protected unit is a flow: every datagram the sender emits to one
 flow `(S, G, port)` that its metadata declares protected
-((#flow-parameters)).  A flow has one `manifestPort`, which no other
-flow of the same `(S, G)` shares ((#flow-parameters)); its `sequence`
+((#flow-parameters)), other than the records it emits there.  A flow
+has one `port`, which no other flow of
+the same `(S, G)` shares and which carries its records
+((#flow-parameters)); its `sequence`
 counter (below) and its `mseq` counter ((#manifest-record)) are kept
 per `(kid, epoch)`.  `mseq` starts at any value and increases by one
 for every window the flow closes under one `(kid, epoch)`, in
@@ -421,7 +434,7 @@ emission order, which the replay floor of (#receiver-behavior)
 assume.
 
 `sequence` is a 64-bit counter the sender assigns per `(flow, kid,
-epoch)`: it starts at any value and increases by one for every
+epoch)`: it starts at any value and increases by one for every data
 datagram the flow emits, in emission order, repair symbols included.
 It is carried only in manifest records, never in data datagrams, and
 is unrelated to any sequence number the payload carries.  Digest `i`
@@ -437,20 +450,31 @@ implementation evaluates without unsigned underflow or overflow.
 
 # Sender Behavior
 
+A sender emits a flow's records on the flow's `port`, interleaved
+with its data datagrams.  It MUST NOT emit a data datagram whose
+first four octets are the ASCII octets "MHM2", since a receiver takes
+such a datagram for a record ((#processing)).  RTP, LCT (FLUTE and
+ROUTE), NORM and MMTP version 0 packets cannot begin with those
+octets, because the version field they lead with excludes the octet
+0x4D ("M").
+
 A sender closes a window after 37 datagrams or after `manifestTimerMs`
 since the window opened, whichever comes first; the timer governs only
 while the flow emits at most 37 datagrams per `manifestTimerMs` (1850
 per second at the default, about 21 Mbit/s of 1400-octet datagrams),
-and the count cap governs above that.  A sender MUST NOT close
-windows on one flow faster than 1000 per second, the rate at which a
-receiver's verification budget refills (step 1 of (#processing); its
-depth of 64 absorbs jitter), nor close more than `64 + 1000 x t`
-windows in any interval of `t` seconds, the envelope of that bucket,
-which its bursts share with the network's jitter: at the count cap
-that is 37,000 datagrams per second, about 414 Mbit/s of 1400-octet datagrams and
-about 59 Mbit/s of 200-octet ones, and a stream above it is carried
-as several flows, each with its own `port` and `manifestPort`
-((#flow-parameters)), or by another scheme.  A sender above the
+and the count cap governs above that.  A sender MUST NOT close more
+than `64 + V x t` windows on one flow in any interval of `t` seconds,
+a long-run rate of at most V per second, where
+`V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))` is computed from
+the flow's declared `maxBitrate` ((#flow-parameters)) and is the rate
+at which a receiver's verification budget refills (step 1 of
+(#processing)); `64 + V x t` is the envelope of that bucket, whose
+depth of 64 the sender's bursts share with the network's jitter.  At
+the count cap that is 37 x V datagrams per second, which above V's
+floor (a `maxBitrate` above about 121 Mbit/s) is 1.25 x `maxBitrate`
+of 512-octet datagrams: a flow at its declared rate stays under V
+while its datagrams average at least about 410 octets (V is 8,248 at
+1 Gbit/s).  A sender above the
 ceiling starves its own receivers, whose budgets drop its records and
 expire its windows as loss ((#threat-model)).  A sender MAY raise
 `manifestTimerMs` to at most `maxAuthDelayMs / 4` on low-rate flows;
@@ -513,7 +537,7 @@ MUST be able to pin "authentication required" for a flow
 independently of its metadata.  A receiver that fetches no metadata
 MUST be provisioned out of band with the keys, `firstEpoch` included,
 and `minEpoch` and, per protected flow, the `streamId`, `S`, `G`,
-`port`, `manifestPort` and `maxBitrate` the metadata would declare
+`port` and `maxBitrate` the metadata would declare
 ((#flow-parameters)), and any non-default `maxAuthDelayMs` and
 `manifestTimerMs`: the record carries none of them; keys are never
 taken from a carrier's signaling.  A receiver that pins keys takes the
@@ -539,8 +563,8 @@ section.
 ## Source Check
 
 On an ASM flow a receiver MUST discard, before any parsing or
-hashing, a datagram on `port` or `manifestPort` whose IP source
-address is not `senderAddress`; behind an AMT relay the address is
+hashing, a datagram on `port` whose IP source address is not
+`senderAddress`; behind an AMT relay the address is
 that of the encapsulated header of the AMT Multicast Data message
 [@!RFC7450].  On an SSM flow reached natively the network enforces
 the source and a receiver SHOULD still discard a datagram whose
@@ -548,7 +572,7 @@ source address is not `S`; a receiver reached through an AMT gateway
 MUST discard it, since nothing upstream of its gateway filters the
 encapsulated source address and [@!RFC7450] does not authenticate
 Multicast Data messages.  A datagram that passes belongs to the flow
-`(S, G, port)` or `(S, G, manifestPort)` with `S` as in (#digest).
+`(S, G, port)` with `S` as in (#digest).
 
 ## State
 
@@ -571,19 +595,27 @@ that an unknown `kid` triggered ((#key-rotation-and-re-fetch)), and
 the per-`kid` epoch floor kept with a key pin.
 
 `maxBitrate`, `maxAuthDelayMs` and `manifestTimerMs` size the hold
-queue and the pending table (steps 1 and 2); a receiver bounds both
-by local policy.  At the budget of step 1 the pending table holds at
-most `37 x (64 + 1000 x (maxAuthDelayMs + 2 x manifestTimerMs) / 1000)`
-entries, 11,248 at the defaults, and the hold queue at most
+queue and the pending table (steps 1 and 2), and `maxBitrate` the
+verification budget of step 1; a receiver bounds all three by local
+policy.  At the budget of step 1 the pending table holds at
+most `37 x (64 + V/1000 x (maxAuthDelayMs + 2 x manifestTimerMs))`
+entries, 11,248 at the defaults up to a `maxBitrate` of about
+121 Mbit/s and 75,610 at 1 Gbit/s, and the hold queue at most
 `maxAuthDelayMs x maxBitrate / 8000` octets, 1.25 MB at 50 Mbit/s and
 the default `maxAuthDelayMs`.
 
 ## Processing
 
 A receiver applies the following, in this order, with no
-variable-length interpretation before a cryptographic check:
+variable-length interpretation before a cryptographic check.  A
+datagram on `port` whose first four octets are the ASCII octets
+"MHM2" is a record candidate and takes step 1; every other datagram
+on `port` is a data datagram and takes step 2.  Nothing else is read
+to decide.  A record candidate that fails a check of step 1 is
+dropped and counted as that step specifies, and it is never held,
+hashed as a data datagram or delivered.
 
-1.  **Record datagram** (on `manifestPort`, `magic` "MHM2").  Require
+1.  **Record datagram** (on `port`, `magic` "MHM2").  Require
    `164 <= len <= 1316` and `(len - 132) mod 32 == 0`.  Read the
    fixed-offset integers `magic`, `kid`, `epoch`, `mseq`, `count`,
    `hash_alg` and `sent` and the 32 octets of `ctx`.  Drop before any
@@ -617,7 +649,10 @@ variable-length interpretation before a cryptographic check:
    (#signature-context-binding), `ctx` differs from the value
    recomputed from it (any other receiver carries `ctx` blind).
    Charge the per-flow verification budget, a token bucket of depth
-   64 refilled at 1000 tokens per second; drop and count a record
+   64 refilled at V tokens per second,
+   `V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))` from the flow's
+   declared `maxBitrate` ((#flow-parameters)): 1000 up to about
+   121 Mbit/s, 8,248 at 1 Gbit/s; drop and count a record
    that finds it empty (nothing before the signature tells a forged
    record from a genuine one, so a forged record spends the same
    token, (#threat-model)).  Verify the Ed25519 signature over
@@ -653,7 +688,8 @@ variable-length interpretation before a cryptographic check:
    this `epoch` and a higher `mseq` are dropped, pending entries live
    out their expiry, and the next epoch is accepted by the rule above.
 
-2.  **Data datagram** (on `port`).  Compute `D` with the flow's
+2.  **Data datagram** (any other datagram on `port`).  Compute `D`
+   with the flow's
    `hash_alg` (a datagram that arrives before the first record of the
    flow is verified is held without a digest) and look it up in the
    pending table, which maps a digest to an ordered list of sequences
@@ -680,9 +716,8 @@ finds no entry unless a legitimate identical copy is still pending,
 in which case the replay consumes that copy and the later legitimate
 copy is dropped (the application receives the same bytes either way;
 this is a denial of service only, bounded by the carousel repeat
-count).  Cross-flow replay is excluded by `streamId`, `S` and `G` in
-both the digest and the signature, `port` in the digest and
-`manifestPort` in the signature.
+count).  Cross-flow replay is excluded by `streamId`, `S`, `G` and
+`port` in both the digest and the signature.
 
 ## Key Rotation and Re-fetch
 
@@ -698,7 +733,11 @@ current, which the retired key still signs, and a receiver whose
 metadata or pin predates the rotation is exposed to the retired key
 until it re-fetches or is re-provisioned ((#threat-model)).  A record
 with an unknown `kid` triggers at most one metadata re-fetch per 30 s
-per receiver; until then such records are dropped.  Whenever a
+per receiver; until then such records are dropped.
+The browser profile does not re-fetch on an unknown `kid`: it drops
+such records and re-fetches the well-known document only when the
+metadata lifetime of (#fetching-the-document) expires, so an injected
+record cannot make it fetch on demand.  Whenever a
 re-fetch or a re-provisioning changes the key set or a `kid`'s range,
 the receiver re-applies the range check of (#flow-parameters) to the
 `(kid, epoch)` that set each flow's current epoch; where it now
@@ -727,8 +766,8 @@ join-time floors of step 1 of (#processing).
 
 ## Additional Record Paths
 
-This document delivers records on `manifestPort` only, so the record
-that makes an epoch current is the first record of that epoch the
+This document delivers records only in band, on the flow's `port`,
+so the record that makes an epoch current is the first record of that epoch the
 receiver verifies, the grace period of the previous epoch starts at that
 moment, and one replay floor per `(kid, epoch)` suffices.  A profile
 that adds a second record path (a unicast mirror of the same record
@@ -767,10 +806,12 @@ synchronized clock.
 ## Cost
 
 A datagram from another source costs one address comparison; one that
-spoofs `S` costs one hash, two lookups and, on a miss of both, space
-in the hold queue until expiry, so a copy of an admitted datagram
-costs one hash and two lookups; an injected record costs at most one
-verification inside the budget, a replayed one whose
+spoofs `S` costs one four-octet comparison and, if it does not begin
+with "MHM2", one hash, two lookups and, on a miss of both, space in
+the hold queue until expiry, so a copy of an admitted datagram costs
+one hash and two lookups; one that begins with "MHM2" is an injected
+record, which costs at most one verification inside the budget, a
+replayed one whose
 `(kid, epoch, mseq)` is still verified one lookup and one hash while
 its `mseq` is above the replay floor (the already-verified lookup of
 step 1 precedes the freshness check), one outside the verified set
@@ -779,9 +820,19 @@ the epoch floor, the replay floor or the freshness check drops it,
 the second copy of a verified record one lookup and one hash.  With
 one verification per 37 datagrams, a Cortex-A53 without SHA2
 instructions spends about 0.26 of a core at 100 Mbit/s and, under a
-record flood at a budget of 1000/s, about 0.43 of a core on signature
-checks, the hashing of the flow's own datagrams continuing beside
-them; a core with SHA2 instructions spends a fraction of that.
+record flood at V's floor of 1000 verifications per second, about
+0.43 of a core on signature checks, the hashing of the flow's own
+datagrams continuing beside them; a core with SHA2 instructions
+hashes in a fraction of that time, and its signature checks do not
+depend on them.  A record flood costs at most V
+verifications per second, so the flood figure rises with V: 8,248 per
+second, V at 1 Gbit/s, is 0.33 of a 3 GHz Zen 3 core and
+1.84 Cortex-A76 cores at 1.5 GHz.  The browser profile drops and
+counts, before hashing, a datagram whose UDP payload exceeds 1472
+octets over IPv4 or 1452 octets over IPv6 (one unfragmented
+1500-octet packet), so a datagram reassembled from fragments, up to
+about 64 KiB, cannot cost it about 45 times the hashing of a
+1400-octet one.
 
 # Flow Metadata and the Well-Known Document
 
@@ -804,7 +855,7 @@ other names maps them one to one.
   transmits the flow, `S` of (#digest).  On an SSM flow it is the
   SSM source; on an ASM flow it is declared as **senderAddress**,
   which MUST NOT appear on an SSM flow.  Two ASM flows whose
-  `senderAddress` differ MAY share `G` and ports; the source check of
+  `senderAddress` differ MAY share `G` and `port`; the source check of
   (#receiver-behavior) separates them.
 - **G** (REQUIRED): the group address, of the same address family as
   `S`.  Wherever a receiver matches metadata to a flow it compares `S`
@@ -812,18 +863,13 @@ other names maps them one to one.
   family never matches one of the other, an IPv4-mapped IPv6 address
   being of the IPv6 family ((#the-well-known-document)).
 - **port** (REQUIRED): the UDP destination port of the data
-  datagrams, and the source port from which the sender emits every
-  datagram of the flow ((#digest)).
-- **manifestPort** (integer, REQUIRED): destination port of the record
-  datagrams, twins included, on the flow's `(S, G)`; MUST differ from
-  the `port` of every flow of the same `(S, G)` the metadata declares,
-  this flow included, and from the `manifestPort` of every other such
-  flow, so that no port of an `(S, G)` carries both data and records,
-  or the records of two flows.  A receiver MUST NOT join a protected
-  flow whose ports violate this.  Metadata MUST declare each
-  `(S, G, port)` at most once; a receiver whose metadata declares one
-  twice holds no parameters for that flow and does not join it
-  ((#the-well-known-document)).
+  datagrams and of the records, twins included, and the source port
+  from which the sender emits every datagram of the flow ((#digest)).
+  Two flows of the same `(S, G)` MUST NOT share a `port`, so that no
+  port of an `(S, G)` carries the data or the records of two flows:
+  metadata MUST declare each `(S, G, port)` at most once, and a
+  receiver whose metadata declares one twice holds no parameters for
+  that flow and MUST NOT join it ((#the-well-known-document)).
 - **streamId** (integer, REQUIRED): 32-bit value chosen per flow
   generation,
   bound into every digest and signature.
@@ -862,9 +908,12 @@ other names maps them one to one.
   the window timer of (#sender-behavior).
 - **maxBitrate** (integer, REQUIRED): the sender's declared ceiling
   for the
-  flow in bit/s, which bounds the receiver's hold queue (step 2 of
-  (#processing)).  [@?MOQ-MULTICAST] declares the same value as the
-  endpoint's `bandwidth`.
+  flow in bit/s, counting the UDP payloads of its data datagrams (IP
+  and UDP headers and records excluded), which bounds the receiver's
+  hold queue (step 2 of
+  (#processing)) and sets the verification budget V of step 1 and the
+  sender's window ceiling ((#sender-behavior)).  [@?MOQ-MULTICAST]
+  declares the same value as the endpoint's `bandwidth`.
 
 The ranges above are binding.  A receiver that finds `maxAuthDelayMs`
 outside 50 to 1000 or `manifestTimerMs` below 1 MUST either clamp it
@@ -873,10 +922,15 @@ and MUST NOT use the out-of-range value.  The other parameters are
 identifiers or sizes, not tunables, and a clamped identifier names a
 port, key, generation or epoch the sender never declared: a receiver
 that finds a `keys` array of no or more than four entries, a `port`
-or `manifestPort` of 0, a `maxBitrate` that is not a positive
-integer, or `port`, `manifestPort`, `streamId`, `kid`, `firstEpoch`
-or `minEpoch` outside its field width, MUST decline the flow.  The
-browser profile clamps `maxAuthDelayMs` (to 50 and 1000).
+of 0, a `maxBitrate` that is not a positive integer, or `port`,
+`streamId`, `kid`, `firstEpoch` or `minEpoch` outside its field
+width, MUST decline the flow.  The
+browser profile clamps `maxAuthDelayMs` (to 50 and 1000) and
+declines a flow whose `manifestTimerMs` exceeds `maxAuthDelayMs / 4`
+after that clamp (at most 250 ms), the ceiling (#sender-behavior) sets
+for senders, so its grace period never exceeds 1.5 s and its pending
+table never exceeds the bound of (#state) at
+`maxAuthDelayMs + 2 x manifestTimerMs` = 1500 ms.
 
 `maxAuthDelayMs`, `manifestTimerMs` and `maxBitrate` are per flow.
 `keys` and `minEpoch` are per key set; the metadata attaches a key
@@ -913,7 +967,6 @@ used with the `https` URI scheme only:
       "maxBitrate": 8000000,
       "integrity": {
         "scheme": "manifest-ed25519-2",
-        "manifestPort": 5005,
         "streamId": 2864434397,
         "minEpoch": 17,
         "maxAuthDelayMs": 200,
@@ -950,7 +1003,7 @@ whose `channels` is not an array, lists no channel.  Each carries
 was fetched from),
 **group** (`G`), **port**, **maxBitrate** and an **integrity**
 object with **scheme** and, for `manifest-ed25519-2`,
-**manifestPort**, **streamId**, **minEpoch**, **maxAuthDelayMs**,
+**streamId**, **minEpoch**, **maxAuthDelayMs**,
 **manifestTimerMs** and **keys**, each as (#flow-parameters)
 defines it; `publicKey` is base64url-encoded without padding
 ([@!RFC4648] Section 5), 43 characters for the 32 octets.  For
@@ -967,8 +1020,8 @@ are not; an IPv4-mapped IPv6 literal is of the IPv6 family and does
 not match an IPv4 address, the families themselves having to match.
 It ignores an element of `channels` that is not a JSON object, a
 channel it cannot match, every channel whose `(S, G, port)` another
-channel of the same document also declares, one whose ports violate
-(#flow-parameters), one that lacks a member this section or
+channel of the same document also declares, one whose `port`
+violates (#flow-parameters), one that lacks a member this section or
 (#flow-parameters) marks REQUIRED for its `scheme`, or carries a
 member of this section under a JSON value of a kind other than the
 one named here (a number with an integer value for `port`, `kid`,
@@ -1059,8 +1112,8 @@ left (a key set that still names a key but drops the current `kid` is
 a key-set change under (#key-rotation-and-re-fetch), not a
 withdrawal),
 so withdrawal of consent is effective within one metadata lifetime,
-and a sender that wants faster withdrawal publishes a short lifetime or
-stops signing.  A record with an unknown `kid` triggers at most one
+and a sender that wants faster withdrawal publishes a short
+lifetime.  A record with an unknown `kid` triggers at most one
 re-fetch per 30 s per receiver ((#key-rotation-and-re-fetch)); a
 re-fetch so triggered that fails, or returns a response the receiver
 cannot use, leaves the parameters the receiver holds in force until
@@ -1069,6 +1122,70 @@ are dropped either way, and treating that failure as a withdrawal
 would let any host that can inject one such record and keep the
 server's answer from the receiver make every receiver that holds the
 metadata leave the flow at once.
+
+## Browser Profile
+
+This section is informative.  It collects what the browser profile of
+(#introduction) adds to this document, for its receivers and for the
+senders that serve them.  Its rules on a record with an unknown `kid`
+((#key-rotation-and-re-fetch)), on `manifestTimerMs`
+((#flow-parameters)), on datagram size ((#cost)) and on ingress above
+its ceiling ((#threat-model)) are stated in those sections.
+
+A sender whose flow serves the browser profile starts each `sequence`
+counter ((#keys-epochs-and-sequence-numbers)) below 2^53 and ends the
+epoch before `first_seq + count - 1` would exceed 2^53 - 1, the
+largest integer n for which a JavaScript Number holds n and n + 1
+exactly:
+the browser profile reads `first_seq` with the other fixed-offset
+integers of step 1 of (#processing) and drops, before verification,
+a record past that bound, and the datagrams that record covers expire
+unadmitted.
+
+A sender whose flow serves the browser profile keeps its datagrams
+averaging at least 512 octets at the declared `maxBitrate`, and its
+`manifestTimerMs` at 8 ms or more, because
+the browser profile derives its ingress ceiling for the flow from
+that rate, `max(1000, 1.25 x (1 + 2/37) x maxBitrate / (8 x 512))`
+datagrams per second counted before verification (the 2/37 for a
+record and its twin per 37 data datagrams), and sheds datagrams above
+it ((#threat-model)); a window the timer closes adds a record and its
+twin whatever its count, so a shorter timer can take a flow at its
+declared rate past that ceiling.  V of (#sender-behavior) is sized on
+the same 512 octets.
+
+The browser profile also bounds the hold queue of step 2 of
+(#processing) at 16 MB (128 ms at 1 Gbit/s), dropping and counting
+held data past it, and joins flows within its ceilings: 1 Gbit/s per
+flow and per page on every device, and 50 Mbit/s per flow and
+100 Mbit/s per page on a link the platform reports as metered.  A
+user agent may lower these ceilings but never raise them, and it
+lowers them alike on every device, so that no ceiling tells a page
+about its device.  It declines a flow whose `maxBitrate` exceeds the
+ceiling per flow or would take the sum of `maxBitrate` over the
+page's flows past the ceiling per page, and it leaves a flow whose
+`maxBitrate` a lowering, or a link that becomes metered, puts above
+the ceiling per flow.
+
+The browser profile's authenticated-rate breaker leaves a flow whose
+authenticated rate stays above 1.25 x `maxBitrate` for 5 s, and its
+loss breaker leaves one that loses more than 25% of the datagrams its
+records list in each of three successive 5 s windows.  The loss
+breaker counts as lost only listed digests that expire unmatched and
+the windows of records missing from the verified `mseq` sequence,
+never a held datagram that no verified record lists: injected data
+datagrams cannot trip it, while genuine datagrams the ingress ceiling
+sheds, and windows whose records the verification budget dropped,
+count as lost.  Silence trips neither breaker.
+
+A browser-profile receiver that gets no native SSM delivery of a flow
+reaches it through its own AMT gateway [@!RFC7450], using only a relay
+that an AMTRELAY record [@?RFC8777] in the reverse zone of `S` names,
+at a global unicast address and on UDP port 2268 ([@!RFC7450]
+Section 7.2).  The relay is trusted for carriage alone: every
+datagram is verified as (#receiver-behavior) requires, with the
+source check of (#source-check) applied to the encapsulated source
+address.
 
 # The ed25519-trailer-1 Scheme
 
@@ -1165,7 +1282,7 @@ against replay, injection, and modification and the ability to detect
 deletion, loss, or reordering", a deleted datagram being a gap in the
 admitted sequences as a lost one is, and no mode of this document delivers an
 unauthenticated datagram (Section 2.4.4 of that document).  Because
-every datagram, repair symbols included, is admitted by its own
+every data datagram, repair symbols included, is admitted by its own
 digest before any use, an injected datagram cannot invalidate an
 object or a repair block and so force recovery, the amplification
 that Section 2.1 of that document describes; because a receiver
@@ -1266,9 +1383,10 @@ rewrite that raises
 nothing more, since neither carries a metadata value past the
 session ((#receiver-behavior)).  Rewriting any other parameter of the
 flow only makes genuine records fail the signature or `ctx` check, or
-resizes the hold queue and pending expiry (`maxBitrate`,
-`maxAuthDelayMs`, `manifestTimerMs`), which a receiver bounds by local
-policy ((#state)).  A rewrite that redirects a receiver to another
+resizes the verification budget, the hold queue and pending expiry
+(`maxBitrate`, `maxAuthDelayMs`, `manifestTimerMs`), which a receiver
+bounds by local policy ((#state)).  A rewrite that redirects a
+receiver to another
 `(S, G)` is a join the receiver's metadata source authorized, and
 what it then receives verifies under the keys that metadata names or
 not at all; bounding the joins a receiver performs on behalf of one
@@ -1277,17 +1395,18 @@ metadata source is a matter for the profile.
 This format protects integrity, not availability.  A forged record
 passes every check of step 1 of (#processing) up to the signature, so
 each one spends a token of the verification budget: an attacker who
-sustains more than 1000 records per second on the manifest port
-(about 1.3 Mbit/s of 164-octet records) takes a share of the budget
+sustains more than V records per second on the flow's `port`
+(about 1.3 Mbit/s of 164-octet records at V's floor, 10.8 Mbit/s at
+8,248) takes a share of the budget
 proportional to its rate, and at several times that rate both copies
 of a window lose their tokens and the flow yields no data.  The
 budget bounds the receiver's CPU; it does not raise the cost of this
 attack, and the record flood is not the cheapest availability attack
-on every protected flow: a datagram on the data port that matches no
-pending entry is held until it expires (step 2 of (#processing)), and
+on every protected flow: a data datagram that matches no pending
+entry is held until it expires (step 2 of (#processing)), and
 those expiries are loss to the application, so an injector that
 sustains, with the same access as the record flood, a given loss
-fraction does so for less than the 1000 records per second the record
+fraction does so for less than the V records per second the record
 flood needs wherever that fraction of the flow's packet rate is below
 it, as on every audio flow and most low-rate video; only evicting
 genuine datagrams, by overflowing the hold queue, needs the flow's
@@ -1313,23 +1432,31 @@ address at another port, and recommends that senders list every flow
 they send in their metadata and that a firewall block multicast
 traffic to the unsecured ports of an `(S, G)` that carries secured
 traffic; a receiver that implements this document is not that
-application, but it pays for every datagram on `port` and
-`manifestPort` as (#cost) states, so an attacker that can inject into
+application, but it pays for every datagram on `port` as (#cost)
+states, so an attacker that can inject into
 the group spends the receiver's link before any check, and, where it
 sends as `S` (or as `senderAddress` on an ASM flow, (#source-check)),
 its hashing budget as well; a datagram from any other source costs
 the one comparison of (#cost).  This document bounds the price per
 datagram and the state: a datagram on `port` that passes the source
-check costs one hash and space in the hold queue, which is bounded in
-octets, until it expires, when
+check and does not begin with "MHM2" is a data datagram and costs one
+hash and space in the hold queue, which is bounded in octets, until
+it expires, when
 it is dropped as unauthenticated, loss the application sees (step 2
-of (#processing)); one on `manifestPort` costs at most one
-verification inside the budget of step 1.  The link capacity the
+of (#processing)).  A datagram injected with "MHM2" at its start
+takes step 1 instead, where it is dropped before any cryptography or
+charged to the verification budget, exactly as it would be on a
+separate record port, and it never occupies the hold queue.  Telling
+the two apart costs one four-octet comparison per datagram.  The link
+capacity the
 injected traffic takes and the rate at which the receiver keeps
 hashing it are bounded by nothing here: a ceiling on the datagrams a
 receiver accepts from a joined group, counted before verification,
 and what it does when the ceiling is exceeded, belong to the
-profile's ingress ceiling (the browser profile leaves the group).
+profile's ingress ceiling (the browser profile, (#browser-profile),
+drops datagrams above its ceiling before hashing, counts them and
+stays joined, unless the genuine datagrams among them trip its loss
+breaker).
 
 A receiver that holds the metadata naming the successor key accepts
 the retired `kid` only below the successor's `firstEpoch`
@@ -1359,7 +1486,7 @@ mode of this document delivers an unauthenticated datagram
 `maxAuthDelayMs / 2` later, so a held datagram waits at most that
 plus the burst that removed the record.  The replay floor of 64
 records below `highest_mseq` tolerates reordering of records on the
-manifest port by up to 63 windows, which is also the bound
+flow's `port` by up to 63 windows, which is also the bound
 (#sender-behavior) places on the twin's lag; a record reordered
 further is dropped, and its window is lost unless its other copy
 arrived in time.
@@ -1367,9 +1494,10 @@ arrived in time.
 A receiver that pins keys is exposed to nothing the metadata source
 can do beyond that session's data and the state that (#state) bounds
 by local policy: a `minEpoch` raise, a `streamId` change or a changed
-`port`, `manifestPort` or context source makes genuine records fail,
-`maxBitrate`, `maxAuthDelayMs` and `manifestTimerMs` resize its hold
-queue and pending table, and a changed `(S, G)` is a join its
+`port` or context source makes genuine records fail,
+`maxBitrate`, `maxAuthDelayMs` and `manifestTimerMs` resize its
+verification budget, hold queue and pending table, and a changed
+`(S, G)` is a join its
 metadata source authorized, but none of them lets it admit a datagram
 the sender did not emit; a receiver that does not pin is exposed to
 the metadata source as to the sender, which is why a profile fixes
@@ -1580,9 +1708,9 @@ policy.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='26'/>
+    <date year='2026' month='October' day='29'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-01'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
 </reference>
 
 <reference anchor='FIPS180-4' target='https://doi.org/10.6028/NIST.FIPS.180-4'>
@@ -1630,7 +1758,6 @@ ed25519 publicKey   : 03a107bff3ce10be1d70dd18e74bc099
                       67e4d6309ba50d5f1ddc8664125531b8
 S, G                : 198.51.100.7, 232.10.20.30 (IPv4)
 port                : 5004 (src_port = dst_port)
-manifestPort        : 5005
 streamId            : 2864434397 (0xaabbccdd)
 kid, epoch, mseq    : 1, 17, 1
 first_seq           : 1000
@@ -1643,9 +1770,9 @@ datagram 1 payload  : 0x22 repeated 1400 times
 pseudoheader (20)   : c6336407e80a141e00110578138c138c
                       aabbccdd
 signed_message prefix (32 octets, "mcast-manifest-v2" NUL
-streamId S G manifestPort):
+streamId S G port):
                       6d636173742d6d616e69666573742d76
-                      3200aabbccddc6336407e80a141e138d
+                      3200aabbccddc6336407e80a141e138c
 ~~~
 
 The signed message is the 32-octet prefix followed by the first 132
@@ -1656,10 +1783,10 @@ D_0                 : 7ead4d8be7d24e08d7075bbac8fbe777
                       9ab3b8f1c47d3f8be4d2a514f2ec2069
 D_1                 : 6f7d9007e81b73c9f54aff8c2f66bd6e
                       8956bfa7e001789b986c328f9ed78751
-signature           : 9d5154a8e6beb7c472a09fa1e1d3d426
-                      b6042519343728835ed5c9416e615aad
-                      7ad335c0f0403aa8985e6b6979e5918d
-                      3d28e787ca29d55447930777c380d808
+signature           : b7bffcf63fc764c87438b55e521dccaf
+                      5e59177ae245aafe47fc1e15b7786795
+                      8e07f6ef2fa45c1162735ab5e2c1a942
+                      fe75cb6f8879f49d0b14a41f8306230d
 ~~~
 
 Record (196 octets):
@@ -1673,11 +1800,11 @@ Record (196 octets):
 c8fbe7779ab3b8f1c47d3f8be4d2a514
 f2ec20696f7d9007e81b73c9f54aff8c
 2f66bd6e8956bfa7e001789b986c328f
-9ed787519d5154a8e6beb7c472a09fa1
-e1d3d426b6042519343728835ed5c941
-6e615aad7ad335c0f0403aa8985e6b69
-79e5918d3d28e787ca29d55447930777
-c380d808
+9ed78751b7bffcf63fc764c87438b55e
+521dccaf5e59177ae245aafe47fc1e15
+b77867958e07f6ef2fa45c1162735ab5
+e2c1a942fe75cb6f8879f49d0b14a41f
+8306230d
 ~~~
 
 The public key above, base64url-encoded without padding, is the
@@ -1749,6 +1876,49 @@ broadcast or in a browser without one, cannot anchor that tree,
 which is the case this document serves; the two carry different
 digests over different bytes and cannot share them, so they
 complement each other by deployment, not by format.
+
+# Change Log
+
+This appendix is informative.  It is to be removed before publication
+as an RFC.
+
+## Changes Since draft-ramadan-mboned-mcast-manifest-00
+
+- Records travel in band, on the flow's own `(S, G, port)` and
+  interleaved with its data datagrams, and a receiver tells them from
+  data by their first four octets, "MHM2", which no data datagram
+  begins with ((#sender-behavior), (#processing)).  The `manifestPort`
+  parameter is removed, and the signature prefix of
+  (#signature-context-binding) binds `u16(port)` in its place.  In
+  (#test-vectors) the `manifestPort` input is gone and the prefix ends
+  in `u16(port)`, and of the computed values only the signature and
+  the record change.
+- The per-flow verification budget refills at
+  `V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))` per second,
+  scaled from the flow's declared `maxBitrate`, instead of at a fixed
+  rate; the sender's window ceiling is V (envelope `64 + V x t`) and
+  the pending-table bound scales with V, so one flow can carry a
+  high-rate stream ((#sender-behavior), (#state), (#processing)).
+  (#cost) and (#threat-model) re-derive the record-flood figures from
+  V, and a rewritten `maxBitrate` now resizes V as well.
+- New (#browser-profile), informative, collects what the browser
+  profile adds: a sender that serves it starts each `sequence` counter
+  below 2^53 and keeps its datagrams averaging at least 512 octets at
+  the declared `maxBitrate` and its `manifestTimerMs` at 8 ms or more,
+  and the profile bounds the hold queue at 16 MB, joins flows within
+  its rate ceilings, the same on every device, leaves a flow on its
+  authenticated-rate and loss breakers and reaches a flow through an
+  AMT relay that an AMTRELAY record names.  Notes in
+  (#key-rotation-and-re-fetch), (#cost) and (#flow-parameters) add its
+  rules on a record with an unknown `kid`, on datagram size and on
+  `manifestTimerMs`, and in (#threat-model) it sheds datagrams above
+  its ingress ceiling without leaving the group, where -00 had it
+  leave.
+- `maxBitrate` counts the UDP payloads of the flow's data datagrams,
+  IP and UDP headers and records excluded ((#flow-parameters)).
+  (#fetching-the-document) no longer names stopping signing as a
+  faster withdrawal: a receiver whose records stop stays joined while
+  the document lists the flow.
 
 {numbered="false"}
 # Acknowledgments
