@@ -926,9 +926,9 @@ of 0, a `maxBitrate` that is not a positive integer, or `port`,
 `streamId`, `kid`, `firstEpoch` or `minEpoch` outside its field
 width, MUST decline the flow.  The
 browser profile clamps `maxAuthDelayMs` (to 50 and 1000) and
-declines a flow whose `manifestTimerMs` exceeds `maxAuthDelayMs / 4`
-after that clamp (at most 250 ms), the ceiling (#sender-behavior) sets
-for senders, so its grace period never exceeds 1.5 s and its pending
+declines a flow whose `manifestTimerMs` is below 8, the floor of
+(#browser-profile), or exceeds `maxAuthDelayMs / 4` after that clamp
+(at most 250 ms), the ceiling (#sender-behavior) sets for senders, so its grace period never exceeds 1.5 s and its pending
 table never exceeds the bound of (#state) at
 `maxAuthDelayMs + 2 x manifestTimerMs` = 1500 ms.
 
@@ -1151,8 +1151,19 @@ datagrams per second counted before verification (the 2/37 for a
 record and its twin per 37 data datagrams), and sheds datagrams above
 it ((#threat-model)); a window the timer closes adds a record and its
 twin whatever its count, so a shorter timer can take a flow at its
-declared rate past that ceiling.  V of (#sender-behavior) is sized on
-the same 512 octets.
+declared rate past that ceiling, and the browser profile declines a
+flow whose `manifestTimerMs` is below 8 ((#flow-parameters)).  V of
+(#sender-behavior) is sized on the same 512 octets.
+
+The browser profile drops an IP fragment that arrives inside an AMT
+Multicast Data message and never reassembles one.  An AMT relay adds
+30 to 50 octets of encapsulation, and it fragments an IPv4 datagram
+too large for its tunnel when the datagram allows fragmentation and
+otherwise drops it, as it drops an IPv6 one ([@!RFC7450] Section
+5.3.3.6).  A sender that wants its flow to reach browser receivers
+through relays on 1500-octet paths therefore keeps the UDP payloads
+of its data datagrams at or below 1422 octets over IPv4 and 1402
+over IPv6, which fit a relay of either address family.
 
 The browser profile also bounds the hold queue of step 2 of
 (#processing) at 16 MB (128 ms at 1 Gbit/s), dropping and counting
@@ -1904,7 +1915,11 @@ as an RFC.
 - New (#browser-profile), informative, collects what the browser
   profile adds: a sender that serves it starts each `sequence` counter
   below 2^53 and keeps its datagrams averaging at least 512 octets at
-  the declared `maxBitrate` and its `manifestTimerMs` at 8 ms or more,
+  the declared `maxBitrate` and its `manifestTimerMs` at 8 ms or more
+  (the profile declines a flow below 8 ms), keeps data datagrams it
+  wants carried through AMT relays on 1500-octet paths at or below
+  1422 octets of UDP payload over IPv4 and 1402 over IPv6 (the
+  profile does not reassemble fragments),
   and the profile bounds the hold queue at 16 MB, joins flows within
   its rate ceilings, the same on every device, leaves a flow on its
   authenticated-rate and loss breakers and reaches a flow through an

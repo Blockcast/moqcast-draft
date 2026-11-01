@@ -942,9 +942,9 @@ of 0, a <tt>maxBitrate</tt> that is not a positive integer, or <tt>port</tt>,
 <tt>streamId</tt>, <tt>kid</tt>, <tt>firstEpoch</tt> or <tt>minEpoch</tt> outside its field
 width, MUST decline the flow.  The
 browser profile clamps <tt>maxAuthDelayMs</tt> (to 50 and 1000) and
-declines a flow whose <tt>manifestTimerMs</tt> exceeds <tt>maxAuthDelayMs / 4</tt>
-after that clamp (at most 250 ms), the ceiling <xref target="sender-behavior"></xref> sets
-for senders, so its grace period never exceeds 1.5 s and its pending
+declines a flow whose <tt>manifestTimerMs</tt> is below 8, the floor of
+<xref target="browser-profile"></xref>, or exceeds <tt>maxAuthDelayMs / 4</tt> after that clamp
+(at most 250 ms), the ceiling <xref target="sender-behavior"></xref> sets for senders, so its grace period never exceeds 1.5 s and its pending
 table never exceeds the bound of <xref target="state"></xref> at
 <tt>maxAuthDelayMs + 2 x manifestTimerMs</tt> = 1500 ms.</t>
 <t><tt>maxAuthDelayMs</tt>, <tt>manifestTimerMs</tt> and <tt>maxBitrate</tt> are per flow.
@@ -1157,8 +1157,18 @@ datagrams per second counted before verification (the 2/37 for a
 record and its twin per 37 data datagrams), and sheds datagrams above
 it (<xref target="threat-model"></xref>); a window the timer closes adds a record and its
 twin whatever its count, so a shorter timer can take a flow at its
-declared rate past that ceiling.  V of <xref target="sender-behavior"></xref> is sized on
-the same 512 octets.</t>
+declared rate past that ceiling, and the browser profile declines a
+flow whose <tt>manifestTimerMs</tt> is below 8 (<xref target="flow-parameters"></xref>).  V of
+<xref target="sender-behavior"></xref> is sized on the same 512 octets.</t>
+<t>The browser profile drops an IP fragment that arrives inside an AMT
+Multicast Data message and never reassembles one.  An AMT relay adds
+30 to 50 octets of encapsulation, and it fragments an IPv4 datagram
+too large for its tunnel when the datagram allows fragmentation and
+otherwise drops it, as it drops an IPv6 one (<xref target="RFC7450"></xref> Section
+5.3.3.6).  A sender that wants its flow to reach browser receivers
+through relays on 1500-octet paths therefore keeps the UDP payloads
+of its data datagrams at or below 1422 octets over IPv4 and 1402
+over IPv6, which fit a relay of either address family.</t>
 <t>The browser profile also bounds the hold queue of step 2 of
 <xref target="processing"></xref> at 16 MB (128 ms at 1 Gbit/s), dropping and counting
 held data past it, and joins flows within its ceilings: 1 Gbit/s per
@@ -1984,7 +1994,11 @@ V, and a rewritten <tt>maxBitrate</tt> now resizes V as well.</li>
 <li>New <xref target="browser-profile"></xref>, informative, collects what the browser
 profile adds: a sender that serves it starts each <tt>sequence</tt> counter
 below 2^53 and keeps its datagrams averaging at least 512 octets at
-the declared <tt>maxBitrate</tt> and its <tt>manifestTimerMs</tt> at 8 ms or more,
+the declared <tt>maxBitrate</tt> and its <tt>manifestTimerMs</tt> at 8 ms or more
+(the profile declines a flow below 8 ms), keeps data datagrams it
+wants carried through AMT relays on 1500-octet paths at or below
+1422 octets of UDP payload over IPv4 and 1402 over IPv6 (the
+profile does not reassemble fragments),
 and the profile bounds the hold queue at 16 MB, joins flows within
 its rate ceilings, the same on every device, leaves a flow on its
 authenticated-rate and loss breakers and reaches a flow through an
