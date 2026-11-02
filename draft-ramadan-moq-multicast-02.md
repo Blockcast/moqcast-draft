@@ -3447,3 +3447,10 @@ as an RFC.
   gateway on SSM, discards a datagram whose IP source address is not
   the endpoint's sender before parsing or hashing it
   ((#receiver-enforcement-and-state)).
+
+{#acknowledgements numbered="false"}
+# Acknowledgements
+
+Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.

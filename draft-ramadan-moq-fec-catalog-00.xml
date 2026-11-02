@@ -1232,6 +1232,9 @@ within the &quot;reed-solomon&quot; bound of 255&quot;.</li>
 <xref target="I-D.ramadan-moq-fec"></xref>.  The division of that document into
 <xref target="MOQ-FEC-CORE"></xref> and its companions follows a proposal by Marc E.
 Fiuczynski.</t>
+<t>Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.</t>
 </section>
 
 </back>

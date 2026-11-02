@@ -4011,6 +4011,12 @@ actual <tt>(SS_Start, SSB_length)</tt> partition.  These calculations are
 capacity examples, not a rule that one FEC block equals one Group.</t>
 </section>
 
+<section anchor="acknowledgements" numbered="false"><name>Acknowledgements</name>
+<t>Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.</t>
+</section>
+
 </back>
 
 </rfc>

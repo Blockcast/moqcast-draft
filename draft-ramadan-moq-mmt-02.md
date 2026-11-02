@@ -3996,3 +3996,10 @@ boundaries so that every packet, including FT=0 and FT=1 metadata, fits
 the selected symbol size and every block's repair fields describe the
 actual `(SS_Start, SSB_length)` partition.  These calculations are
 capacity examples, not a rule that one FEC block equals one Group.
+
+{#acknowledgements numbered="false"}
+# Acknowledgements
+
+Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.

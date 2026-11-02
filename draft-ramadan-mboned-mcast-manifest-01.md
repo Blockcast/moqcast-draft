@@ -2090,3 +2090,7 @@ document answers is that of the MBONED multicast security draft.  The
 author thanks the authors of those documents, Jake Holland, Kyle Rose
 and Max Franke, for the work this builds on.  No endorsement of this
 document by them is implied.
+
+Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.

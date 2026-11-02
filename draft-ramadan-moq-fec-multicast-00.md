@@ -1596,3 +1596,7 @@ repair objects, which shaped the FETCH behavior of
 (#unicast-repair-budget).  He proposed the division of
 draft-ramadan-moq-fec-01 into the core document and its companions,
 of which this document is one.
+
+Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.

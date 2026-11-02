@@ -1164,3 +1164,7 @@ documents follows a proposal by Marc E. Fiuczynski.  Two separate
 implementations of the Reed-Solomon code computed the test vectors of
 (#test-vectors).
 
+Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.
+

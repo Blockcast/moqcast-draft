@@ -3436,6 +3436,12 @@ the endpoint's sender before parsing or hashing it
 </section>
 </section>
 
+<section anchor="acknowledgements" numbered="false"><name>Acknowledgements</name>
+<t>Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.</t>
+</section>
+
 </back>
 
 </rfc>

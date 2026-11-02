@@ -1194,3 +1194,7 @@ Much of the text of this document is taken from
 [@?I-D.ramadan-moq-fec].  The division of that document into
 [@!MOQ-FEC-CORE] and its companions follows a proposal by Marc E.
 Fiuczynski.
+
+Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.
