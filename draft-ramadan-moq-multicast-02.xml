@@ -970,8 +970,12 @@ unicast repair (Section 6.2), which uses FETCH.</t>
 <section anchor="security-considerations"><name>Security Considerations</name>
 
 <section anchor="multicast-security"><name>Multicast Security</name>
-<t>SSM inherently limits traffic to authorized sources via (S,G)
-filtering.  Receivers MAY detect replayed packets by tracking the
+<t>SSM's (S,G) filtering limits the traffic a receiver gets to datagrams
+whose IP source address is a source it joined, but it authenticates
+no source (<xref target="RFC4607"></xref> Section 7.4): a datagram that spoofs <tt>S</tt> on
+the receiver's segment, or upstream where the network passes it,
+reaches the receiver as <tt>S</tt>'s (<xref target="threat-model"></xref>).  Receivers MAY
+detect replayed packets by tracking the
 MMTP Packet Sequence Number per packet_id within one (source address,
 groupAddress, port) tuple and discarding duplicates and packets
 outside a bounded reordering window.  The source address is that of
@@ -991,7 +995,13 @@ and to the path, and the digests show whether two datagrams are
 identical.  A join also discloses the subscription: a native join
 puts <tt>(S, G)</tt>, or <tt>G</tt> on an ASM endpoint, on the receiver's link and
 in its network's multicast routing state; a DRIAD lookup shows <tt>S</tt> to
-the receiver's resolver, and to the path where DNS is not encrypted;
+the receiver's resolver, and to the path where DNS is not encrypted,
+and shows the receiver's resolver and the time of the lookup to the
+servers authoritative for the reverse zone of <tt>S</tt>; resolving the
+catalog's <tt>relay</tt> hostname, or a relay name that a DRIAD record
+gives, shows that name to the receiver's resolver, and to the path
+where DNS is not encrypted, and shows the receiver's resolver and the
+time of the resolution to the servers authoritative for that name;
 and a join through an AMT relay shows the receiver's address and the
 <tt>(S, G)</tt> it receives, in the clear (<xref target="RFC7450"></xref> Section 6), to the
 relay, which the catalog or the holder of the reverse zone of <tt>S</tt> can
@@ -1109,7 +1119,7 @@ address from which the sending entity transmits the flow
 SSM endpoint and its <tt>auth.senderAddress</tt> on an ASM endpoint
 (<xref target="catalog-signaling"></xref>).  <tt>src_port</tt> and <tt>dst_port</tt> are both the
 endpoint's <tt>port</tt>: the sender MUST emit every datagram of the flow
-from UDP source port <tt>port</tt>.  <tt>streamId</tt> is the endpoint's
+with <tt>port</tt> as its UDP source port.  <tt>streamId</tt> is the endpoint's
 <tt>auth.streamId</tt>.  Every input is catalog-declared, and a receiver without the catalog
 holds the same values from its out-of-band provisioning
 (<xref target="receiver-enforcement-and-state"></xref>), so for a datagram of the flow
@@ -1120,9 +1130,9 @@ on every path (<xref target="broadcast-carriage"></xref>; step 2 of
 </section>
 
 <section anchor="manifest-record"><name>Manifest Record</name>
-<t>A manifest record is one UDP datagram that the sender emits from UDP
-source port <tt>port</tt> on the protected flow's own <tt>(S, G, port)</tt>,
-interleaved with the flow's data datagrams.  Every
+<t>A manifest record is one UDP datagram that the sender emits on the
+protected flow's own <tt>(S, G, port)</tt>, with <tt>port</tt> as its UDP source
+port, interleaved with the flow's data datagrams.  Every
 field except the signature is
 at a fixed offset, and the signature is the last 64 octets.</t>
 <table>
@@ -1626,11 +1636,14 @@ endpoint that shares its <tt>(S, G, port)</tt> with another endpoint, and
 every protected endpoint whose <tt>bandwidth</tt> is absent or is not a
 positive integer, whose <tt>port</tt> is not an integer from 1 to 65535,
 whose <tt>streamId</tt> is absent or is not an unsigned 32-bit integer,
-whose <tt>senderAddress</tt> is absent on an ASM endpoint or present on an
-SSM endpoint, or whose <tt>manifestTimerMs</tt> is below 1, and it clamps a
+whose <tt>senderAddress</tt> is absent or not a string on an ASM endpoint
+or present on an SSM endpoint, or whose <tt>manifestTimerMs</tt> is below 1,
+and it clamps a
 <tt>maxAuthDelayMs</tt> outside 50 to 1000 to the nearer bound, as the
 browser profile of
-<xref target="MCAST-MANIFEST"></xref> does; it never uses an out-of-range value.  Two
+<xref target="MCAST-MANIFEST"></xref> does; it never uses an out-of-range value.  It
+treats a <tt>maxAuthDelayMs</tt> or <tt>manifestTimerMs</tt> that is not a JSON
+number, or a <tt>manifestTrack</tt> that is not a string, as absent.  Two
 ASM endpoints whose <tt>senderAddress</tt> differ MAY share <tt>groupAddress</tt>
 and <tt>port</tt>; the source check of <xref target="receiver-enforcement-and-state"></xref>
 separates them.</t>
@@ -2788,8 +2801,8 @@ single catalog.</t>
 source is an address the receiver dials over UDP.  A hostile
 catalog can direct traffic at arbitrary targets (traffic
 reflection) or at internal infrastructure (address-space
-probing).  Receivers and relays MUST treat catalog-supplied
-endpoint and relay addresses as untrusted input and validate them
+probing).  Receivers MUST treat catalog-supplied endpoint and
+relay addresses as untrusted input and validate them
 against local policy (such as an allowlist of permitted relays or
 networks) before dialing, and SHOULD reject loopback, link-local,
 and otherwise non-routable relay addresses unless explicitly
@@ -3205,8 +3218,10 @@ not implement; an absent <tt>keys</tt>, one that is not an array, or one
 with an entry that is not an object or lacks a <tt>kid</tt>, <tt>publicKey</tt>
 or <tt>firstEpoch</tt>, yields no key set; and a receiver
 ignores a protected endpoint whose <tt>streamId</tt> is absent or whose
-<tt>senderAddress</tt> is absent on an ASM endpoint or present on an SSM
-endpoint.</li>
+<tt>senderAddress</tt> is absent or not a string on an ASM endpoint or
+present on an SSM endpoint, and treats a <tt>maxAuthDelayMs</tt> or
+<tt>manifestTimerMs</tt> that is not a JSON number, or a <tt>manifestTrack</tt>
+that is not a string, as absent.</li>
 <li><xref target="catalog-signaling"></xref> cites <xref target="RFC4648"></xref>, a new normative reference,
 for the base64url encoding of <tt>publicKey</tt>.</li>
 <li>Key rotation in <xref target="receiver-enforcement-and-state"></xref>: a receiver holds
@@ -3235,7 +3250,9 @@ tolerance on <tt>sent</tt>, <tt>7 s + maxAuthDelayMs</tt>, as that age, and W
 alone on such a receiver.</li>
 <li><xref target="multicast-security"></xref>: multicast and AMT delivery have no
 confidentiality, and the section states what a native join, a DRIAD
-lookup and a join through an AMT relay disclose.</li>
+lookup, the resolution of a relay name and a join through an AMT
+relay disclose, and to whom, the servers authoritative for the
+reverse zone of <tt>S</tt> and for a relay's name included.</li>
 <li><xref target="threat-model"></xref> adds that an injection that reaches a replication
 point can move every receiver below it that holds a MoQ session
 onto MoQ unicast at once, by failover or, for the blocks it leaves
@@ -3294,6 +3311,15 @@ listed inputs the label <tt>fecAlgorithm</tt> is renamed <tt>scheme</tt>.</li>
 <li>Sections 4 and 4.1: the catalog envelope and the <tt>mmtp</tt> packaging
 value are now cited by section of <xref target="MOQ-MMT"></xref> at its -02
 numbering.</li>
+<li><xref target="multicast-security"></xref>: the opening sentence no longer says that SSM
+limits traffic to authorized sources; (S,G) filtering keys on the
+IP source address and authenticates no source, as <xref target="RFC4607"></xref>
+Section 7.4 notes, so a datagram that spoofs <tt>S</tt> reaches the
+receiver as <tt>S</tt>'s.</li>
+<li><xref target="catalog-as-attack-surface"></xref>: the requirement to treat
+catalog-supplied endpoint and relay addresses as untrusted input
+binds receivers alone, since no relay in this document dials such
+an address.</li>
 <li>Editorial: every heading carries an explicit anchor; no existing
 anchor changes.  The change log is now one appendix with a
 subsection per revision, as in <xref target="MOQ-MMT"></xref>.  The catalog example of
@@ -3311,7 +3337,9 @@ ECN and ECT are expanded at first use.  The packet_id 0 rule of
 <xref target="multicast-endpoint-format"></xref> cites <xref target="multicast-packet-format"></xref> as a
 cross-reference, and the <xref target="WICG-DirectSockets"></xref> reference gives its
 editor's affiliation and states its status as a Community Group
-draft.</li>
+draft.  The sender's UDP source port rule in <xref target="digest"></xref> and
+<xref target="manifest-record"></xref> now reads &quot;with <tt>port</tt> as its UDP source port&quot;,
+which does not render as a doubled word in the text output.</li>
 </ul>
 </section>
 

@@ -271,7 +271,7 @@ native width, never IPv4-mapped.  <tt>S</tt> is the address from which the
 sending entity transmits the flow: the source address of an SSM flow,
 and the declared <tt>senderAddress</tt> of an ASM flow (<xref target="flow-parameters"></xref>).
 <tt>src_port</tt> and <tt>dst_port</tt> are both the flow's <tt>port</tt>: the sender MUST
-emit every datagram of the flow from UDP source port <tt>port</tt>.
+emit every datagram of the flow with <tt>port</tt> as its UDP source port.
 <tt>streamId</tt> is the flow's <tt>streamId</tt> (<xref target="flow-parameters"></xref>).  Every
 input is declared in the flow's metadata or provisioned with it
 (<xref target="receiver-behavior"></xref>), so a receiver forms the pseudoheader without
@@ -297,8 +297,9 @@ same <tt>hash_alg</tt> for the life of a flow generation (<tt>streamId</tt>,
 </section>
 
 <section anchor="manifest-record"><name>Manifest Record</name>
-<t>A manifest record is one UDP datagram that the sender emits from UDP
-source port <tt>port</tt> on the protected flow's own <tt>(S, G, port)</tt>; its
+<t>A manifest record is one UDP datagram that the sender emits on the
+protected flow's own <tt>(S, G, port)</tt>, with <tt>port</tt> as its UDP source
+port; its
 first four octets, &quot;MHM2&quot;, tell it apart from the flow's data
 datagrams (<xref target="processing"></xref>).  Every field except the
 signature is at a fixed offset, and the signature is the last 64
@@ -482,7 +483,7 @@ carousel) has two sequences and two digests.  An application MUST NOT
 assume that <tt>sequence</tt> continues across an <tt>epoch</tt> change.  Neither
 counter wraps within an epoch: a sender ends the epoch (the record
 whose <tt>flags</tt> bit 0 is set, <xref target="manifest-record"></xref>) before either would
-exceed 2^64 - 1, and the comparisons this document states on them,
+exceed 2^64 - 1, and the comparisons this document states on them,
 <tt>mseq + 64 &lt;= highest_mseq</tt> included, are integer comparisons that an
 implementation evaluates without unsigned underflow or overflow.</t>
 </section>
@@ -608,7 +609,7 @@ rules of the scheme that metadata names, those of this section for
 <tt>manifest-ed25519-2</tt> and of <xref target="the-ed25519-trailer-1-scheme"></xref> for
 <tt>ed25519-trailer-1</tt>.</t>
 
-<section anchor="source-check"><name>Source Check</name>
+<section anchor="source-check"><name>Source and Destination Checks</name>
 <t>On an ASM flow a receiver MUST discard, before any parsing or
 hashing, a datagram on <tt>port</tt> whose IP source address is not
 <tt>senderAddress</tt>; behind an AMT relay the address is
@@ -616,10 +617,10 @@ that of the encapsulated header of the AMT Multicast Data message
 <xref target="RFC7450"></xref>.  On an SSM flow reached natively the network forwards
 the datagrams of every source of <tt>G</tt> that the receiver has joined,
 and flows of two sources in <tt>G</tt> may share a <tt>port</tt>
-(<xref target="flow-parameters"></xref>), so a receiver MUST discard a datagram whose
-source address is not <tt>S</tt>; a receiver reached through an AMT gateway
-MUST discard it as well, since nothing upstream of its gateway
-filters the
+(<xref target="flow-parameters"></xref>), so a receiver MUST discard, before any parsing
+or hashing, a datagram on <tt>port</tt> whose source address is not <tt>S</tt>; a
+receiver reached through an AMT gateway MUST discard it in the same
+way, since nothing upstream of its gateway filters the
 encapsulated source address and <xref target="RFC7450"></xref> does not authenticate
 Multicast Data messages.  A receiver MUST likewise discard, before
 any parsing or hashing, a datagram on <tt>port</tt> whose IP destination
@@ -818,7 +819,8 @@ fails, the receiver discards that flow's state as it does on a
 datagram included, and returns to the join state of step 1, so a
 record a retired key signed before the re-fetch cannot hold the flow
 afterwards.  Revocation is key removal, effective within one metadata
-lifetime.  The metadata lifetime is the lifetime that
+lifetime, reckoned from the removal as <xref target="fetching-the-document"></xref> asks
+of a sender.  The metadata lifetime is the lifetime that
 <xref target="fetching-the-document"></xref> derives from the response's Cache-Control
 for a receiver that uses the well-known document, and whatever bounds
 the validity of a DORMS record, a
@@ -1203,7 +1205,20 @@ minimum, 60 s.  This lifetime governs the parameters the receiver
 holds, not the HTTP response: any HTTP cache the receiver's fetch
 passes through follows <xref target="RFC9111"></xref> as usual, so a no-store response
 is not stored and a no-cache one is not reused without validation.
-The receiver re-fetches the document when that lifetime expires.
+A sender MUST give every response that carries the document either
+a max-age of at most 86400 with the must-revalidate directive
+(<xref target="RFC9111"></xref> Section 5.2.2.2) and with no s-maxage and no directive
+that lets a cache serve it stale (its Section 4.2.4), or no-cache,
+or no-store; so no cache holds the document fresh longer than its
+max-age or serves it stale, and a cache that cannot reach <tt>S</tt>
+answers with an error, a fetch that fails.  A sender reckons each
+wait and bound that this document states in metadata lifetimes, from
+a change, as 60 s plus the longest max-age it gave a response for
+the document in the 24 h before that change: a cache can answer a
+receiver's first fetch with a copy stored before the change, and the
+receiver keeps what it took from that copy for 60 s at least.
+The receiver re-fetches the document when the lifetime it derived
+expires.
 That lifetime does not consult Expires, s-maxage or heuristic
 freshness and is clamped at 24 h, so a cache that stored the document
 can still hold it fresh when the lifetime ends; the receiver
@@ -1227,8 +1242,14 @@ left (a key set that still names a key but drops the current <tt>kid</tt> is
 a key-set change under <xref target="key-rotation-and-re-fetch"></xref>, not a
 withdrawal),
 so withdrawal of consent is effective within one metadata lifetime,
-and a sender that wants faster withdrawal publishes a short
-lifetime.  A record with an unknown <tt>kid</tt> triggers at most one
+reckoned from the withdrawal as above, and a sender that wants faster
+withdrawal publishes a short lifetime.  A 304 (Not Modified) leaves
+in place each stored header field it does not carry, a stored
+Access-Control-Allow-Origin included (<xref target="RFC9111"></xref> Sections 3.2 and
+4.3.4), so a sender that withdraws an origin's grant without
+changing the document also changes the validators it sends with the
+document for that origin (a new ETag, a later Last-Modified).  A
+record with an unknown <tt>kid</tt> triggers at most one
 re-fetch per 30 s per receiver (<xref target="key-rotation-and-re-fetch"></xref>).  Such
 a re-fetch comes within the lifetime, when a cache that stored the
 document can still hold it fresh, so the receiver does not reuse a
@@ -1241,8 +1262,8 @@ cannot use, leaves the parameters the receiver holds in force until
 their lifetime expires, since the records that triggered it are unauthenticated and
 are dropped either way, and treating that failure as a withdrawal
 would let any host that can inject one such record and keep the
-server's answer from the receiver make every receiver that holds the
-metadata leave the flow at once.</t>
+server's answer from the receiver make every receiver that re-fetches
+on such a record leave the flow at once.</t>
 </section>
 
 <section anchor="browser-profile"><name>Browser Profile</name>
@@ -1340,7 +1361,9 @@ fetch of <xref target="trust-in-the-well-known-document"></xref>: a native join 
 <tt>(S, G)</tt> on the receiver's link and in its network's multicast
 routing state; the AMTRELAY lookup, made even where the receiver
 then stays native, shows <tt>S</tt> to the receiver's resolver, and to the
-path where DNS is not encrypted; resolving a relay that a record
+path where DNS is not encrypted, and shows the receiver's resolver
+and the time of the lookup to the servers authoritative for the
+reverse zone of <tt>S</tt>; resolving a relay that a record
 gives by domain name, a name the holder of the reverse zone of <tt>S</tt>
 chooses, shows the receiver's resolver and the time of the fallback
 to the servers authoritative for that name; and a join through a
@@ -1352,7 +1375,14 @@ the receiver stays joined.  An injector that keeps the receiver from
 authenticating any datagram in the first 2 s of a native join, by a
 flood of the kind <xref target="threat-model"></xref> describes, can therefore force
 that lookup and, where a relay is found and nothing keeps the
-receiver native, that relay join.</t>
+receiver native, that relay join.  One such flood reaches every
+receiver below the point where it is injected, so it does so at
+every browser-profile receiver there that joins while it lasts, and
+each that moves to a relay draws its own unicast copy of the flow
+until it leaves the flow: a load on the relays that grows with the
+audience while the injector's cost does not, an amplification of the
+kind that <xref target="I-D.ietf-mboned-multicast-security"></xref> Section 2.1 warns
+of, forced here by loss rather than by an invalidated object.</t>
 </section>
 </section>
 
@@ -1822,9 +1852,12 @@ connection to <tt>S</tt>, repeated every metadata lifetime and, at a
 receiver that re-fetches on a record with an unknown <tt>kid</tt>
 (<xref target="key-rotation-and-re-fetch"></xref>), whenever such a record arrives, at
 most once per 30 s, that gives the
-operator of <tt>S</tt> the receiver's address, the time of each request and,
-from the Origin header, the page the receiver acts for, and lets an
-on-path observer infer the subscription from traffic to a known <tt>S</tt>;
+operator of <tt>S</tt> the receiver's address, the time of each request,
+the origin of the page the receiver acts for, from the Origin header,
+and, where the page's referrer policy lets the fetch send the page's
+URL in a Referer header (<xref target="RFC9110"></xref> Section 10.1.3), that URL, and
+lets an on-path observer infer the subscription from traffic to a
+known <tt>S</tt>;
 this is the disclosure that <xref target="I-D.ietf-mboned-dorms"></xref> Section 5.2
 describes for a DORMS fetch, moved from the DORMS server to the
 source itself.  A receiver
@@ -1875,7 +1908,8 @@ publication.</t>
 </section>
 
 <section anchor="multicast-datagram-integrity-schemes-registry"><name>Multicast Datagram Integrity Schemes Registry</name>
-<t>IANA is requested to create a &quot;Multicast Datagram Integrity Schemes&quot;
+<t>IANA is requested to create a new registry group, &quot;Multicast Datagram
+Integrity&quot;, and in it a &quot;Multicast Datagram Integrity Schemes&quot;
 registry.  Entries are assigned under the Specification Required
 policy of <xref target="RFC8126"></xref> Section 4.6.  Each entry has a Value (an
 integer from 0 to 255), a Name (the string a flow's metadata carries
@@ -2197,9 +2231,12 @@ flows of one <tt>S</tt> in different groups may share a <tt>port</tt>; -00
 assigned to the flow, under either scheme, every datagram on its
 ports that passed the source check.  On an SSM flow reached
 natively that source check is now a MUST, where -00 said SHOULD,
-since flows of two sources in one group may share a <tt>port</tt>.
+since flows of two sources in one group may share a <tt>port</tt>; on an
+SSM flow, native or through an AMT gateway, it now applies before
+any parsing or hashing, as on an ASM flow.
 <xref target="the-ed25519-trailer-1-scheme"></xref> applies both checks, and <xref target="cost"></xref>
-and <xref target="threat-model"></xref> price a datagram that fails either.</li>
+and <xref target="threat-model"></xref> price a datagram that fails either; the section
+is retitled &quot;Source and Destination Checks&quot;.</li>
 <li>The per-flow verification budget refills at
 <tt>V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))</tt> per second,
 scaled from the flow's declared <tt>maxBitrate</tt>, instead of at a fixed
@@ -2272,23 +2309,39 @@ triggers nor the one made when the metadata lifetime expires is
 answered from the receiver's own cache without validation, and each
 carries the request directive <tt>Cache-Control: no-cache</tt>, so that a
 cache that still holds the document fresh does not return the
-document the receiver already has.  A receiver that pins the keys
-of a flow makes no re-fetch on a record with an unknown <tt>kid</tt> on
-that flow (<xref target="key-rotation-and-re-fetch"></xref>), where -00 gave every
-receiver that re-fetch.</li>
+document the receiver already has.  A sender gives every response
+that carries the document a max-age of at most 86400 with
+must-revalidate and with no s-maxage or directive that lets a cache
+serve it stale, or no-cache, or no-store, and reckons each wait and
+bound stated in metadata lifetimes from a change as 60 s plus the
+longest max-age it gave in the 24 h before that change, since a
+cache can answer a receiver's first fetch with a copy stored before
+the change; -00 set no such limit.  A sender that withdraws an
+origin's grant without changing the document changes the
+validators it sends for that origin, since a 304 (Not Modified)
+leaves a stored Access-Control-Allow-Origin in place.  A receiver
+that pins the keys of a flow makes no re-fetch on a record with an
+unknown <tt>kid</tt> on that flow (<xref target="key-rotation-and-re-fetch"></xref>), where
+-00 gave every receiver that re-fetch.</li>
 <li><xref target="threat-model"></xref> covers an injector that receives genuine records
 sooner than the receiver, and adds every later epoch in a <tt>kid</tt>'s
 range to what a lowered <tt>minEpoch</tt> admits at a pinned receiver's
 later join.  <xref target="cost"></xref> gives the cost of a record with an unknown
 <tt>kid</tt>, no verification and at most one metadata re-fetch per 30 s.
 <xref target="browser-profile"></xref> says what a join discloses, including the
-AMTRELAY lookup of a receiver that stays native and what an
+AMTRELAY lookup of a receiver that stays native, to its resolver,
+the path and the servers authoritative for the reverse zone of <tt>S</tt>,
+and what an
 injector that keeps a native join from authenticating can force,
-and
+at every browser-profile receiver below where it injects, and the
+load that puts on the relays, and
 <xref target="trust-in-the-well-known-document"></xref> notes that any host that can
 inject a record with an unknown <tt>kid</tt> makes every receiver that
 re-fetches on such a record connect to <tt>S</tt> at once, and that by
-sending one the sender learns which receivers are still joined.</li>
+sending one the sender learns which receivers are still joined; it
+also says that the fetch shows <tt>S</tt> the origin of the page, not the
+page, and its URL only where a Referer header carries it, where -00
+named the page.</li>
 <li>A <tt>keys</tt> array of no or more than four entries, or one naming a
 <tt>kid</tt> or <tt>firstEpoch</tt> outside its field width, yields no key set, as
 a repeated <tt>kid</tt> does, so a receiver that pins keys is unaffected by
@@ -2296,8 +2349,9 @@ it, where -00 had every receiver decline the flow
 (<xref target="flow-parameters"></xref>).  So do a <tt>keys</tt> that is absent or not an
 array and an entry that is not an object or lacks a <tt>kid</tt>,
 <tt>publicKey</tt> or <tt>firstEpoch</tt> (<xref target="flow-parameters"></xref>), where -00 ignored
-the channel at every receiver for the first two, as a REQUIRED
-member of the wrong kind, and named no outcome for the third.
+the channel at every receiver for the first two, as an absent
+REQUIRED member (a member of the wrong kind counting as absent),
+and named no outcome for the third.
 <xref target="the-well-known-document"></xref> ignores a channel whose <tt>keys</tt> yields no
 key set only at a receiver that takes its keys from the document,
 its REQUIRED-member and wrong-kind rules now applying to <tt>keys</tt> only
@@ -2308,6 +2362,12 @@ such a receiver, where -00 applied both to every receiver.</li>
 digest, the one lowest in <tt>(epoch, sequence)</tt> order, where -00
 consumed the lowest sequence, which compares unrelated counters
 when a carousel repeats a datagram across an epoch change.</li>
+<li><xref target="multicast-datagram-integrity-schemes-registry"></xref> places the registry
+in a new &quot;Multicast Datagram Integrity&quot; registry group, which -00
+did not name.</li>
+<li>Editorial: the sender's UDP source port rule in <xref target="digest"></xref> and
+<xref target="manifest-record"></xref> reads &quot;with <tt>port</tt> as its UDP source port&quot;,
+which does not render as a doubled word in the text output.</li>
 <li>References: <xref target="RFC3550"></xref>, <xref target="RFC5651"></xref>, <xref target="RFC5740"></xref>, <xref target="RFC6726"></xref>,
 <xref target="RFC9000"></xref>, <xref target="RFC9223"></xref> and <xref target="ISO.23008-1"></xref>, cited in
 <xref target="sender-behavior"></xref>, <xref target="RFC8777"></xref>, cited in <xref target="browser-profile"></xref>, and
