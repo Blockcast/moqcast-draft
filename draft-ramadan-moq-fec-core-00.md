@@ -68,12 +68,10 @@ This document is the core of a set of documents. It defines the scheme-independe
 - [@?MOQ-MMT], which defines the packaging-specific block profile for tracks packaged as MPEG Media Transport Protocol (MMTP) packets, and the broadcast interworking that relies on it;
 - [@?MOQ-FEC-MULTICAST], the multicast and hybrid unicast/multicast delivery of protected tracks, independent of how multicast is carried, which [@?MOQ-MULTICAST] specifies.
 
-Appendix A lists the companion documents and what each takes from [@?I-D.ramadan-moq-fec], from which much of this document's text is derived.
-
 {#editor-s-notes removeInRFC="true"}
 ## Editor's Notes
 
-The name, the author list and the division of material between this document and its companions are open for discussion. Text marked [open] records a question the authors have not settled.
+The name, the author list and the division of material between this document and its companions are open for discussion. Text marked [open] records a question the authors have not settled. (#companion-documents) lists the companion documents and what each takes from [@?I-D.ramadan-moq-fec], from which much of this document's text is derived.
 
 [open] Section 15.1 keeps the pointer of draft-ramadan-moq-fec-01 to Section 8.4 of [@!I-D.ietf-moq-transport] for the "MOQ Properties" registry. In draft-ietf-moq-transport-22, Section 8.4 is the Track and Object Properties text that Section 5.2 of this document cites for relay handling of mutable Properties, and the registry and its registration policies are in Section 16.8. The pointer is to be settled against the current MoQ Transport draft before posting.
 
@@ -159,7 +157,7 @@ A receiver that implements none of this document, or that chooses not to use FEC
 
 The code is systematic (Section 4.2), so a receiver presents source data as it arrives, and FEC adds latency only when a block needs to be decoded.
 
-When source data travels on QUIC streams, QUIC retransmits it, and FEC helps only where the deadline is too short for retransmission or a delivery timeout abandons an object ([@!I-D.ietf-moq-transport] Section 5.2). When source data travels as QUIC datagrams, nothing is retransmitted, and FEC or a FETCH from a relay cache is the only recovery. When a path has no return channel at all, as on multicast, FEC is the only recovery.
+When source data travels on QUIC streams, QUIC retransmits it, and FEC helps only where the deadline is too short for retransmission or a delivery timeout abandons an object ([@!I-D.ietf-moq-transport] Section 5.2). When source data travels as QUIC datagrams, nothing is retransmitted, and FEC or a FETCH from a relay cache is the only recovery. On a multicast leg nothing is retransmitted. A receiver that also has a unicast path recovers what FEC could not by a FETCH of the block's repair or source (Section 7.7); only a receiver with no return path at all depends on FEC alone.
 
 The erasure unit is what the network loses. Under object carriage (Section 6.1), the loss of one object erases every source symbol of its Protected Object Unit, so a large object needs as many repair symbols as it spans. Under symbol carriage (Section 6.2), one lost datagram erases one symbol. This is why symbol carriage exists: it makes FEC efficient for the large objects of video, delivered as datagrams.
 
@@ -833,6 +831,8 @@ A relay MUST NOT forward an object that it rebuilt by FEC as an object of the so
 {#packaging-considerations}
 # Packaging Considerations
 
+Packagings are named by the packaging field of the catalog [@?I-D.ietf-moq-msf]; how that catalog carries FEC configuration is in [@!MOQ-FEC-CATALOG].
+
 {#loc}
 ## LOC
 
@@ -987,7 +987,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
 </reference>
 
-{#companion-documents}
+{#companion-documents removeInRFC="true"}
 # Companion Documents
 
 This section is informative. It lists the documents that complete this one, and what each takes from [@?I-D.ramadan-moq-fec]. The section numbers in the last column are those of draft-ramadan-moq-fec-01.
@@ -1006,7 +1006,7 @@ Retired, carried by no document: the interworking text for the second ATSC 3.0 t
 
 LOC needs no document of its own: "moq-object-v1" covers LOC tracks, and Section 13.1 states what LOC publishers must do.
 
-{#changes-from-draft-ramadan-moq-fec-01}
+{#changes-from-draft-ramadan-moq-fec-01 removeInRFC="true"}
 # Changes from draft-ramadan-moq-fec-01
 
 This section is informative.
@@ -1260,8 +1260,6 @@ The symbol track's objects arrive as Groups whose Group ID is ext(SS_Start), the
 # Acknowledgements
 
 Much of the text of this document is taken from [@?I-D.ramadan-moq-fec], with changes to make it independent of any FEC code and of any packaging.
-
-The authors thank Emmanuel Lochin for discussions of sliding-window codes, the additivity of random-coefficient repair across tracks, and receiver-side control from the decoder's deficit, which shaped Section 4.3. [Editor's note: tentative; to be confirmed with him before submission.]
 
 Editor's Note: further acknowledgements are to be added.
 
