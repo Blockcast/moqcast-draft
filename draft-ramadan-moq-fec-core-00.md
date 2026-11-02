@@ -1021,7 +1021,7 @@ This section is informative.
 - interleaveDepthMs is positive or absent unless a block profile gives zero a meaning of its own (Section 10.1); the ISO packet-count meaning of zero belongs to the MMTP block profile ([@?MOQ-MMT] Section 7.1). Under "moq-object-v1" a zero value is a validation failure (Section 10.3, rule 11), where -01 Sections 5.1, 8.4 and 9 treated it as equivalent to an absent value.
 - Relay considerations are new (Section 12). Relays need not implement FEC, but the document does place a few requirements on them (Sections 3.2, 7.2, 12 and 14.4).
 - Section 7.2 adds a rule that -01 Section 6.2 did not have: a receiver should start a new repair subscription no earlier than the Group of the block in progress.
-- MMTP, ATSC 3.0, ARIB and multicast material moves to companion documents (Appendix A).
+- MMTP, ATSC 3.0, ARIB and multicast material moves to companion documents ((#companion-documents)).
 
 The following rules of draft-ramadan-moq-fec-01 were restored or changed by the editorial pass that produced this revision:
 
