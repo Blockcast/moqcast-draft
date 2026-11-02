@@ -2266,10 +2266,16 @@ as an RFC.
 - (#threat-model) covers an injector that receives genuine records
   sooner than the receiver, and adds every later epoch in a `kid`'s
   range to what a lowered `minEpoch` admits at a pinned receiver's
-  later join.  It adds the previous epoch's grace period, in which
+  later join.  It says that a flood on an ASM flow must send as
+  `senderAddress`, where -00 had any host that can send to the group
+  suffice, and it adds the previous epoch's grace period, in which
   records a retired key signs are admitted, to what a rewritten
   `maxAuthDelayMs` or `manifestTimerMs` resizes, where -00 named only
-  the hold queue and pending expiry.  (#cost) gives the
+  the hold queue and pending expiry.  (#the-trailer-scheme) likewise
+  has the receiver's CPU the attacker's to spend on a flow where `S`
+  can be spoofed, as by any host that can send to an ASM flow's group
+  as `senderAddress`, where -00 also named a flow where any host can
+  send to the group.  (#cost) gives the
   cost of a record with an unknown
   `kid`, no verification and at most one metadata re-fetch per 30 s.
   (#browser-profile) says what a join discloses, including the

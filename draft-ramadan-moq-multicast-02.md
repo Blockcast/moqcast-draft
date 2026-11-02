@@ -355,8 +355,8 @@ Endpoint field definitions:
 **groupAddress** (string, REQUIRED): Multicast group address.
 
   - SSM range: 232.0.0.0/8 (IPv4), ff3x::/32 (IPv6)
-  - ASM range: 224.0.0.0/4 (IPv4), ff00::/8 outside the SSM range
-    ff3x::/32 (IPv6)
+  - ASM range: 224.0.0.0/4 outside the SSM range 232.0.0.0/8
+    (IPv4), ff00::/8 outside the SSM range ff3x::/32 (IPv6)
 
 **port** (integer, REQUIRED): UDP port number.
 
@@ -1046,16 +1046,21 @@ in its network's multicast routing state; a DRIAD lookup shows `S` to
 the receiver's resolver, and to the path where DNS is not encrypted,
 and shows the receiver's resolver and the time of the lookup to the
 servers authoritative for the reverse zone of `S`; resolving the
-catalog's `relay` hostname, or a relay name that a DRIAD record
-gives, shows that name to the receiver's resolver, and to the path
-where DNS is not encrypted, and shows the receiver's resolver and the
-time of the resolution to the servers authoritative for that name;
-and a join through an AMT relay shows the receiver's address and the
-`(S, G)` it receives, in the clear ([@!RFC7450] Section 6), to the
-relay, which the catalog or the holder of the reverse zone of `S` can
-choose ((#amt-automatic-multicast-tunneling)), and to any observer of
-the unicast AMT leg, for as long as the receiver stays joined.  A
-receiver that must not disclose this stays on MoQ unicast.
+catalog's `relay` hostname, a relay name that a DRIAD record gives,
+or the host name of an atsc3 `slsUri`, shows that name to the
+receiver's resolver, and to the path where DNS is not encrypted, and
+shows the receiver's resolver and the time of the resolution to the
+servers authoritative for that name; a join through an AMT relay
+shows the receiver's address and the `(S, G)` it receives, in the
+clear ([@!RFC7450] Section 6), to the relay, which the catalog or the
+holder of the reverse zone of `S` can choose
+((#amt-automatic-multicast-tunneling)), and to any observer of the
+unicast AMT leg, for as long as the receiver stays joined; and a
+fetch of an atsc3 `slsUri` ((#atsc-3-0-broadcast-television)) shows
+the receiver's address, and the service whose SLS it fetches, to the
+URI's host, which the catalog chooses, and to the path where the
+fetch is not encrypted.  A receiver that must not disclose this stays
+on MoQ unicast.
 
 {#content-authentication}
 ## Content Authentication
@@ -1667,7 +1672,12 @@ that is not a JSON number with an integer value; one outside its
 range, integer or not, meets the clamp or the below-1 rule above.
 Two ASM endpoints whose `senderAddress` differ MAY share `groupAddress`
 and `port`; the source check of (#receiver-enforcement-and-state)
-separates them.  Wherever a receiver compares endpoint addresses
+separates them.  `sourceAddress`, `groupAddress` and `senderAddress`
+MUST be IP address literals in the IPv4address or IPv6address form of
+[@!RFC3986] Section 3.2.2 (dotted-decimal with no leading zeros; IPv6
+without brackets or a zone identifier), never names, and a receiver
+MUST ignore ((#multicast-endpoint-format)) an endpoint with an address
+member that is not one.  Wherever a receiver compares endpoint addresses
 (`sourceAddress`, `groupAddress`, `senderAddress`) with one another
 or with a datagram's addresses, it compares them as IP addresses,
 never as strings, and an address of one family never matches one of
@@ -2489,15 +2499,23 @@ removed promptly.  A rewrite that
 raises `minEpoch` costs a receiver, pinned or not, that session's
 data and nothing more, since neither carries a catalog value past the
 session ((#receiver-enforcement-and-state)).
-Rewriting any other member of the endpoint or its `auth`
-only makes genuine records fail the signature or `ctx` check, or
+Rewriting any other member of the endpoint or its `auth`,
+`manifestTrack` aside, only makes genuine records fail the signature
+or `ctx` check, or
 resizes the verification budgets, the hold queues, pending expiry and
 the previous epoch's grace periods and deadline (`bandwidth`,
 `maxAuthDelayMs`, `manifestTimerMs`), which a receiver bounds by
 local policy ((#catalog-as-attack-surface)); the grace periods and
 the deadline also bound how long records a retired key signs are
 admitted after an epoch change (Key rotation,
-(#receiver-enforcement-and-state)).
+(#receiver-enforcement-and-state)).  A rewrite that removes
+`manifestTrack`, or the `auth` that carries it, leaves a receiver,
+one that pins keys as any other, no records for its MoQ unicast
+path, which during the join of (#multicast-endpoint-format) and
+after the failover of (#multi-path-delivery) is then a MoQ
+subscription outside this profile, protected by the MoQ session
+alone ((#emission-and-cadence)), so the relay that serves that path
+can deliver there what the publisher did not send.
 
 The profile protects integrity, not availability.  A forged record
 passes every check of step 1 of (#receiver-enforcement-and-state) up
@@ -2857,7 +2875,11 @@ catalog is therefore an attack vector:
   Relay Address of a Relay Advertisement from any of these
   ([@!RFC7450] Section 5.1.2.5).  Receivers SHOULD reject loopback,
   link-local, and otherwise non-routable addresses among them unless
-  the receiver's own configuration permits them.
+  the receiver's own configuration permits them.  Both requirements
+  also cover the `slsUri` of an atsc3 network source
+  ((#atsc-3-0-broadcast-television)), which a receiver joining via IP
+  fetches: before the fetch they apply to the URI's host if it is a
+  literal address, and otherwise to each A and AAAA answer for it.
 
 - **Resource claims**: `bandwidth`, `maxAuthDelayMs` and
   `manifestTimerMs` size the verification budgets, hold queues and
@@ -2873,8 +2895,10 @@ catalog is therefore an attack vector:
   admitted-digest set and the entries kept for unicast repair (step
   2, those pending at an admission), both receiver-chosen and capped
   at 5 s.  A
-  receiver bounds all of these
-  by local policy, and the
+  receiver bounds all of these, and the previous epoch's grace
+  periods and deadline that `maxAuthDelayMs` and `manifestTimerMs`
+  lengthen ((#receiver-enforcement-and-state)), by local policy, and
+  the
   pending entries it keeps for unicast repair by the open-block bound
   of [@!MOQ-FEC-CORE] Section 9.4.
 
@@ -3163,6 +3187,8 @@ as an RFC.
   a MUST for parsers that do not support multicast; it says that such
   a parser ignores the `multicast` field under the rule of
   [@!I-D.ietf-moq-msf] Section 5.
+- (#multicast-endpoint-format): the IPv4 ASM range now excludes the
+  SSM range 232.0.0.0/8, as the IPv6 ASM range excludes ff3x::/32.
 - (#signature-context-binding): `params_hash` is defined over the
   per-instance fields of [@!MOQ-FEC-CATALOG].  After `codec`,
   `timescale` and `groupDurationTicks` it carries the entry's FEC
@@ -3270,10 +3296,14 @@ as an RFC.
   `manifestTimerMs` within its range that is not a JSON number with
   an integer value, one outside its range still meeting the clamp or
   the below-1 rule.
-- (#catalog-signaling): a receiver compares endpoint addresses with
-  one another and with a datagram's addresses as IP addresses, never
-  as strings, an IPv4-mapped IPv6 address being of the IPv6 family, as
-  [@?MCAST-MANIFEST] requires; -01 did not say how they compare.
+- (#catalog-signaling): `sourceAddress`, `groupAddress` and
+  `senderAddress` are IP address literals in the form of [@!RFC3986]
+  Section 3.2.2, a new normative reference, and a receiver ignores an
+  endpoint with an address member that is not one; a receiver compares
+  endpoint addresses with one another and with a datagram's addresses
+  as IP addresses, never as strings, an IPv4-mapped IPv6 address being
+  of the IPv6 family, as [@?MCAST-MANIFEST] requires; -01 said neither
+  what form they take nor how they compare.
 - (#catalog-signaling) cites [@!RFC4648], a new normative reference,
   for the base64url encoding of `publicKey`.
 - Key rotation in (#receiver-enforcement-and-state): a receiver holds
@@ -3302,8 +3332,9 @@ as an RFC.
   alone on such a receiver.
 - (#multicast-security): multicast and AMT delivery have no
   confidentiality, and the section states what a native join, a DRIAD
-  lookup, the resolution of a relay name and a join through an AMT
-  relay disclose, and to whom, the servers authoritative for the
+  lookup, the resolution of a relay name or an `slsUri` host name, a
+  join through an AMT relay and a fetch of an atsc3 `slsUri` disclose,
+  and to whom, the servers authoritative for the
   reverse zone of `S` and for a relay's name included.
 - (#threat-model) adds that an injection that reaches a replication
   point can move every receiver below it that holds a MoQ session
@@ -3331,7 +3362,13 @@ as an RFC.
   adds the previous epoch's grace periods and deadline, in which
   records a retired key signs are admitted, to what a rewritten
   `maxAuthDelayMs` or `manifestTimerMs` resizes, where -01 named only
-  the hold queues and pending expiry.
+  the hold queues and pending expiry.  It also says that a rewrite
+  that removes `manifestTrack`, or the `auth` that carries it, leaves
+  a receiver, one that pins keys included, no records for its MoQ
+  unicast path, which the relay that serves that path can then feed
+  what the publisher did not send, where -01 counted `manifestTrack`
+  among the members whose rewrite only fails genuine records or
+  resizes state.
 - (#content-authentication) names [@?MCAST-MANIFEST], a new
   informative reference, as the format it restates by value.  Step 1
   of (#receiver-enforcement-and-state) writes the replay floor as
@@ -3380,11 +3417,14 @@ as an RFC.
   every address a catalog supplies or selects: besides a literal
   `relay`, the A and AAAA answers for a `relay` hostname, the relays
   that DRIAD returns for the endpoint's `sourceAddress` and the
-  answers for their names, and the Relay Address of a Relay
-  Advertisement from any of them.  The exception to rejecting
+  answers for their names, the Relay Address of a Relay
+  Advertisement from any of them, and the host of an atsc3 `slsUri`.  The exception to rejecting
   loopback, link-local and other non-routable addresses is the
   receiver's own configuration, since "unless explicitly configured"
-  could be read as admitting a catalog's "manual" relay.
+  could be read as admitting a catalog's "manual" relay.  The
+  resource-claims bullet adds the previous epoch's grace periods and
+  deadline to what a receiver bounds by local policy, as
+  (#threat-model) says it does.
 - Editorial: every heading carries an explicit anchor; no existing
   anchor changes.  The change log is now one appendix with a
   subsection per revision, as in [@!MOQ-MMT].  The catalog example of
