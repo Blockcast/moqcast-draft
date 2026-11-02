@@ -98,7 +98,8 @@ class PublishedExamples(unittest.TestCase):
 
     def test_multicast_receivers_react_to_ce_marks(self):
         # Section 5.1 (CEO D18 A, 2026-11-01): a flow sent ECN-capable needs a congestion
-        # reaction to CE (RFC 3168 s5, RFC 8085 s3.1.7); in multicast that reaction is the receiver's.
+        # reaction to CE (RFC 3168 s5); in multicast that reaction is the receiver's (RFC 8085 s4.1),
+        # departing from the sender feedback of RFC 8085 s3.1.7.
         markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
         xml = (ROOT / "draft-ramadan-moq-multicast-02.xml").read_text(encoding="utf-8")
         texts = (

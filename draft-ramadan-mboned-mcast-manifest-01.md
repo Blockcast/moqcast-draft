@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "ops"
 workgroup = "mboned"
 submissiontype = "IETF"
-date = "2026-10-29T00:00:00Z"
+date = "2026-11-02T00:00:00Z"
 keyword = ["multicast", "AMBI", "authentication", "manifest", "Ed25519", "SSM"]
 
 [seriesInfo]
@@ -72,7 +72,7 @@ carries no signature, and its type-length-value (TLV) space (its
 Section 3.3.1.6) is extensible; this document defines a separate
 signed record rather than an AMBI TLV, so that the record is a fixed
 layout, verified before any parsing and carried on the flow's own
-(S, G), and restates the digest pseudoheader of AMBI Section 3.4.2 by
+`(S, G, port)`, and restates the digest pseudoheader of AMBI Section 3.4.2 by
 value, since that document has expired.  Discovery Of Restconf
 Metadata for Source-specific multicast (DORMS)
 [@?I-D.ietf-mboned-dorms] discovers the metadata of an (S, G) through
@@ -158,8 +158,9 @@ destination port, that the flow's metadata declares protected
 sender that carries the same content on two `(S, G, port)` tuples has
 two flows.
 
-**Data datagram**: a datagram of a flow; no data datagram begins with
-the ASCII octets "MHM2" ((#sender-behavior)).
+**Data datagram**: a datagram of a flow; no data datagram of a flow
+using `manifest-ed25519-2` begins with the ASCII octets "MHM2"
+((#sender-behavior)).
 
 **Record**: one UDP datagram on the flow's `port` that carries the
 digests of one window, signed ((#manifest-record)).  "Manifest record"
@@ -227,7 +228,7 @@ an entry of a verified manifest.
 
 The digest pseudoheader, the hold queue and the consume-on-admission
 rule are those of AMBI ([@?I-D.ietf-mboned-ambi] Sections 3.4.2 and
-3.2); the signed record carried on the flow's own (S, G) is the
+3.2); the signed record carried on the flow's own `(S, G, port)` is the
 multicast-carried manifest delivery that AMBI Section 2.1.1
 anticipates and leaves to another specification.
 
@@ -453,10 +454,20 @@ implementation evaluates without unsigned underflow or overflow.
 A sender emits a flow's records on the flow's `port`, interleaved
 with its data datagrams.  It MUST NOT emit a data datagram whose
 first four octets are the ASCII octets "MHM2", since a receiver takes
-such a datagram for a record ((#processing)).  RTP, LCT (FLUTE and
-ROUTE), NORM and MMTP version 0 packets cannot begin with those
-octets, because the version field they lead with excludes the octet
-0x4D ("M").
+such a datagram for a record ((#processing)).  RTP [@?RFC3550], LCT
+[@?RFC5651] (FLUTE [@?RFC6726] and ROUTE [@?RFC9223]), NORM
+[@?RFC5740] and MMTP [@?ISO.23008-1] version 0 packets
+cannot begin with those octets, because the version field they lead
+with excludes the octet 0x4D ("M").  A QUIC short header packet
+([@?RFC9000] Section 17.3.1) can begin with 0x4D; a sender that
+protects a multicast QUIC channel ([@?I-D.jholland-quic-multicast]
+Section 2) meets the rule above by giving it a Channel ID that
+neither begins with the octets 0x48 0x4D 0x32 ("HM2") nor is a
+prefix of them.  An application that listens on `port` and does not
+implement this document receives the records and their twins as
+well; an implementation of one of those protocols reads each as a
+packet of another version: RTP version 1, LCT or NORM version 4,
+MMTP version 1.
 
 A sender closes a window after 37 datagrams or after `manifestTimerMs`
 since the window opened, whichever comes first; the timer governs only
@@ -474,7 +485,9 @@ the count cap that is 37 x V datagrams per second, which above V's
 floor (a `maxBitrate` above about 121 Mbit/s) is 1.25 x `maxBitrate`
 of 512-octet datagrams: a flow at its declared rate stays under V
 while its datagrams average at least about 410 octets (V is 8,248 at
-1 Gbit/s).  A sender above the
+1 Gbit/s) and its windows close at the count cap, since a window the
+timer closes counts against V however few datagrams it covers.  A
+sender above the
 ceiling starves its own receivers, whose budgets drop its records and
 expire its windows as loss ((#threat-model)).  A sender MAY raise
 `manifestTimerMs` to at most `maxAuthDelayMs / 4` on low-rate flows;
@@ -926,7 +939,7 @@ of 0, a `maxBitrate` that is not a positive integer, or `port`,
 `streamId`, `kid`, `firstEpoch` or `minEpoch` outside its field
 width, MUST decline the flow.  The
 browser profile clamps `maxAuthDelayMs` (to 50 and 1000) and
-declines a flow whose `manifestTimerMs` is below 8, the floor of
+declines a flow whose `manifestTimerMs` is below 10, the floor of
 (#browser-profile), or exceeds `maxAuthDelayMs / 4` after that clamp
 (at most 250 ms), the ceiling (#sender-behavior) sets for senders, so its grace period never exceeds 1.5 s and its pending
 table never exceeds the bound of (#state) at
@@ -1144,7 +1157,7 @@ unadmitted.
 
 A sender whose flow serves the browser profile keeps its datagrams
 averaging at least 512 octets at the declared `maxBitrate`, and its
-`manifestTimerMs` at 8 ms or more, because
+`manifestTimerMs` at 10 ms or more, because
 the browser profile derives its ingress ceiling for the flow from
 that rate, `max(1000, 1.25 x (1 + 2/37) x maxBitrate / (8 x 512))`
 datagrams per second counted before verification (the 2/37 for a
@@ -1152,7 +1165,7 @@ record and its twin per 37 data datagrams), and sheds datagrams above
 it ((#threat-model)); a window the timer closes adds a record and its
 twin whatever its count, so a shorter timer can take a flow at its
 declared rate past that ceiling, and the browser profile declines a
-flow whose `manifestTimerMs` is below 8 ((#flow-parameters)).  V of
+flow whose `manifestTimerMs` is below 10 ((#flow-parameters)).  V of
 (#sender-behavior) is sized on the same 512 octets.
 
 The browser profile drops an IP fragment that arrives inside an AMT
@@ -1182,20 +1195,24 @@ that the same check, rerun over the remaining flows in the order
 they joined, would decline.
 
 The browser profile's authenticated-rate breaker leaves a flow whose
-authenticated rate stays above 1.25 x `maxBitrate` for 5 s, and its
-loss breaker leaves one that loses more than 25% of the datagrams its
-records list in each of three successive 5 s windows.  The loss
+authenticated rate stays above 1.25 x `maxBitrate` for 5 s, counting
+the UDP payloads of the data datagrams it admits as `maxBitrate`
+counts them ((#flow-parameters)), and its loss breaker leaves one
+that loses more than 25% of the datagrams its records list in each
+of three successive 5 s windows.  The loss
 breaker counts as lost only listed digests that expire unmatched and
 the windows of records missing from the verified `mseq` sequence,
 never a held datagram that no verified record lists: injected data
-datagrams cannot trip it, while genuine datagrams the ingress ceiling
-sheds, and windows whose records the verification budget dropped,
-count as lost.  Silence trips neither breaker.
+datagrams never count as lost, but a flood can still trip it, since
+genuine datagrams the ingress ceiling sheds, and windows whose
+records the verification budget dropped, count as lost.  Silence
+trips neither breaker.
 
 A browser-profile receiver that gets no native SSM delivery of a flow
 reaches it through its own AMT gateway [@!RFC7450], using only a relay
-that an AMTRELAY record [@?RFC8777] in the reverse zone of `S` names,
-at a global unicast address and on UDP port 2268 ([@!RFC7450]
+that an AMTRELAY record [@?RFC8777] in the reverse zone of `S`, or a
+Relay Advertisement from such a relay, names, at a global unicast
+address and on UDP port 2268 ([@!RFC7450]
 Section 7.2).  The relay is trusted for carriage alone: every
 datagram is verified as (#receiver-behavior) requires, with the
 source check of (#source-check) applied to the encapsulated source
@@ -1722,9 +1739,20 @@ policy.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
+</reference>
+
+<reference anchor='ISO.23008-1'>
+  <front>
+    <title>Information technology - High efficiency coding and media delivery in heterogeneous environments - Part 1: MPEG media transport (MMT)</title>
+    <author>
+      <organization>ISO/IEC</organization>
+    </author>
+    <date year='2023'/>
+  </front>
+  <seriesInfo name='ISO/IEC' value='23008-1:2023'/>
 </reference>
 
 <reference anchor='FIPS180-4' target='https://doi.org/10.6028/NIST.FIPS.180-4'>
@@ -1847,7 +1875,7 @@ admits a protocol that signs manifests and delivers them over a
 multicast transport as a manifest delivery to be defined elsewhere,
 and this document's record is that delivery, defined as a separate
 signed record rather than an AMBI TLV so that it is a fixed layout,
-verified before any parsing and carried on the flow's own (S, G).
+verified before any parsing and carried on the flow's own `(S, G, port)`.
 AMBI's Sections 3.3.1.2
 and 4.4 provide loss tolerance by overlapping successive manifests;
 this document uses non-overlapping windows and a byte-identical twin
@@ -1918,15 +1946,16 @@ as an RFC.
 - New (#browser-profile), informative, collects what the browser
   profile adds: a sender that serves it starts each `sequence` counter
   below 2^53 and keeps its datagrams averaging at least 512 octets at
-  the declared `maxBitrate` and its `manifestTimerMs` at 8 ms or more
-  (the profile declines a flow below 8 ms), keeps data datagrams it
+  the declared `maxBitrate` and its `manifestTimerMs` at 10 ms or more
+  (the profile declines a flow below 10 ms), keeps data datagrams it
   wants carried through AMT relays on 1500-octet paths at or below
   1422 octets of UDP payload over IPv4 and 1402 over IPv6 (the
   profile does not reassemble fragments),
   and the profile bounds the hold queue at 16 MB, joins flows within
   its rate ceilings, the same on every device, leaves a flow on its
   authenticated-rate and loss breakers and reaches a flow through an
-  AMT relay that an AMTRELAY record names.  Notes in
+  AMT relay that an AMTRELAY record, or a Relay Advertisement from
+  such a relay, names.  Notes in
   (#key-rotation-and-re-fetch), (#cost) and (#flow-parameters) add its
   rules on a record with an unknown `kid`, on datagram size and on
   `manifestTimerMs`, and in (#threat-model) it sheds datagrams above

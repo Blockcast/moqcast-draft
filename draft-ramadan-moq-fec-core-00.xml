@@ -8,7 +8,7 @@
 </postal><email>omar@blockcast.net</email>
 </address></author><author initials="M. E." surname="Fiuczynski" fullname="Marc E. Fiuczynski"><organization>Rutgers University</organization><address><postal><street></street>
 </postal><email>mef@scarletmail.rutgers.edu</email>
-</address></author><date year="2026" month="October" day="29"></date>
+</address></author><date year="2026" month="November" day="2"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -935,7 +935,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-00"></seriesInfo>
 </reference>
@@ -945,7 +945,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
 </reference>
@@ -985,7 +985,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-00"></seriesInfo>
 </reference>
@@ -995,7 +995,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
 </reference>
@@ -1005,7 +1005,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-02"></seriesInfo>
 </reference>

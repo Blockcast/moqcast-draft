@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-10-29T00:00:00Z"
+date = "2026-11-02T00:00:00Z"
 keyword = ["multicast", "MoQ", "AMT", "SSM", "TreeDN"]
 
 [seriesInfo]
@@ -31,10 +31,11 @@ sessions integrate with IP multicast (SSM, ASM), Automatic Multicast
 Tunneling (AMT), and TreeDN for scalable live streaming.  The
 specification includes a multicast catalog extension for endpoint
 discovery and multi-path delivery across TV, mobile, and browser
-platforms.  All multicast delivery uses MPEG Media Transport Protocol
-(MMTP) packets, the same packet format used on MoQ QUIC streams and
-datagrams.  A manifest-based content-authentication profile protects
-multicast delivery.
+platforms.  All multicast media delivery uses MPEG Media Transport
+Protocol (MMTP) packets, the same packet format that MoQ objects carry
+on QUIC streams.  A manifest-based content-authentication profile
+protects multicast delivery with signed manifest records that travel
+in band beside those packets.
 
 {mainmatter}
 
@@ -55,9 +56,10 @@ signaling of QUIC:
    for MoQ catalogs [@!I-D.ietf-moq-msf].  Endpoints carry mmtp tracks
    and their repair tracks, and a loc or cmaf track reaches multicast
    through an mmtp rendition track (Section 4.1).
-3. **MMTP wire format**: All multicast delivery uses MMTP packets --
-   the same packet format that MoQ objects carry on QUIC streams
-   (Section 5).
+3. **MMTP wire format**: All multicast media delivery uses MMTP
+   packets -- the same packet format that MoQ objects carry on QUIC
+   streams -- and on a protected endpoint signed manifest records
+   travel in band beside them (Section 5).
 4. **Multi-path delivery**: Combining MoQ unicast and multicast for
    failover and FEC symbol deduplication
 
@@ -599,9 +601,9 @@ candidate that the subscriber validates with the AMT protocol before
 selection (Section 3.1).  DRIAD requires AMTRELAY (TYPE260) reverse
 DNS records on the source IP.  Publishers without reverse DNS control
 SHOULD provide a stable `relay` service hostname.
-(#explicit-congestion-notification) requires a relay and a gateway to
-carry the ECN field through the tunnel per [@!RFC6040] and
-[@!RFC9601] Section 6.1.4.
+(#explicit-congestion-notification) requires a gateway to carry the
+ECN field through decapsulation per [@!RFC6040] and [@!RFC9601]
+Section 6.1.4, which recommends the same support in a relay.
 
 {#atsc-3-0-broadcast-television}
 ### ATSC 3.0 (Broadcast Television)
@@ -802,21 +804,41 @@ every manifest record of the flow, twins included, so that a queue
 that implements Explicit Congestion Notification (ECN) marks such a
 datagram Congestion Experienced (CE) where it would otherwise have
 dropped it ([@!RFC3168] Section 5); such a queue drops a Not-ECT
-datagram as it would without ECN.  A receiver MUST treat a datagram
-that arrives marked CE as it treats a lost one wherever it reacts to
-loss, in endpoint selection and in the failover from multicast to MoQ
-unicast ((#multi-path-delivery)): a multicast sender gets no
-feedback, so the receivers' reaction is the congestion response that
-[@!RFC3168] Section 5 and [@RFC8085] Sections 3.1.7 and 4.1 ask of a
-flow sent ECN-capable.  A receiver MUST NOT read a change of the
-sender's rate into the marks, since a mark set upstream of a
-replication point reaches every receiver below it.  An AMT relay and
-an AMT gateway ((#amt-automatic-multicast-tunneling)) MUST carry the
-ECN field of the encapsulated datagram through encapsulation and
-decapsulation per [@!RFC6040], as [@!RFC9601] Section 6.1.4 applies
-it to AMT: the gateway declares that support with the E flag of
-[@!RFC9601] Section 6.1.4.2, without which a relay clears the outer
-ECN field.  The digest of (#digest) covers the
+datagram as it would without ECN.  A receiver that can read the ECN
+field MUST treat a datagram that arrives marked CE as it treats a
+lost one in endpoint selection and in the failover from multicast to
+MoQ unicast
+((#multi-path-delivery)), and in no other reaction to loss.  A
+multicast sender gets no feedback, so the receivers' reaction stands
+in for the sender's: it is the receiver-driven congestion control of
+[@RFC8085] Section 4.1, responding to a mark as to a drop, as
+[@!RFC3168] Section 5 asks of the end systems of an ECN-capable
+transport, and it departs from [@RFC8085] Section 3.1.7, which
+requires CE feedback to the sender.  A receiver that cannot read the
+ECN field, as one that receives native SSM through the UDPMessage of
+[@?WICG-DirectSockets], which carries no ECN field, takes a CE-marked
+datagram for an unmarked one, and so reacts to a marking queue's
+congestion only once that queue drops.  A receiver that reads a mark
+still processes the datagram, and it MUST NOT count the mark toward
+adding repair,
+whether a repair layer, a repair-only endpoint ([@!MOQ-FEC-MULTICAST]
+Section 4) or a unicast repair FETCH ((#per-block-unicast-repair)),
+or against dropping repair, since repair added or held on a path that
+is losing packets to congestion adds to the congestion
+([@!MOQ-FEC-CORE] Section 7.4).  A receiver MUST NOT read a change of
+the sender's rate into the marks, since a mark set upstream of a
+replication point reaches every receiver below it.  An AMT gateway
+((#amt-automatic-multicast-tunneling)) MUST carry the ECN field of
+the encapsulated datagram through decapsulation per [@!RFC6040], as
+[@!RFC9601] Section 6.1.4 applies it to AMT, and declares that
+support with the E flag of [@!RFC9601] Section 6.1.4.2.  That section
+recommends the same support in an AMT relay without requiring it: a
+relay that has it copies the ECN field into the outer header for a
+gateway that sets the E flag, and one that lacks it clears the outer
+ECN field ([@!RFC9601] Section 6.1.4.1), so congestion between that
+relay and the gateway reaches the receiver as loss, while a mark set
+before the relay still arrives in the encapsulated header.  The
+digest of (#digest) covers the
 addresses, the ports and the payload of a datagram, not its ECN
 field, so a mark set on the path never fails a digest.
 
@@ -1012,7 +1034,7 @@ manifest.
 
 The digest pseudoheader, the hold queue and the consume-on-admission
 rule are those of AMBI ([@?I-D.ietf-mboned-ambi] Sections 3.4.2 and
-3.2); the signed record carried on the flow's own (S, G) is the
+3.2); the signed record carried on the flow's own `(S, G, port)` is the
 multicast-carried manifest delivery that AMBI Section 2.1.1
 anticipates and leaves to another specification.
 
@@ -1052,9 +1074,13 @@ A flow has one `port`, which no other flow of the same `(S, G)`
 shares ((#catalog-signaling)), so no port carries the data or the
 records of two flows; its `sequence` counter (below) and
 its `mseq` counter ((#manifest-record)) are kept per `(kid, epoch)`.
+`mseq` starts at any value and increases by one for every window the
+flow closes under one `(kid, epoch)`, in emission order, as the
+replay floor of step 1 of (#receiver-enforcement-and-state) and the
+twin deadline of (#emission-and-cadence) assume.
 
 `sequence` is a 64-bit counter the sender assigns per `(flow, kid,
-epoch)`: it starts at any value and increases by one for every
+epoch)`: it starts at any value and increases by one for every data
 datagram the flow emits, in emission order, repair symbols and
 signaling datagrams included.  It is carried only in manifest
 records, never in data datagrams, and is unrelated to MoQ
@@ -1154,10 +1180,15 @@ encapsulation [@!RFC7450] on a 1500-octet path.
 a data datagram whose first four octets are "MHM2".  No data datagram
 of a flow begins with them: each is an MMTP version 0 packet
 ((#multicast-packet-format); [@!MOQ-MMT] Section 3.1), whose leading
-version field excludes the octet 0x4D ("M").
+version field excludes the octet 0x4D ("M").  An application that
+listens on `port` and does not implement this profile receives the
+records and their twins as well; each reads as an MMTP packet of
+version 1, which a receiver of [@!MOQ-MMT] rejects before parsing its
+`type` field (its Section 3.1).
 
-`flags`: bit 0, epoch end ((#receiver-enforcement-and-state)); bits
-1 to 7 reserved, MUST be zero on send and ignored on receipt.
+`flags`: bit 0, the least significant bit of the octet (mask 0x01),
+epoch end ((#receiver-enforcement-and-state)); bits 1 to 7 reserved,
+MUST be zero on send and ignored on receipt.
 
 `sent` is the sender's clock when the record is signed, truncated to
 whole seconds since 1970-01-01T00:00:00Z with leap seconds excluded,
@@ -1476,14 +1507,17 @@ Members of `multicast.auth`:
 **keys** (array, REQUIRED): one to four `{kid, publicKey,
 firstEpoch}` objects.  `kid` is an unsigned 32-bit integer carried in
 the clear in every record; `publicKey` is the 32-octet Ed25519 public
-key, base64url-encoded without padding; `firstEpoch` is the first
+key, base64url-encoded without padding ([@!RFC4648] Section 5);
+`firstEpoch` is the first
 `epoch` the key signs.  A key signs the epochs from its `firstEpoch`
 up to, but not including, the next larger `firstEpoch` in the array,
 and the key with the largest `firstEpoch` signs every later epoch.
 `kid` values MUST be unique within a broadcast and `firstEpoch` values
 MUST be distinct within the array.  A receiver that takes its keys
-from a catalog whose `keys` repeats a `kid` or a `firstEpoch` holds no
-key set for the broadcast: it admits nothing and treats every endpoint
+from a catalog whose `keys` has no or more than four entries, repeats
+a `kid` or a `firstEpoch`, or names a `kid` or `firstEpoch` that is
+not an unsigned 32-bit integer or a `publicKey` that does not decode
+to 32 octets holds no key set for the broadcast: it admits nothing and treats every endpoint
 of the `multicast` object as one that yields no data
 ((#multicast-endpoint-format)), as it does on a flow whose records
 carry an algorithm it does not implement
@@ -1505,7 +1539,11 @@ within the earlier-started of the two paths' periods (step 1).  The
 publisher MUST write the current
 `epoch` at every
 epoch change, sender restart included, so a joiner with a current
-catalog cannot be fed an earlier epoch.
+catalog cannot be fed an earlier epoch.  A receiver whose catalog
+declares a `minEpoch` that is not an unsigned 32-bit integer admits
+nothing from the broadcast, pinned or not, and treats every endpoint
+of the `multicast` object as one that yields no data
+((#multicast-endpoint-format)).
 
 Members of an endpoint's `auth`; a protected endpoint MUST also
 declare `bandwidth`, the sender's ceiling for the flow rather than its
@@ -1533,7 +1571,11 @@ of an `(S, G)` carries the data or the records of two flows
 A receiver MUST ignore ((#multicast-endpoint-format)) every protected
 endpoint that shares its `(S, G, port)` with another endpoint, and
 every protected endpoint whose `bandwidth` is absent or is not a
-positive integer.  Two
+positive integer, whose `port` is not an integer from 1 to 65535,
+whose `streamId` is not an unsigned 32-bit integer or whose
+`manifestTimerMs` is below 1, and it clamps a `maxAuthDelayMs`
+outside 50 to 1000 to the nearer bound, as the browser profile of
+[@?MCAST-MANIFEST] does; it never uses an out-of-range value.  Two
 ASM endpoints whose `senderAddress` differ MAY share `groupAddress`
 and `port`; the source check of (#receiver-enforcement-and-state)
 separates them.
@@ -1941,8 +1983,8 @@ variable-length interpretation before a cryptographic check:
    under: it MAY enter a FEC instance under that path's own
    integrity protection, which vouches for the relay and not for the
    publisher, neither anchoring nor tripping the fail-closed check of
-   [@!MOQ-FEC-CORE] Section 7.3.2 (that
-   section), and the admission that
+   [@!MOQ-FEC-CORE] Section 7.3.2, as [@!MOQ-FEC-MULTICAST] Section 5.2
+   provides, and the admission that
    makes the consumer protected
    under a flow that lists the track ends this for that track, the
    discard above dropping each such symbol the consumer still holds
@@ -2681,7 +2723,7 @@ catalog extension (Section 4) requires no registration.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-02'/>
 </reference>
@@ -2695,7 +2737,7 @@ catalog extension (Section 4) requires no registration.
     <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
       <organization>Rutgers University</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-00'/>
 </reference>
@@ -2706,7 +2748,7 @@ catalog extension (Section 4) requires no registration.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-00'/>
 </reference>
@@ -2717,7 +2759,7 @@ catalog extension (Section 4) requires no registration.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-00'/>
 </reference>
@@ -2728,7 +2770,7 @@ catalog extension (Section 4) requires no registration.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
 </reference>
@@ -2739,7 +2781,7 @@ catalog extension (Section 4) requires no registration.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-mboned-mcast-manifest-01'/>
 </reference>
@@ -2913,8 +2955,9 @@ as an RFC.
   [@!MOQ-FEC-CATALOG] for the `fec-repair` packaging value, the
   signaling model and the instance and track fields;
   [@!MOQ-FEC-BLOCK] for the scheme parameters; [@!MOQ-FEC-MULTICAST]
-  for repair-only endpoints, multicast QUIC, the receiver repair
-  policy, block classification and keyframe-bearing blocks; and
+  for repair-only endpoints, multicast QUIC, the admitted-packet
+  anchoring of the layer-set check, the receiver repair policy,
+  block classification and keyframe-bearing blocks; and
   [@!MOQ-MMT], now cited at its -02 revision, for the iso-ssbg1-v1
   block profile, the Source FEC Payload ID and the keyframe overlay,
   which moved there.  Every citation of a [@!MOQ-MMT] section now
@@ -2979,23 +3022,39 @@ as an RFC.
   sender's ceiling for the flow, and a receiver ignores a protected
   endpoint whose `bandwidth` is absent or not a positive integer
   ((#catalog-signaling)).
+- (#catalog-signaling) makes the choice [@?MCAST-MANIFEST] leaves to
+  a profile: a receiver clamps a `maxAuthDelayMs` outside 50 to 1000
+  to the nearer bound, as that document's browser profile does, and
+  ignores a protected endpoint whose `manifestTimerMs` is below 1,
+  whose `port` is not an integer from 1 to 65535 or whose `streamId`
+  is not an unsigned 32-bit integer; a `keys` array of no or more
+  than four entries, or one naming a `kid` or `firstEpoch` that is not
+  an unsigned 32-bit integer or a `publicKey` that does not decode to
+  32 octets, yields no key set, and a `minEpoch` that is not an
+  unsigned 32-bit integer admits nothing from the broadcast, as that
+  document requires.
 - (#content-authentication) names [@?MCAST-MANIFEST], a new
   informative reference, as the format it restates by value.  Step 1
   of (#receiver-enforcement-and-state) writes the replay floor as
   `mseq + 64 <= highest_mseq(kid, epoch)`, a sum that does not wrap,
   in place of -01's subtraction, which underflows while
   `highest_mseq` is below 64, and
-  (#protected-flows-and-sequence-numbers) states that neither counter
+  (#protected-flows-and-sequence-numbers) states that `mseq`
+  increases by one per window, as in [@?MCAST-MANIFEST] and as the
+  replay floor and the twin deadline assume, and that neither counter
   wraps within an epoch.  In (#emission-and-cadence) the twin goes on
   its own at the `maxAuthDelayMs / 2` deadline when window `mseq + 2`
   has not closed by then, where -01 said opened.
 - New (#explicit-congestion-notification): a sender SHOULD set ECT(0)
   on the data datagrams and manifest records of a protected flow, a
-  receiver MUST treat a CE-marked datagram as a lost one wherever it
-  reacts to loss, and an AMT relay and gateway MUST carry the ECN
-  field through the tunnel per [@!RFC6040] as [@!RFC9601] Section
-  6.1.4 applies it to AMT; (#amt-automatic-multicast-tunneling)
-  points to it.  [@!RFC3168], [@!RFC6040] and [@!RFC9601] are new
+  receiver that can read the ECN field MUST treat a CE-marked
+  datagram as a lost one in endpoint selection and in the failover
+  to MoQ unicast and in no other reaction to loss, never toward
+  adding or holding repair, and an
+  AMT gateway MUST carry the ECN field through decapsulation per
+  [@!RFC6040] as [@!RFC9601] Section 6.1.4 applies it to AMT, a
+  section that recommends the same support in a relay without
+  requiring it; (#amt-automatic-multicast-tunneling) points to it.  [@!RFC3168], [@!RFC6040] and [@!RFC9601] are new
   normative references, and [@RFC8085] a new informative one.
 - (#test-vectors-bc-provenance-version-2): `params_hash` and `ctx`
   are unchanged from -01: the example's

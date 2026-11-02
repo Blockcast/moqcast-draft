@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-10-29T00:00:00Z"
+date = "2026-11-02T00:00:00Z"
 keyword = ["FEC", "MoQ", "erasure code", "unequal error protection"]
 
 [seriesInfo]
@@ -938,7 +938,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-00'/>
 </reference>
@@ -949,7 +949,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-00'/>
 </reference>
@@ -960,7 +960,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
 </reference>
@@ -971,7 +971,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-02'/>
 </reference>
@@ -982,7 +982,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
 </reference>
