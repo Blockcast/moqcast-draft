@@ -396,7 +396,7 @@ Endpoint field definitions:
     bytes that FEC protects ([@!MOQ-MMT] Section 7.1).
     packet_id 0 is
     reserved for the sending entity's MMTP signaling sub-flow
-    ([@!MOQ-MMT] Section 3.1; Section 5), which
+    ((#multicast-packet-format); [@!MOQ-MMT] Section 3.1), which
     arrives on the same tuples as the media; a publisher MUST NOT
     advertise it for a track.
 
@@ -606,8 +606,9 @@ selection (Section 3.1).  DRIAD requires AMTRELAY (TYPE260) reverse
 DNS records on the source IP.  Publishers without reverse DNS control
 SHOULD provide a stable `relay` service hostname.
 (#explicit-congestion-notification) requires a gateway to carry the
-ECN field through decapsulation per [@!RFC6040] and [@!RFC9601]
-Section 6.1.4, which recommends the same support in a relay.
+Explicit Congestion Notification (ECN) field through decapsulation
+per [@!RFC6040] and [@!RFC9601] Section 6.1.4, which recommends the
+same support in a relay.
 
 {#atsc-3-0-broadcast-television}
 ### ATSC 3.0 (Broadcast Television)
@@ -802,10 +803,11 @@ Section 3.4.
 {#explicit-congestion-notification}
 ## Explicit Congestion Notification
 
-A sender SHOULD set ECT(0) in the ECN field of every data datagram of
+A sender SHOULD set ECT(0), an ECN-Capable Transport (ECT) codepoint,
+in the ECN field of every data datagram of
 a protected flow ((#protected-flows-and-sequence-numbers)) and of
 every manifest record of the flow, twins included, so that a queue
-that implements Explicit Congestion Notification (ECN) marks such a
+that implements ECN marks such a
 datagram Congestion Experienced (CE) where it would otherwise have
 dropped it ([@!RFC3168] Section 5); such a queue drops a Not-ECT
 datagram as it would without ECN.  A receiver that can read the ECN
@@ -1029,6 +1031,21 @@ trusts the relay to have joined that source per [@!RFC7450]; the
 relay authenticates nothing it forwards, so an AMT receiver of a
 protected flow checks the source itself
 ((#receiver-enforcement-and-state)).
+
+Multicast UDP delivery lacks the confidentiality that QUIC provides
+on unicast paths: the MMTP packets of every endpoint, and the
+manifest records of a protected flow, are visible to every receiver
+and to the path, and the digests show whether two datagrams are
+identical.  A join also discloses the subscription: a native join
+puts `(S, G)`, or `G` on an ASM endpoint, on the receiver's link and
+in its network's multicast routing state; a DRIAD lookup shows `S` to
+the receiver's resolver, and to the path where DNS is not encrypted;
+and a join through an AMT relay shows the receiver's address and the
+`(S, G)` it receives, in the clear ([@!RFC7450] Section 6), to the
+relay, which the catalog or the holder of the reverse zone of `S` can
+choose ((#amt-automatic-multicast-tunneling)), and to any observer of
+the unicast AMT leg, for as long as the receiver stays joined.  A
+receiver that must not disclose this stays on MoQ unicast.
 
 {#content-authentication}
 ## Content Authentication
@@ -1540,8 +1557,10 @@ up to, but not including, the next larger `firstEpoch` in the array,
 and the key with the largest `firstEpoch` signs every later epoch.
 `kid` values MUST be unique within a broadcast and `firstEpoch` values
 MUST be distinct within the array.  A receiver that takes its keys
-from a catalog whose `keys` is absent, has no or more than four
-entries, repeats a `kid` or a `firstEpoch`, or names a `kid` or
+from a catalog whose `keys` is absent or is not an array, has no or
+more than four entries, has an entry that is not an object or lacks
+a `kid`, `publicKey` or `firstEpoch`, repeats a `kid` or a
+`firstEpoch`, or names a `kid` or
 `firstEpoch` that is not an unsigned 32-bit integer or a `publicKey`
 that does not decode to 32 octets holds no key set for the
 broadcast: it admits nothing and treats every endpoint
@@ -1679,10 +1698,12 @@ On an ASM endpoint a receiver MUST discard, before any parsing or
 hashing, a datagram on `port` whose IP source
 address is not `senderAddress`; behind an AMT relay the address is
 that of the encapsulated header ((#multicast-packet-format)).  On an
-SSM endpoint reached natively the network enforces the source and a
-receiver SHOULD still discard a datagram whose source address is not
+SSM endpoint reached natively the network forwards the datagrams of
+every source of `G` that the receiver has joined, and flows of two
+sources in `G` may share a `port` ((#catalog-signaling)), so a
+receiver MUST discard a datagram whose source address is not
 `sourceAddress`; a receiver reached through an AMT gateway MUST
-discard it, since nothing upstream of its gateway filters the
+discard it as well, since nothing upstream of its gateway filters the
 encapsulated source address and [@!RFC7450] does not authenticate
 Multicast Data messages.
 A receiver MUST likewise discard, before any parsing or hashing, a
@@ -1773,8 +1794,9 @@ keeping whether its datagram arrived marked CE
 flow is verified (step 2): one for the datagrams a MoQ unicast path
 delivers and the packets the base instance recovers with the help of
 a symbol that path delivered (step 2), and one for the rest.  State
-per receiver, shared by its flows: the time of the last catalog
-re-fetch that an unknown `kid` triggered (key rotation, below), and
+per receiver: the time of the last catalog re-fetch that an unknown
+`kid` triggered (key rotation, below), shared by all the receiver's
+flows, and
 the per-`kid` epoch floor kept with a key pin, one for each
 broadcast whose keys the receiver pins and shared only by that
 broadcast's flows, even where two broadcasts list the same keys.  The per-flow state
@@ -2098,7 +2120,8 @@ variable-length interpretation before a cryptographic check:
    delimited is discarded as that section requires.  Nor is such a
    symbol the later signal of [@!MOQ-FEC-CORE] Section
    9.3 or the packet
-   whose receipt anchors a block's ts there, whether or not an
+   whose receipt anchors a block's first_arrival there, written ts in
+   this document, whether or not an
    admitted repair packet later delimits the block the symbol
    delimited (that block's ts is the receipt time of the first
    packet of it, in the order received, that this profile admits),
@@ -2199,7 +2222,8 @@ variable-length interpretation before a cryptographic check:
    a lead, so no span reckoned from the lead in force at the
    admission names them all; the admitted packet is not necessarily
    the packet
-   whose receipt set the block's ts in [@!MOQ-FEC-CORE] Section
+   whose receipt set the block's ts, its first_arrival in
+   [@!MOQ-FEC-CORE] Section
    9.3: a
    datagram held on a miss is admitted, by step 1, after one that a
    verified record admitted on arrival, and a symbol of an unlisted
@@ -2260,8 +2284,11 @@ variable-length interpretation before a cryptographic check:
    6.2), or when the block is
    discarded under that bound.
 
-**Replay.** Receivers in an explicitly configured DVR or replay mode
-MAY relax the epoch, floor and freshness checks.  **Clock.** The
+**Replay.** Receivers in an explicitly configured digital video
+recorder (DVR) or replay mode MAY relax the epoch, floor and
+freshness checks.
+
+**Clock.** The
 freshness check needs a receiver clock synchronized to UTC within
 5 s.  A receiver without one MAY skip that check alone; it
 then accepts any window of the current epoch at join and has no
@@ -2287,7 +2314,9 @@ receiver whose catalog or pin predates the rotation is exposed to the
 retired key until it re-fetches or is re-provisioned
 ((#threat-model)).  A record with an unknown `kid` triggers at most
 one catalog re-fetch per 30 s per receiver; until then such records
-are dropped.  Whenever a re-fetch or a re-provisioning changes the key
+are dropped.  A receiver that pins the keys of the record's broadcast
+makes no such re-fetch, since no re-fetch changes a pinned key set.
+Whenever a re-fetch or a re-provisioning changes the key
 set or a `kid`'s range, the receiver re-applies the range check of
 (#catalog-signaling) to the `(kid, epoch)` that set each flow's
 current epoch; where it now fails, the receiver discards that flow's
@@ -2307,9 +2336,10 @@ FILL_PARAMETERS as in the join of (#multi-path-delivery), which
 delivers the catalog track's current group from its independent
 catalog.
 
-**Cost.** A datagram from another source costs one address comparison;
-one that spoofs `S`, or that a relay delivers on a MoQ unicast path,
-costs one hash, two lookups and, on a miss of both, space in its
+**Cost.** A datagram on `port` from another source, or to another
+destination than `G`, costs one or two address comparisons; one on
+`port` that spoofs `S` and is addressed to `G`, or one that a relay
+delivers on a MoQ unicast path, costs one hash, two lookups and, on a miss of both, space in its
 path's hold queue until expiry, so a copy of an admitted datagram costs one hash and two
 lookups; an injected record costs at most one
 verification inside the budget or, with an unknown `kid`, no
@@ -2676,7 +2706,8 @@ A publisher that offers the fallback
 sizes it, or bounds what its relays admit, for that.  A record with
 an unknown `kid` needs no key, so one such record that reaches a
 replication point also makes every receiver below that point that
-holds the catalog send the REQUEST_UPDATE of key rotation
+holds the catalog and does not pin the broadcast's keys send the
+REQUEST_UPDATE of key rotation
 ((#receiver-enforcement-and-state)) and take the catalog track's
 current group from its relay at once, a burst on the relays that
 grows with the audience and can recur every 30 s.  A receiver that
@@ -2925,10 +2956,11 @@ catalog extension (Section 4) requires no registration.
   <front>
     <title>Direct Sockets API</title>
     <author initials='A.' surname='Rayskiy' fullname='Andrew Rayskiy'>
-      <organization>W3C Community Group Draft Report</organization>
+      <organization>Google</organization>
     </author>
     <date year='2026'/>
   </front>
+  <refcontent>W3C Community Group Draft Report</refcontent>
 </reference>
 
 <reference anchor='ATSC-A331' target='https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/'>
@@ -3129,17 +3161,29 @@ as an RFC.
   `auth` member `manifestPort` is
   removed, and the `signed_message` prefix of
   (#signature-context-binding) binds `u16(port)` where it bound
-  `u16(manifestPort)`.  In (#test-vectors-bc-provenance-version-2)
+  `u16(manifestPort)`.  A receiver ignores every protected endpoint
+  that shares its `(S, G, port)` with another endpoint
+  ((#catalog-signaling)), where for colliding ports -01 ignored only a
+  protected endpoint whose ports broke the rule of the `manifestPort`
+  member.  In (#test-vectors-bc-provenance-version-2)
   the `manifestPort` input is dropped, the prefix binds port 5004,
   and only the signature and the record are regenerated.
 - (#receiver-enforcement-and-state) also discards, before any parsing
   or hashing, a datagram on `port` whose destination address is not
   `G`, since endpoints of one `S` in different groups may share a
   `port`; -01 assigned to the flow every datagram on its ports that
-  passed the source check.  Step 2 consumes, of the pending entries
-  of a digest, the one lowest in `(epoch, sequence)` order, where -01
+  passed the source check.  On an SSM endpoint reached natively that
+  source check is now a MUST, where -01 said SHOULD, since flows of
+  two sources in one group may share a `port`, and the Cost paragraph
+  prices a datagram that fails either check.  Step 2 consumes, of the
+  pending entries of a digest, the one lowest in `(epoch, sequence)`
+  order, where -01
   consumed the lowest sequence, which compares unrelated counters
-  when a carousel repeats a datagram across an epoch change.
+  when a carousel repeats a datagram across an epoch change.  The
+  floor a key pin keeps is now one for each broadcast whose keys the
+  receiver pins, shared only by that broadcast's flows, where -01
+  kept one per receiver for all its flows
+  ((#receiver-enforcement-and-state), (#catalog-signaling)).
 - (#receiver-enforcement-and-state): both verification budgets, on
   `port` and on the manifest track, refill at
   `V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))` per second from
@@ -3176,7 +3220,9 @@ as an RFC.
 - (#catalog-signaling): a receiver admits nothing from a broadcast
   whose `multicast.auth` lacks `scheme`, `version`, `sig` or
   `minEpoch`, or gives `scheme`, `version` or `sig` a value it does
-  not implement; an absent `keys` yields no key set; and a receiver
+  not implement; an absent `keys`, one that is not an array, or one
+  with an entry that is not an object or lacks a `kid`, `publicKey`
+  or `firstEpoch`, yields no key set; and a receiver
   ignores a protected endpoint whose `streamId` is absent or whose
   `senderAddress` is absent on an ASM endpoint or present on an SSM
   endpoint.
@@ -3188,7 +3234,8 @@ as an RFC.
   as a re-fetch, the catalog lifetime is the bound the publisher
   assumes on that delivery, and the re-fetch that an unknown `kid`
   triggers is a REQUEST_UPDATE on that subscription with
-  FILL_PARAMETERS.
+  FILL_PARAMETERS.  A receiver that pins the broadcast's keys makes
+  no such re-fetch, where -01 gave every receiver that re-fetch.
 - Step 2 of (#receiver-enforcement-and-state) counts each held
   datagram's IP and UDP headers, 28 or 48 octets, against its hold
   queue's bound as well as its payload.  The publisher keeps every
@@ -3205,6 +3252,9 @@ as an RFC.
   receiver that widens its tolerance, where -01 gave the freshness
   tolerance on `sent`, `7 s + maxAuthDelayMs`, as that age, and W
   alone on such a receiver.
+- (#multicast-security): multicast and AMT delivery have no
+  confidentiality, and the section states what a native join, a DRIAD
+  lookup and a join through an AMT relay disclose.
 - (#threat-model) adds that an injection that reaches a replication
   point can move every receiver below it that holds a MoQ session
   onto MoQ unicast at once, by failover or, for the blocks it leaves
@@ -3215,17 +3265,15 @@ as an RFC.
   publisher that offers the fallback sizes it, or bounds what its
   relays admit, for that.  It adds that
   one record with an unknown `kid`, which needs no key, makes every
-  receiver below that point that holds the catalog re-fetch the
-  catalog at once, a burst on the relays that can recur every 30 s,
-  and the cost paragraph of (#receiver-enforcement-and-state) counts
+  receiver below that point that holds the catalog and does not pin
+  the broadcast's keys re-fetch the catalog at once, a burst on the
+  relays that can recur every 30 s, and the cost paragraph of (#receiver-enforcement-and-state) counts
   that re-fetch.  It also corrects the residual that a key pin
   leaves: a lowered `minEpoch` admits records of an earlier epoch
   signed with a still-listed `kid` at any later join as well, those
   of the highest epoch verified under that `kid` and of every later
   epoch in its range, where -01 named a receiver's first join under a
-  `kid` only.  The floor a key pin keeps is now one for each broadcast
-  whose keys the receiver pins, shared only by that broadcast's
-  flows, where -01 kept one per receiver for all its flows.  It scopes the detection of deletion, loss and
+  `kid` only.  It scopes the detection of deletion, loss and
   reordering to an epoch of a flow, since `sequence` and `mseq`
   restart at an epoch change, where -01 claimed it within a flow.
 - (#content-authentication) names [@?MCAST-MANIFEST], a new
@@ -3275,7 +3323,14 @@ as an RFC.
   flow, as its `bandwidth`: 8000000 in place of 100000000.  The
   Abstract no longer says that MoQ carries MMTP packets on QUIC
   datagrams, and it says that the signed manifest records travel in
-  band.
+  band.  (#receiver-enforcement-and-state) names a block's deadline
+  anchor first_arrival, as [@!MOQ-FEC-CORE] Section 9.3 does, and
+  writes it ts; its Clock rule is a paragraph of its own; and DVR,
+  ECN and ECT are expanded at first use.  The packet_id 0 rule of
+  (#multicast-endpoint-format) cites (#multicast-packet-format) as a
+  cross-reference, and the [@?WICG-DirectSockets] reference gives its
+  editor's affiliation and states its status as a Community Group
+  draft.
 
 {#changes-since-draft-ramadan-moq-multicast-00}
 ## Changes Since draft-ramadan-moq-multicast-00

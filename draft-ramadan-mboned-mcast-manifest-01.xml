@@ -101,7 +101,10 @@ by any path other than the flow's own port
 (<xref target="additional-record-paths"></xref>).</t>
 <t>A receiver that implements this document enforces it: there is no
 verify-and-report mode, and no datagram of a protected flow reaches
-an application except through <xref target="receiver-behavior"></xref>.</t>
+an application except through the receiver rules of the scheme its
+metadata names, those of <xref target="receiver-behavior"></xref> for
+<tt>manifest-ed25519-2</tt> and of <xref target="the-ed25519-trailer-1-scheme"></xref> for
+<tt>ed25519-trailer-1</tt>.</t>
 <t><xref target="MOQ-MULTICAST"></xref> Section 7.2 profiles this format for Media over QUIC
 (MoQ) as &quot;bc-provenance&quot; version 2: it derives <tt>ctx</tt> from the MoQ
 catalog, mirrors records on a MoQ track as a second path and carries
@@ -209,11 +212,17 @@ it knows the datagram's <tt>sequence</tt> and the <tt>epoch</tt> of the record t
 listed it (<xref target="keys-epochs-and-sequence-numbers"></xref>), which it MAY make
 available to the application, <tt>sequence</tt> only together with that
 <tt>epoch</tt>.  It delivers nothing else of a protected flow except, where
-its profile says so, an admitted datagram's arrival time and the
-Explicit Congestion Notification (ECN) field of its IP header
-<xref target="RFC3168"></xref>; no digest covers either (<xref target="digest"></xref>), so an on-path party
-can delay the datagram or change that field without failing its
-digest.  Every flow parameter that enters the
+its profile says so (the browser profile does, <xref target="browser-profile"></xref>),
+an admitted datagram's arrival time and the Explicit Congestion
+Notification (ECN) field of its IP header <xref target="RFC3168"></xref>; no digest
+covers either (<xref target="digest"></xref>), so an on-path party can delay the
+datagram or change that field without failing its digest, and a
+party that can send as <tt>S</tt> (<xref target="threat-model"></xref>) sets both for a
+datagram whose copy it gets to the receiver in time to be the one
+admitted, as steps 1 and 2 of <xref target="processing"></xref> let it do for a carousel
+repeat and for a datagram it receives sooner than the receiver does,
+the sender's copy then being dropped as already admitted.  Every
+flow parameter that enters the
 pseudoheader or the signature prefix is declared in the flow's
 metadata; the record carries none of them, and names only the digest
 function (<tt>hash_alg</tt>) it uses and the key (<tt>kid</tt>) of the metadata's
@@ -594,18 +603,23 @@ that flow: it admits nothing and treats the flow as one that yields
 no data.</t>
 <t>Whether a flow is protected is a property of the flow's metadata, not
 of any datagram: a receiver that holds metadata declaring a flow
-protected delivers nothing from that flow except through this
-section.</t>
+protected delivers nothing from that flow except through the receiver
+rules of the scheme that metadata names, those of this section for
+<tt>manifest-ed25519-2</tt> and of <xref target="the-ed25519-trailer-1-scheme"></xref> for
+<tt>ed25519-trailer-1</tt>.</t>
 
 <section anchor="source-check"><name>Source Check</name>
 <t>On an ASM flow a receiver MUST discard, before any parsing or
 hashing, a datagram on <tt>port</tt> whose IP source address is not
 <tt>senderAddress</tt>; behind an AMT relay the address is
 that of the encapsulated header of the AMT Multicast Data message
-<xref target="RFC7450"></xref>.  On an SSM flow reached natively the network enforces
-the source and a receiver SHOULD still discard a datagram whose
+<xref target="RFC7450"></xref>.  On an SSM flow reached natively the network forwards
+the datagrams of every source of <tt>G</tt> that the receiver has joined,
+and flows of two sources in <tt>G</tt> may share a <tt>port</tt>
+(<xref target="flow-parameters"></xref>), so a receiver MUST discard a datagram whose
 source address is not <tt>S</tt>; a receiver reached through an AMT gateway
-MUST discard it, since nothing upstream of its gateway filters the
+MUST discard it as well, since nothing upstream of its gateway
+filters the
 encapsulated source address and <xref target="RFC7450"></xref> does not authenticate
 Multicast Data messages.  A receiver MUST likewise discard, before
 any parsing or hashing, a datagram on <tt>port</tt> whose IP destination
@@ -631,8 +645,9 @@ recorded as admitted, each until the time of recording plus
 <tt>maxAuthDelayMs</tt>; and a hold queue of <tt>(digest, datagram, expiry)</tt>
 entries in arrival order, <tt>digest</tt> being absent from an entry until
 the first record of the flow is verified (step 2).  State per
-receiver, shared by its flows: the time of the last metadata re-fetch
-that an unknown <tt>kid</tt> triggered (<xref target="key-rotation-and-re-fetch"></xref>), and
+receiver: the time of the last metadata re-fetch that an unknown
+<tt>kid</tt> triggered (<xref target="key-rotation-and-re-fetch"></xref>), shared by all the
+receiver's flows, and
 the per-<tt>kid</tt> epoch floor kept with a key pin, one for each key set
 the receiver pins and shared only by the flows that key set is
 attached to (<xref target="flow-parameters"></xref>), even where two key sets list the
@@ -767,7 +782,9 @@ freshness checks.  A <tt>(digest,
 sequence)</tt> entry is consumed when matched, so a replayed datagram
 finds no entry unless a legitimate identical copy is still pending,
 in which case the replay consumes that copy and the later legitimate
-copy is dropped (the application receives the same bytes either way;
+copy is dropped (the application receives the same bytes either way,
+with the replay's arrival time and ECN field where its profile
+delivers them (<xref target="overview"></xref>);
 this is a denial of service only, bounded by the carousel repeat
 count).  Cross-flow replay is excluded by <tt>streamId</tt>, <tt>S</tt>, <tt>G</tt> and
 <tt>port</tt> in both the digest and the signature.</t>
@@ -786,7 +803,9 @@ current, which the retired key still signs, and a receiver whose
 metadata or pin predates the rotation is exposed to the retired key
 until it re-fetches or is re-provisioned (<xref target="threat-model"></xref>).  A record
 with an unknown <tt>kid</tt> triggers at most one metadata re-fetch per 30 s
-per receiver; until then such records are dropped.
+per receiver; until then such records are dropped.  A receiver that
+pins the keys of the record's flow makes no such re-fetch, since no
+re-fetch changes a pinned key set.
 The browser profile does not re-fetch on an unknown <tt>kid</tt>: it drops
 such records and re-fetches the well-known document only when the
 metadata lifetime of <xref target="fetching-the-document"></xref> expires, so an injected
@@ -864,9 +883,10 @@ synchronized clock.</t>
 </section>
 
 <section anchor="cost"><name>Cost</name>
-<t>A datagram from another source costs one address comparison; one that
-spoofs <tt>S</tt> costs one four-octet comparison and, if it does not begin
-with &quot;MHM2&quot;, one hash, two lookups and, on a miss of both, space in
+<t>A datagram from another source, or to another destination than <tt>G</tt>,
+costs one or two address comparisons (<xref target="source-check"></xref>); one that
+spoofs <tt>S</tt> and is addressed to <tt>G</tt> costs one four-octet comparison
+and, if it does not begin with &quot;MHM2&quot;, one hash, two lookups and, on a miss of both, space in
 the hold queue until expiry, so a copy of an admitted datagram costs
 one hash and two lookups; one that begins with &quot;MHM2&quot; is an injected
 record, which costs at most one verification inside the budget or,
@@ -945,10 +965,13 @@ larger <tt>firstEpoch</tt> in the array, and the key with the largest
 <tt>firstEpoch</tt> signs every later epoch.  <tt>kid</tt> values MUST be unique
 within the key set and <tt>firstEpoch</tt> values MUST be distinct within
 the array.  A receiver that takes its keys from metadata whose
-<tt>keys</tt> array has no or more than four entries, repeats a <tt>kid</tt> or a
-<tt>firstEpoch</tt>, names a <tt>kid</tt> or <tt>firstEpoch</tt> outside its field width,
-or names a <tt>publicKey</tt> that is not 32 octets, holds no key set for
-the flow or flows that key set is attached to (below): it admits nothing
+<tt>keys</tt> is absent or not an array, has no or more than four entries,
+has an entry that is not an object or that lacks a <tt>kid</tt>,
+<tt>publicKey</tt> or <tt>firstEpoch</tt> or has one of the wrong kind, repeats a
+<tt>kid</tt> or a <tt>firstEpoch</tt>, names a <tt>kid</tt> or <tt>firstEpoch</tt> outside its
+field width, or names a <tt>publicKey</tt> that is not 32 octets, holds no
+key set for the flow or flows that key set is attached to (below):
+it admits nothing
 from them, as it does on a flow whose records carry an algorithm it
 does not implement (<xref target="receiver-behavior"></xref>), and the other flows of
 the same metadata, with key sets of their own, are unaffected; a
@@ -1099,18 +1122,21 @@ not match an IPv4 address, the families themselves having to match.
 It ignores an element of <tt>channels</tt> that is not a JSON object, a
 channel it cannot match, every channel whose <tt>(S, G, port)</tt> another
 channel of the same document also declares, one whose <tt>port</tt>
-violates <xref target="flow-parameters"></xref>, one that lacks a member this section or
-<xref target="flow-parameters"></xref> marks REQUIRED for its <tt>scheme</tt>, or carries a
+violates <xref target="flow-parameters"></xref>, one that lacks a member other than
+<tt>keys</tt> that this section or <xref target="flow-parameters"></xref> marks REQUIRED for its
+<tt>scheme</tt>, or carries a
 member of this section under a JSON value of a kind other than the
 one named here (a number with an integer value for <tt>port</tt>, <tt>kid</tt>,
 <tt>firstEpoch</tt> and each member this section or <xref target="flow-parameters"></xref>
 calls an integer, a string for <tt>source</tt>, <tt>group</tt>, <tt>scheme</tt> and
 <tt>publicKey</tt>, an object for <tt>integrity</tt> and for each element of
 <tt>keys</tt>, an array for <tt>keys</tt>), a member of the wrong kind being
-absent, so that a REQUIRED one leaves the channel ignored and an
-OPTIONAL one takes its default, one whose <tt>keys</tt> array, at a
+absent, so that a REQUIRED one other than <tt>keys</tt> leaves the channel
+ignored and an OPTIONAL one takes its default, one whose <tt>keys</tt>, at a
 receiver that takes its keys from the document, yields no key set
-(no or more than four entries, a repeated <tt>kid</tt> or <tt>firstEpoch</tt>, a
+(<tt>keys</tt> absent or not an array, an element of it that is not an
+object or lacks a <tt>kid</tt>, <tt>publicKey</tt> or <tt>firstEpoch</tt>, no or more than
+four entries, a repeated <tt>kid</tt> or <tt>firstEpoch</tt>, a
 <tt>kid</tt> or <tt>firstEpoch</tt> outside its field width, or a <tt>publicKey</tt> that
 is not 43 base64url characters decoding to 32 octets,
 <xref target="flow-parameters"></xref>; a receiver that pins keys is unaffected, since
@@ -1177,7 +1203,15 @@ minimum, 60 s.  This lifetime governs the parameters the receiver
 holds, not the HTTP response: any HTTP cache the receiver's fetch
 passes through follows <xref target="RFC9111"></xref> as usual, so a no-store response
 is not stored and a no-cache one is not reused without validation.
-The receiver re-fetches the document when that lifetime expires; such a re-fetch
+The receiver re-fetches the document when that lifetime expires.
+That lifetime does not consult Expires, s-maxage or heuristic
+freshness and is clamped at 24 h, so a cache that stored the document
+can still hold it fresh when the lifetime ends; the receiver
+therefore does not reuse a stored response of its own for that
+re-fetch without validation and sends it with the request directive
+<tt>Cache-Control: no-cache</tt> (<xref target="RFC9111"></xref> Section 5.2.1.4), which asks
+a cache on the path to validate with <tt>S</tt> before reusing what it
+stored.  Such a re-fetch
 that fails, or returns a response the receiver cannot use (one that
 does not verify as this section requires, is not the document of
 <xref target="the-well-known-document"></xref>, carries a <tt>version</tt> the receiver does not
@@ -1219,6 +1253,11 @@ senders that serve them.  Its rules on a record with an unknown <tt>kid</tt>
 <tt>manifestTimerMs</tt> (<xref target="flow-parameters"></xref>), on datagram size (<xref target="cost"></xref>) and
 on ingress above its ceiling (<xref target="threat-model"></xref>) are stated in those
 sections.</t>
+<t>The browser profile gives the page, with each datagram it delivers,
+the datagram's arrival time and the ECN field of its IP header as
+received (on the AMT path, as its own AMT gateway leaves that field
+after decapsulation), the two values that <xref target="overview"></xref> lets a profile
+deliver and that no digest covers.</t>
 <t>A sender whose flow serves the browser profile starts each <tt>sequence</tt>
 counter (<xref target="keys-epochs-and-sequence-numbers"></xref>) below 2^53 and ends the
 epoch before <tt>first_seq + count - 1</tt> would exceed 2^53 - 1, the
@@ -1284,24 +1323,36 @@ datagrams never count as lost, but a flood can still trip it, since
 genuine datagrams the ingress ceiling sheds, and windows whose
 records the verification budget dropped, count as lost.  Silence
 trips neither breaker.</t>
-<t>A browser-profile receiver that gets no native SSM delivery of a flow
-reaches it through its own AMT gateway <xref target="RFC7450"></xref>, using only a relay
-that an AMTRELAY record <xref target="RFC8777"></xref> in the reverse zone of <tt>S</tt>, or a
-Relay Advertisement from such a relay, names, at a global unicast
-address and on UDP port 2268 (<xref target="RFC7450"></xref>
-Section 7.2).  The relay is trusted for carriage alone: every
+<t>A browser-profile receiver that authenticates no datagram of a flow
+within 2 s of its native join, because no native delivery reaches it
+or none that reaches it verifies, looks up the AMTRELAY records
+<xref target="RFC8777"></xref> in the reverse zone of <tt>S</tt> and, unless a proxy applies to
+the relay or the user agent's policy rules out non-proxied UDP,
+reaches the flow through its own AMT gateway <xref target="RFC7450"></xref> until it
+leaves the flow, using only a relay that such a record, or a Relay
+Advertisement from such a relay, names, at a global unicast address
+and on UDP port 2268 (<xref target="RFC7450"></xref> Section 7.2).  The relay is
+trusted for carriage alone: every
 datagram is verified as <xref target="receiver-behavior"></xref> requires, with the
-source check of <xref target="source-check"></xref> applied to the encapsulated source
-address.  The join itself discloses the subscription, apart from the
+source and destination checks of <xref target="source-check"></xref> applied to the
+encapsulated header.  The join itself discloses the subscription, apart from the
 fetch of <xref target="trust-in-the-well-known-document"></xref>: a native join puts
 <tt>(S, G)</tt> on the receiver's link and in its network's multicast
-routing state; a join through a relay shows <tt>S</tt> to the receiver's
-resolver in the AMTRELAY query, and to the path where DNS is not
-encrypted, and shows the receiver's address and the <tt>(S, G)</tt> it
-receives, in the clear (<xref target="RFC7450"></xref> Section 6), to the relay, which
-the holder of the reverse zone of <tt>S</tt> chooses, directly or through a
-relay it names, and to any observer of the unicast AMT leg, for as
-long as the receiver stays joined.</t>
+routing state; the AMTRELAY lookup, made even where the receiver
+then stays native, shows <tt>S</tt> to the receiver's resolver, and to the
+path where DNS is not encrypted; resolving a relay that a record
+gives by domain name, a name the holder of the reverse zone of <tt>S</tt>
+chooses, shows the receiver's resolver and the time of the fallback
+to the servers authoritative for that name; and a join through a
+relay shows the receiver's address and the <tt>(S, G)</tt> it receives, in
+the clear (<xref target="RFC7450"></xref> Section 6), to the relay, which the holder of
+the reverse zone of <tt>S</tt> chooses, directly or through a relay it
+names, and to any observer of the unicast AMT leg, for as long as
+the receiver stays joined.  An injector that keeps the receiver from
+authenticating any datagram in the first 2 s of a native join, by a
+flood of the kind <xref target="threat-model"></xref> describes, can therefore force
+that lookup and, where a relay is found and nothing keeps the
+receiver native, that relay join.</t>
 </section>
 </section>
 
@@ -1384,8 +1435,8 @@ becomes current and resets the window; a datagram of a lower <tt>epoch</tt>
 is dropped.  Verify the signature; drop on failure.  Deliver the
 payload with the trailer removed, <tt>seq</tt> and <tt>epoch</tt> being the
 datagram's <tt>sequence</tt> and <tt>epoch</tt> for the application.  The source
-check of <xref target="receiver-behavior"></xref> applies to the datagrams of such a flow
-as to any other.</t>
+and destination checks of <xref target="source-check"></xref> apply to the datagrams of
+such a flow as to any other.</t>
 <t>Key rotation and revocation are as in <xref target="key-rotation-and-re-fetch"></xref>,
 with no grace period: the key set bounds each <tt>kid</tt> to its epoch
 range, and a re-fetch that changes the key set or a <tt>kid</tt>'s range
@@ -1594,10 +1645,10 @@ states, so an attacker that can inject into
 the group spends the receiver's link before any check, and, where it
 sends as <tt>S</tt> (or as <tt>senderAddress</tt> on an ASM flow, <xref target="source-check"></xref>),
 its hashing budget as well; a datagram from any other source costs
-the one comparison of <xref target="cost"></xref>.  This document bounds the price per
-datagram and the state: a datagram on <tt>port</tt> that passes the source
-check and does not begin with &quot;MHM2&quot; is a data datagram and costs one
-hash and space in the hold queue, which is bounded in octets, until
+the one or two address comparisons of <xref target="cost"></xref>.  This document bounds
+the price per datagram and the state: a datagram on <tt>port</tt> that
+passes the source and destination checks of <xref target="source-check"></xref> and does
+not begin with &quot;MHM2&quot; is a data datagram and costs one hash and space in the hold queue, which is bounded in octets, until
 it expires, when
 it is dropped as unauthenticated, loss the application sees (step 2
 of <xref target="processing"></xref>).  A datagram injected with &quot;MHM2&quot; at its start
@@ -1787,7 +1838,8 @@ connect to <tt>S</tt> at once, a burst on <tt>S</tt> that grows with the audienc
 and can recur every 30 s.  By sending one, the sender learns which
 receivers are still joined at a moment it chooses, rather than once
 per metadata lifetime.  A receiver that re-fetches only when the
-metadata lifetime expires, as the browser profile does
+metadata lifetime expires, as the browser profile does and as every
+receiver does on a flow whose keys it pins
 (<xref target="key-rotation-and-re-fetch"></xref>), takes part in neither.  The document
 directs a receiver to join <tt>(S, G)</tt>; a
 receiver that acts for a page bounds the joins it performs for that
@@ -2107,9 +2159,10 @@ grant.  DORMS's Section 2.2 lets a client with another way of finding
 a trusted server skip the DNS step, so a DORMS record remains one way
 to deliver the parameters of <xref target="flow-parameters"></xref>.</t>
 <t><strong>MC_INTEGRITY</strong> (<xref target="I-D.jholland-quic-multicast"></xref>).  The multicast
-extension for QUIC carries packet hashes in MC_INTEGRITY frames sent
-from server to client (its Section 10.5), either on the client's
-unicast QUIC connection or on a multicast channel whose packets an
+extension for QUIC carries a channel's packet hashes in MC_INTEGRITY
+frames sent from server to client (its Section 10.5) over an
+integrity-protected path other than that channel, either the client's
+unicast QUIC connection or another multicast channel whose packets an
 earlier frame verified, a Merkle tree whose root the unicast
 connection carries (its Section 4.5), each a hash of the encrypted
 channel packet (its Section 7.1), and names its hash algorithm from
@@ -2141,8 +2194,12 @@ the record change.</li>
 <li><xref target="source-check"></xref> also discards, before any parsing or hashing, a
 datagram on <tt>port</tt> whose destination address is not <tt>G</tt>, since
 flows of one <tt>S</tt> in different groups may share a <tt>port</tt>; -00
-assigned to the flow every datagram on its ports that passed the
-source check.</li>
+assigned to the flow, under either scheme, every datagram on its
+ports that passed the source check.  On an SSM flow reached
+natively that source check is now a MUST, where -00 said SHOULD,
+since flows of two sources in one group may share a <tt>port</tt>.
+<xref target="the-ed25519-trailer-1-scheme"></xref> applies both checks, and <xref target="cost"></xref>
+and <xref target="threat-model"></xref> price a datagram that fails either.</li>
 <li>The per-flow verification budget refills at
 <tt>V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))</tt> per second,
 scaled from the flow's declared <tt>maxBitrate</tt>, instead of at a fixed
@@ -2162,9 +2219,11 @@ flow outside that range), keeps data datagrams it
 wants carried through AMT relays on 1500-octet paths at or below
 1422 octets of UDP payload over IPv4 and 1402 over IPv6 (the
 profile does not reassemble fragments),
-and the profile bounds the hold queue at 16 MB, joins flows within
+and the profile gives the page each datagram's arrival time and ECN
+field, bounds the hold queue at 16 MB, joins flows within
 its rate ceilings, the same on every device, leaves a flow on its
-authenticated-rate and loss breakers and reaches a flow through an
+authenticated-rate and loss breakers and, when no datagram of its
+native join authenticates within 2 s, reaches a flow through an
 AMT relay that an AMTRELAY record, or a Relay Advertisement from
 such a relay, names.  Notes in
 <xref target="key-rotation-and-re-fetch"></xref>, <xref target="cost"></xref> and <xref target="flow-parameters"></xref> add its
@@ -2196,7 +2255,9 @@ listed it (<xref target="overview"></xref>), the pending table keeping that <tt>
 each entry (<xref target="state"></xref>), and <tt>ed25519-trailer-1</tt> delivers <tt>epoch</tt> with
 <tt>seq</tt> (<xref target="the-ed25519-trailer-1-scheme"></xref>); beyond these it delivers,
 where its profile says so, an admitted datagram's arrival time and
-ECN field, which no digest covers (<xref target="overview"></xref>).  A profile that
+ECN field, which no digest covers and which a party that can send
+as <tt>S</tt> sets for a datagram whose copy it gets admitted first
+(<xref target="overview"></xref>).  A profile that
 adds a record path also says by how much, if at all, it widens the
 freshness tolerance of step 1 for a record on that path
 (<xref target="additional-record-paths"></xref>).  A receiver that pins keys keeps the
@@ -2206,17 +2267,24 @@ the receiver's flows (<xref target="state"></xref>, <xref target="flow-parameter
 <li><xref target="fetching-the-document"></xref> makes an Access-Control-Allow-Origin
 header naming the origin a condition on the receiver's use of the
 response for that origin, where -00 made it a requirement on the
-response.  A re-fetch that a record with an unknown <tt>kid</tt> triggers
-is not answered from the receiver's own cache without validation
-and carries the request directive <tt>Cache-Control: no-cache</tt>, so that
-a cache that still holds the document fresh does not return the key
-set the receiver already has.</li>
+response.  Neither the re-fetch that a record with an unknown <tt>kid</tt>
+triggers nor the one made when the metadata lifetime expires is
+answered from the receiver's own cache without validation, and each
+carries the request directive <tt>Cache-Control: no-cache</tt>, so that a
+cache that still holds the document fresh does not return the
+document the receiver already has.  A receiver that pins the keys
+of a flow makes no re-fetch on a record with an unknown <tt>kid</tt> on
+that flow (<xref target="key-rotation-and-re-fetch"></xref>), where -00 gave every
+receiver that re-fetch.</li>
 <li><xref target="threat-model"></xref> covers an injector that receives genuine records
 sooner than the receiver, and adds every later epoch in a <tt>kid</tt>'s
 range to what a lowered <tt>minEpoch</tt> admits at a pinned receiver's
 later join.  <xref target="cost"></xref> gives the cost of a record with an unknown
 <tt>kid</tt>, no verification and at most one metadata re-fetch per 30 s.
-<xref target="browser-profile"></xref> says what a join discloses, and
+<xref target="browser-profile"></xref> says what a join discloses, including the
+AMTRELAY lookup of a receiver that stays native and what an
+injector that keeps a native join from authenticating can force,
+and
 <xref target="trust-in-the-well-known-document"></xref> notes that any host that can
 inject a record with an unknown <tt>kid</tt> makes every receiver that
 re-fetches on such a record connect to <tt>S</tt> at once, and that by
@@ -2225,9 +2293,15 @@ sending one the sender learns which receivers are still joined.</li>
 <tt>kid</tt> or <tt>firstEpoch</tt> outside its field width, yields no key set, as
 a repeated <tt>kid</tt> does, so a receiver that pins keys is unaffected by
 it, where -00 had every receiver decline the flow
-(<xref target="flow-parameters"></xref>).  <xref target="the-well-known-document"></xref> ignores a channel
-whose <tt>keys</tt> array yields no key set only at a receiver that takes
-its keys from the document, and <xref target="fetching-the-document"></xref> leaves a
+(<xref target="flow-parameters"></xref>).  So do a <tt>keys</tt> that is absent or not an
+array and an entry that is not an object or lacks a <tt>kid</tt>,
+<tt>publicKey</tt> or <tt>firstEpoch</tt> (<xref target="flow-parameters"></xref>), where -00 ignored
+the channel at every receiver for the first two, as a REQUIRED
+member of the wrong kind, and named no outcome for the third.
+<xref target="the-well-known-document"></xref> ignores a channel whose <tt>keys</tt> yields no
+key set only at a receiver that takes its keys from the document,
+its REQUIRED-member and wrong-kind rules now applying to <tt>keys</tt> only
+there, and <xref target="fetching-the-document"></xref> leaves a
 flow whose key set a re-fetched document no longer lists only at
 such a receiver, where -00 applied both to every receiver.</li>
 <li>Step 2 of <xref target="processing"></xref> consumes, of the pending entries of a
