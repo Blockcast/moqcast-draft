@@ -1643,10 +1643,18 @@ and it clamps a
 browser profile of
 <xref target="MCAST-MANIFEST"></xref> does; it never uses an out-of-range value.  It
 treats a <tt>maxAuthDelayMs</tt> or <tt>manifestTimerMs</tt> that is not a JSON
-number, or a <tt>manifestTrack</tt> that is not a string, as absent.  Two
-ASM endpoints whose <tt>senderAddress</tt> differ MAY share <tt>groupAddress</tt>
+number, or a <tt>manifestTrack</tt> that is not a string, as absent, and
+likewise a <tt>maxAuthDelayMs</tt> or <tt>manifestTimerMs</tt> within its range
+that is not a JSON number with an integer value; one outside its
+range, integer or not, meets the clamp or the below-1 rule above.
+Two ASM endpoints whose <tt>senderAddress</tt> differ MAY share <tt>groupAddress</tt>
 and <tt>port</tt>; the source check of <xref target="receiver-enforcement-and-state"></xref>
-separates them.</t>
+separates them.  Wherever a receiver compares endpoint addresses
+(<tt>sourceAddress</tt>, <tt>groupAddress</tt>, <tt>senderAddress</tt>) with one another
+or with a datagram's addresses, it compares them as IP addresses,
+never as strings, and an address of one family never matches one of
+the other, an IPv4-mapped IPv6 address being of the IPv6 family, as
+<xref target="MCAST-MANIFEST"></xref> requires.</t>
 <t>When the <tt>multicast</tt> object carries <tt>auth</tt>, every endpoint of the
 <tt>multicast</tt> object MUST carry <tt>auth</tt>; a receiver MUST ignore
 (<xref target="multicast-endpoint-format"></xref>) an endpoint that lacks it, so every
@@ -2313,7 +2321,9 @@ state as it does on a <tt>streamId</tt> change (above), the <tt>digest</tt> of
 every held datagram included, and returns to the join state of step
 1, so a record a retired key signed before the re-fetch cannot hold
 the flow afterwards.  Revocation is key removal,
-effective within one catalog lifetime.  A receiver holds the catalog
+effective within one catalog lifetime, except for a broadcast whose
+keys a receiver pins, whose key set only a re-provisioning of that
+receiver changes (<xref target="threat-model"></xref>).  A receiver holds the catalog
 while its subscription to the catalog track, which it keeps
 (<xref target="unicast-subscriptions-after-a-switch-to-multicast"></xref>), is
 established, and each catalog object that subscription delivers
@@ -2454,9 +2464,13 @@ data and nothing more, since neither carries a catalog value past the
 session (<xref target="receiver-enforcement-and-state"></xref>).
 Rewriting any other member of the endpoint or its <tt>auth</tt>
 only makes genuine records fail the signature or <tt>ctx</tt> check, or
-resizes the verification budgets, the hold queues and pending expiry
-(<tt>bandwidth</tt>, <tt>maxAuthDelayMs</tt>, <tt>manifestTimerMs</tt>), which a receiver
-bounds by local policy (<xref target="catalog-as-attack-surface"></xref>).</t>
+resizes the verification budgets, the hold queues, pending expiry and
+the previous epoch's grace periods and deadline (<tt>bandwidth</tt>,
+<tt>maxAuthDelayMs</tt>, <tt>manifestTimerMs</tt>), which a receiver bounds by
+local policy (<xref target="catalog-as-attack-surface"></xref>); the grace periods and
+the deadline also bound how long records a retired key signs are
+admitted after an epoch change (Key rotation,
+<xref target="receiver-enforcement-and-state"></xref>).</t>
 <t>The profile protects integrity, not availability.  A forged record
 passes every check of step 1 of <xref target="receiver-enforcement-and-state"></xref> up
 to the signature, so each one spends a token of the verification
@@ -2505,9 +2519,11 @@ has a second bucket of the same depth and refill, so its ceiling is 2V
 verifications per second, half of them spendable by its relay without
 spoofing anything (Cost, <xref target="receiver-enforcement-and-state"></xref>).  On an SSM endpoint
 reached natively either flood must spoof <tt>S</tt> or be on path; on an ASM
-endpoint any host that can send to the group suffices, and so it does
-behind an AMT gateway, where a flood need only spoof the relay's
-address toward the gateway (<xref target="receiver-enforcement-and-state"></xref>).  With
+endpoint any host that can send to the group as <tt>senderAddress</tt>
+suffices, every other source's datagram being discarded before any
+parsing or hashing; and behind an AMT gateway any host suffices,
+where a flood need only spoof the relay's address toward the gateway
+(<xref target="receiver-enforcement-and-state"></xref>).  With
 that access an injector forges nothing: a genuine record it reads
 from the manifest track, as any subscriber can, and sends on
 <tt>port</tt> more than <tt>maxAuthDelayMs + 2 x manifestTimerMs</tt>
@@ -2801,12 +2817,17 @@ single catalog.</t>
 source is an address the receiver dials over UDP.  A hostile
 catalog can direct traffic at arbitrary targets (traffic
 reflection) or at internal infrastructure (address-space
-probing).  Receivers MUST treat catalog-supplied endpoint and
-relay addresses as untrusted input and validate them
-against local policy (such as an allowlist of permitted relays or
-networks) before dialing, and SHOULD reject loopback, link-local,
-and otherwise non-routable relay addresses unless explicitly
-configured.</t>
+probing).  Receivers MUST treat every endpoint and relay address
+that a catalog supplies or selects as untrusted input and validate
+it against local policy (such as an allowlist of permitted relays
+or networks) before dialing it.  These include a literal <tt>relay</tt>;
+each A and AAAA answer for a <tt>relay</tt> hostname; each relay address
+that DRIAD returns for the endpoint's <tt>sourceAddress</tt>, and each A
+and AAAA answer for a relay name that a DRIAD record gives; and the
+Relay Address of a Relay Advertisement from any of these
+(<xref target="RFC7450"></xref> Section 5.1.2.5).  Receivers SHOULD reject loopback,
+link-local, and otherwise non-routable addresses among them unless
+the receiver's own configuration permits them.</t>
 </li>
 <li><t><strong>Resource claims</strong>: <tt>bandwidth</tt>, <tt>maxAuthDelayMs</tt> and
 <tt>manifestTimerMs</tt> size the verification budgets, hold queues and
@@ -3148,7 +3169,10 @@ place of <tt>depends</tt> and <tt>fec.repairTrack</tt>.</li>
 interleaved with the flow's data datagrams on its own <tt>(S, G,
 port)</tt>, and a receiver tells a record from a data datagram by its
 first four octets, &quot;MHM2&quot;, which a sender never puts at the start of
-a data datagram.  On a protected endpoint the replay tracking of
+a data datagram.  A record is emitted, as a data datagram is, with
+<tt>port</tt> as its UDP source port (<xref target="manifest-record"></xref>), where -01 named
+no source port for records.  On a protected endpoint the replay
+tracking of
 <xref target="multicast-security"></xref> moves its reordering window, or records a
 packet_sequence_number as seen, only for a datagram that step 1 or
 2 of <xref target="receiver-enforcement-and-state"></xref> has admitted.  The endpoint
@@ -3168,8 +3192,10 @@ or hashing, a datagram on <tt>port</tt> whose destination address is not
 <tt>port</tt>; -01 assigned to the flow every datagram on its ports that
 passed the source check.  On an SSM endpoint reached natively that
 source check is now a MUST, where -01 said SHOULD, since flows of
-two sources in one group may share a <tt>port</tt>, and the Cost paragraph
-prices a datagram that fails either check.  Step 2 consumes, of the
+two sources in one group may share a <tt>port</tt>, and it now precedes the
+&quot;MHM2&quot; split and any other processing of the datagram, as on an ASM
+endpoint or through an AMT gateway; the Cost paragraph prices a
+datagram that fails either check.  Step 2 consumes, of the
 pending entries of a digest, the one lowest in <tt>(epoch, sequence)</tt>
 order, where -01
 consumed the lowest sequence, which compares unrelated counters
@@ -3221,7 +3247,14 @@ ignores a protected endpoint whose <tt>streamId</tt> is absent or whose
 <tt>senderAddress</tt> is absent or not a string on an ASM endpoint or
 present on an SSM endpoint, and treats a <tt>maxAuthDelayMs</tt> or
 <tt>manifestTimerMs</tt> that is not a JSON number, or a <tt>manifestTrack</tt>
-that is not a string, as absent.</li>
+that is not a string, as absent, and likewise a <tt>maxAuthDelayMs</tt> or
+<tt>manifestTimerMs</tt> within its range that is not a JSON number with
+an integer value, one outside its range still meeting the clamp or
+the below-1 rule.</li>
+<li><xref target="catalog-signaling"></xref>: a receiver compares endpoint addresses with
+one another and with a datagram's addresses as IP addresses, never
+as strings, an IPv4-mapped IPv6 address being of the IPv6 family, as
+<xref target="MCAST-MANIFEST"></xref> requires; -01 did not say how they compare.</li>
 <li><xref target="catalog-signaling"></xref> cites <xref target="RFC4648"></xref>, a new normative reference,
 for the base64url encoding of <tt>publicKey</tt>.</li>
 <li>Key rotation in <xref target="receiver-enforcement-and-state"></xref>: a receiver holds
@@ -3273,7 +3306,13 @@ of the highest epoch verified under that <tt>kid</tt> and of every later
 epoch in its range, where -01 named a receiver's first join under a
 <tt>kid</tt> only.  It scopes the detection of deletion, loss and
 reordering to an epoch of a flow, since <tt>sequence</tt> and <tt>mseq</tt>
-restart at an epoch change, where -01 claimed it within a flow.</li>
+restart at an epoch change, where -01 claimed it within a flow.  It
+says that a flood on an ASM endpoint must send as <tt>senderAddress</tt>,
+where -01 had any host that can send to the group suffice, and it
+adds the previous epoch's grace periods and deadline, in which
+records a retired key signs are admitted, to what a rewritten
+<tt>maxAuthDelayMs</tt> or <tt>manifestTimerMs</tt> resizes, where -01 named only
+the hold queues and pending expiry.</li>
 <li><xref target="content-authentication"></xref> names <xref target="MCAST-MANIFEST"></xref>, a new
 informative reference, as the format it restates by value.  Step 1
 of <xref target="receiver-enforcement-and-state"></xref> writes the replay floor as
@@ -3316,10 +3355,17 @@ limits traffic to authorized sources; (S,G) filtering keys on the
 IP source address and authenticates no source, as <xref target="RFC4607"></xref>
 Section 7.4 notes, so a datagram that spoofs <tt>S</tt> reaches the
 receiver as <tt>S</tt>'s.</li>
-<li><xref target="catalog-as-attack-surface"></xref>: the requirement to treat
-catalog-supplied endpoint and relay addresses as untrusted input
-binds receivers alone, since no relay in this document dials such
-an address.</li>
+<li><xref target="catalog-as-attack-surface"></xref>: the requirement to treat endpoint
+and relay addresses as untrusted input binds receivers alone, since
+no relay in this document dials such an address.  It now names
+every address a catalog supplies or selects: besides a literal
+<tt>relay</tt>, the A and AAAA answers for a <tt>relay</tt> hostname, the relays
+that DRIAD returns for the endpoint's <tt>sourceAddress</tt> and the
+answers for their names, and the Relay Address of a Relay
+Advertisement from any of them.  The exception to rejecting
+loopback, link-local and other non-routable addresses is the
+receiver's own configuration, since &quot;unless explicitly configured&quot;
+could be read as admitting a catalog's &quot;manual&quot; relay.</li>
 <li>Editorial: every heading carries an explicit anchor; no existing
 anchor changes.  The change log is now one appendix with a
 subsection per revision, as in <xref target="MOQ-MMT"></xref>.  The catalog example of
@@ -3337,9 +3383,9 @@ ECN and ECT are expanded at first use.  The packet_id 0 rule of
 <xref target="multicast-endpoint-format"></xref> cites <xref target="multicast-packet-format"></xref> as a
 cross-reference, and the <xref target="WICG-DirectSockets"></xref> reference gives its
 editor's affiliation and states its status as a Community Group
-draft.  The sender's UDP source port rule in <xref target="digest"></xref> and
-<xref target="manifest-record"></xref> now reads &quot;with <tt>port</tt> as its UDP source port&quot;,
-which does not render as a doubled word in the text output.</li>
+draft.  The sender's UDP source port rule in <xref target="digest"></xref> now reads
+&quot;with <tt>port</tt> as its UDP source port&quot;, which does not render as a
+doubled word in the text output.</li>
 </ul>
 </section>
 

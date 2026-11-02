@@ -140,7 +140,7 @@ All multi-octet integers are unsigned and big-endian; `u8`, `u16`,
 `u32` and `u64` are unsigned integers of that width; a string is its
 UTF-8 octets; `H` is the function selected by the record's
 `hash_alg` ((#hash-algorithms)), with a 32-octet output.  Test vectors
-are in (#test-vectors).
+are in&#160;(#test-vectors).
 
 **SSM**: Source-Specific Multicast [@!RFC4607].
 
@@ -806,8 +806,11 @@ fails, the receiver discards that flow's state as it does on a
 datagram included, and returns to the join state of step 1, so a
 record a retired key signed before the re-fetch cannot hold the flow
 afterwards.  Revocation is key removal, effective within one metadata
-lifetime, reckoned from the removal as (#fetching-the-document) asks
-of a sender.  The metadata lifetime is the lifetime that
+lifetime, reckoned from the removal and, for a receiver that uses
+the well-known document, as (#fetching-the-document) asks of a
+sender, except for a key set that a receiver pins, which only a
+re-provisioning of that receiver changes ((#threat-model)).  The
+metadata lifetime is the lifetime that
 (#fetching-the-document) derives from the response's Cache-Control
 for a receiver that uses the well-known document, and whatever bounds
 the validity of a DORMS record, a
@@ -1033,7 +1036,10 @@ passed.  A receiver that holds the old `streamId` verifies no record
 of the new generation until it re-fetches, so a sender that changes
 `streamId`, as a move to another hash suite does ((#hash-algorithms)),
 first publishes, for at least one metadata lifetime, a lifetime no
-longer than the interruption it accepts.
+longer than the interruption it accepts; for receivers that use the
+well-known document, it also gives no response for the document, in
+the 24 h before the change, a max-age longer than that interruption
+less 60 s ((#fetching-the-document)).
 
 ## The Well-Known Document
 
@@ -1202,12 +1208,15 @@ is not stored and a no-cache one is not reused without validation.
 A sender MUST give every response that carries the document either
 a max-age of at most 86400 with the must-revalidate directive
 ([@!RFC9111] Section 5.2.2.2) and with no s-maxage and no directive
-that lets a cache serve it stale (its Section 4.2.4), or no-cache,
-or no-store; so no cache holds the document fresh longer than its
-max-age or serves it stale, and a cache that cannot reach `S`
-answers with an error, a fetch that fails.  A sender reckons each
-wait and bound that this document states in metadata lifetimes, from
-a change, as 60 s plus the longest max-age it gave a response for
+that lets a cache serve it stale (its Section 4.2.4), or the
+unqualified no-cache directive, with no field names (its Section
+5.2.2.4), or no-store; so no cache holds the document fresh longer
+than its max-age or serves it stale, and a cache that cannot reach
+`S` to validate a copy that has become stale answers with an error
+(its Section 5.2.2.2), a fetch that fails.  A sender reckons each
+wait and bound that this document states in metadata lifetimes, for
+receivers that use the well-known document, from a change, as 60 s
+plus the longest max-age it gave a response for
 the document in the 24 h before that change: a cache can answer a
 receiver's first fetch with a copy stored before the change, and the
 receiver keeps what it took from that copy for 60 s at least.
@@ -1378,12 +1387,13 @@ flood of the kind (#threat-model) describes, can therefore force
 that lookup and, where a relay is found and nothing keeps the
 receiver native, that relay join.  One such flood reaches every
 receiver below the point where it is injected, so it does so at
-every browser-profile receiver there that joins while it lasts, and
-each that moves to a relay draws its own unicast copy of the flow
-until it leaves the flow: a load on the relays that grows with the
-audience while the injector's cost does not, an amplification of the
-kind that [@?I-D.ietf-mboned-multicast-security] Section 2.1 warns
-of, forced here by loss rather than by an invalidated object.
+every browser-profile receiver there whose first 2 s of a native
+join it spans, and each that moves to a relay draws its own unicast
+copy of the flow until it leaves the flow: a load on the relays that
+grows with the audience while the injector's cost does not, an
+amplification of the kind that
+[@?I-D.ietf-mboned-multicast-security] Section 2.1 warns of, forced
+here by loss rather than by an invalidated object.
 
 # The ed25519-trailer-1 Scheme
 
@@ -1605,9 +1615,12 @@ rewrite that raises
 nothing more, since neither carries a metadata value past the
 session ((#receiver-behavior)).  Rewriting any other parameter of the
 flow only makes genuine records fail the signature or `ctx` check, or
-resizes the verification budget, the hold queue and pending expiry
-(`maxBitrate`, `maxAuthDelayMs`, `manifestTimerMs`), which a receiver
-bounds by local policy ((#state)).  A rewrite that redirects a
+resizes the verification budget, the hold queue, pending expiry and
+the previous epoch's grace period (`maxBitrate`, `maxAuthDelayMs`,
+`manifestTimerMs`), which a receiver bounds by local policy
+((#state)); the grace period also bounds how long records a retired
+key signs are admitted after an epoch change
+((#key-rotation-and-re-fetch)).  A rewrite that redirects a
 receiver to another
 `(S, G)` is a join the receiver's metadata source authorized, and
 what it then receives verifies under the keys that metadata names or
@@ -1634,8 +1647,10 @@ it, as on every audio flow and most low-rate video; only evicting
 genuine datagrams, by overflowing the hold queue, needs the flow's
 bandwidth.  On an SSM flow reached natively either flood must spoof
 `S` or be on path; on an ASM flow any host that can send to the group
-suffices, and so it does behind an AMT gateway, where a flood need
-only spoof the relay's address toward the gateway
+as `senderAddress` suffices, since the source check of
+(#source-check) discards every other source's datagram before any
+parsing or hashing; and behind an AMT gateway any host suffices,
+where a flood need only spoof the relay's address toward the gateway
 ((#receiver-behavior)).  A datagram that expires from the hold queue
 is loss to the application; a held copy that step 1 drops because a
 record admitted another copy of the same datagram is not.  A receiver
@@ -1780,8 +1795,9 @@ makes its flow unverifiable to receivers that check freshness
 
 `ed25519-trailer-1` costs a receiver one signature verification per
 datagram, so every injected datagram that passes the replay window
-costs a verification: on a flow where any host can send to the group,
-or where `S` can be spoofed, the receiver's CPU is the attacker's to
+costs a verification: on a flow where `S` can be spoofed, as by any
+host that can send to an ASM flow's group as `senderAddress`
+((#threat-model)), the receiver's CPU is the attacker's to
 spend, which is why a receiver MAY refuse the scheme above 10 Mbit/s
 and why it is not mandatory ((#the-ed25519-trailer-1-scheme)).  A
 receiver MAY also bound the verifications it performs per second on
@@ -2137,7 +2153,10 @@ as an RFC.
 - Records travel in band, on the flow's own `(S, G, port)` and
   interleaved with its data datagrams, and a receiver tells them from
   data by their first four octets, "MHM2", which no data datagram
-  begins with ((#sender-behavior), (#processing)).  The `manifestPort`
+  begins with ((#sender-behavior), (#processing)).  A record is
+  emitted, as a data datagram is, with `port` as its UDP source port
+  ((#manifest-record), (#flow-parameters)), where -00 named no source
+  port for records.  The `manifestPort`
   parameter is removed, and the signature prefix of
   (#signature-context-binding) binds `u16(port)` in its place.  In
   (#test-vectors) the `manifestPort` input is gone and the prefix ends
@@ -2153,8 +2172,8 @@ as an RFC.
   SSM flow, native or through an AMT gateway, it now applies before
   any parsing or hashing, as on an ASM flow.
   (#the-ed25519-trailer-1-scheme) applies both checks, and (#cost)
-  and (#threat-model) price a datagram that fails either; the section
-  is retitled "Source and Destination Checks".
+  and (#threat-model) price a datagram that fails either;
+  (#source-check) is retitled "Source and Destination Checks".
 - The per-flow verification budget refills at
   `V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))` per second,
   scaled from the flow's declared `maxBitrate`, instead of at a fixed
@@ -2199,11 +2218,13 @@ as an RFC.
   the last window of an epoch whose end it plans ((#manifest-record)),
   keeps within the old `maxBitrate`, `maxAuthDelayMs` or
   `manifestTimerMs` for one metadata lifetime after publishing a new
-  one, and shortens that lifetime ahead of a `streamId` change
-  ((#flow-parameters)).  (#threat-model) bounds the age of a window
-  admitted at join by `13 s + maxAuthDelayMs` within the clock
-  bounds, where -00 gave the freshness tolerance on `sent`,
-  `7 s + maxAuthDelayMs`, as that age.
+  one, and shortens that lifetime ahead of a `streamId` change,
+  for receivers that use the well-known document by giving no
+  response for it in the 24 h before the change a max-age longer
+  than the interruption it accepts less 60 s ((#flow-parameters)).
+  (#threat-model) bounds the age of a window admitted at join by
+  `13 s + maxAuthDelayMs` within the clock bounds, where -00 gave the
+  freshness tolerance on `sent`, `7 s + maxAuthDelayMs`, as that age.
 - A receiver makes a datagram's `sequence` available to the
   application only together with the `epoch` of the record that
   listed it ((#overview)), the pending table keeping that `epoch` with
@@ -2230,7 +2251,8 @@ as an RFC.
   document the receiver already has.  A sender gives every response
   that carries the document a max-age of at most 86400 with
   must-revalidate and with no s-maxage or directive that lets a cache
-  serve it stale, or no-cache, or no-store, and reckons each wait and
+  serve it stale, or the unqualified no-cache directive, or no-store,
+  and, for receivers that use the document, reckons each wait and
   bound stated in metadata lifetimes from a change as 60 s plus the
   longest max-age it gave in the 24 h before that change, since a
   cache can answer a receiver's first fetch with a copy stored before
@@ -2244,7 +2266,11 @@ as an RFC.
 - (#threat-model) covers an injector that receives genuine records
   sooner than the receiver, and adds every later epoch in a `kid`'s
   range to what a lowered `minEpoch` admits at a pinned receiver's
-  later join.  (#cost) gives the cost of a record with an unknown
+  later join.  It adds the previous epoch's grace period, in which
+  records a retired key signs are admitted, to what a rewritten
+  `maxAuthDelayMs` or `manifestTimerMs` resizes, where -00 named only
+  the hold queue and pending expiry.  (#cost) gives the
+  cost of a record with an unknown
   `kid`, no verification and at most one metadata re-fetch per 30 s.
   (#browser-profile) says what a join discloses, including the
   AMTRELAY lookup of a receiver that stays native, to its resolver,
@@ -2283,9 +2309,9 @@ as an RFC.
 - (#multicast-datagram-integrity-schemes-registry) places the registry
   in a new "Multicast Datagram Integrity" registry group, which -00
   did not name.
-- Editorial: the sender's UDP source port rule in (#digest) and
-  (#manifest-record) reads "with `port` as its UDP source port",
-  which does not render as a doubled word in the text output.
+- Editorial: the sender's UDP source port rule in (#digest) reads
+  "with `port` as its UDP source port", which does not render as a
+  doubled word in the text output.
 - References: [@?RFC3550], [@?RFC5651], [@?RFC5740], [@?RFC6726],
   [@?RFC9000], [@?RFC9223] and [@?ISO.23008-1], cited in
   (#sender-behavior), [@?RFC8777], cited in (#browser-profile), and

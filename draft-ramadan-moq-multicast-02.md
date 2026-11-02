@@ -1661,10 +1661,18 @@ and it clamps a
 browser profile of
 [@?MCAST-MANIFEST] does; it never uses an out-of-range value.  It
 treats a `maxAuthDelayMs` or `manifestTimerMs` that is not a JSON
-number, or a `manifestTrack` that is not a string, as absent.  Two
-ASM endpoints whose `senderAddress` differ MAY share `groupAddress`
+number, or a `manifestTrack` that is not a string, as absent, and
+likewise a `maxAuthDelayMs` or `manifestTimerMs` within its range
+that is not a JSON number with an integer value; one outside its
+range, integer or not, meets the clamp or the below-1 rule above.
+Two ASM endpoints whose `senderAddress` differ MAY share `groupAddress`
 and `port`; the source check of (#receiver-enforcement-and-state)
-separates them.
+separates them.  Wherever a receiver compares endpoint addresses
+(`sourceAddress`, `groupAddress`, `senderAddress`) with one another
+or with a datagram's addresses, it compares them as IP addresses,
+never as strings, and an address of one family never matches one of
+the other, an IPv4-mapped IPv6 address being of the IPv6 family, as
+[@?MCAST-MANIFEST] requires.
 
 When the `multicast` object carries `auth`, every endpoint of the
 `multicast` object MUST carry `auth`; a receiver MUST ignore
@@ -2337,7 +2345,9 @@ state as it does on a `streamId` change (above), the `digest` of
 every held datagram included, and returns to the join state of step
 1, so a record a retired key signed before the re-fetch cannot hold
 the flow afterwards.  Revocation is key removal,
-effective within one catalog lifetime.  A receiver holds the catalog
+effective within one catalog lifetime, except for a broadcast whose
+keys a receiver pins, whose key set only a re-provisioning of that
+receiver changes ((#threat-model)).  A receiver holds the catalog
 while its subscription to the catalog track, which it keeps
 ((#unicast-subscriptions-after-a-switch-to-multicast)), is
 established, and each catalog object that subscription delivers
@@ -2481,9 +2491,13 @@ data and nothing more, since neither carries a catalog value past the
 session ((#receiver-enforcement-and-state)).
 Rewriting any other member of the endpoint or its `auth`
 only makes genuine records fail the signature or `ctx` check, or
-resizes the verification budgets, the hold queues and pending expiry
-(`bandwidth`, `maxAuthDelayMs`, `manifestTimerMs`), which a receiver
-bounds by local policy ((#catalog-as-attack-surface)).
+resizes the verification budgets, the hold queues, pending expiry and
+the previous epoch's grace periods and deadline (`bandwidth`,
+`maxAuthDelayMs`, `manifestTimerMs`), which a receiver bounds by
+local policy ((#catalog-as-attack-surface)); the grace periods and
+the deadline also bound how long records a retired key signs are
+admitted after an epoch change (Key rotation,
+(#receiver-enforcement-and-state)).
 
 The profile protects integrity, not availability.  A forged record
 passes every check of step 1 of (#receiver-enforcement-and-state) up
@@ -2533,9 +2547,11 @@ has a second bucket of the same depth and refill, so its ceiling is 2V
 verifications per second, half of them spendable by its relay without
 spoofing anything (Cost, (#receiver-enforcement-and-state)).  On an SSM endpoint
 reached natively either flood must spoof `S` or be on path; on an ASM
-endpoint any host that can send to the group suffices, and so it does
-behind an AMT gateway, where a flood need only spoof the relay's
-address toward the gateway ((#receiver-enforcement-and-state)).  With
+endpoint any host that can send to the group as `senderAddress`
+suffices, every other source's datagram being discarded before any
+parsing or hashing; and behind an AMT gateway any host suffices,
+where a flood need only spoof the relay's address toward the gateway
+((#receiver-enforcement-and-state)).  With
 that access an injector forges nothing: a genuine record it reads
 from the manifest track, as any subscriber can, and sends on
 `port` more than `maxAuthDelayMs + 2 x manifestTimerMs`
@@ -2831,12 +2847,17 @@ catalog is therefore an attack vector:
   source is an address the receiver dials over UDP.  A hostile
   catalog can direct traffic at arbitrary targets (traffic
   reflection) or at internal infrastructure (address-space
-  probing).  Receivers MUST treat catalog-supplied endpoint and
-  relay addresses as untrusted input and validate them
-  against local policy (such as an allowlist of permitted relays or
-  networks) before dialing, and SHOULD reject loopback, link-local,
-  and otherwise non-routable relay addresses unless explicitly
-  configured.
+  probing).  Receivers MUST treat every endpoint and relay address
+  that a catalog supplies or selects as untrusted input and validate
+  it against local policy (such as an allowlist of permitted relays
+  or networks) before dialing it.  These include a literal `relay`;
+  each A and AAAA answer for a `relay` hostname; each relay address
+  that DRIAD returns for the endpoint's `sourceAddress`, and each A
+  and AAAA answer for a relay name that a DRIAD record gives; and the
+  Relay Address of a Relay Advertisement from any of these
+  ([@!RFC7450] Section 5.1.2.5).  Receivers SHOULD reject loopback,
+  link-local, and otherwise non-routable addresses among them unless
+  the receiver's own configuration permits them.
 
 - **Resource claims**: `bandwidth`, `maxAuthDelayMs` and
   `manifestTimerMs` size the verification budgets, hold queues and
@@ -3167,7 +3188,10 @@ as an RFC.
   interleaved with the flow's data datagrams on its own `(S, G,
   port)`, and a receiver tells a record from a data datagram by its
   first four octets, "MHM2", which a sender never puts at the start of
-  a data datagram.  On a protected endpoint the replay tracking of
+  a data datagram.  A record is emitted, as a data datagram is, with
+  `port` as its UDP source port ((#manifest-record)), where -01 named
+  no source port for records.  On a protected endpoint the replay
+  tracking of
   (#multicast-security) moves its reordering window, or records a
   packet_sequence_number as seen, only for a datagram that step 1 or
   2 of (#receiver-enforcement-and-state) has admitted.  The endpoint
@@ -3187,8 +3211,10 @@ as an RFC.
   `port`; -01 assigned to the flow every datagram on its ports that
   passed the source check.  On an SSM endpoint reached natively that
   source check is now a MUST, where -01 said SHOULD, since flows of
-  two sources in one group may share a `port`, and the Cost paragraph
-  prices a datagram that fails either check.  Step 2 consumes, of the
+  two sources in one group may share a `port`, and it now precedes the
+  "MHM2" split and any other processing of the datagram, as on an ASM
+  endpoint or through an AMT gateway; the Cost paragraph prices a
+  datagram that fails either check.  Step 2 consumes, of the
   pending entries of a digest, the one lowest in `(epoch, sequence)`
   order, where -01
   consumed the lowest sequence, which compares unrelated counters
@@ -3240,7 +3266,14 @@ as an RFC.
   `senderAddress` is absent or not a string on an ASM endpoint or
   present on an SSM endpoint, and treats a `maxAuthDelayMs` or
   `manifestTimerMs` that is not a JSON number, or a `manifestTrack`
-  that is not a string, as absent.
+  that is not a string, as absent, and likewise a `maxAuthDelayMs` or
+  `manifestTimerMs` within its range that is not a JSON number with
+  an integer value, one outside its range still meeting the clamp or
+  the below-1 rule.
+- (#catalog-signaling): a receiver compares endpoint addresses with
+  one another and with a datagram's addresses as IP addresses, never
+  as strings, an IPv4-mapped IPv6 address being of the IPv6 family, as
+  [@?MCAST-MANIFEST] requires; -01 did not say how they compare.
 - (#catalog-signaling) cites [@!RFC4648], a new normative reference,
   for the base64url encoding of `publicKey`.
 - Key rotation in (#receiver-enforcement-and-state): a receiver holds
@@ -3292,7 +3325,13 @@ as an RFC.
   epoch in its range, where -01 named a receiver's first join under a
   `kid` only.  It scopes the detection of deletion, loss and
   reordering to an epoch of a flow, since `sequence` and `mseq`
-  restart at an epoch change, where -01 claimed it within a flow.
+  restart at an epoch change, where -01 claimed it within a flow.  It
+  says that a flood on an ASM endpoint must send as `senderAddress`,
+  where -01 had any host that can send to the group suffice, and it
+  adds the previous epoch's grace periods and deadline, in which
+  records a retired key signs are admitted, to what a rewritten
+  `maxAuthDelayMs` or `manifestTimerMs` resizes, where -01 named only
+  the hold queues and pending expiry.
 - (#content-authentication) names [@?MCAST-MANIFEST], a new
   informative reference, as the format it restates by value.  Step 1
   of (#receiver-enforcement-and-state) writes the replay floor as
@@ -3335,10 +3374,17 @@ as an RFC.
   IP source address and authenticates no source, as [@!RFC4607]
   Section 7.4 notes, so a datagram that spoofs `S` reaches the
   receiver as `S`'s.
-- (#catalog-as-attack-surface): the requirement to treat
-  catalog-supplied endpoint and relay addresses as untrusted input
-  binds receivers alone, since no relay in this document dials such
-  an address.
+- (#catalog-as-attack-surface): the requirement to treat endpoint
+  and relay addresses as untrusted input binds receivers alone, since
+  no relay in this document dials such an address.  It now names
+  every address a catalog supplies or selects: besides a literal
+  `relay`, the A and AAAA answers for a `relay` hostname, the relays
+  that DRIAD returns for the endpoint's `sourceAddress` and the
+  answers for their names, and the Relay Address of a Relay
+  Advertisement from any of them.  The exception to rejecting
+  loopback, link-local and other non-routable addresses is the
+  receiver's own configuration, since "unless explicitly configured"
+  could be read as admitting a catalog's "manual" relay.
 - Editorial: every heading carries an explicit anchor; no existing
   anchor changes.  The change log is now one appendix with a
   subsection per revision, as in [@!MOQ-MMT].  The catalog example of
@@ -3356,9 +3402,9 @@ as an RFC.
   (#multicast-endpoint-format) cites (#multicast-packet-format) as a
   cross-reference, and the [@?WICG-DirectSockets] reference gives its
   editor's affiliation and states its status as a Community Group
-  draft.  The sender's UDP source port rule in (#digest) and
-  (#manifest-record) now reads "with `port` as its UDP source port",
-  which does not render as a doubled word in the text output.
+  draft.  The sender's UDP source port rule in (#digest) now reads
+  "with `port` as its UDP source port", which does not render as a
+  doubled word in the text output.
 
 {#changes-since-draft-ramadan-moq-multicast-00}
 ## Changes Since draft-ramadan-moq-multicast-00
