@@ -50,11 +50,10 @@
 <li><xref target="MOQ-MMT"></xref>, which defines the packaging-specific block profile for tracks packaged as MPEG Media Transport Protocol (MMTP) packets, and the broadcast interworking that relies on it;</li>
 <li><xref target="MOQ-FEC-MULTICAST"></xref>, the multicast and hybrid unicast/multicast delivery of protected tracks, independent of how multicast is carried, which <xref target="MOQ-MULTICAST"></xref> specifies.</li>
 </ul>
-<t>Appendix A lists the companion documents and what each takes from <xref target="I-D.ramadan-moq-fec"></xref>, from which much of this document's text is derived.</t>
 </section>
 
 <section anchor="editor-s-notes" removeInRFC="true"><name>Editor's Notes</name>
-<t>The name, the author list and the division of material between this document and its companions are open for discussion. Text marked [open] records a question the authors have not settled.</t>
+<t>The name, the author list and the division of material between this document and its companions are open for discussion. Text marked [open] records a question the authors have not settled. <xref target="companion-documents"></xref> lists the companion documents and what each takes from <xref target="I-D.ramadan-moq-fec"></xref>, from which much of this document's text is derived.</t>
 <t>[open] Section 15.1 keeps the pointer of draft-ramadan-moq-fec-01 to Section 8.4 of <xref target="I-D.ietf-moq-transport"></xref> for the &quot;MOQ Properties&quot; registry. In draft-ietf-moq-transport-22, Section 8.4 is the Track and Object Properties text that Section 5.2 of this document cites for relay handling of mutable Properties, and the registry and its registration policies are in Section 16.8. The pointer is to be settled against the current MoQ Transport draft before posting.</t>
 </section>
 </section>
@@ -117,7 +116,7 @@ repair layer n --- ...                  (not subscribed)
 
 <section anchor="when-fec-helps"><name>When FEC Helps</name>
 <t>The code is systematic (Section 4.2), so a receiver presents source data as it arrives, and FEC adds latency only when a block needs to be decoded.</t>
-<t>When source data travels on QUIC streams, QUIC retransmits it, and FEC helps only where the deadline is too short for retransmission or a delivery timeout abandons an object (<xref target="I-D.ietf-moq-transport"></xref> Section 5.2). When source data travels as QUIC datagrams, nothing is retransmitted, and FEC or a FETCH from a relay cache is the only recovery. When a path has no return channel at all, as on multicast, FEC is the only recovery.</t>
+<t>When source data travels on QUIC streams, QUIC retransmits it, and FEC helps only where the deadline is too short for retransmission or a delivery timeout abandons an object (<xref target="I-D.ietf-moq-transport"></xref> Section 5.2). When source data travels as QUIC datagrams, nothing is retransmitted, and FEC or a FETCH from a relay cache is the only recovery. On a multicast leg nothing is retransmitted. A receiver that also has a unicast path recovers what FEC could not by a FETCH of the block's repair or source (Section 7.7); only a receiver with no return path at all depends on FEC alone.</t>
 <t>The erasure unit is what the network loses. Under object carriage (Section 6.1), the loss of one object erases every source symbol of its Protected Object Unit, so a large object needs as many repair symbols as it spans. Under symbol carriage (Section 6.2), one lost datagram erases one symbol. This is why symbol carriage exists: it makes FEC efficient for the large objects of video, delivered as datagrams.</t>
 </section>
 </section>
@@ -828,6 +827,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 </section>
 
 <section anchor="packaging-considerations"><name>Packaging Considerations</name>
+<t>Packagings are named by the packaging field of the catalog <xref target="I-D.ietf-moq-msf"></xref>; how that catalog carries FEC configuration is in <xref target="MOQ-FEC-CATALOG"></xref>.</t>
 
 <section anchor="loc"><name>LOC</name>
 <t>A rebuilt object has only its Immutable Properties (Section 9.2), and a receiver that takes a symbol track receives every object as a rebuilt object (Section 6.2). On a LOC track <xref target="I-D.ietf-moq-loc"></xref>, whose public metadata travels in Object Properties, a Property is recovered only if it is inside Immutable Properties. A publisher of a LOC track protected under &quot;moq-object-v1&quot; MUST carry inside Immutable Properties every LOC Property that it sets on a source object and that a receiver needs to decode or present the object, including Timestamp and Timescale and, where the track uses them, Video Config, Video Frame Marking and Audio Config. <xref target="I-D.ietf-moq-loc"></xref> already recommends Immutable Properties for these. LOC Private Properties travel in the object payload and are recovered with it.</t>
@@ -1015,7 +1015,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 </references>
 </references>
 
-<section anchor="companion-documents"><name>Companion Documents</name>
+<section anchor="companion-documents" removeInRFC="true"><name>Companion Documents</name>
 <t>This section is informative. It lists the documents that complete this one, and what each takes from <xref target="I-D.ramadan-moq-fec"></xref>. The section numbers in the last column are those of draft-ramadan-moq-fec-01.</t>
 <table>
 <thead>
@@ -1073,7 +1073,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 <t>LOC needs no document of its own: &quot;moq-object-v1&quot; covers LOC tracks, and Section 13.1 states what LOC publishers must do.</t>
 </section>
 
-<section anchor="changes-from-draft-ramadan-moq-fec-01"><name>Changes from draft-ramadan-moq-fec-01</name>
+<section anchor="changes-from-draft-ramadan-moq-fec-01" removeInRFC="true"><name>Changes from draft-ramadan-moq-fec-01</name>
 <t>This section is informative.</t>
 
 <ul spacing="compact">
@@ -1367,7 +1367,6 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 
 <section anchor="acknowledgements" numbered="false"><name>Acknowledgements</name>
 <t>Much of the text of this document is taken from <xref target="I-D.ramadan-moq-fec"></xref>, with changes to make it independent of any FEC code and of any packaging.</t>
-<t>The authors thank Emmanuel Lochin for discussions of sliding-window codes, the additivity of random-coefficient repair across tracks, and receiver-side control from the decoder's deficit, which shaped Section 4.3. [Editor's note: tentative; to be confirmed with him before submission.]</t>
 <t>Editor's Note: further acknowledgements are to be added.</t>
 </section>
 

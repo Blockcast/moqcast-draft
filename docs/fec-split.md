@@ -15,7 +15,7 @@ posted to the IETF; the posted -01 drafts stay as they are, in the archive and i
 | FEC for multicast delivery | `draft-ramadan-moq-fec-multicast-00` | Ramadan | Hybrid unicast and multicast delivery, repair-only multicast endpoints, provisional symbols under bc-provenance, the receiver repair policy, multicast FEC security |
 | MMT packaging, revision -02 | `draft-ramadan-moq-mmt-02` | Ramadan | Absorbs the `iso-ssbg1-v1` block profile, the Source FEC Payload ID trailer, the MMTP repair packet, the keyframe overlay and its header extension, the ISO interleaving window, ATSC 3.0 and ARIB interworking, the A3SA signed region |
 | Multicast delivery, revision -02 | `draft-ramadan-moq-multicast-02` | Ramadan | No content change beyond re-pointing its FEC citations and defining `params_hash` over the binding's per-instance fields |
-| Sliding-window schemes | not written | | Marc's proposal names it as research-grade text to be written with Emmanuel Lochin; the core reserves the class |
+| Sliding-window schemes | not written | | Marc's proposal names it as research-grade text; the core reserves the class |
 | Content-aware protection | not written | | Optional and informative in Marc's proposal; the core's guidance on classification without payload access covers the principle |
 
 Names are placeholders, as Marc's README says; the author lists are his for the core and the owner's for the rest.
