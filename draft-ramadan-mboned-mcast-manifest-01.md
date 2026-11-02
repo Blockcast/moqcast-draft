@@ -237,9 +237,10 @@ Information Suite ID ((#hash-algorithms)); SHA-256 [@!FIPS180-4] is
 mandatory to implement.
 
 A receiver delivers an admitted datagram's payload as received, and
-it knows the datagram's `sequence`
-((#keys-epochs-and-sequence-numbers)), which it MAY make available
-to the application.  It delivers nothing
+it knows the datagram's `sequence` and the `epoch` of the record that
+listed it ((#keys-epochs-and-sequence-numbers)), which it MAY make
+available to the application, `sequence` only together with that
+`epoch`.  It delivers nothing
 else of a protected flow.  Every flow parameter that enters the
 pseudoheader or the signature prefix is declared in the flow's
 metadata; the record carries none of them, and names only the digest
@@ -321,9 +322,10 @@ same `hash_alg` for the life of a flow generation (`streamId`,
 
 # Manifest Record
 
-A manifest record is one UDP datagram on the protected flow's own
-`(S, G, port)`; its first four octets, "MHM2", tell it apart from the
-flow's data datagrams ((#processing)).  Every field except the
+A manifest record is one UDP datagram that the sender emits from UDP
+source port `port` on the protected flow's own `(S, G, port)`; its
+first four octets, "MHM2", tell it apart from the flow's data
+datagrams ((#processing)).  Every field except the
 signature is at a fixed offset, and the signature is the last 64
 octets.
 
@@ -359,7 +361,11 @@ of record or relay.  Digest `i` of a record covers
 
 `flags`: bit 0, the least significant bit of the octet (mask 0x01),
 epoch end ((#receiver-behavior)); bits 1 to 7 reserved, MUST be zero
-on send and ignored on receipt.
+on send and ignored on receipt.  A sender SHOULD set bit 0 in the
+record of the last window of every epoch whose end it plans (a key
+change, a counter that would exceed 2^64 - 1
+((#keys-epochs-and-sequence-numbers)), an orderly restart); an epoch
+that ends unplanned, as at a crash, has no such record.
 
 `sent` is the sender's clock when the record is signed, truncated to
 whole seconds since 1970-01-01T00:00:00Z with leap seconds excluded,
@@ -379,7 +385,7 @@ The signature is computed over:
 
 ~~~
 signed_message =
-    "mcast-manifest-v2" || 0x00     # 18-octet prefix
+    "mcast-manifest-v2" || 0x00     # 18-octet label
  || u32(streamId)
  || S                               # 4 or 16 octets
  || G                               # 4 or 16 octets
@@ -598,7 +604,8 @@ each with the `hash_alg` digest of the record's bytes, the
 `highest_mseq` that verified records have raised (step 1) and, once a
 verified record has `flags` bit 0 set, the `mseq` that closed it; the
 verification budget of step 1 with a count of the records it dropped;
-a pending table of `(digest, sequence, expiry)` entries; the digests
+a pending table of `(digest, sequence, expiry)` entries, each with
+the `epoch` of the record that inserted it; the digests
 recorded as admitted, each until the time of recording plus
 `maxAuthDelayMs`; and a hold queue of `(digest, datagram, expiry)`
 entries in arrival order, `digest` being absent from an entry until
@@ -670,7 +677,11 @@ hashed as a data datagram or delivered.
    record from a genuine one, so a forged record spends the same
    token, (#threat-model)).  Verify the Ed25519 signature over
    `signed_message`; drop on failure, and only on success read
-   `first_seq`, `flags` and the digests.  If `epoch` is above the
+   `first_seq`, `flags` and the digests, except that a profile MAY
+   read `first_seq` with the fixed-offset integers above, only to drop,
+   among the checks above, a record whose `first_seq + count - 1`
+   exceeds a bound the profile sets, as (#browser-profile) does.  If
+   `epoch` is above the
    current epoch, or this is the first verified record, make `epoch`
    current and make the former current epoch the previous epoch,
    with a grace period that ends `maxAuthDelayMs + 2 x manifestTimerMs`
@@ -712,9 +723,12 @@ hashed as a data datagram or delivered.
    so recorded (a copy of an admitted datagram delivered again is
    never held); otherwise append `(D, datagram)` to the hold queue
    with expiry `now + maxAuthDelayMs`, the queue bounded to
-   `maxAuthDelayMs x maxBitrate / 8000` octets; drop the newest on
-   overflow, since dropping the oldest would let an injector purge
-   legitimately held datagrams, and drop at expiry, as
+   `maxAuthDelayMs x maxBitrate / 8000` octets, each held datagram
+   counting its UDP payload plus its IP and UDP headers (28 octets on
+   an IPv4 flow, 48 on an IPv6 one), so that empty or short datagrams
+   hold no more entries than their octets on the wire pay for; drop
+   the newest on overflow, since dropping the oldest would let an
+   injector purge legitimately held datagrams, and drop at expiry, as
    unauthenticated.  Repair symbols follow the same rule, so an
    injected symbol is dropped before it reaches a decoder.  A
    receiver MUST NOT deliver to an application, or feed to a decoder,
@@ -768,7 +782,7 @@ catalog or a provisioning otherwise.
 ## Generation Change
 
 The per-flow state of (#state) belongs to the flow generation
-((#manifest-record)): when the `streamId` the metadata, or a
+((#flow-parameters)): when the `streamId` the metadata, or a
 receiver's provisioning, declares for the flow changes, the receiver
 discards every per-flow item of (#state) but the verification budget
 and its count and the hold queue (the current and previous `epoch`,
@@ -793,17 +807,23 @@ the new epoch's records late or not at all; it MUST also specify
 which verification budget of step 1 a record arriving on each path
 charges, with the count of dropped records that goes with it, how a
 record verified on one path is treated when its copy arrives on the
-other, and by how much the pending-entry expiry and the
+other, by how much the pending-entry expiry and the
 admitted-digest retention of step 1 are widened for a record on that
 path, so that the lead of one path over the other does not expire an
-entry before the datagrams it covers arrive.  [@?MOQ-MULTICAST]
-Section 7.2.7 does so for a MoQ manifest track: one budget per path,
-each with its count; the previous-epoch deadline at the bound of its
-Section 7.2.5 plus `maxAuthDelayMs + 2 x manifestTimerMs` after the
-current epoch became current; and the pending expiry and the
+entry before the datagrams it covers arrive, and by how much, if at
+all, the freshness tolerance of step 1 is widened for a record on that
+path, which admits at join windows that much older ((#threat-model)).
+[@?MOQ-MULTICAST] Section 7.2.7 does so for a MoQ manifest track: one
+budget per path, each with its count; the previous-epoch deadline at
+the bound of its Section 7.2.5 plus
+`maxAuthDelayMs + 2 x manifestTimerMs` after the current epoch became
+current; the pending expiry and the
 admitted-digest retention widened by the mirror's lead, the bound of
-that section until one is measured.  A profile that adds no path
-applies this document as written.
+that section until one is measured; and, on a receiver that widens
+its hold by W, at most 5 s, for a relay-buffered path, the freshness
+tolerance, and where no lead applies the pending expiry, of a record
+read from the manifest track widened by W as well.  A profile that
+adds no path applies this document as written.
 
 ## Clocks
 
@@ -823,7 +843,9 @@ spoofs `S` costs one four-octet comparison and, if it does not begin
 with "MHM2", one hash, two lookups and, on a miss of both, space in
 the hold queue until expiry, so a copy of an admitted datagram costs
 one hash and two lookups; one that begins with "MHM2" is an injected
-record, which costs at most one verification inside the budget, a
+record, which costs at most one verification inside the budget or,
+with an unknown `kid`, no verification and at most one metadata
+re-fetch per 30 s ((#key-rotation-and-re-fetch)), a
 replayed one whose
 `(kid, epoch, mseq)` is still verified one lookup and one hash while
 its `mseq` is above the replay floor (the already-verified lookup of
@@ -877,7 +899,7 @@ other names maps them one to one.
   being of the IPv6 family ((#the-well-known-document)).
 - **port** (REQUIRED): the UDP destination port of the data
   datagrams and of the records, twins included, and the source port
-  from which the sender emits every datagram of the flow ((#digest)).
+  from which the sender emits them all ((#digest), (#manifest-record)).
   Two flows of the same `(S, G)` MUST NOT share a `port`, so that no
   port of an `(S, G)` carries the data or the records of two flows:
   metadata MUST declare each `(S, G, port)` at most once, and a
@@ -941,7 +963,9 @@ width, MUST decline the flow.  The
 browser profile clamps `maxAuthDelayMs` (to 50 and 1000) and
 declines a flow whose `manifestTimerMs` is below 10, the floor of
 (#browser-profile), or exceeds `maxAuthDelayMs / 4` after that clamp
-(at most 250 ms), the ceiling (#sender-behavior) sets for senders, so its grace period never exceeds 1.5 s and its pending
+(at most 250 ms), the ceiling (#sender-behavior) sets for a raised
+timer, which the profile applies to the default of 20 as well, so its
+grace period never exceeds 1.5 s and its pending
 table never exceeds the bound of (#state) at
 `maxAuthDelayMs + 2 x manifestTimerMs` = 1500 ms.
 
@@ -950,8 +974,26 @@ table never exceeds the bound of (#state) at
 set to one flow (the well-known document carries one per channel,
 (#the-well-known-document)) or to several ([@?MOQ-MULTICAST] Section
 7.2.6 carries one per broadcast), and every flow it is attached to
-uses that key set and that `minEpoch`.  A flow using `ed25519-trailer-1` declares `scheme`, `S`,
-`G`, `port`, `keys` and `maxBitrate` only.
+uses that key set and that `minEpoch`.  A sender MUST keep every flow
+a key set is attached to at one `epoch` and change it on all of them
+together: that `minEpoch`, and the per-`kid` epoch floor that a
+receiver which pins keys shares among its flows ((#state)), bound
+each of them at join, so the records of a flow left at a lower
+`epoch` than another are dropped at join.  A flow using
+`ed25519-trailer-1` declares `scheme`, `S`, `G`, `port`, `keys` and
+`maxBitrate` only.
+
+A receiver keeps the parameters it holds for up to a metadata
+lifetime ((#key-rotation-and-re-fetch)), and a record whose `kid` it
+holds triggers no re-fetch.  For one metadata lifetime after it
+publishes a new `maxBitrate`, `maxAuthDelayMs` or `manifestTimerMs`,
+a sender therefore keeps within the old value as well as the new
+one: it sends above the old `maxBitrate` only once that lifetime has
+passed.  A receiver that holds the old `streamId` verifies no record
+of the new generation until it re-fetches, so a sender that changes
+`streamId`, as a move to another hash suite does ((#hash-algorithms)),
+first publishes, for at least one metadata lifetime, a lifetime no
+longer than the interruption it accepts.
 
 ## The Well-Known Document
 
@@ -1069,8 +1111,9 @@ NOT follow a redirect, and it sends no credentials.
 
 A receiver that acts on behalf of a web origin sends that origin in
 the Origin request header, as the CORS protocol of [@!WHATWG-FETCH]
-does, and the response MUST carry an Access-Control-Allow-Origin
-header naming that origin; a wildcard is not consent, nor is a
+does, and uses the response for that origin only if the response
+carries an Access-Control-Allow-Origin header naming that origin; a
+wildcard is not consent, nor is a
 response that carries no Access-Control-Allow-Origin header or one
 naming another origin or the string `null`, which names no origin,
 and such a receiver MUST treat each of them as
@@ -1166,7 +1209,12 @@ it ((#threat-model)); a window the timer closes adds a record and its
 twin whatever its count, so a shorter timer can take a flow at its
 declared rate past that ceiling, and the browser profile declines a
 flow whose `manifestTimerMs` is below 10 ((#flow-parameters)).  V of
-(#sender-behavior) is sized on the same 512 octets.
+(#sender-behavior) is sized on the same 512 octets.  Such a sender
+also keeps `manifestTimerMs` at or below `maxAuthDelayMs / 4`, the
+default included, since the browser profile declines a flow above
+that ceiling ((#flow-parameters)): a sender that declares a
+`maxAuthDelayMs` below 80 also declares a `manifestTimerMs` from 10
+to `maxAuthDelayMs / 4`.
 
 The browser profile drops an IP fragment that arrives inside an AMT
 Multicast Data message and never reassembles one.  An AMT relay adds
@@ -1216,7 +1264,16 @@ address and on UDP port 2268 ([@!RFC7450]
 Section 7.2).  The relay is trusted for carriage alone: every
 datagram is verified as (#receiver-behavior) requires, with the
 source check of (#source-check) applied to the encapsulated source
-address.
+address.  The join itself discloses the subscription, apart from the
+fetch of (#trust-in-the-well-known-document): a native join puts
+`(S, G)` on the receiver's link and in its network's multicast
+routing state; a join through a relay shows `S` to the receiver's
+resolver in the AMTRELAY query, and to the path where DNS is not
+encrypted, and shows the receiver's address and the `(S, G)` it
+receives, in the clear ([@!RFC7450] Section 6), to the relay, which
+the holder of the reverse zone of `S` chooses, directly or through a
+relay it names, and to any observer of the unicast AMT leg, for as
+long as the receiver stays joined.
 
 # The ed25519-trailer-1 Scheme
 
@@ -1274,10 +1331,10 @@ seen, as in the anti-replay processing of [@?RFC6584] Section 3.3.2.
 An `epoch` above the current one, once a datagram of it verifies,
 becomes current and resets the window; a datagram of a lower `epoch`
 is dropped.  Verify the signature; drop on failure.  Deliver the
-payload with the trailer removed, `seq` being the datagram's
-`sequence` for the application.  The source check of
-(#receiver-behavior) applies to the datagrams of such a flow as to
-any other.
+payload with the trailer removed, `seq` and `epoch` being the
+datagram's `sequence` and `epoch` for the application.  The source
+check of (#receiver-behavior) applies to the datagrams of such a flow
+as to any other.
 
 Key rotation and revocation are as in (#key-rotation-and-re-fetch),
 with no grace period: the key set bounds each `kid` to its epoch
@@ -1374,9 +1431,13 @@ an earlier epoch is rejected at join by `minEpoch`
 ((#flow-parameters)) and, on a receiver that pins keys, by the epoch
 floor kept with the pin, and after the first verified record by the
 current epoch, the previous epoch admitted until its grace period
-ends ((#receiver-behavior)); and within an epoch a receiver with a
-UTC-synchronized clock admits no window whose record was emitted more
-than `7 s + maxAuthDelayMs` before receipt, so the verification
+ends ((#receiver-behavior)); and within an epoch a receiver that
+checks freshness admits no window whose `sent` is more than
+`7 s + maxAuthDelayMs` behind its clock, and, with the sender's clock
+within its 1 s bound and its own within 5 s, none emitted more than
+`13 s + maxAuthDelayMs` before receipt, each plus any widening a
+profile specifies for a record on a path it adds
+((#additional-record-paths)), so the verification
 budget cannot be spent with stale genuine records and the replay
 floor of (#receiver-behavior) takes over after the first verified
 record.  A receiver that skips the freshness check can be fed the
@@ -1393,8 +1454,27 @@ what an injector replays from that far back, so a receiver that
 cannot keep its clock within its bound does better to skip the
 freshness check, as (#clocks) allows, than to check against a clock
 it does not trust.  An injector that can only
-replay what the multicast path has already delivered meets the
-already-verified lookup and the replay floor of step 1.
+replay what the multicast path has already delivered to the receiver
+meets the already-verified lookup and the replay floor of step 1.
+One that receives the records sooner, nearer the sender or over a
+faster path, forges nothing and still costs the receiver windows
+(step 1 of (#processing)): a copy that precedes the receiver's own by
+more than `maxAuthDelayMs + 2 x manifestTimerMs` is verified with
+pending entries that expire before the datagrams it covers arrive,
+the receiver's own copy then being dropped as already verified, so
+one record per window loses every window; a copy of `mseq` `k` that
+reaches the receiver before its own copy of `mseq` `k - L`, `L` above
+64, raises `highest_mseq` to `k`, so the receiver's own copies of
+`mseq` `k - L` to `k - 64` are dropped by the replay floor and those
+windows expire, one record per `L - 63` windows losing all the
+others; and a copy of a new epoch's first record that precedes the
+receiver's own by more than `maxAuthDelayMs + 2 x manifestTimerMs`
+starts the previous epoch's grace period so early that it ends while
+that epoch's last records and twins are still to arrive.  64 windows
+pass in `64 / V` seconds at the long-run ceiling of
+(#sender-behavior), under 8 ms at V = 8,248, so on a high-rate flow
+a small path advantage suffices; the verification budget does not
+bound this attack, which needs at most one record per window.
 
 Metadata rewrite and key substitution are defended only for receivers
 that hold an out-of-band key pin.  The digest algorithm is inside the
@@ -1405,8 +1485,9 @@ third, except where a lowered `minEpoch` admits records of an earlier
 epoch signed with a still-listed `kid`: every earlier epoch at a
 receiver's first join under that `kid`, and at any later join the
 highest epoch verified under it, which the floor keeps rather than
-drops, so a holder of a still-listed retired key signs fresh records
-of that epoch; either is admitted until a record of the current epoch
+drops, and every later epoch in that `kid`'s range, so a holder of a
+still-listed retired key signs fresh records of those epochs; either
+is admitted until a record of the current epoch
 is verified, and after that as the previous epoch (step 1 of
 (#processing)), so rotated-out keys SHOULD be removed promptly.  A
 rewrite that raises
@@ -1645,7 +1726,10 @@ sends none ([@!RFC9525] Section 7.4).  The per-origin grant restricts
 which pages may join a flow, not who may fetch the document, which is
 public; a sender that does not want a flow's keys and parameters
 public does not publish them there.  The fetch is itself a unicast
-connection to `S`, repeated every metadata lifetime, that gives the
+connection to `S`, repeated every metadata lifetime and, at a
+receiver that re-fetches on a record with an unknown `kid`
+((#key-rotation-and-re-fetch)), whenever such a record arrives, at
+most once per 30 s, that gives the
 operator of `S` the receiver's address, the time of each request and,
 from the Origin header, the page the receiver acts for, and lets an
 on-path observer infer the subscription from traffic to a known `S`;
@@ -1655,8 +1739,16 @@ source itself.  A receiver
 that must not disclose this is provisioned out of band instead, or
 reaches `S` through a proxy that aggregates many receivers and does
 not terminate TLS, so that the certificate check against `S` still
-holds; this document specifies neither.  The document directs a
-receiver to join `(S, G)`; a
+holds; this document specifies neither.  A record with an unknown
+`kid` needs no key.  Any host that can inject one datagram into the
+group therefore makes every receiver that re-fetches on such a record
+connect to `S` at once, a burst on `S` that grows with the audience
+and can recur every 30 s.  By sending one, the sender learns which
+receivers are still joined at a moment it chooses, rather than once
+per metadata lifetime.  A receiver that re-fetches only when the
+metadata lifetime expires, as the browser profile does
+((#key-rotation-and-re-fetch)), takes part in neither.  The document
+directs a receiver to join `(S, G)`; a
 receiver that acts for a page bounds the joins it performs for that
 page, since a page could otherwise direct it at many groups and
 exhaust the network's join state, the attack that
@@ -1942,12 +2034,15 @@ as an RFC.
   the pending-table bound scales with V, so one flow can carry a
   high-rate stream ((#sender-behavior), (#state), (#processing)).
   (#cost) and (#threat-model) re-derive the record-flood figures from
-  V, and a rewritten `maxBitrate` now resizes V as well.
+  V, and a rewritten `maxBitrate` now resizes V as well.  (#cost) also
+  says that SHA2 instructions speed the hashing, not the signature
+  checks.
 - New (#browser-profile), informative, collects what the browser
   profile adds: a sender that serves it starts each `sequence` counter
   below 2^53 and keeps its datagrams averaging at least 512 octets at
-  the declared `maxBitrate` and its `manifestTimerMs` at 10 ms or more
-  (the profile declines a flow below 10 ms), keeps data datagrams it
+  the declared `maxBitrate` and its `manifestTimerMs` from 10 ms to
+  `maxAuthDelayMs / 4`, the default included (the profile declines a
+  flow outside that range), keeps data datagrams it
   wants carried through AMT relays on 1500-octet paths at or below
   1422 octets of UDP payload over IPv4 and 1402 over IPv6 (the
   profile does not reassemble fragments),
@@ -1958,7 +2053,8 @@ as an RFC.
   such a relay, names.  Notes in
   (#key-rotation-and-re-fetch), (#cost) and (#flow-parameters) add its
   rules on a record with an unknown `kid`, on datagram size and on
-  `manifestTimerMs`, and in (#threat-model) it sheds datagrams above
+  `manifestTimerMs`, (#processing) allows its check of `first_seq`
+  before verification, and in (#threat-model) it sheds datagrams above
   its ingress ceiling without leaving the group, where -00 had it
   leave.
 - `maxBitrate` counts the UDP payloads of the flow's data datagrams,
@@ -1966,6 +2062,23 @@ as an RFC.
   (#fetching-the-document) no longer names stopping signing as a
   faster withdrawal: a receiver whose records stop stays joined while
   the document lists the flow.
+- Step 2 of (#processing) counts each held datagram's IP and UDP
+  headers, 28 or 48 octets, against the hold-queue bound as well as
+  its payload.  A sender keeps every flow of one key set at one
+  `epoch` ((#flow-parameters)), sets `flags` bit 0 on the record of
+  the last window of an epoch whose end it plans ((#manifest-record)),
+  keeps within the old `maxBitrate`, `maxAuthDelayMs` or
+  `manifestTimerMs` for one metadata lifetime after publishing a new
+  one, and shortens that lifetime ahead of a `streamId` change
+  ((#flow-parameters)).  (#threat-model) bounds the age of a window
+  admitted at join by `13 s + maxAuthDelayMs` within the clock
+  bounds, where -00 gave the freshness tolerance on `sent`,
+  `7 s + maxAuthDelayMs`, as that age.
+- References: [@?RFC3550], [@?RFC5651], [@?RFC5740], [@?RFC6726],
+  [@?RFC9000], [@?RFC9223] and [@?ISO.23008-1], cited in
+  (#sender-behavior), and [@?RFC8777], cited in (#browser-profile),
+  are new informative references, and [@?MOQ-MULTICAST] is cited at
+  its -02 revision.
 
 {numbered="false"}
 # Acknowledgments

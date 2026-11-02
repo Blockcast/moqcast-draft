@@ -110,7 +110,7 @@ class PublishedExamples(unittest.TestCase):
             text = " ".join(text.split())
             self.assertIn("SHOULD set ECT(0)", text)
             self.assertIn("MUST treat a datagram that arrives marked CE as it treats a lost one", text)
-            self.assertIn("MUST NOT read a change of the sender's rate into the marks", text)
+            self.assertIn("MUST NOT wait for the sender to lower its rate in response to the marks", text)
             self.assertIn("E flag", text)
             self.assertNotIn("MAY use the fraction", text)
 

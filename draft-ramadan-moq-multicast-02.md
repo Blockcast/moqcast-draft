@@ -271,8 +271,8 @@ The `multicast` field is a root-level extension member of the MSF
 catalog; the catalog envelope for this suite is described in
 [@!MOQ-MMT] Section 13.  [@!I-D.ietf-moq-msf]
 Section 5 permits producers to add fields and requires parsers to
-ignore fields they do not understand: parsers that do not support
-multicast MUST ignore it.
+ignore fields they do not understand, so a parser that does not
+support multicast ignores the `multicast` field.
 
 The `multicast` field contains an `endpoints` array listing one or
 more multicast groups.  A single-endpoint deployment uses a
@@ -400,13 +400,17 @@ Endpoint field definitions:
     arrives on the same tuples as the media; a publisher MUST NOT
     advertise it for a track.
 
-**bandwidth** (integer, RECOMMENDED): Aggregate bandwidth of this
+**bandwidth** (integer, REQUIRED on a protected endpoint, RECOMMENDED
+  otherwise): Aggregate bandwidth of this
   endpoint in bits per second, defined as the sum of the UDP payload
   bitrates of all tracks carried on the endpoint, including repair
   tracks, plus the MMTP signaling sub-flow on packet_id 0
   (Section 5) where the endpoint carries it; IP/UDP header overhead
   is excluded.  Publishers SHOULD
-  include bandwidth to enable capacity-aware join decisions.
+  include bandwidth to enable capacity-aware join decisions; on a
+  protected endpoint it is the sender's ceiling for the flow, and a
+  receiver ignores a protected endpoint without it
+  ((#catalog-signaling)).
   Subscribers SHOULD check available network capacity before joining
   high-bandwidth groups.
 
@@ -808,7 +812,14 @@ datagram as it would without ECN.  A receiver that can read the ECN
 field MUST treat a datagram that arrives marked CE as it treats a
 lost one in endpoint selection and in the failover from multicast to
 MoQ unicast
-((#multi-path-delivery)), and in no other reaction to loss.  A
+((#multi-path-delivery)), and in no other reaction to loss.  On a
+protected flow it so treats only a data datagram it admits and a
+record it verifies (steps 1 and 2 of
+(#receiver-enforcement-and-state)); a mark on any other datagram on
+`port` counts toward nothing, since an injector that spoofs `S` can
+set it, so a marked datagram that expires from a hold queue is one
+loss, by its expiry ((#threat-model)), and a marked record dropped
+before its signature verifies, or as a copy, is none.  A
 multicast sender gets no feedback, so the receivers' reaction stands
 in for the sender's: it is the receiver-driven congestion control of
 [@RFC8085] Section 4.1, responding to a mark as to a drop, as
@@ -825,11 +836,13 @@ whether a repair layer, a repair-only endpoint ([@!MOQ-FEC-MULTICAST]
 Section 4) or a unicast repair FETCH ((#per-block-unicast-repair)),
 or against dropping repair, since repair added or held on a path that
 is losing packets to congestion adds to the congestion
-([@!MOQ-FEC-CORE] Section 7.4).  A receiver MUST NOT read a change of
-the sender's rate into the marks, since a mark set upstream of a
-replication point reaches every receiver below it.  An AMT gateway
-((#amt-automatic-multicast-tunneling)) MUST carry the ECN field of
-the encapsulated datagram through decapsulation per [@!RFC6040], as
+([@!MOQ-FEC-CORE] Section 7.4).  A receiver MUST NOT wait for the
+sender to lower its rate in response to the marks: no mark reaches
+the sender, and a mark set upstream of a replication point reaches
+every receiver below it, each of which reacts to it as above.  An AMT
+gateway ((#amt-automatic-multicast-tunneling)) MUST carry the ECN
+field of the encapsulated datagram through decapsulation per
+[@!RFC6040], as
 [@!RFC9601] Section 6.1.4 applies it to AMT, and declares that
 support with the E flag of [@!RFC9601] Section 6.1.4.2.  That section
 recommends the same support in an AMT relay without requiring it: a
@@ -1071,8 +1084,8 @@ protected under the flow, one that has admitted a datagram of it, is
 a datagram of the flow as well (step 2 of
 (#receiver-enforcement-and-state)).
 A flow has one `port`, which no other flow of the same `(S, G)`
-shares ((#catalog-signaling)), so no port carries the data or the
-records of two flows; its `sequence` counter (below) and
+shares ((#catalog-signaling)), so no port of an `(S, G)` carries the
+data or the records of two flows; its `sequence` counter (below) and
 its `mseq` counter ((#manifest-record)) are kept per `(kid, epoch)`.
 `mseq` starts at any value and increases by one for every window the
 flow closes under one `(kid, epoch)`, in emission order, as the
@@ -1188,7 +1201,11 @@ version 1, which a receiver of [@!MOQ-MMT] rejects before parsing its
 
 `flags`: bit 0, the least significant bit of the octet (mask 0x01),
 epoch end ((#receiver-enforcement-and-state)); bits 1 to 7 reserved,
-MUST be zero on send and ignored on receipt.
+MUST be zero on send and ignored on receipt.  A sender SHOULD set
+bit 0 in the record of the last window of every epoch whose end it
+plans (a key change, a counter that would exceed 2^64 - 1
+((#protected-flows-and-sequence-numbers)), an orderly restart); an
+epoch that ends unplanned, as at a crash, has no such record.
 
 `sent` is the sender's clock when the record is signed, truncated to
 whole seconds since 1970-01-01T00:00:00Z with leap seconds excluded,
@@ -1213,7 +1230,7 @@ The signature is computed over:
 
 ~~~
 signed_message =
-    "mcast-manifest-v2" || 0x00     # 18-octet prefix
+    "mcast-manifest-v2" || 0x00     # 18-octet label
  || u32(streamId)
  || S                               # 4 or 16 octets
  || G                               # 4 or 16 octets
@@ -1409,7 +1426,8 @@ that covers them, the manifest track and the media tracks being
 separate streams, and a unicast receiver SHOULD widen its hold, and
 the freshness tolerance of step 1 of
 (#receiver-enforcement-and-state) for the records it reads from the
-manifest track, accordingly, by at most 5 s, the widening W, a
+manifest track, accordingly, by a widening W of at most 5 s (the
+bound), a
 receiver that applies no lead widening the pending expiry of a
 mirrored record's entries by W as well (step 1), since no lead
 covers the datagrams its relay delivers after the records that
@@ -1482,7 +1500,7 @@ as protected and carries the flow's parameters:
       "sourceAddress": "198.51.100.7",
       "groupAddress": "232.10.20.30",
       "port": 5004,
-      "bandwidth": 100000000,
+      "bandwidth": 8000000,
       "tracks": [
         { "name": "video",        "packetId": 1 },
         { "name": "video/repair", "packetId": 2 }
@@ -1502,7 +1520,11 @@ Members of `multicast.auth`:
 
 **scheme**, **version** (REQUIRED): "bc-provenance", 2.
 
-**sig** (string, REQUIRED): "ed25519" [@!RFC8032].
+**sig** (string, REQUIRED): "ed25519" [@!RFC8032].  A receiver that
+finds `scheme`, `version` or `sig` absent, or with a value it does not
+implement, admits nothing from the broadcast, pinned or not, and
+treats every endpoint of the `multicast` object as one that yields no
+data ((#multicast-endpoint-format)).
 
 **keys** (array, REQUIRED): one to four `{kid, publicKey,
 firstEpoch}` objects.  `kid` is an unsigned 32-bit integer carried in
@@ -1514,10 +1536,11 @@ up to, but not including, the next larger `firstEpoch` in the array,
 and the key with the largest `firstEpoch` signs every later epoch.
 `kid` values MUST be unique within a broadcast and `firstEpoch` values
 MUST be distinct within the array.  A receiver that takes its keys
-from a catalog whose `keys` has no or more than four entries, repeats
-a `kid` or a `firstEpoch`, or names a `kid` or `firstEpoch` that is
-not an unsigned 32-bit integer or a `publicKey` that does not decode
-to 32 octets holds no key set for the broadcast: it admits nothing and treats every endpoint
+from a catalog whose `keys` is absent, has no or more than four
+entries, repeats a `kid` or a `firstEpoch`, or names a `kid` or
+`firstEpoch` that is not an unsigned 32-bit integer or a `publicKey`
+that does not decode to 32 octets holds no key set for the
+broadcast: it admits nothing and treats every endpoint
 of the `multicast` object as one that yields no data
 ((#multicast-endpoint-format)), as it does on a flow whose records
 carry an algorithm it does not implement
@@ -1539,10 +1562,16 @@ within the earlier-started of the two paths' periods (step 1).  The
 publisher MUST write the current
 `epoch` at every
 epoch change, sender restart included, so a joiner with a current
-catalog cannot be fed an earlier epoch.  A receiver whose catalog
-declares a `minEpoch` that is not an unsigned 32-bit integer admits
-nothing from the broadcast, pinned or not, and treats every endpoint
-of the `multicast` object as one that yields no data
+catalog cannot be fed an earlier epoch.  The publisher MUST keep
+every endpoint of the `multicast` object at one `epoch` and change
+it on all of them together: this `minEpoch`, and the per-`kid` epoch
+floor that a receiver which pins keys shares among its flows
+((#receiver-enforcement-and-state)), bound each of them at join, so
+the records of an endpoint left at a lower `epoch` than another are
+dropped at join.  A receiver whose catalog
+declares no `minEpoch`, or one that is not an unsigned 32-bit
+integer, admits nothing from the broadcast, pinned or not, and treats
+every endpoint of the `multicast` object as one that yields no data
 ((#multicast-endpoint-format)).
 
 Members of an endpoint's `auth`; a protected endpoint MUST also
@@ -1550,7 +1579,7 @@ declare `bandwidth`, the sender's ceiling for the flow rather than its
 average, since it bounds the receiver's hold queues and sets its
 verification budgets ((#receiver-enforcement-and-state)):
 
-- **streamId** (integer, REQUIRED): 32-bit value chosen per channel
+- **streamId** (integer, REQUIRED): 32-bit value chosen per stream
   generation, bound into every digest and signature.
 - **senderAddress** (string, REQUIRED on an ASM endpoint, MUST NOT
   appear on an SSM endpoint): the address from which the sending
@@ -1564,6 +1593,18 @@ verification budgets ((#receiver-enforcement-and-state)):
 - **manifestTrack** (string, OPTIONAL): the MoQ track mirroring the
   records ((#emission-and-cadence)).
 
+A receiver keeps the values of the catalog it holds until a later
+catalog or a re-provisioning replaces them, and a record whose `kid`
+it holds triggers no re-fetch ((#receiver-enforcement-and-state)).
+For one catalog lifetime after it publishes a new `bandwidth`,
+`maxAuthDelayMs` or `manifestTimerMs` for an endpoint, a publisher
+therefore keeps within the old value as well as the new one: it
+sends above the old `bandwidth` only once that lifetime has passed.
+A receiver that holds an endpoint's old `streamId` verifies no record
+of the new generation, a move to another hash suite included
+((#manifest-record)), until a catalog carrying the new value reaches
+it.
+
 A protected endpoint's `port` MUST differ from the `port` of every
 other endpoint of the same `(S, G)` in the catalog, so that no port
 of an `(S, G)` carries the data or the records of two flows
@@ -1572,9 +1613,11 @@ A receiver MUST ignore ((#multicast-endpoint-format)) every protected
 endpoint that shares its `(S, G, port)` with another endpoint, and
 every protected endpoint whose `bandwidth` is absent or is not a
 positive integer, whose `port` is not an integer from 1 to 65535,
-whose `streamId` is not an unsigned 32-bit integer or whose
-`manifestTimerMs` is below 1, and it clamps a `maxAuthDelayMs`
-outside 50 to 1000 to the nearer bound, as the browser profile of
+whose `streamId` is absent or is not an unsigned 32-bit integer,
+whose `senderAddress` is absent on an ASM endpoint or present on an
+SSM endpoint, or whose `manifestTimerMs` is below 1, and it clamps a
+`maxAuthDelayMs` outside 50 to 1000 to the nearer bound, as the
+browser profile of
 [@?MCAST-MANIFEST] does; it never uses an out-of-range value.  Two
 ASM endpoints whose `senderAddress` differ MAY share `groupAddress`
 and `port`; the source check of (#receiver-enforcement-and-state)
@@ -1709,7 +1752,9 @@ of the source packet of highest SS_ID it has admitted in the stream
 generation, kept under the serial number arithmetic of
 [@!MOQ-FEC-CORE] Section 7.6
 (step 2); two hold queues of
-`(digest, datagram, expiry)` entries in arrival order,
+`(digest, datagram, expiry)` entries in arrival order, each also
+keeping whether its datagram arrived marked CE
+((#explicit-congestion-notification)),
 `digest` being absent from an entry until the first record of the
 flow is verified (step 2): one for the datagrams a MoQ unicast path
 delivers and the packets the base instance recovers with the help of
@@ -1736,7 +1781,13 @@ datagram on `port` is a data datagram and goes through step 2.
 Nothing else is read to decide.  The split follows the source check
 above and precedes any other processing of the datagram, the
 packet_id routing of (#multicast-packet-format) and the replay
-tracking of (#multicast-security) included.  A record candidate that fails a
+tracking of (#multicast-security) included, and that replay tracking
+MUST NOT move its reordering window, or record a
+packet_sequence_number as seen, for a datagram that step 1 or 2 has
+not admitted: such a datagram's packet_sequence_number is an
+injector's to choose, and one far ahead of the flow's would move the
+window past the genuine packets, which the receiver would then
+discard before step 2 could admit them.  A record candidate that fails a
 check of step 1 is dropped as step 1 says; it is never held, hashed
 as a data datagram or admitted.
 
@@ -1915,7 +1966,11 @@ variable-length interpretation before a cryptographic check:
    its path, with expiry `now + maxAuthDelayMs + W`, each queue
    bounded to `(maxAuthDelayMs + W) x bandwidth / 8000` octets, W
    being the widening of (#emission-and-cadence) in milliseconds,
-   zero on the multicast path; drop the newest on overflow and drop
+   zero on the multicast path, and each held datagram counting its
+   payload plus 28 octets on an IPv4 endpoint and 48 on an IPv6 one
+   (its IP and UDP headers on the multicast path), so that empty or
+   short datagrams hold no more entries than those octets pay for;
+   drop the newest on overflow and drop
    at expiry, so a MoQ unicast path that fills its queue evicts no
    multicast datagram.  Repair symbols follow the same rule,
    so an injected symbol is dropped before FEC decode.  A receiver MUST
@@ -2222,7 +2277,17 @@ state as it does on a `streamId` change (above), the `digest` of
 every held datagram included, and returns to the join state of step
 1, so a record a retired key signed before the re-fetch cannot hold
 the flow afterwards.  Revocation is key removal,
-effective within one catalog lifetime.
+effective within one catalog lifetime.  A receiver holds the catalog
+while its subscription to the catalog track, which it keeps
+((#unicast-subscriptions-after-a-switch-to-multicast)), is
+established, and each catalog object that subscription delivers
+([@!I-D.ietf-moq-msf] Section 5) counts as a re-fetch; the catalog
+lifetime is the bound the publisher assumes on the time a catalog
+object takes to reach a receiver over it.  A re-fetch that an unknown
+`kid` triggers is a REQUEST_UPDATE on that subscription that sends
+FILL_PARAMETERS as in the join of (#multi-path-delivery), which
+delivers the catalog track's current group from its independent
+catalog.
 
 **Cost.** A datagram from another source costs one address comparison;
 one that spoofs `S`, or that a relay delivers on a MoQ unicast path,
@@ -2284,8 +2349,11 @@ the bound of (#emission-and-cadence) plus
 current, and on the manifest track
 within the earlier-started of the two paths' periods
 ((#receiver-enforcement-and-state)); and
-within an epoch a receiver with a UTC-synchronized clock admits no window whose record was
-emitted more than `7 s + maxAuthDelayMs` before receipt, so the verification
+within an epoch a receiver that checks freshness admits no window
+whose `sent` is more than `7 s + maxAuthDelayMs` behind its clock,
+and, with the sender's clock within its 1 s bound and its own within
+5 s, none emitted more than `13 s + maxAuthDelayMs` before receipt,
+so the verification
 budget cannot be spent with stale genuine records and the replay floor
 of (#receiver-enforcement-and-state) takes over after the first
 verified record.  A receiver that skips the freshness check can be fed
@@ -2333,9 +2401,13 @@ that hold an out-of-band key pin.  The digest algorithm is inside the
 signed record, so a rewrite can remove `auth`, substitute keys or
 lower `minEpoch`; the pin catches the first two and the per-`kid` epoch
 floor kept with it ((#receiver-enforcement-and-state)) the third,
-except at a receiver's first join under a `kid`, where a lowered
-`minEpoch` admits records of an earlier epoch signed with a
-still-listed `kid` until a record of the current epoch is verified,
+except where a lowered `minEpoch` admits records of an earlier epoch
+signed with a still-listed `kid`: every earlier epoch at a receiver's
+first join under that `kid`, and at any later join the highest epoch
+verified under it, which the floor keeps rather than drops, and every
+later epoch in that `kid`'s range, so a holder of a still-listed
+retired key signs fresh records of those epochs; either is admitted
+until a record of the current epoch is verified,
 and after that as the previous epoch (step 1 of
 (#receiver-enforcement-and-state)), so rotated-out keys SHOULD be
 removed promptly.  A rewrite that
@@ -2566,7 +2638,18 @@ unless the receiver verifies it against the records of a
 than in silence.
 Records the manifest-track bucket dropped count toward nothing of the
 multicast path: a relay that floods the mirror could otherwise move a
-receiver with a healthy multicast path onto itself.  A receiver that holds the catalog naming the successor key accepts
+receiver with a healthy multicast path onto itself.  An injection
+that reaches a replication point reaches every receiver below it, as
+a mark does ((#explicit-congestion-notification)), so one injector
+with that access can move every receiver below that point that holds
+a MoQ session onto MoQ unicast at once, by the failover above or, for
+the blocks it leaves unrecovered, by the repair of
+(#per-block-unicast-repair): the amplification that
+[@?I-D.ietf-mboned-multicast-security] Section 2.1 warns of, a load
+on the relays and the publisher that grows with the audience while
+the injector's cost does not.  A publisher that offers the fallback
+sizes it, or bounds what its relays admit, for that.  A receiver that
+holds the catalog naming the successor key accepts
 the retired `kid` only below the successor's `firstEpoch`
 ((#catalog-signaling)), and records of the previous epoch on
 `port` until that path's grace period ends, or while that
@@ -3002,7 +3085,11 @@ as an RFC.
   interleaved with the flow's data datagrams on its own `(S, G,
   port)`, and a receiver tells a record from a data datagram by its
   first four octets, "MHM2", which a sender never puts at the start of
-  a data datagram.  The endpoint `auth` member `manifestPort` is
+  a data datagram.  On a protected endpoint the replay tracking of
+  (#multicast-security) moves its reordering window, or records a
+  packet_sequence_number as seen, only for a datagram that step 1 or
+  2 of (#receiver-enforcement-and-state) has admitted.  The endpoint
+  `auth` member `manifestPort` is
   removed, and the `signed_message` prefix of
   (#signature-context-binding) binds `u16(port)` where it bound
   `u16(manifestPort)`.  In (#test-vectors-bc-provenance-version-2)
@@ -3018,7 +3105,13 @@ as an RFC.
   (#receiver-enforcement-and-state) and (#threat-model) re-derive the
   record-flood figures from V, and (#catalog-signaling),
   (#threat-model) and (#catalog-as-attack-surface) add the budgets to
-  what `bandwidth` sizes.  On a protected endpoint `bandwidth` is the
+  what `bandwidth` sizes.  At V's floor, -01's 1000 verifications per
+  second, the cost paragraph of (#receiver-enforcement-and-state) also
+  corrects -01's figure for a receiver that also reads the manifest
+  track from 0.6 of a core to about 0.86, twice the 0.43 that one
+  bucket's signature checks take, and says that SHA2 instructions
+  speed the hashing, not the signature checks.  On a protected
+  endpoint `bandwidth` is the
   sender's ceiling for the flow, and a receiver ignores a protected
   endpoint whose `bandwidth` is absent or not a positive integer
   ((#catalog-signaling)).
@@ -3033,6 +3126,31 @@ as an RFC.
   32 octets, yields no key set, and a `minEpoch` that is not an
   unsigned 32-bit integer admits nothing from the broadcast, as that
   document requires.
+- (#catalog-signaling): a receiver admits nothing from a broadcast
+  whose `multicast.auth` lacks `scheme`, `version`, `sig` or
+  `minEpoch`, or gives `scheme`, `version` or `sig` a value it does
+  not implement; an absent `keys` yields no key set; and a receiver
+  ignores a protected endpoint whose `streamId` is absent or whose
+  `senderAddress` is absent on an ASM endpoint or present on an SSM
+  endpoint.
+- Key rotation in (#receiver-enforcement-and-state): a receiver holds
+  the catalog while its subscription to the catalog track is
+  established, each catalog object that subscription delivers counts
+  as a re-fetch, the catalog lifetime is the bound the publisher
+  assumes on that delivery, and the re-fetch that an unknown `kid`
+  triggers is a REQUEST_UPDATE on that subscription with
+  FILL_PARAMETERS.
+- Step 2 of (#receiver-enforcement-and-state) counts each held
+  datagram's IP and UDP headers, 28 or 48 octets, against its hold
+  queue's bound as well as its payload.  The publisher keeps every
+  endpoint of the `multicast` object at one `epoch`, and keeps within
+  the old `bandwidth`, `maxAuthDelayMs` or `manifestTimerMs` for one
+  catalog lifetime after publishing a new one ((#catalog-signaling));
+  a sender sets `flags` bit 0 on the record of the last window of an
+  epoch whose end it plans ((#manifest-record)).  (#threat-model)
+  bounds the age of a window admitted at join by
+  `13 s + maxAuthDelayMs` within the clock bounds, where -01 gave the
+  freshness tolerance on `sent`, `7 s + maxAuthDelayMs`, as that age.
 - (#content-authentication) names [@?MCAST-MANIFEST], a new
   informative reference, as the format it restates by value.  Step 1
   of (#receiver-enforcement-and-state) writes the replay floor as
@@ -3048,9 +3166,10 @@ as an RFC.
 - New (#explicit-congestion-notification): a sender SHOULD set ECT(0)
   on the data datagrams and manifest records of a protected flow, a
   receiver that can read the ECN field MUST treat a CE-marked
-  datagram as a lost one in endpoint selection and in the failover
-  to MoQ unicast and in no other reaction to loss, never toward
-  adding or holding repair, and an
+  datagram, on a protected flow only a data datagram it admits or a
+  record it verifies, as a lost one in endpoint selection and in the
+  failover to MoQ unicast and in no other reaction to loss, never
+  toward adding or holding repair, and an
   AMT gateway MUST carry the ECN field through decapsulation per
   [@!RFC6040] as [@!RFC9601] Section 6.1.4 applies it to AMT, a
   section that recommends the same support in a relay without
@@ -3071,7 +3190,9 @@ as an RFC.
   subsection per revision, as in [@!MOQ-MMT].  The catalog example of
   (#catalog-signaling) shows the public key of
   (#test-vectors-bc-provenance-version-2), base64url-encoded, in place
-  of a placeholder.
+  of a placeholder, and declares the `maxBitrate` of the
+  [@?MCAST-MANIFEST] well-known example, which describes the same
+  flow, as its `bandwidth`: 8000000 in place of 100000000.
 
 {#changes-since-draft-ramadan-moq-multicast-00}
 ## Changes Since draft-ramadan-moq-multicast-00
@@ -3164,9 +3285,8 @@ as an RFC.
   that every client supports instead of the universal fallback.  The
   examples of Section 4.1 use a documentation address.
 - References: [@!MOQ-MMT] and [@?I-D.ramadan-moq-fec] now name their
-  -01 revisions, and [@?I-D.ramadan-moq-fec] lists both of its
-  authors.  ATSC A/331, ATSC A/322, ARIB STD-B60 and FIPS 180-4 are
-  now cited; BLAKE3 is no longer cited.
+  -01 revisions.  ATSC A/331, ATSC A/322, ARIB STD-B60 and FIPS 180-4
+  are now cited; BLAKE3 is no longer cited.
 - (#content-authentication) replaces bc-provenance version 1 with
   version 2; the BCPV1 `manifest_object`, its "BCPV1-sig" prefix,
   the `compaction` member, the Merkle Tree Hash and the 198-octet

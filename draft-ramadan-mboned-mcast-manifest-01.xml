@@ -205,9 +205,10 @@ anticipates and leaves to another specification.</t>
 Information Suite ID (<xref target="hash-algorithms"></xref>); SHA-256 <xref target="FIPS180-4"></xref> is
 mandatory to implement.</t>
 <t>A receiver delivers an admitted datagram's payload as received, and
-it knows the datagram's <tt>sequence</tt>
-(<xref target="keys-epochs-and-sequence-numbers"></xref>), which it MAY make available
-to the application.  It delivers nothing
+it knows the datagram's <tt>sequence</tt> and the <tt>epoch</tt> of the record that
+listed it (<xref target="keys-epochs-and-sequence-numbers"></xref>), which it MAY make
+available to the application, <tt>sequence</tt> only together with that
+<tt>epoch</tt>.  It delivers nothing
 else of a protected flow.  Every flow parameter that enters the
 pseudoheader or the signature prefix is declared in the flow's
 metadata; the record carries none of them, and names only the digest
@@ -283,9 +284,10 @@ same <tt>hash_alg</tt> for the life of a flow generation (<tt>streamId</tt>,
 </section>
 
 <section anchor="manifest-record"><name>Manifest Record</name>
-<t>A manifest record is one UDP datagram on the protected flow's own
-<tt>(S, G, port)</tt>; its first four octets, &quot;MHM2&quot;, tell it apart from the
-flow's data datagrams (<xref target="processing"></xref>).  Every field except the
+<t>A manifest record is one UDP datagram that the sender emits from UDP
+source port <tt>port</tt> on the protected flow's own <tt>(S, G, port)</tt>; its
+first four octets, &quot;MHM2&quot;, tell it apart from the flow's data
+datagrams (<xref target="processing"></xref>).  Every field except the
 signature is at a fixed offset, and the signature is the last 64
 octets.</t>
 <table>
@@ -386,7 +388,11 @@ of record or relay.  Digest <tt>i</tt> of a record covers
 <tt>sequence = first_seq + i</tt>.</t>
 <t><tt>flags</tt>: bit 0, the least significant bit of the octet (mask 0x01),
 epoch end (<xref target="receiver-behavior"></xref>); bits 1 to 7 reserved, MUST be zero
-on send and ignored on receipt.</t>
+on send and ignored on receipt.  A sender SHOULD set bit 0 in the
+record of the last window of every epoch whose end it plans (a key
+change, a counter that would exceed 2^64 - 1
+(<xref target="keys-epochs-and-sequence-numbers"></xref>), an orderly restart); an epoch
+that ends unplanned, as at a crash, has no such record.</t>
 <t><tt>sent</tt> is the sender's clock when the record is signed, truncated to
 whole seconds since 1970-01-01T00:00:00Z with leap seconds excluded,
 from a clock synchronized to UTC within 1 s; the twin of a record
@@ -402,7 +408,7 @@ byte-identical twin (<xref target="sender-behavior"></xref>).</t>
 <t>The signature is computed over:</t>
 
 <artwork><![CDATA[signed_message =
-    "mcast-manifest-v2" || 0x00     # 18-octet prefix
+    "mcast-manifest-v2" || 0x00     # 18-octet label
  || u32(streamId)
  || S                               # 4 or 16 octets
  || G                               # 4 or 16 octets
@@ -611,7 +617,8 @@ each with the <tt>hash_alg</tt> digest of the record's bytes, the
 <tt>highest_mseq</tt> that verified records have raised (step 1) and, once a
 verified record has <tt>flags</tt> bit 0 set, the <tt>mseq</tt> that closed it; the
 verification budget of step 1 with a count of the records it dropped;
-a pending table of <tt>(digest, sequence, expiry)</tt> entries; the digests
+a pending table of <tt>(digest, sequence, expiry)</tt> entries, each with
+the <tt>epoch</tt> of the record that inserted it; the digests
 recorded as admitted, each until the time of recording plus
 <tt>maxAuthDelayMs</tt>; and a hold queue of <tt>(digest, datagram, expiry)</tt>
 entries in arrival order, <tt>digest</tt> being absent from an entry until
@@ -683,7 +690,11 @@ that finds it empty (nothing before the signature tells a forged
 record from a genuine one, so a forged record spends the same
 token, <xref target="threat-model"></xref>).  Verify the Ed25519 signature over
 <tt>signed_message</tt>; drop on failure, and only on success read
-<tt>first_seq</tt>, <tt>flags</tt> and the digests.  If <tt>epoch</tt> is above the
+<tt>first_seq</tt>, <tt>flags</tt> and the digests, except that a profile MAY
+read <tt>first_seq</tt> with the fixed-offset integers above, only to drop,
+among the checks above, a record whose <tt>first_seq + count - 1</tt>
+exceeds a bound the profile sets, as <xref target="browser-profile"></xref> does.  If
+<tt>epoch</tt> is above the
 current epoch, or this is the first verified record, make <tt>epoch</tt>
 current and make the former current epoch the previous epoch,
 with a grace period that ends <tt>maxAuthDelayMs + 2 x manifestTimerMs</tt>
@@ -725,9 +736,12 @@ until <tt>now + maxAuthDelayMs</tt>.  Miss: drop the datagram if <tt>D</tt> is
 so recorded (a copy of an admitted datagram delivered again is
 never held); otherwise append <tt>(D, datagram)</tt> to the hold queue
 with expiry <tt>now + maxAuthDelayMs</tt>, the queue bounded to
-<tt>maxAuthDelayMs x maxBitrate / 8000</tt> octets; drop the newest on
-overflow, since dropping the oldest would let an injector purge
-legitimately held datagrams, and drop at expiry, as
+<tt>maxAuthDelayMs x maxBitrate / 8000</tt> octets, each held datagram
+counting its UDP payload plus its IP and UDP headers (28 octets on
+an IPv4 flow, 48 on an IPv6 one), so that empty or short datagrams
+hold no more entries than their octets on the wire pay for; drop
+the newest on overflow, since dropping the oldest would let an
+injector purge legitimately held datagrams, and drop at expiry, as
 unauthenticated.  Repair symbols follow the same rule, so an
 injected symbol is dropped before it reaches a decoder.  A
 receiver MUST NOT deliver to an application, or feed to a decoder,
@@ -782,7 +796,7 @@ catalog or a provisioning otherwise.</t>
 
 <section anchor="generation-change"><name>Generation Change</name>
 <t>The per-flow state of <xref target="state"></xref> belongs to the flow generation
-(<xref target="manifest-record"></xref>): when the <tt>streamId</tt> the metadata, or a
+(<xref target="flow-parameters"></xref>): when the <tt>streamId</tt> the metadata, or a
 receiver's provisioning, declares for the flow changes, the receiver
 discards every per-flow item of <xref target="state"></xref> but the verification budget
 and its count and the hold queue (the current and previous <tt>epoch</tt>,
@@ -807,17 +821,23 @@ the new epoch's records late or not at all; it MUST also specify
 which verification budget of step 1 a record arriving on each path
 charges, with the count of dropped records that goes with it, how a
 record verified on one path is treated when its copy arrives on the
-other, and by how much the pending-entry expiry and the
+other, by how much the pending-entry expiry and the
 admitted-digest retention of step 1 are widened for a record on that
 path, so that the lead of one path over the other does not expire an
-entry before the datagrams it covers arrive.  <xref target="MOQ-MULTICAST"></xref>
-Section 7.2.7 does so for a MoQ manifest track: one budget per path,
-each with its count; the previous-epoch deadline at the bound of its
-Section 7.2.5 plus <tt>maxAuthDelayMs + 2 x manifestTimerMs</tt> after the
-current epoch became current; and the pending expiry and the
+entry before the datagrams it covers arrive, and by how much, if at
+all, the freshness tolerance of step 1 is widened for a record on that
+path, which admits at join windows that much older (<xref target="threat-model"></xref>).
+<xref target="MOQ-MULTICAST"></xref> Section 7.2.7 does so for a MoQ manifest track: one
+budget per path, each with its count; the previous-epoch deadline at
+the bound of its Section 7.2.5 plus
+<tt>maxAuthDelayMs + 2 x manifestTimerMs</tt> after the current epoch became
+current; the pending expiry and the
 admitted-digest retention widened by the mirror's lead, the bound of
-that section until one is measured.  A profile that adds no path
-applies this document as written.</t>
+that section until one is measured; and, on a receiver that widens
+its hold by W, at most 5 s, for a relay-buffered path, the freshness
+tolerance, and where no lead applies the pending expiry, of a record
+read from the manifest track widened by W as well.  A profile that
+adds no path applies this document as written.</t>
 </section>
 
 <section anchor="clocks"><name>Clocks</name>
@@ -837,7 +857,9 @@ spoofs <tt>S</tt> costs one four-octet comparison and, if it does not begin
 with &quot;MHM2&quot;, one hash, two lookups and, on a miss of both, space in
 the hold queue until expiry, so a copy of an admitted datagram costs
 one hash and two lookups; one that begins with &quot;MHM2&quot; is an injected
-record, which costs at most one verification inside the budget, a
+record, which costs at most one verification inside the budget or,
+with an unknown <tt>kid</tt>, no verification and at most one metadata
+re-fetch per 30 s (<xref target="key-rotation-and-re-fetch"></xref>), a
 replayed one whose
 <tt>(kid, epoch, mseq)</tt> is still verified one lookup and one hash while
 its <tt>mseq</tt> is above the replay floor (the already-verified lookup of
@@ -893,7 +915,7 @@ family never matches one of the other, an IPv4-mapped IPv6 address
 being of the IPv6 family (<xref target="the-well-known-document"></xref>).</li>
 <li><strong>port</strong> (REQUIRED): the UDP destination port of the data
 datagrams and of the records, twins included, and the source port
-from which the sender emits every datagram of the flow (<xref target="digest"></xref>).
+from which the sender emits them all (<xref target="digest"></xref>, <xref target="manifest-record"></xref>).
 Two flows of the same <tt>(S, G)</tt> MUST NOT share a <tt>port</tt>, so that no
 port of an <tt>(S, G)</tt> carries the data or the records of two flows:
 metadata MUST declare each <tt>(S, G, port)</tt> at most once, and a
@@ -957,7 +979,9 @@ width, MUST decline the flow.  The
 browser profile clamps <tt>maxAuthDelayMs</tt> (to 50 and 1000) and
 declines a flow whose <tt>manifestTimerMs</tt> is below 10, the floor of
 <xref target="browser-profile"></xref>, or exceeds <tt>maxAuthDelayMs / 4</tt> after that clamp
-(at most 250 ms), the ceiling <xref target="sender-behavior"></xref> sets for senders, so its grace period never exceeds 1.5 s and its pending
+(at most 250 ms), the ceiling <xref target="sender-behavior"></xref> sets for a raised
+timer, which the profile applies to the default of 20 as well, so its
+grace period never exceeds 1.5 s and its pending
 table never exceeds the bound of <xref target="state"></xref> at
 <tt>maxAuthDelayMs + 2 x manifestTimerMs</tt> = 1500 ms.</t>
 <t><tt>maxAuthDelayMs</tt>, <tt>manifestTimerMs</tt> and <tt>maxBitrate</tt> are per flow.
@@ -965,8 +989,25 @@ table never exceeds the bound of <xref target="state"></xref> at
 set to one flow (the well-known document carries one per channel,
 <xref target="the-well-known-document"></xref>) or to several (<xref target="MOQ-MULTICAST"></xref> Section
 7.2.6 carries one per broadcast), and every flow it is attached to
-uses that key set and that <tt>minEpoch</tt>.  A flow using <tt>ed25519-trailer-1</tt> declares <tt>scheme</tt>, <tt>S</tt>,
-<tt>G</tt>, <tt>port</tt>, <tt>keys</tt> and <tt>maxBitrate</tt> only.</t>
+uses that key set and that <tt>minEpoch</tt>.  A sender MUST keep every flow
+a key set is attached to at one <tt>epoch</tt> and change it on all of them
+together: that <tt>minEpoch</tt>, and the per-<tt>kid</tt> epoch floor that a
+receiver which pins keys shares among its flows (<xref target="state"></xref>), bound
+each of them at join, so the records of a flow left at a lower
+<tt>epoch</tt> than another are dropped at join.  A flow using
+<tt>ed25519-trailer-1</tt> declares <tt>scheme</tt>, <tt>S</tt>, <tt>G</tt>, <tt>port</tt>, <tt>keys</tt> and
+<tt>maxBitrate</tt> only.</t>
+<t>A receiver keeps the parameters it holds for up to a metadata
+lifetime (<xref target="key-rotation-and-re-fetch"></xref>), and a record whose <tt>kid</tt> it
+holds triggers no re-fetch.  For one metadata lifetime after it
+publishes a new <tt>maxBitrate</tt>, <tt>maxAuthDelayMs</tt> or <tt>manifestTimerMs</tt>,
+a sender therefore keeps within the old value as well as the new
+one: it sends above the old <tt>maxBitrate</tt> only once that lifetime has
+passed.  A receiver that holds the old <tt>streamId</tt> verifies no record
+of the new generation until it re-fetches, so a sender that changes
+<tt>streamId</tt>, as a move to another hash suite does (<xref target="hash-algorithms"></xref>),
+first publishes, for at least one metadata lifetime, a lifetime no
+longer than the interruption it accepts.</t>
 </section>
 
 <section anchor="the-well-known-document"><name>The Well-Known Document</name>
@@ -1078,8 +1119,9 @@ receiver never resolves a name to find the document.  A receiver MUST
 NOT follow a redirect, and it sends no credentials.</t>
 <t>A receiver that acts on behalf of a web origin sends that origin in
 the Origin request header, as the CORS protocol of <xref target="WHATWG-FETCH"></xref>
-does, and the response MUST carry an Access-Control-Allow-Origin
-header naming that origin; a wildcard is not consent, nor is a
+does, and uses the response for that origin only if the response
+carries an Access-Control-Allow-Origin header naming that origin; a
+wildcard is not consent, nor is a
 response that carries no Access-Control-Allow-Origin header or one
 naming another origin or the string <tt>null</tt>, which names no origin,
 and such a receiver MUST treat each of them as
@@ -1172,7 +1214,12 @@ it (<xref target="threat-model"></xref>); a window the timer closes adds a recor
 twin whatever its count, so a shorter timer can take a flow at its
 declared rate past that ceiling, and the browser profile declines a
 flow whose <tt>manifestTimerMs</tt> is below 10 (<xref target="flow-parameters"></xref>).  V of
-<xref target="sender-behavior"></xref> is sized on the same 512 octets.</t>
+<xref target="sender-behavior"></xref> is sized on the same 512 octets.  Such a sender
+also keeps <tt>manifestTimerMs</tt> at or below <tt>maxAuthDelayMs / 4</tt>, the
+default included, since the browser profile declines a flow above
+that ceiling (<xref target="flow-parameters"></xref>): a sender that declares a
+<tt>maxAuthDelayMs</tt> below 80 also declares a <tt>manifestTimerMs</tt> from 10
+to <tt>maxAuthDelayMs / 4</tt>.</t>
 <t>The browser profile drops an IP fragment that arrives inside an AMT
 Multicast Data message and never reassembles one.  An AMT relay adds
 30 to 50 octets of encapsulation, and it fragments an IPv4 datagram
@@ -1218,7 +1265,16 @@ address and on UDP port 2268 (<xref target="RFC7450"></xref>
 Section 7.2).  The relay is trusted for carriage alone: every
 datagram is verified as <xref target="receiver-behavior"></xref> requires, with the
 source check of <xref target="source-check"></xref> applied to the encapsulated source
-address.</t>
+address.  The join itself discloses the subscription, apart from the
+fetch of <xref target="trust-in-the-well-known-document"></xref>: a native join puts
+<tt>(S, G)</tt> on the receiver's link and in its network's multicast
+routing state; a join through a relay shows <tt>S</tt> to the receiver's
+resolver in the AMTRELAY query, and to the path where DNS is not
+encrypted, and shows the receiver's address and the <tt>(S, G)</tt> it
+receives, in the clear (<xref target="RFC7450"></xref> Section 6), to the relay, which
+the holder of the reverse zone of <tt>S</tt> chooses, directly or through a
+relay it names, and to any observer of the unicast AMT leg, for as
+long as the receiver stays joined.</t>
 </section>
 </section>
 
@@ -1299,10 +1355,10 @@ seen, as in the anti-replay processing of <xref target="RFC6584"></xref> Section
 An <tt>epoch</tt> above the current one, once a datagram of it verifies,
 becomes current and resets the window; a datagram of a lower <tt>epoch</tt>
 is dropped.  Verify the signature; drop on failure.  Deliver the
-payload with the trailer removed, <tt>seq</tt> being the datagram's
-<tt>sequence</tt> for the application.  The source check of
-<xref target="receiver-behavior"></xref> applies to the datagrams of such a flow as to
-any other.</t>
+payload with the trailer removed, <tt>seq</tt> and <tt>epoch</tt> being the
+datagram's <tt>sequence</tt> and <tt>epoch</tt> for the application.  The source
+check of <xref target="receiver-behavior"></xref> applies to the datagrams of such a flow
+as to any other.</t>
 <t>Key rotation and revocation are as in <xref target="key-rotation-and-re-fetch"></xref>,
 with no grace period: the key set bounds each <tt>kid</tt> to its epoch
 range, and a re-fetch that changes the key set or a <tt>kid</tt>'s range
@@ -1396,9 +1452,13 @@ an earlier epoch is rejected at join by <tt>minEpoch</tt>
 (<xref target="flow-parameters"></xref>) and, on a receiver that pins keys, by the epoch
 floor kept with the pin, and after the first verified record by the
 current epoch, the previous epoch admitted until its grace period
-ends (<xref target="receiver-behavior"></xref>); and within an epoch a receiver with a
-UTC-synchronized clock admits no window whose record was emitted more
-than <tt>7 s + maxAuthDelayMs</tt> before receipt, so the verification
+ends (<xref target="receiver-behavior"></xref>); and within an epoch a receiver that
+checks freshness admits no window whose <tt>sent</tt> is more than
+<tt>7 s + maxAuthDelayMs</tt> behind its clock, and, with the sender's clock
+within its 1 s bound and its own within 5 s, none emitted more than
+<tt>13 s + maxAuthDelayMs</tt> before receipt, each plus any widening a
+profile specifies for a record on a path it adds
+(<xref target="additional-record-paths"></xref>), so the verification
 budget cannot be spent with stale genuine records and the replay
 floor of <xref target="receiver-behavior"></xref> takes over after the first verified
 record.  A receiver that skips the freshness check can be fed the
@@ -1415,8 +1475,27 @@ what an injector replays from that far back, so a receiver that
 cannot keep its clock within its bound does better to skip the
 freshness check, as <xref target="clocks"></xref> allows, than to check against a clock
 it does not trust.  An injector that can only
-replay what the multicast path has already delivered meets the
-already-verified lookup and the replay floor of step 1.</t>
+replay what the multicast path has already delivered to the receiver
+meets the already-verified lookup and the replay floor of step 1.
+One that receives the records sooner, nearer the sender or over a
+faster path, forges nothing and still costs the receiver windows
+(step 1 of <xref target="processing"></xref>): a copy that precedes the receiver's own by
+more than <tt>maxAuthDelayMs + 2 x manifestTimerMs</tt> is verified with
+pending entries that expire before the datagrams it covers arrive,
+the receiver's own copy then being dropped as already verified, so
+one record per window loses every window; a copy of <tt>mseq</tt> <tt>k</tt> that
+reaches the receiver before its own copy of <tt>mseq</tt> <tt>k - L</tt>, <tt>L</tt> above
+64, raises <tt>highest_mseq</tt> to <tt>k</tt>, so the receiver's own copies of
+<tt>mseq</tt> <tt>k - L</tt> to <tt>k - 64</tt> are dropped by the replay floor and those
+windows expire, one record per <tt>L - 63</tt> windows losing all the
+others; and a copy of a new epoch's first record that precedes the
+receiver's own by more than <tt>maxAuthDelayMs + 2 x manifestTimerMs</tt>
+starts the previous epoch's grace period so early that it ends while
+that epoch's last records and twins are still to arrive.  64 windows
+pass in <tt>64 / V</tt> seconds at the long-run ceiling of
+<xref target="sender-behavior"></xref>, under 8 ms at V = 8,248, so on a high-rate flow
+a small path advantage suffices; the verification budget does not
+bound this attack, which needs at most one record per window.</t>
 <t>Metadata rewrite and key substitution are defended only for receivers
 that hold an out-of-band key pin.  The digest algorithm is inside the
 signed record, so a rewrite can declare the flow unprotected,
@@ -1426,8 +1505,9 @@ third, except where a lowered <tt>minEpoch</tt> admits records of an earlier
 epoch signed with a still-listed <tt>kid</tt>: every earlier epoch at a
 receiver's first join under that <tt>kid</tt>, and at any later join the
 highest epoch verified under it, which the floor keeps rather than
-drops, so a holder of a still-listed retired key signs fresh records
-of that epoch; either is admitted until a record of the current epoch
+drops, and every later epoch in that <tt>kid</tt>'s range, so a holder of a
+still-listed retired key signs fresh records of those epochs; either
+is admitted until a record of the current epoch
 is verified, and after that as the previous epoch (step 1 of
 <xref target="processing"></xref>), so rotated-out keys SHOULD be removed promptly.  A
 rewrite that raises
@@ -1660,7 +1740,10 @@ sends none (<xref target="RFC9525"></xref> Section 7.4).  The per-origin grant r
 which pages may join a flow, not who may fetch the document, which is
 public; a sender that does not want a flow's keys and parameters
 public does not publish them there.  The fetch is itself a unicast
-connection to <tt>S</tt>, repeated every metadata lifetime, that gives the
+connection to <tt>S</tt>, repeated every metadata lifetime and, at a
+receiver that re-fetches on a record with an unknown <tt>kid</tt>
+(<xref target="key-rotation-and-re-fetch"></xref>), whenever such a record arrives, at
+most once per 30 s, that gives the
 operator of <tt>S</tt> the receiver's address, the time of each request and,
 from the Origin header, the page the receiver acts for, and lets an
 on-path observer infer the subscription from traffic to a known <tt>S</tt>;
@@ -1670,8 +1753,16 @@ source itself.  A receiver
 that must not disclose this is provisioned out of band instead, or
 reaches <tt>S</tt> through a proxy that aggregates many receivers and does
 not terminate TLS, so that the certificate check against <tt>S</tt> still
-holds; this document specifies neither.  The document directs a
-receiver to join <tt>(S, G)</tt>; a
+holds; this document specifies neither.  A record with an unknown
+<tt>kid</tt> needs no key.  Any host that can inject one datagram into the
+group therefore makes every receiver that re-fetches on such a record
+connect to <tt>S</tt> at once, a burst on <tt>S</tt> that grows with the audience
+and can recur every 30 s.  By sending one, the sender learns which
+receivers are still joined at a moment it chooses, rather than once
+per metadata lifetime.  A receiver that re-fetches only when the
+metadata lifetime expires, as the browser profile does
+(<xref target="key-rotation-and-re-fetch"></xref>), takes part in neither.  The document
+directs a receiver to join <tt>(S, G)</tt>; a
 receiver that acts for a page bounds the joins it performs for that
 page, since a page could otherwise direct it at many groups and
 exhaust the network's join state, the attack that
@@ -2026,12 +2117,15 @@ rate; the sender's window ceiling is V (envelope <tt>64 + V x t</tt>) and
 the pending-table bound scales with V, so one flow can carry a
 high-rate stream (<xref target="sender-behavior"></xref>, <xref target="state"></xref>, <xref target="processing"></xref>).
 <xref target="cost"></xref> and <xref target="threat-model"></xref> re-derive the record-flood figures from
-V, and a rewritten <tt>maxBitrate</tt> now resizes V as well.</li>
+V, and a rewritten <tt>maxBitrate</tt> now resizes V as well.  <xref target="cost"></xref> also
+says that SHA2 instructions speed the hashing, not the signature
+checks.</li>
 <li>New <xref target="browser-profile"></xref>, informative, collects what the browser
 profile adds: a sender that serves it starts each <tt>sequence</tt> counter
 below 2^53 and keeps its datagrams averaging at least 512 octets at
-the declared <tt>maxBitrate</tt> and its <tt>manifestTimerMs</tt> at 10 ms or more
-(the profile declines a flow below 10 ms), keeps data datagrams it
+the declared <tt>maxBitrate</tt> and its <tt>manifestTimerMs</tt> from 10 ms to
+<tt>maxAuthDelayMs / 4</tt>, the default included (the profile declines a
+flow outside that range), keeps data datagrams it
 wants carried through AMT relays on 1500-octet paths at or below
 1422 octets of UDP payload over IPv4 and 1402 over IPv6 (the
 profile does not reassemble fragments),
@@ -2042,7 +2136,8 @@ AMT relay that an AMTRELAY record, or a Relay Advertisement from
 such a relay, names.  Notes in
 <xref target="key-rotation-and-re-fetch"></xref>, <xref target="cost"></xref> and <xref target="flow-parameters"></xref> add its
 rules on a record with an unknown <tt>kid</tt>, on datagram size and on
-<tt>manifestTimerMs</tt>, and in <xref target="threat-model"></xref> it sheds datagrams above
+<tt>manifestTimerMs</tt>, <xref target="processing"></xref> allows its check of <tt>first_seq</tt>
+before verification, and in <xref target="threat-model"></xref> it sheds datagrams above
 its ingress ceiling without leaving the group, where -00 had it
 leave.</li>
 <li><tt>maxBitrate</tt> counts the UDP payloads of the flow's data datagrams,
@@ -2050,6 +2145,23 @@ IP and UDP headers and records excluded (<xref target="flow-parameters"></xref>)
 <xref target="fetching-the-document"></xref> no longer names stopping signing as a
 faster withdrawal: a receiver whose records stop stays joined while
 the document lists the flow.</li>
+<li>Step 2 of <xref target="processing"></xref> counts each held datagram's IP and UDP
+headers, 28 or 48 octets, against the hold-queue bound as well as
+its payload.  A sender keeps every flow of one key set at one
+<tt>epoch</tt> (<xref target="flow-parameters"></xref>), sets <tt>flags</tt> bit 0 on the record of
+the last window of an epoch whose end it plans (<xref target="manifest-record"></xref>),
+keeps within the old <tt>maxBitrate</tt>, <tt>maxAuthDelayMs</tt> or
+<tt>manifestTimerMs</tt> for one metadata lifetime after publishing a new
+one, and shortens that lifetime ahead of a <tt>streamId</tt> change
+(<xref target="flow-parameters"></xref>).  <xref target="threat-model"></xref> bounds the age of a window
+admitted at join by <tt>13 s + maxAuthDelayMs</tt> within the clock
+bounds, where -00 gave the freshness tolerance on <tt>sent</tt>,
+<tt>7 s + maxAuthDelayMs</tt>, as that age.</li>
+<li>References: <xref target="RFC3550"></xref>, <xref target="RFC5651"></xref>, <xref target="RFC5740"></xref>, <xref target="RFC6726"></xref>,
+<xref target="RFC9000"></xref>, <xref target="RFC9223"></xref> and <xref target="ISO.23008-1"></xref>, cited in
+<xref target="sender-behavior"></xref>, and <xref target="RFC8777"></xref>, cited in <xref target="browser-profile"></xref>,
+are new informative references, and <xref target="MOQ-MULTICAST"></xref> is cited at
+its -02 revision.</li>
 </ul>
 </section>
 </section>
