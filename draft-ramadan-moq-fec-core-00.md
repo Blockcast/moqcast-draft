@@ -1261,6 +1261,8 @@ The symbol track's objects arrive as Groups whose Group ID is ext(SS_Start), the
 
 Much of the text of this document is taken from [@?I-D.ramadan-moq-fec], with changes to make it independent of any FEC code and of any packaging.
 
+The requirements on sliding-window schemes in (#sliding-window-schemes) draw on discussions with a researcher in sliding-window codes, who will be named once they have agreed.
+
 Portions of this document were drafted with the assistance of AI tools. The authors reviewed, edited and take responsibility for all of its content.
 
 Editor's Note: further acknowledgements are to be added.

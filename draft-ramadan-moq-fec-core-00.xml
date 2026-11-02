@@ -1367,6 +1367,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 
 <section anchor="acknowledgements" numbered="false"><name>Acknowledgements</name>
 <t>Much of the text of this document is taken from <xref target="I-D.ramadan-moq-fec"></xref>, with changes to make it independent of any FEC code and of any packaging.</t>
+<t>The requirements on sliding-window schemes in <xref target="sliding-window-schemes"></xref> draw on discussions with a researcher in sliding-window codes, who will be named once they have agreed.</t>
 <t>Portions of this document were drafted with the assistance of AI tools. The authors reviewed, edited and take responsibility for all of its content.</t>
 <t>Editor's Note: further acknowledgements are to be added.</t>
 </section>
