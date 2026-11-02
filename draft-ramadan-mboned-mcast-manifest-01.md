@@ -64,7 +64,7 @@ manifests of packet digests: a receiver holds packets and digests
 until the two meet and consumes a digest on admission (its
 Section 3.2).  AMBI requires an authenticating transport for its
 manifests (its Section 4.1), and the three it defines (its
-Sections 4.2 to 4.4) are unicast; its Section 2.1.1 anticipates
+Sections 4.2 to 4.4) are unicast; its Section 2.1.1 envisions
 a protocol that signs manifests and carries them over a multicast
 transport, leaving that to another specification.  This
 document is that specification.  The AMBI manifest of its Section 3.3
@@ -228,9 +228,9 @@ an entry of a verified manifest.
 
 The digest pseudoheader, the hold queue and the consume-on-admission
 rule are those of AMBI ([@?I-D.ietf-mboned-ambi] Sections 3.4.2 and
-3.2); the signed record carried on the flow's own `(S, G, port)` is the
-multicast-carried manifest delivery that AMBI Section 2.1.1
-anticipates and leaves to another specification.
+3.2); the signed record is a multicast-carried manifest delivery of
+the kind that AMBI Section 2.1.1 leaves to another specification, and
+this document carries it in band, on the flow's own `(S, G, port)`.
 
 The digest algorithm is carried in the signed record as a Named
 Information Suite ID ((#hash-algorithms)); SHA-256 [@!FIPS180-4] is
@@ -240,8 +240,12 @@ A receiver delivers an admitted datagram's payload as received, and
 it knows the datagram's `sequence` and the `epoch` of the record that
 listed it ((#keys-epochs-and-sequence-numbers)), which it MAY make
 available to the application, `sequence` only together with that
-`epoch`.  It delivers nothing
-else of a protected flow.  Every flow parameter that enters the
+`epoch`.  It delivers nothing else of a protected flow except, where
+its profile says so, an admitted datagram's arrival time and the
+Explicit Congestion Notification (ECN) field of its IP header
+[@?RFC3168]; no digest covers either ((#digest)), so an on-path party
+can delay the datagram or change that field without failing its
+digest.  Every flow parameter that enters the
 pseudoheader or the signature prefix is declared in the flow's
 metadata; the record carries none of them, and names only the digest
 function (`hash_alg`) it uses and the key (`kid`) of the metadata's
@@ -590,7 +594,11 @@ the source and a receiver SHOULD still discard a datagram whose
 source address is not `S`; a receiver reached through an AMT gateway
 MUST discard it, since nothing upstream of its gateway filters the
 encapsulated source address and [@!RFC7450] does not authenticate
-Multicast Data messages.  A datagram that passes belongs to the flow
+Multicast Data messages.  A receiver MUST likewise discard, before
+any parsing or hashing, a datagram on `port` whose IP destination
+address, behind an AMT relay that of the encapsulated header, is not
+`G`, since flows of one `S` in different groups may share a `port`;
+a datagram that passes both checks belongs to the flow
 `(S, G, port)` with `S` as in (#digest).
 
 ## State
@@ -612,7 +620,10 @@ entries in arrival order, `digest` being absent from an entry until
 the first record of the flow is verified (step 2).  State per
 receiver, shared by its flows: the time of the last metadata re-fetch
 that an unknown `kid` triggered ((#key-rotation-and-re-fetch)), and
-the per-`kid` epoch floor kept with a key pin.
+the per-`kid` epoch floor kept with a key pin, one for each key set
+the receiver pins and shared only by the flows that key set is
+attached to ((#flow-parameters)), even where two key sets list the
+same keys, as two channels of one well-known document may.
 
 `maxBitrate`, `maxAuthDelayMs` and `manifestTimerMs` size the hold
 queue and the pending table (steps 1 and 2), and `maxBitrate` the
@@ -716,9 +727,10 @@ hashed as a data datagram or delivered.
    with the flow's
    `hash_alg` (a datagram that arrives before the first record of the
    flow is verified is held without a digest) and look it up in the
-   pending table, which maps a digest to an ordered list of sequences
-   (carousels repeat byte-identical datagrams).  Hit: remove the
-   lowest sequence, admit the datagram and record `D` as admitted
+   pending table, which maps a digest to its entries (carousels
+   repeat byte-identical datagrams).  Hit: remove the entry lowest in
+   `(epoch, sequence)` order, admit the datagram and record `D` as
+   admitted
    until `now + maxAuthDelayMs`.  Miss: drop the datagram if `D` is
    so recorded (a copy of an admitted datagram delivered again is
    never held); otherwise append `(D, datagram)` to the hold queue
@@ -916,10 +928,11 @@ other names maps them one to one.
   larger `firstEpoch` in the array, and the key with the largest
   `firstEpoch` signs every later epoch.  `kid` values MUST be unique
   within the key set and `firstEpoch` values MUST be distinct within
-  the array.  A receiver that takes its keys from metadata whose key
-  set repeats a `kid` or a `firstEpoch`, or names a `publicKey` that
-  is not 32 octets, holds no key set for the flow or flows that key
-  set is attached to (below): it admits nothing
+  the array.  A receiver that takes its keys from metadata whose
+  `keys` array has no or more than four entries, repeats a `kid` or a
+  `firstEpoch`, names a `kid` or `firstEpoch` outside its field width,
+  or names a `publicKey` that is not 32 octets, holds no key set for
+  the flow or flows that key set is attached to (below): it admits nothing
   from them, as it does on a flow whose records carry an algorithm it
   does not implement ((#receiver-behavior)), and the other flows of
   the same metadata, with key sets of their own, are unaffected; a
@@ -956,10 +969,11 @@ to the nearest bound or decline the flow, as its profile specifies,
 and MUST NOT use the out-of-range value.  The other parameters are
 identifiers or sizes, not tunables, and a clamped identifier names a
 port, key, generation or epoch the sender never declared: a receiver
-that finds a `keys` array of no or more than four entries, a `port`
-of 0, a `maxBitrate` that is not a positive integer, or `port`,
-`streamId`, `kid`, `firstEpoch` or `minEpoch` outside its field
-width, MUST decline the flow.  The
+that finds a `port` of 0, a `maxBitrate` that is not a positive
+integer, or `port`, `streamId` or `minEpoch` outside its field width,
+MUST decline the flow, and a `keys` array of no or more than four
+entries, or one naming a `kid` or `firstEpoch` outside its field
+width, yields no key set (`keys` above).  The
 browser profile clamps `maxAuthDelayMs` (to 50 and 1000) and
 declines a flow whose `manifestTimerMs` is below 10, the floor of
 (#browser-profile), or exceeds `maxAuthDelayMs / 4` after that clamp
@@ -977,7 +991,7 @@ set to one flow (the well-known document carries one per channel,
 uses that key set and that `minEpoch`.  A sender MUST keep every flow
 a key set is attached to at one `epoch` and change it on all of them
 together: that `minEpoch`, and the per-`kid` epoch floor that a
-receiver which pins keys shares among its flows ((#state)), bound
+receiver which pins keys keeps for that key set ((#state)), bound
 each of them at join, so the records of a flow left at a lower
 `epoch` than another are dropped at join.  A flow using
 `ed25519-trailer-1` declares `scheme`, `S`, `G`, `port`, `keys` and
@@ -1085,10 +1099,13 @@ calls an integer, a string for `source`, `group`, `scheme` and
 `publicKey`, an object for `integrity` and for each element of
 `keys`, an array for `keys`), a member of the wrong kind being
 absent, so that a REQUIRED one leaves the channel ignored and an
-OPTIONAL one takes its default, one whose `keys` array yields no key
-set (no or more than four entries, a repeated `kid` or `firstEpoch`,
-or a `publicKey` that is not 43 base64url characters decoding to 32
-octets, (#flow-parameters)), and one whose `scheme` it does not
+OPTIONAL one takes its default, one whose `keys` array, at a
+receiver that takes its keys from the document, yields no key set
+(no or more than four entries, a repeated `kid` or `firstEpoch`, a
+`kid` or `firstEpoch` outside its field width, or a `publicKey` that
+is not 43 base64url characters decoding to 32 octets,
+(#flow-parameters); a receiver that pins keys is unaffected, since
+its key set comes from the pin), and one whose `scheme` it does not
 implement; each of these is ignored alone, and the other channels of
 the document are unaffected.  The document describes SSM flows only,
 since it is fetched from `S`; an ASM flow's metadata is delivered by
@@ -1162,16 +1179,23 @@ treated as a document that lists no channel for the flow, since a
 receiver that kept the expired document would let an attacker that
 can block the fetch keep
 a withdrawn grant or a removed key in force past its lifetime; a flow
-whose channel,
-key set or origin grant the re-fetched document no longer lists is
+whose channel or origin grant the re-fetched document no longer
+lists, or, at a receiver that takes its keys from the document, whose
+key set it no longer lists, is
 left (a key set that still names a key but drops the current `kid` is
 a key-set change under (#key-rotation-and-re-fetch), not a
 withdrawal),
 so withdrawal of consent is effective within one metadata lifetime,
 and a sender that wants faster withdrawal publishes a short
 lifetime.  A record with an unknown `kid` triggers at most one
-re-fetch per 30 s per receiver ((#key-rotation-and-re-fetch)); a
-re-fetch so triggered that fails, or returns a response the receiver
+re-fetch per 30 s per receiver ((#key-rotation-and-re-fetch)).  Such
+a re-fetch comes within the lifetime, when a cache that stored the
+document can still hold it fresh, so the receiver does not reuse a
+stored response of its own for it without validation and sends it
+with the request directive `Cache-Control: no-cache` ([@!RFC9111]
+Section 5.2.1.4), which asks a cache on the path to validate with `S`
+before reusing what it stored; a re-fetch so triggered that fails, or
+returns a response the receiver
 cannot use, leaves the parameters the receiver holds in force until
 their lifetime expires, since the records that triggered it are unauthenticated and
 are dropped either way, and treating that failure as a withdrawal
@@ -1184,9 +1208,10 @@ metadata leave the flow at once.
 This section is informative.  It collects what the browser profile of
 (#introduction) adds to this document, for its receivers and for the
 senders that serve them.  Its rules on a record with an unknown `kid`
-((#key-rotation-and-re-fetch)), on `manifestTimerMs`
-((#flow-parameters)), on datagram size ((#cost)) and on ingress above
-its ceiling ((#threat-model)) are stated in those sections.
+((#key-rotation-and-re-fetch)), on `maxAuthDelayMs` and
+`manifestTimerMs` ((#flow-parameters)), on datagram size ((#cost)) and
+on ingress above its ceiling ((#threat-model)) are stated in those
+sections.
 
 A sender whose flow serves the browser profile starts each `sequence`
 counter ((#keys-epochs-and-sequence-numbers)) below 2^53 and ends the
@@ -1237,10 +1262,12 @@ them, and it lowers them alike on every device, so that no ceiling
 tells a page about its device.  It declines a flow whose
 `maxBitrate` exceeds the ceiling per flow or would take the sum of
 `maxBitrate` over the flows that permission covers past the total,
-and it leaves a flow whose `maxBitrate` a lowering, or a link that
-becomes metered, puts above the ceiling per flow, then each flow
+and, when a link becomes metered, it leaves a flow whose
+`maxBitrate` is above the metered ceiling per flow, then each flow
 that the same check, rerun over the remaining flows in the order
-they joined, would decline.
+they joined, would decline.  A lowering takes effect when the user
+agent next starts: it applies to the joins after that start and
+never reaches a flow already joined.
 
 The browser profile's authenticated-rate breaker leaves a flow whose
 authenticated rate stays above 1.25 x `maxBitrate` for 5 s, counting
@@ -2027,6 +2054,11 @@ as an RFC.
   (#test-vectors) the `manifestPort` input is gone and the prefix ends
   in `u16(port)`, and of the computed values only the signature and
   the record change.
+- (#source-check) also discards, before any parsing or hashing, a
+  datagram on `port` whose destination address is not `G`, since
+  flows of one `S` in different groups may share a `port`; -00
+  assigned to the flow every datagram on its ports that passed the
+  source check.
 - The per-flow verification budget refills at
   `V = max(1000, 1.25 x maxBitrate / (8 x 512 x 37))` per second,
   scaled from the flow's declared `maxBitrate`, instead of at a fixed
@@ -2074,11 +2106,55 @@ as an RFC.
   admitted at join by `13 s + maxAuthDelayMs` within the clock
   bounds, where -00 gave the freshness tolerance on `sent`,
   `7 s + maxAuthDelayMs`, as that age.
+- A receiver makes a datagram's `sequence` available to the
+  application only together with the `epoch` of the record that
+  listed it ((#overview)), the pending table keeping that `epoch` with
+  each entry ((#state)), and `ed25519-trailer-1` delivers `epoch` with
+  `seq` ((#the-ed25519-trailer-1-scheme)); beyond these it delivers,
+  where its profile says so, an admitted datagram's arrival time and
+  ECN field, which no digest covers ((#overview)).  A profile that
+  adds a record path also says by how much, if at all, it widens the
+  freshness tolerance of step 1 for a record on that path
+  ((#additional-record-paths)).  A receiver that pins keys keeps the
+  per-`kid` epoch floor for each key set it pins, shared only by the
+  flows that key set is attached to, where -00 shared it among all
+  the receiver's flows ((#state), (#flow-parameters)).
+- (#fetching-the-document) makes an Access-Control-Allow-Origin
+  header naming the origin a condition on the receiver's use of the
+  response for that origin, where -00 made it a requirement on the
+  response.  A re-fetch that a record with an unknown `kid` triggers
+  is not answered from the receiver's own cache without validation
+  and carries the request directive `Cache-Control: no-cache`, so that
+  a cache that still holds the document fresh does not return the key
+  set the receiver already has.
+- (#threat-model) covers an injector that receives genuine records
+  sooner than the receiver, and adds every later epoch in a `kid`'s
+  range to what a lowered `minEpoch` admits at a pinned receiver's
+  later join.  (#cost) gives the cost of a record with an unknown
+  `kid`, no verification and at most one metadata re-fetch per 30 s.
+  (#browser-profile) says what a join discloses, and
+  (#trust-in-the-well-known-document) notes that any host that can
+  inject a record with an unknown `kid` makes every receiver that
+  re-fetches on such a record connect to `S` at once, and that by
+  sending one the sender learns which receivers are still joined.
+- A `keys` array of no or more than four entries, or one naming a
+  `kid` or `firstEpoch` outside its field width, yields no key set, as
+  a repeated `kid` does, so a receiver that pins keys is unaffected by
+  it, where -00 had every receiver decline the flow
+  ((#flow-parameters)).  (#the-well-known-document) ignores a channel
+  whose `keys` array yields no key set only at a receiver that takes
+  its keys from the document, and (#fetching-the-document) leaves a
+  flow whose key set a re-fetched document no longer lists only at
+  such a receiver, where -00 applied both to every receiver.
+- Step 2 of (#processing) consumes, of the pending entries of a
+  digest, the one lowest in `(epoch, sequence)` order, where -00
+  consumed the lowest sequence, which compares unrelated counters
+  when a carousel repeats a datagram across an epoch change.
 - References: [@?RFC3550], [@?RFC5651], [@?RFC5740], [@?RFC6726],
   [@?RFC9000], [@?RFC9223] and [@?ISO.23008-1], cited in
-  (#sender-behavior), and [@?RFC8777], cited in (#browser-profile),
-  are new informative references, and [@?MOQ-MULTICAST] is cited at
-  its -02 revision.
+  (#sender-behavior), [@?RFC8777], cited in (#browser-profile), and
+  [@?RFC3168], cited in (#overview), are new informative references,
+  and [@?MOQ-MULTICAST] is cited at its -02 revision.
 
 {numbered="false"}
 # Acknowledgments
