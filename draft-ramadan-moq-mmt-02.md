@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-10-29T00:00:00Z"
+date = "2026-11-02T00:00:00Z"
 keyword = ["MMT", "MMTP", "MoQ", "ATSC 3.0", "FEC"]
 
 [seriesInfo]
@@ -3099,7 +3099,7 @@ control-message codepoint.
     <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
       <organization>Rutgers University</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-00'/>
 </reference>
@@ -3110,7 +3110,7 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-00'/>
 </reference>
@@ -3121,7 +3121,7 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-00'/>
 </reference>
@@ -3132,7 +3132,7 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
 </reference>
@@ -3143,7 +3143,7 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
 </reference>
@@ -3996,3 +3996,10 @@ boundaries so that every packet, including FT=0 and FT=1 metadata, fits
 the selected symbol size and every block's repair fields describe the
 actual `(SS_Start, SSB_length)` partition.  These calculations are
 capacity examples, not a rule that one FEC block equals one Group.
+
+{#acknowledgements numbered="false"}
+# Acknowledgements
+
+Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.

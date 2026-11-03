@@ -8,7 +8,7 @@
 </postal><email>omar@blockcast.net</email>
 </address></author><author initials="M. E." surname="Fiuczynski" fullname="Marc E. Fiuczynski"><organization>Rutgers University</organization><address><postal><street></street>
 </postal><email>mef@scarletmail.rutgers.edu</email>
-</address></author><date year="2026" month="October" day="29"></date>
+</address></author><date year="2026" month="November" day="2"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -935,7 +935,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-00"></seriesInfo>
 </reference>
@@ -945,7 +945,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
 </reference>
@@ -985,7 +985,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-00"></seriesInfo>
 </reference>
@@ -995,7 +995,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
 </reference>
@@ -1005,7 +1005,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-02"></seriesInfo>
 </reference>
@@ -1087,7 +1087,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 <li>interleaveDepthMs is positive or absent unless a block profile gives zero a meaning of its own (Section 10.1); the ISO packet-count meaning of zero belongs to the MMTP block profile (<xref target="MOQ-MMT"></xref> Section 7.1). Under &quot;moq-object-v1&quot; a zero value is a validation failure (Section 10.3, rule 11), where -01 Sections 5.1, 8.4 and 9 treated it as equivalent to an absent value.</li>
 <li>Relay considerations are new (Section 12). Relays need not implement FEC, but the document does place a few requirements on them (Sections 3.2, 7.2, 12 and 14.4).</li>
 <li>Section 7.2 adds a rule that -01 Section 6.2 did not have: a receiver should start a new repair subscription no earlier than the Group of the block in progress.</li>
-<li>MMTP, ATSC 3.0, ARIB and multicast material moves to companion documents (Appendix A).</li>
+<li>MMTP, ATSC 3.0, ARIB and multicast material moves to companion documents (<xref target="companion-documents"></xref>).</li>
 </ul>
 <t>The following rules of draft-ramadan-moq-fec-01 were restored or changed by the editorial pass that produced this revision:</t>
 
@@ -1367,6 +1367,8 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 
 <section anchor="acknowledgements" numbered="false"><name>Acknowledgements</name>
 <t>Much of the text of this document is taken from <xref target="I-D.ramadan-moq-fec"></xref>, with changes to make it independent of any FEC code and of any packaging.</t>
+<t>The requirements on sliding-window schemes in <xref target="sliding-window-schemes"></xref> draw on discussions with a researcher in sliding-window codes, who will be named once they have agreed.</t>
+<t>Portions of this document were drafted with the assistance of AI tools. The authors reviewed, edited and take responsibility for all of its content.</t>
 <t>Editor's Note: further acknowledgements are to be added.</t>
 </section>
 

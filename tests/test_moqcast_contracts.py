@@ -5,9 +5,12 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import ipaddress
 import json
+import math
 import re
+import struct
 import sys
 import unittest
 from fractions import Fraction
@@ -93,8 +96,26 @@ class PublishedExamples(unittest.TestCase):
             self.assertIn("leave", text)
             self.assertIn("operator provisioning system", text)
 
+    def test_multicast_receivers_react_to_ce_marks(self):
+        # Section 5.1 (CEO D18 A, 2026-11-01): a flow sent ECN-capable needs a congestion
+        # reaction to CE (RFC 3168 s5); in multicast that reaction is the receiver's (RFC 8085 s4.1),
+        # departing from the sender feedback of RFC 8085 s3.1.7.
+        markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
+        xml = (ROOT / "draft-ramadan-moq-multicast-02.xml").read_text(encoding="utf-8")
+        texts = (
+            section(markdown, "## Explicit Congestion Notification", "{#multi-path-delivery}"),
+            re.sub(r"<[^>]+>", "", section(xml, 'anchor="explicit-congestion-notification"', "</section>")),
+        )
+        for text in texts:
+            text = " ".join(text.split())
+            self.assertIn("SHOULD set ECT(0)", text)
+            self.assertIn("MUST treat a datagram that arrives marked CE as it treats a lost one", text)
+            self.assertIn("MUST NOT wait for the sender to lower its rate in response to the marks", text)
+            self.assertIn("E flag", text)
+            self.assertNotIn("MAY use the fraction", text)
+
     def test_mboned_manifest_draft_md_and_xml_agree_on_docname(self):
-        stem = "draft-ramadan-mboned-mcast-manifest-00"
+        stem = "draft-ramadan-mboned-mcast-manifest-01"
         markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
         xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
         self.assertIn(f'value = "{stem}"', markdown)
@@ -114,10 +135,12 @@ class PublishedExamples(unittest.TestCase):
 
     def test_mboned_well_known_example_obeys_its_own_rules(self):
         # Sections 8.1/8.2: address literals of one family, 1..4 keys with distinct kid and
-        # firstEpoch, publicKey 43 unpadded base64url characters for 32 octets, manifestPort != port.
-        markdown = (ROOT / "draft-ramadan-mboned-mcast-manifest-00.md").read_text(encoding="utf-8")
+        # firstEpoch, publicKey 43 unpadded base64url characters for 32 octets, no manifestPort
+        # (records travel in band on `port`) and no `port` shared by two channels of one (S, G).
+        markdown = (ROOT / "draft-ramadan-mboned-mcast-manifest-01.md").read_text(encoding="utf-8")
         channels = 0
         for line, raw in fences(markdown, "json"):
+            flows = set()
             for channel in json.loads(raw)["channels"]:
                 where = f"well-known example at line {line}"
                 source, group = (ipaddress.ip_address(channel[k]) for k in ("source", "group"))
@@ -130,12 +153,24 @@ class PublishedExamples(unittest.TestCase):
                 for key in keys:
                     self.assertRegex(key["publicKey"], r"^[A-Za-z0-9_-]{43}$", where)
                     self.assertEqual(len(base64.urlsafe_b64decode(key["publicKey"] + "=")), 32, where)
-                if integrity["scheme"] == "manifest-ed25519-2":
-                    self.assertNotEqual(integrity["manifestPort"], channel["port"], where)
+                for obj in (channel, integrity):
+                    self.assertNotIn("manifestPort", obj, where)
+                flow = (source, group, channel["port"])
+                self.assertNotIn(flow, flows, where)
+                flows.add(flow)
                 channels += 1
         self.assertGreater(channels, 0)
 
-    def test_mboned_appendix_a_vectors_equal_moq_multicast_appendix_a(self):
+    def test_appendix_a_vectors_recompute_from_their_inputs(self):
+        # Every value each appendix prints is recomputed from its printed inputs (seed, S, G, port, streamId and
+        # the record fields; ctx from the MoQ catalog inputs where the appendix derives it), and the two
+        # recomputed records are equal, so the two documents verify the same bytes.
+        try:
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+            from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+        except ImportError:
+            self.skipTest("the cryptography package is not installed (Ed25519)")
+
         def appendix(name: str, heading: str) -> str:
             text = (ROOT / name).read_text(encoding="utf-8")
             start = text.index(heading)
@@ -153,22 +188,84 @@ class PublishedExamples(unittest.TestCase):
                         values[label].append(raw.strip())
             return {key: " ".join(filter(None, value)) for key, value in values.items()}
 
-        def record(text: str) -> str:
-            return next(block for _, block in fences(text[text.index("Record (196 octets):") :]))
+        def octets(value: str) -> bytes:
+            return bytes.fromhex(value.replace(" ", ""))
 
-        ours = appendix("draft-ramadan-mboned-mcast-manifest-00.md", "# Test Vectors\n")
-        theirs = appendix("draft-ramadan-moq-multicast-02.md", "# Test Vectors: bc-provenance Version 2\n")
-        mine, moq = table(ours), table(theirs)
-        self.assertGreaterEqual(len(mine), 10)
-        for label, value in mine.items():
-            self.assertEqual(value, moq.get(label), f"Appendix A value {label!r} differs from draft-ramadan-moq-multicast-02")
-        self.assertEqual(record(ours), record(theirs))
+        def u16(n: int) -> bytes:
+            return struct.pack(">H", n)
+
+        def u32(n: int) -> bytes:
+            return struct.pack(">I", n)
+
+        def lp16(value: bytes) -> bytes:
+            return u16(len(value)) + value
+
+        records = []
+        for name, heading in (
+            ("draft-ramadan-mboned-mcast-manifest-01.md", "# Test Vectors\n"),
+            ("draft-ramadan-moq-multicast-02.md", "# Test Vectors: bc-provenance Version 2\n"),
+        ):
+            text = appendix(name, heading)
+            flat, printed = " ".join(text.split()), table(text)
+            key = Ed25519PrivateKey.from_private_bytes(octets(printed["ed25519 secret seed"]))
+            self.assertEqual(key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw), octets(printed["ed25519 publicKey"]), name)
+            source, group = (ipaddress.ip_address(a.strip()).packed for a in printed["S, G"].split("(")[0].split(","))
+            port, stream_id, first_seq, sent = (int(printed[k].split()[0]) for k in ("port", "streamId", "first_seq", "sent"))
+            kid, epoch, mseq = (int(n) for n in printed["kid, epoch, mseq"].split(","))
+            flags = int(printed["flags"], 16)
+            self.assertEqual(int(re.search(r"`hash_alg` (\d+) \(sha-256", flat).group(1)), 1, name)  # H is SHA-256
+            payloads = []
+            for i in range(2):
+                fill, length = re.fullmatch(r"0x([0-9a-f]{2}) repeated (\d+) times", printed[f"datagram {i} payload"]).groups()
+                payloads.append(bytes.fromhex(fill) * int(length))
+            # Digest: pseudoheader S || G || 0x00 || 0x11 || u16(len) || u16(port) || u16(port) || u32(streamId).
+            pseudo = [source + group + b"\x00\x11" + u16(len(p)) + u16(port) + u16(port) + u32(stream_id) for p in payloads]
+            self.assertEqual(pseudo[0], octets(printed["pseudoheader (20)"]), name)
+            digests = [hashlib.sha256(h + p).digest() for h, p in zip(pseudo, payloads)]
+            self.assertEqual(digests, [octets(printed[f"D_{i}"]) for i in range(2)], name)
+            if "params (for params_hash)" in printed:  # the MoQ profile derives ctx from its catalog
+                params = dict(re.findall(r'(\w+)="?([^"\s]+)"?', printed["params (for params_hash)"]))
+                params_hash = hashlib.sha256(
+                    b"BCPV2-params" + lp16(params["codec"].encode()) + u32(int(params["timescale"]))
+                    + u32(int(params["groupDurationTicks"])) + lp16(params["scheme"].encode())
+                    + b"".join(u32(int(params[k])) for k in ("sourceSymbols", "repairSymbols", "symbolSize", "interleaveDepthMs"))
+                ).digest()
+                self.assertEqual(params_hash, octets(printed["params_hash"]), name)
+                fields = json.loads(printed["namespace"].split("(")[0])
+                packet_ids = sorted(json.loads(printed["endpoint packetIds"]))
+                ctx = hashlib.sha256(
+                    b"BCPV2-ctx" + u16(len(fields)) + b"".join(lp16(f.encode()) for f in fields)
+                    + u16(len(packet_ids)) + b"".join(u16(p) for p in packet_ids) + params_hash
+                ).digest()
+                self.assertEqual(ctx, octets(printed["ctx"]), name)
+            else:
+                ctx = octets(printed["ctx"])
+            # Section 5.1: the signed_message prefix is 32 octets and ends in u16(port) of the inputs.
+            prefix = b"mcast-manifest-v2\x00" + u32(stream_id) + source + group + u16(port)
+            shown = re.search(r"signed_message prefix \([^)]*\):\n((?:[ \t]+[0-9a-f]+\n)+)", text)
+            self.assertIsNotNone(shown, f"signed_message prefix is missing from {name}")
+            self.assertEqual(bytes.fromhex(shown.group(1)), prefix, name)
+            self.assertEqual((len(prefix), prefix[-2:]), (32, u16(port)), name)
+            body = b"MHM2" + u32(kid) + u32(epoch) + struct.pack(">QQHBBI", mseq, first_seq, len(digests), 1, flags, sent) + ctx + b"".join(digests)
+            self.assertIn(f"followed by the first {len(body)} octets of the record", flat, name)
+            signature = key.sign(prefix + body)
+            self.assertEqual(signature, octets(printed["signature"]), name)
+            shown = re.search(rf"Record \({len(body) + len(signature)} octets\):", text)
+            self.assertIsNotNone(shown, f"record length is not {len(body) + len(signature)} in {name}")
+            self.assertEqual(bytes.fromhex(next(block for _, block in fences(text[shown.end() :]))), body + signature, name)
+            records.append(body + signature)
+        self.assertEqual(records[0], records[1])
+
+    @unittest.skip("the libmmt in-band JSON is not published yet: BLO-49771 (libmmt re-cut), blocked on BLO-50124")
+    def test_appendix_a_record_equals_published_libmmt_json(self):
+        """Compare the recomputed Appendix A record with the matching case of the published libmmt JSON, pinned by its SHA-256."""
 
     def test_mboned_rate_arithmetic_is_consistent(self):
-        text = " ".join((ROOT / "draft-ramadan-mboned-mcast-manifest-00.md").read_text(encoding="utf-8").split())
+        text = " ".join((ROOT / "draft-ramadan-mboned-mcast-manifest-01.md").read_text(encoding="utf-8").split())
+        moq = " ".join((ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8").split())
 
-        def numbers(pattern: str):
-            match = re.search(pattern, text)
+        def numbers(pattern: str, source: str = text):
+            match = re.search(pattern, source)
             self.assertIsNotNone(match, pattern)
             return [int(v.replace(",", "")) if v.replace(",", "").isdigit() else float(v) for v in match.groups()]
 
@@ -177,23 +274,70 @@ class PublishedExamples(unittest.TestCase):
         count_rate, mbit, octets = numbers(r"at most 37 datagrams per `manifestTimerMs` \((\d+) per second at the default, about (\d+) Mbit/s of (\d+)-octet datagrams\)")
         self.assertEqual(count_rate, 37 * 1000 // timer)
         self.assertEqual(mbit, round(count_rate * octets * 8 / 1e6))
-        (ceiling,) = numbers(r"MUST NOT close windows on one flow faster than (\d+) per second")
-        depth, refill = numbers(r"a token bucket of depth (\d+) refilled at (\d+) tokens per second")
-        self.assertEqual(ceiling, refill)
-        self.assertEqual(1000 // timer_min, ceiling)  # the timer alone never closes more windows than the ceiling
-        pps, big_mbit, big, small_mbit, small = numbers(r"at the count cap that is ([\d,]+) datagrams per second, about (\d+) Mbit/s of (\d+)-octet datagrams and about (\d+) Mbit/s of (\d+)-octet ones")
-        self.assertEqual(pps, 37 * ceiling)
-        self.assertEqual((big_mbit, small_mbit), (round(pps * big * 8 / 1e6), round(pps * small * 8 / 1e6)))
-        (entries,) = numbers(r"holds at most `37 x \(64 \+ 1000 x \(maxAuthDelayMs \+ 2 x manifestTimerMs\) / 1000\)` entries, ([\d,]+) at the defaults")
-        self.assertEqual(entries, 37 * (depth + refill * (auth_delay + 2 * timer) // 1000))
+        # The verification budget V scales with the declared maxBitrate; the sender rule and step 1 state one formula.
+        formula = r"`V = max\((\d+), ([\d.]+) x maxBitrate / \(8 x (\d+) x (\d+)\)\)`"
+        envelope = r"MUST NOT close more than `(\d+) \+ V x t` windows on one flow in any interval of `t` seconds, a long-run rate of at most V per second"
+        depth_rule, *v_rule = numbers(envelope + r", where " + formula)
+        depth, *v_step1 = numbers(r"a token bucket of depth (\d+) refilled at V tokens per second, " + formula)
+        self.assertEqual(v_step1, v_rule)
+        self.assertEqual(depth_rule, depth)  # the sender's envelope is the receiver's bucket
+        v_floor, headroom, size, cap = v_rule
+        self.assertEqual(cap, 37)  # one window carries at most 37 datagrams
+        self.assertEqual(1000 // timer_min, v_floor)  # the timer alone never closes more windows than V's floor
+        self.assertIn(f"so the timer alone never closes more than {v_floor} windows per second", text)
+        self.assertIn(f"`{depth} + V x t` is the envelope of that bucket, whose depth of {depth}", text)
+        crossover, headroom2, size2, average, v_gig, gig = numbers(
+            r"At the count cap that is 37 x V datagrams per second, which above V's floor \(a `maxBitrate` above about (\d+) Mbit/s\) "
+            r"is ([\d.]+) x `maxBitrate` of (\d+)-octet datagrams: a flow at its declared rate stays under V while its datagrams "
+            r"average at least about (\d+) octets \(V is ([\d,]+) at (\d+) Gbit/s\)"
+        )
+        self.assertEqual((headroom2, size2), (headroom, size))
+        self.assertEqual(crossover, round(v_floor * 8 * size * cap / headroom / 1e6))  # where V leaves its floor
+        self.assertEqual(average, round(size / headroom))
+        self.assertEqual(v_gig, math.ceil(headroom * gig * 1e9 / (8 * size * cap)))
+        self.assertEqual(numbers(r"declared `maxBitrate` \(\(#flow-parameters\)\): (\d+) up to about (\d+) Mbit/s, ([\d,]+) at (\d+) Gbit/s"), [v_floor, crossover, v_gig, gig])
+        depth2, entries, crossover2, entries_gig, gig2 = numbers(
+            r"holds at most `37 x \((\d+) \+ V/1000 x \(maxAuthDelayMs \+ 2 x manifestTimerMs\)\)` entries, ([\d,]+) at the defaults "
+            r"up to a `maxBitrate` of about (\d+) Mbit/s and ([\d,]+) at (\d+) Gbit/s"
+        )
+        self.assertEqual((depth2, crossover2, gig2), (depth, crossover, gig))
+        window = auth_delay + 2 * timer
+        self.assertEqual((entries, entries_gig), (int(cap * (depth + v_floor * window / 1000)), int(cap * (depth + v_gig * window / 1000))))
         megabytes, rate = numbers(r"`maxAuthDelayMs x maxBitrate / 8000` octets, ([\d.]+) MB at (\d+) Mbit/s")
         self.assertEqual(megabytes, auth_delay * rate / 8000)
         (floor,) = numbers(r"`mseq \+ (\d+) <= highest_mseq\(kid, epoch\)`")
         self.assertIn(f"before the signed record of window `mseq + {floor}`, so that at most {floor - 1} later records precede it", text)
-        self.assertIn(f"nor close more than `{depth} + {refill} x t` windows in any interval of `t` seconds", text)
+        # Section 7.2.7 of draft-ramadan-moq-multicast-02 refills both of its buckets at the same V, from `bandwidth`.
+        enforcement = self.sec(moq, "### Receiver Enforcement and State", "### Threat Model")
+        moq_depth, *v_moq = numbers(
+            r"a token bucket of depth (\d+) refilled at V tokens per second, " + formula
+            + r" computed from the flow's declared `maxBitrate` \(\[@\?MCAST-MANIFEST\]\), which this profile declares as the endpoint's `bandwidth`",
+            enforcement,
+        )
+        self.assertEqual([moq_depth, *v_moq], [depth, *v_rule])
+        # Its senders keep to the same envelope (Emission and Cadence), as the MBONED sender rule does.
+        (moq_envelope,) = numbers(envelope, self.sec(moq, "### Emission and Cadence", "### Catalog Signaling"))
+        self.assertEqual(moq_envelope, depth)
+        self.assertIn("charges a second bucket of the same depth and refill", enforcement)
+        self.assertIn("so its ceiling is 2V verifications per second", moq)
+        # The record-flood figures are re-derived from V in both drafts; nothing still assumes a fixed budget.
+        single, double = numbers(r"at most ([\d.]+) of a core on signature checks, or twice that, about ([\d.]+),", enforcement)
+        self.assertEqual(double, round(2 * single, 2))
+        self.assertEqual(numbers(r"so these figures rise with V: ([\d,]+) per second, V at (\d+) Gbit/s", enforcement), [v_gig, gig])
+        self.assertEqual(numbers(r"so the flood figure rises with V: ([\d,]+) per second, V at (\d+) Gbit/s"), [v_gig, gig])
+        for name, source in (("draft-ramadan-mboned-mcast-manifest-01", text), ("draft-ramadan-moq-multicast-02", moq)):
+            mbit_floor, record, mbit_v, v_stated = numbers(
+                r"more than V records per second on (?:the flow's )?`port` \(about ([\d.]+) Mbit/s of (\d+)-octet records "
+                r"at V's floor, ([\d.]+) Mbit/s at ([\d,]+)\)",
+                source,
+            )
+            self.assertEqual((record, v_stated), (132 + 32, v_gig), name)  # the shortest record, count 1
+            self.assertEqual((mbit_floor, mbit_v), (round(record * 8 * v_floor / 1e6, 1), round(record * 8 * v_gig / 1e6, 1)), name)
+            for stale in ("faster than 1000 per second", "37,000 datagrams", "414 Mbit/s", "several flows"):
+                self.assertNotIn(stale, source, name)
 
     def test_mboned_record_cap_arithmetic(self):
-        stem = "draft-ramadan-mboned-mcast-manifest-00"
+        stem = "draft-ramadan-mboned-mcast-manifest-01"
         texts = {suffix: " ".join((ROOT / f"{stem}.{suffix}").read_text(encoding="utf-8").split()) for suffix in ("md", "xml")}
         pattern = (
             r"one unfragmented datagram on a (\d+)-octet path\. At (\d+) digests the record is (\d+) octets: "
@@ -223,16 +367,17 @@ class PublishedExamples(unittest.TestCase):
         self.assertGreater(over_v4, mtu)
         self.assertIn(f"`164 <= len <= {record}`", texts["md"])  # step 1 bounds the record by the same size
 
-    def test_mboned_replay_floor_is_written_without_unsigned_underflow(self):
-        stem = "draft-ramadan-mboned-mcast-manifest-00"
-        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
-        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
-        self.assertIn("`mseq + 64 <= highest_mseq(kid, epoch)`", markdown)
-        self.assertIn("mseq + 64 &lt;= highest_mseq(kid, epoch)", xml)
-        for text in (markdown, xml):
-            self.assertNotIn("highest_mseq(kid, epoch) - 64", text)
-            self.assertNotIn("highest_mseq - 64", text)
-            self.assertIn("Neither counter wraps within an epoch", " ".join(text.split()))  # hard-wrapped source
+    def test_replay_floor_is_written_without_unsigned_underflow(self):
+        # Both drafts state the floor as a sum, `mseq + 64 <= highest_mseq`, and say neither counter wraps.
+        for stem in ("draft-ramadan-mboned-mcast-manifest-01", "draft-ramadan-moq-multicast-02"):
+            markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+            xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+            self.assertIn("`mseq + 64 <= highest_mseq(kid, epoch)`", markdown, stem)
+            self.assertIn("mseq + 64 &lt;= highest_mseq(kid, epoch)", xml, stem)
+            for text in (markdown, xml):
+                self.assertNotIn("highest_mseq(kid, epoch) - 64", text, stem)
+                self.assertNotIn("highest_mseq - 64", text, stem)
+                self.assertIn("Neither counter wraps within an epoch", " ".join(text.split()), stem)  # hard-wrapped source
 
     def test_amt_discovery_combinations_are_unambiguous(self):
         for name in ("draft-ramadan-moq-multicast-02.md", "draft-ramadan-moq-multicast-02.xml"):

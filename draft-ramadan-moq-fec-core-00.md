@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-10-29T00:00:00Z"
+date = "2026-11-02T00:00:00Z"
 keyword = ["FEC", "MoQ", "erasure code", "unequal error protection"]
 
 [seriesInfo]
@@ -938,7 +938,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-00'/>
 </reference>
@@ -949,7 +949,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-00'/>
 </reference>
@@ -960,7 +960,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
 </reference>
@@ -971,7 +971,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-02'/>
 </reference>
@@ -982,7 +982,7 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='October' day='29'/>
+    <date year='2026' month='November' day='2'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
 </reference>
@@ -1021,7 +1021,7 @@ This section is informative.
 - interleaveDepthMs is positive or absent unless a block profile gives zero a meaning of its own (Section 10.1); the ISO packet-count meaning of zero belongs to the MMTP block profile ([@?MOQ-MMT] Section 7.1). Under "moq-object-v1" a zero value is a validation failure (Section 10.3, rule 11), where -01 Sections 5.1, 8.4 and 9 treated it as equivalent to an absent value.
 - Relay considerations are new (Section 12). Relays need not implement FEC, but the document does place a few requirements on them (Sections 3.2, 7.2, 12 and 14.4).
 - Section 7.2 adds a rule that -01 Section 6.2 did not have: a receiver should start a new repair subscription no earlier than the Group of the block in progress.
-- MMTP, ATSC 3.0, ARIB and multicast material moves to companion documents (Appendix A).
+- MMTP, ATSC 3.0, ARIB and multicast material moves to companion documents ((#companion-documents)).
 
 The following rules of draft-ramadan-moq-fec-01 were restored or changed by the editorial pass that produced this revision:
 
@@ -1260,6 +1260,10 @@ The symbol track's objects arrive as Groups whose Group ID is ext(SS_Start), the
 # Acknowledgements
 
 Much of the text of this document is taken from [@?I-D.ramadan-moq-fec], with changes to make it independent of any FEC code and of any packaging.
+
+The requirements on sliding-window schemes in (#sliding-window-schemes) draw on discussions with a researcher in sliding-window codes, who will be named once they have agreed.
+
+Portions of this document were drafted with the assistance of AI tools. The authors reviewed, edited and take responsibility for all of its content.
 
 Editor's Note: further acknowledgements are to be added.
 

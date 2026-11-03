@@ -6,7 +6,7 @@
 <title abbrev="MoQ FEC Multicast">Forward Error Correction for Multicast Delivery of Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-multicast-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="October" day="29"></date>
+</address></author><date year="2026" month="November" day="2"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -1227,7 +1227,7 @@ Payload IDs included.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-00"></seriesInfo>
 </reference>
@@ -1237,7 +1237,7 @@ Payload IDs included.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
 </reference>
@@ -1250,7 +1250,7 @@ Payload IDs included.</t>
     <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
       <organization>Rutgers University</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-00"></seriesInfo>
 </reference>
@@ -1260,7 +1260,7 @@ Payload IDs included.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
 </reference>
@@ -1270,7 +1270,7 @@ Payload IDs included.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="October" day="29"></date>
+    <date year="2026" month="November" day="2"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-02"></seriesInfo>
 </reference>
@@ -1548,6 +1548,9 @@ repair objects, which shaped the FETCH behavior of
 <xref target="unicast-repair-budget"></xref>.  He proposed the division of
 draft-ramadan-moq-fec-01 into the core document and its companions,
 of which this document is one.</t>
+<t>Portions of this document were drafted with the assistance of AI
+tools.  The author reviewed, edited and takes responsibility for all
+of its content.</t>
 </section>
 
 </back>
