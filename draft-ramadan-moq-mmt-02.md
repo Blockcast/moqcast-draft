@@ -2423,11 +2423,13 @@ flow, the track's layer-0 repair track ([@!MOQ-FEC-CORE] Section
 - as its `length_of_repair_symbol`, the instance's `symbolSize` (T), the
   byte length of every repair symbol and, under ssbg_mode1, of every
   source symbol ([@!MOQ-FEC-CORE] Section 10.1;
-  (#iso-ssbg1-v1) and (#repair-packet)), and as its
-  `num_of_repair_symbol_per_packet` 1, the one repair symbol each repair
-  packet carries ((#repair-packet); [@!MOQ-FEC-CORE] Section
-  7.5), a field whose semantics
-  [@!ISO.23008-1] Clause C.6.3 gives for ssbg_mode2 alone;
+  (#iso-ssbg1-v1) and (#repair-packet)).  The entry carries no
+  `num_of_repair_symbol_per_packet` and no
+  `num_of_symbol_element_per_source_symbol`: Table C.3 places both
+  inside its `ssbg_mode == 10` branch, so under ssbg_mode1 neither is
+  on the wire, and the one repair symbol each repair packet carries
+  ((#repair-packet); [@!MOQ-FEC-CORE] Section 7.5) follows from the
+  profile rather than from the message;
 - as its `maximum_k_for_repair_flow`, the instance's `sourceSymbols`:
   like that field, it bounds each block's SSB_length and is not the size
   of any particular block ([@!MOQ-FEC-CORE] Section
@@ -3197,6 +3199,16 @@ moved into this document, and every citation of the FEC draft was
 re-pointed.  The section numbers in the -00 entry below are those of
 -01.
 
+- Erratum after the -02 posting: Section 8.3 no longer lists
+  `num_of_repair_symbol_per_packet` among the fields of an
+  "iso-ssbg1-v1" entry.  [@!ISO.23008-1] Table C.3, in the 2023 edition
+  and as replaced by [@!ISO.23008-1.AMD1], carries that field and
+  `num_of_symbol_element_per_source_symbol` only inside its
+  `ssbg_mode == 10` branch, so an entry with coding byte 0x14
+  (ssbg_mode1) has neither.  The -01 and -02 text, and the -00 entry of
+  this change log, described a field that is not on the wire; no byte
+  of the message changes, since no reference writer or reader emitted
+  or read it.
 - Moved in from draft-ramadan-moq-fec-01: the "iso-ssbg1-v1" block
   profile definition (-01 Sections 5.1, 7.3, 7.4 and 8.3, as the new
   Section 7.1), the Source FEC Payload ID trailer and its relation to
@@ -3857,8 +3869,7 @@ re-pointed.  The section numbers in the -00 entry below are those of
   sessions, requires a particular code, so the codes are those
   [@?I-D.ramadan-moq-fec] specifies. [@!ISO.23008-10] is now a normative
   reference.  The message's `length_of_repair_symbol` carries the
-  track's `symbolSize`, which Section 12.2 reads back, and
-  `num_of_repair_symbol_per_packet` is 1; its
+  track's `symbolSize`, which Section 12.2 reads back; its
   `maximum_p_for_repair_flow` carries the RSB_length of the track's FEC
   instance, the block total, which Section 12.2 reads back as
   `repairSymbols` less the layers above 0 it lists, listing a layer it
