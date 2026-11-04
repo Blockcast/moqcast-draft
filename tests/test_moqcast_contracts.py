@@ -114,6 +114,41 @@ class PublishedExamples(unittest.TestCase):
             self.assertIn("E flag", text)
             self.assertNotIn("MAY use the fraction", text)
 
+    def test_fec_multicast_overlay_repair_track_follows_the_layer_rules(self):
+        # Section 4, -01 (author ruling 2026-11-04): the rules for adding and dropping a repair
+        # layer also govern a keyframe overlay's repair track, read on the overlay instance's own
+        # blocks and fields; the track stays outside the base instance's layer chain.
+        stem = "draft-ramadan-moq-fec-multicast-01"
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        self.assertIn(f'value = "{stem}"', markdown)
+        self.assertIn(f'docName="{stem}"', xml)
+        self.assertIn('anchor="changes-since-draft-ramadan-moq-fec-multicast-00"', xml)
+        texts = (
+            section(markdown, "# Repair-Only Multicast Endpoints\n", "{#provisional-symbols}"),
+            re.sub(r"<[^>]+>", "", section(xml, 'anchor="repair-only-endpoints"', 'anchor="provisional-symbols"')),
+        )
+        for text in texts:
+            text = " ".join(text.replace("`", "").split())
+            for rule in (
+                "The repair track of a keyframe overlay",
+                "is not a layer of the base instance: it carries no repairLayer",
+                "The rules of this section for adding and dropping a repair layer apply to adding and "
+                "dropping the overlay's repair track",
+                "For the overlay's repair track they read the overlay instance's blocks, interleaveDepthMs "
+                "and reorderToleranceMs, and for a repair layer the base instance's.",
+                "it means the base instance's value, which governs none of these rules for the overlay",
+                "The loss it measures for the overlay is then the RAP packets that it lacks and that base "
+                "decoding has not recovered",
+                "a receiver of an overlay whose instance omits interleaveDepthMs or sets it to zero keeps "
+                "fixed whether it holds the overlay's repair track",
+                "joining or leaving it changes both, and a receiver does so only when the rules for each allow it",
+                "Every rule of the paragraph on amplification above applies to it as to a repair layer, and "
+                "the bound on the layers a receiver may hold counts it",
+            ):
+                self.assertIn(rule, text)
+            self.assertNotIn("whatever the base instance carries", text)
+
     def test_mboned_manifest_draft_md_and_xml_agree_on_docname(self):
         stem = "draft-ramadan-mboned-mcast-manifest-01"
         markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")

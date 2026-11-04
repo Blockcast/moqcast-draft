@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-02T00:00:00Z"
+date = "2026-11-15T00:00:00Z"
 keyword = ["FEC", "MoQ", "multicast", "AMT", "repair policy"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-moq-fec-multicast-00"
+value = "draft-ramadan-moq-fec-multicast-01"
 stream = "IETF"
 status = "standard"
 
@@ -538,6 +538,44 @@ a receiver that has not joined it, and MUST NOT add a layer to an
 endpoint a receiver has already joined as a way of raising that
 receiver's protection (Section 14.4 of
 [@!MOQ-FEC-CORE]).
+
+The repair track of a keyframe overlay ([@!MOQ-MMT] Section 7.4) is
+not a layer of the base instance: it carries no `repairLayer` and
+stays outside the base instance's layer chain ([@!MOQ-MMT] Section
+7.4.1).  The rules of this section for adding and dropping a repair
+layer apply to adding and dropping the overlay's repair track: the
+join on measured loss, the capacity check, make-before-break, the
+hysteresis and the fixed selection without a block deadline.  For the
+overlay's repair track they read the overlay instance's blocks,
+`interleaveDepthMs` and `reorderToleranceMs`, and for a repair layer
+the base instance's.  The overlay instance has its own block
+partition, whose blocks span many base blocks ([@!MOQ-MMT] Section
+7.4.2), and its own block span (Sections 8.4, 9.3 and 10.1 of
+[@!MOQ-FEC-CORE]).  Where [@!MOQ-MMT] Section 7.4.2 calls the
+overlay's recovery latency unrelated to `interleaveDepthMs`, it means
+the base instance's value, which governs none of these rules for the
+overlay.
+
+A receiver that does not hold the overlay's repair track cannot
+delimit an overlay block, because only repair packets carry a block's
+extent (Section 5.4 of [@!MOQ-FEC-CORE]).  The loss it measures for
+the overlay is then the RAP packets that it lacks and that base
+decoding has not recovered, which gaps in the overlay SS_IDs of the
+RAP packets it holds reveal (Sections 7.4.2 and 7.4.3 of
+[@!MOQ-MMT]).  On a multicast or AMT leg, a receiver of an overlay
+whose instance omits `interleaveDepthMs` or sets it to zero keeps
+fixed whether it holds the overlay's repair track.  A publisher that
+wants receivers on those legs to add and drop the overlay's repair
+track on loss gives the overlay instance a positive
+`interleaveDepthMs`.  Where one endpoint carries the overlay's repair
+track and a repair layer of the base instance, joining or leaving it
+changes both, and a receiver does so only when the rules for each
+allow it.
+
+The overlay's repair track adds P_overlay x T bytes per overlay block,
+P_overlay being the overlay instance's `repairSymbols`.  Every rule of
+the paragraph on amplification above applies to it as to a repair
+layer, and the bound on the layers a receiver may hold counts it.
 
 {#provisional-symbols}
 # Provisional Blocks and Admitted Packets
@@ -1362,12 +1400,58 @@ This document has no IANA actions.
   <seriesInfo name='ISO/IEC' value='23001-7:2023'/>
 </reference>
 
+{#changes-since-draft-ramadan-moq-fec-multicast-00}
+# Changes Since draft-ramadan-moq-fec-multicast-00
+
+This appendix is informative.  It lists every sentence that is new or
+changed since draft-ramadan-moq-fec-multicast-00.
+
+New sentences:
+
+- In (#repair-only-endpoints), three new last paragraphs on the repair
+  track of a keyframe overlay.  The track is not a layer of the base
+  instance, but the section's rules for adding and dropping a repair
+  layer apply to it: the join on measured loss, the capacity check,
+  make-before-break, the hysteresis and the fixed selection without a
+  block deadline.  For the track they read the overlay instance's
+  blocks, `interleaveDepthMs` and `reorderToleranceMs`, and for a
+  repair layer the base instance's; the `interleaveDepthMs` that
+  [@!MOQ-MMT] Section 7.4.2 calls unrelated to the overlay's recovery
+  latency is the base instance's.  A receiver that does not hold the
+  track measures the overlay's loss as the RAP packets it lacks that
+  base decoding has not recovered.  On a multicast or AMT leg, a
+  receiver of an overlay whose instance omits `interleaveDepthMs` or
+  sets it to zero keeps fixed whether it holds the track, and a
+  publisher that wants receivers on those legs to add and drop it
+  gives the overlay instance a positive value.  A receiver joins or
+  leaves an endpoint that carries both the track and a repair layer
+  of the base instance only when the rules for each allow it.  Every
+  rule of the paragraph on amplification applies to the track as to a
+  repair layer, and the bound on the layers a receiver may hold counts
+  it.  -00 stated these rules for repair layers and said in
+  (#conventions-and-definitions) that an overlay is not one, which
+  left open whether they govern the overlay's repair track.  Its join
+  rule already covered a repair-only endpoint that carries only that
+  track; the other rules are new for the track.
+- In (#changes-from-draft-ramadan-moq-fec-01), the sentence "In it,
+  -01 means draft-ramadan-moq-fec-01, not a revision of this
+  document."
+
+Changed sentences:
+
+- In (#changes-from-draft-ramadan-moq-fec-01), "is restated by this
+  section's last paragraph and by (#receiver-repair-policy)" now reads
+  "is restated by this section's paragraph on the block deadline and
+  by (#receiver-repair-policy)".  The last paragraph of that section
+  was the one on amplification in -00 and is one on the overlay now.
+
 {#changes-from-draft-ramadan-moq-fec-01}
 # Changes from draft-ramadan-moq-fec-01
 
 This appendix is informative.  It lists what this document takes from
 [@?I-D.ramadan-moq-fec] and every sentence that is new or changed
-rather than carried.
+rather than carried.  In it, -01 means draft-ramadan-moq-fec-01, not
+a revision of this document.
 
 Moved here, by section of this document:
 
@@ -1385,7 +1469,8 @@ Moved here, by section of this document:
   repair-layer endpoints).  The multicast rule of -01 Section 5.1
   (no block classification, no unicast repair and a fixed layer
   selection without a positive interleaveDepthMs) is restated by this
-  section's last paragraph and by (#receiver-repair-policy).
+  section's paragraph on the block deadline and by
+  (#receiver-repair-policy).
 - (#provisional-symbols): the bc-provenance clauses of -01 Sections
   7.4 (provisional blocks), 6.3.9 (anchoring of the fail-closed layer
   check), 7.5 (S_prev) and 9 (ts anchoring, discard policy).
