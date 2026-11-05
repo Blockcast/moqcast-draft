@@ -200,10 +200,12 @@ symbols; the ISO encoding symbol block ([@!ISO.23008-1] 3.1.5).
 
 **Keyframe Overlay**: A second, independent FEC instance over a source
 track whose source symbols are only the fragments of Random Access
-Points, with its own source symbol count, its own repair symbols, and
-its own repair track, declared with `"scope": "keyframe"`
-((#overlay-instance)).  An overlay is not a repair layer and carries no
-layer index.  It is defined only under "iso-ssbg1-v1".
+Points and the FT=0 and FT=1 data units that govern them
+((#overlay-membership)), with its own source symbol count, its own
+repair symbols, and its own repair track, declared with
+`"scope": "keyframe"` ((#overlay-instance)).  An overlay is not a repair
+layer and carries no layer index.  It is defined only under
+"iso-ssbg1-v1".
 
 **Base Instance**: Of a source track that a keyframe overlay protects,
 the instance that is not the overlay; of any other source track, its
@@ -341,10 +343,13 @@ Key fields for MoQ mapping:
   ID mode 0,
   3=AL-FEC repair packet for FEC payload ID mode 1 (not used by this
   mapping) ([@!ISO.23008-1] Clause 9.2.3)
-- **RAP Flag**: 1 indicates Random Access Point.  On a track that the
-  catalog protects with a keyframe overlay, a packet with RAP_flag 1
-  also carries the overlay's SS_ID in a header extension of type
-  0x8B01 ((#overlay-header-extension))
+- **RAP Flag**: 1 indicates Random Access Point, except on a track that
+  the catalog protects with a keyframe overlay.  There the packets with
+  RAP_flag 1 are exactly the overlay's members: the fragments of each
+  Random Access Point it covers and the FT=0 and FT=1 data units that
+  govern it ((#overlay-membership)), each of which also carries the
+  overlay's SS_ID in a header extension of type 0x8B01
+  ((#overlay-header-extension))
 
 A signaling packet (packet type 0x02, on packet_id 0) MUST carry its
 messages in the signaling message mode of [@!ISO.23008-1]
@@ -1870,8 +1875,10 @@ coordinate that recovered it, within that FEC instance's SS_ID space; an
 overlay coordinate does not yield a base SS_ID.
 
 Where a keyframe overlay applies ((#keyframe-overlay)), an object
-carrying a Random Access Point fragment is a source symbol of two FEC
-instances, whose SS_ID spaces are disjoint, so "the source symbol the
+carrying an overlay member ((#overlay-membership)), a fragment of a
+Random Access Point that the overlay covers or an FT=0 or FT=1 data
+unit that governs one, is a source symbol of two FEC instances, whose
+SS_ID spaces are disjoint, so "the source symbol the
 object carries" names two SS_IDs rather than one.  The Property carries
 the base instance's SS_ID -- the value the Source FEC Payload ID trailer
 carries -- and a publisher MUST NOT place an overlay SS_ID in it.  No
@@ -1953,7 +1960,8 @@ RSB_length or that fails a bound of the instance's scheme
 
 A source track MAY additionally be protected by a keyframe overlay: a
 second, independent FEC instance whose source symbols are only the
-fragments of Random Access Points of that source track.  It is this
+fragments of Random Access Points of that source track and the FT=0
+and FT=1 data units that govern them ((#overlay-membership)).  It is this
 profile's form of an overlapping instance ([@!MOQ-FEC-CORE] Section
 8.4).  The overlay is defined only for a
 source track under "iso-ssbg1-v1", because its membership and its
@@ -1964,9 +1972,12 @@ and a catalog that declares one for such a track fails the rule of
 (#overlay-instance).
 
 Losing part of a Random Access Point makes every dependent frame
-undecodable until the next one; the overlay protects RAP fragments
-across a block of its own, which can be wider than the base window,
-without changing the base instance's latency.
+undecodable until the next one.  Losing the FT=0 or FT=1 data unit that
+governs it does as much, since a receiver cannot admit the Random
+Access Point without it (Sections 4.3 and 5.1), and losing the FT=0
+data unit invalidates the whole group (Section 4.3).  The overlay
+protects all of these across a block of its own, which can be wider
+than the base window, without changing the base instance's latency.
 
 {#overlay-instance}
 ### Overlay Instance
@@ -2050,19 +2061,56 @@ exceeds 255.  Under "reed-solomon", an overlay whose instance declares
 {#overlay-membership}
 ### Overlay Membership
 
-The overlay's source symbols are the fragments of the source track that
-belong to a Random Access Point, in transmission order.  A publisher
-that declares an overlay MUST set `RAP_flag` on a source packet of the
-track, MUST include the packet in the overlay instance, and MUST carry
-the packet's overlay SS_ID in its 0x8B01 header extension
-((#overlay-header-extension)), if and only if that packet's payload
-belongs to a keyframe MFU covered by the overlay.
+The overlay's source symbols are, in transmission order, the packets of
+the source track that a receiver needs to present each Random Access
+Point the overlay covers: the fragments of its MFUs and the FT=0 and
+FT=1 data units that govern it, which a receiver accepts before it
+admits the Random Access Point (Sections 4.3 and 5.1).  A source packet
+of the track is an overlay member if and only if its payload belongs
+to:
+
+- a keyframe MFU covered by the overlay, and, where that keyframe
+  sample is partitioned (Section 5.2.1), each of its subsample data
+  units;
+- the FT=0 data unit, the MPU metadata, of an MPU whose first sample is
+  such a keyframe; or
+- the FT=1 data unit, the movie fragment metadata, of a movie fragment
+  that contains such a keyframe.
+
+Every packet of a member data unit is a member: the one FI=0 packet of
+an unfragmented keyframe MFU, each FI=1, FI=2 and FI=3 fragment of a
+fragmented one, and the one FI=0 packet that carries an FT=0 or FT=1
+data unit, which this profile never fragments (Section 5.2, item 4).
+No other packet is a member; in particular, no packet of an FT=1 data
+unit whose movie fragment contains no covered keyframe, or of an FT=2
+data unit of any other sample, is one.  The AL-FEC signaling object of
+Section 8 is not an FEC source packet and is never a member, and a
+publisher that declares an overlay MUST NOT set `RAP_flag` on it.
+
+A publisher that declares an overlay MUST set `RAP_flag` on a source
+packet of the track, MUST include the packet in the overlay instance,
+and MUST carry the packet's overlay SS_ID in its 0x8B01 header
+extension ((#overlay-header-extension)), if and only if that packet is
+an overlay member.  On such a track the packets that set `RAP_flag`,
+which this document calls its RAP packets, are therefore exactly its
+overlay members, the FT=0 and FT=1 members included.  Section 4.3 maps
+each MPU to exactly one group and requires the FI=0 or FI=1 object that
+begins the first FT=2 sample of each timed group, the Random Access
+Point with which its MPU begins (Section 5.3.4), to set `RAP_flag`.  On
+a track under an overlay that object is therefore a member, so the
+first sample of every MPU is a covered keyframe and the FT=0 data unit
+of every MPU is a member; an MPU without a Random Access Point does not
+occur in this profile.
 
 Overlay source symbols are numbered consecutively within the overlay
 instance, in the order the publisher emits them: the overlay SS_ID is 0
 at the first overlay source symbol of the stream and advances by one per
 overlay source symbol, modulo 2^32 ([@!MOQ-FEC-CORE] Section
-7.6).  It is the value the RAP
+7.6).  Section 4.3 fixes that order within an MPU: its FT=0 data unit
+first, then, for each movie fragment that contains a covered keyframe,
+that fragment's FT=1 data unit followed by the fragments of the covered
+keyframes it contains (Section 5.2.2); a packet emitted between two
+members takes no overlay SS_ID.  The overlay SS_ID is the value the RAP
 source packet carries in its 0x8B01 header extension
 ((#overlay-header-extension)).  It lives in the overlay instance's own
 SS_ID space, independent of the base instance's, and the two IDs on one
@@ -2072,8 +2120,9 @@ ones, are formed, located and wrapped exactly as base blocks are
 ([@!MOQ-FEC-CORE] Sections 5.4,
 5.5 and
 7.6), with K_overlay as the upper
-bound on their SSB_length.  Because a RAP is a small fraction of the
-media, an overlay block spans many base blocks; the overlay's recovery
+bound on their SSB_length.  Because a RAP and the metadata that governs
+it are a small fraction of the media, an overlay block spans many base
+blocks; the overlay's recovery
 latency is therefore its own block span and is unrelated to
 `interleaveDepthMs`.
 
@@ -2093,8 +2142,10 @@ instance is known ([@!MOQ-FEC-CORE] Section
 ### Overlay SS_ID Header Extension
 
 When the catalog declares a keyframe overlay for a source track
-((#keyframe-overlay)), a source packet of that track carrying a Random
-Access Point fragment is a source symbol of two FEC instances. It
+((#keyframe-overlay)), a source packet of that track that is an overlay
+member ((#overlay-membership)), one carrying a fragment of a Random
+Access Point that the overlay covers or an FT=0 or FT=1 data unit that
+governs one, is a source symbol of two FEC instances. It
 carries its base SS_ID in the one Source FEC Payload ID trailer that
 every FEC source packet carries ((#source-fec-payload-id)), and its
 overlay SS_ID ((#overlay-membership)) in an MMTP header extension
@@ -2120,9 +2171,15 @@ header extension, with X = 1, of exactly the source packets that it
 includes in the overlay instance, that is the packets on which it sets
 `RAP_flag` ((#overlay-membership)), and of no other packet of the track.
 An MMTP packet carries at most one header extension ([@!ISO.23008-1]
-Clause 9.2.3), so the RAP packets of a track under an overlay carry no
-other MMTP header extension, and a publisher that needs another header
-extension on those packets cannot use the overlay for that track.
+Clause 9.2.3), so the RAP packets of a track under an overlay, its
+FT=0 and FT=1 members included, carry no other MMTP header extension,
+and a publisher that needs another header extension on those packets
+cannot use the overlay for that track.  The extension adds eight octets
+to each of them.  An FT=0 or FT=1 data unit is always a single packet
+(Section 5.2, item 4) and cannot be fragmented to make room for it, so
+a publisher that declares an overlay chooses a `symbolSize` T under
+which every FT=0 and FT=1 member, extension included, still fits within
+the T - 2 octets that (#iso-ssbg1-v1) allows a protected packet.
 [@!ISO.23008-1] specifies no particular header extension and no registry
 of header extension types; this document uses the type 0x8B01 for the
 overlay SS_ID ((#iana-considerations)).
@@ -2174,9 +2231,18 @@ authenticated block assignment treats each as that section requires.
 ### Receiver Behavior
 
 A receiver that implements overlays and has joined the overlay repair
-track decodes the two instances independently and MAY use the recovered
-RAP fragments even when the base instance failed to recover the block
-that carried them.
+track decodes the two instances independently and MAY use the packets
+the overlay recovers, the fragments of a Random Access Point that it
+covers and the FT=0 and FT=1 data units that govern it
+((#overlay-membership)), even when the base instance failed to recover
+the block that carried them.  Like every recovered packet, they enter
+reassembly in serial packet order (Section 5.3.3).  That order puts a
+recovered FT=0 or FT=1 data unit before the fragments it governs only
+while the receiver still holds those fragments unadmitted: the replay
+window of Section 5.3.3 is bounded, the overlay's recovery latency is
+its own block span ((#overlay-membership)), and a fragment that reaches
+reassembly before the FT=0 or FT=1 data unit that governs it is
+rejected (Section 5.1).
 
 The overlay is the publisher-side half of keyframe protection.  The
 receiver-side half is the repair policy of [@!MOQ-FEC-MULTICAST] Section
@@ -3134,9 +3200,9 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-01'/>
 </reference>
 
 <reference anchor='MOQ-MULTICAST'>
@@ -3209,6 +3275,29 @@ re-pointed.  The section numbers in the -00 entry below are those of
   this change log, described a field that is not on the wire; no byte
   of the message changes, since no reference writer or reader emitted
   or read it.
+- Change after the -02 posting: the keyframe overlay also protects the
+  metadata that a Random Access Point needs (Section 7.4.2).  Its
+  members are the fragments of each keyframe MFU it covers, and of
+  every subsample data unit of such a keyframe sample when it is
+  partitioned, the FT=0 data unit of each MPU whose first sample is
+  such a keyframe, which on a track under an overlay is every MPU, and
+  the FT=1 data unit of each movie fragment that contains one.  Each
+  member sets `RAP_flag`, carries its overlay SS_ID in the 0x8B01
+  header extension, and takes the next overlay SS_ID in emission
+  order.  In -02, as in [@?I-D.ramadan-moq-fec] from which the overlay
+  moved, the overlay held only the keyframe MFU's fragments, so a loss
+  that also took the keyframe's FT=0 or FT=1 data unit left an
+  overlay-recovered keyframe that a receiver could not admit (Sections
+  4.3 and 5.1), and Section 6.6 of draft-ramadan-moq-fec-multicast-00
+  said that the overlay does not recover those data units.  Sections
+  2, 3.1, 7.2, 7.4, 7.4.3 and 7.4.4 follow.  The extension's format is
+  unchanged: a receiver that takes overlay membership from the
+  extension alone, as Section 7.4.3 requires, decodes the overlay of a
+  publisher that follows either text.  An FT=0 or FT=1 packet that is
+  a member is eight octets longer than in -02 and carries no other
+  MMTP header extension.  [@!MOQ-FEC-MULTICAST] is now cited at its -01
+  revision, whose Section 6.6 says that the overlay can recover those
+  data units.
 - Moved in from draft-ramadan-moq-fec-01: the "iso-ssbg1-v1" block
   profile definition (-01 Sections 5.1, 7.3, 7.4 and 8.3, as the new
   Section 7.1), the Source FEC Payload ID trailer and its relation to

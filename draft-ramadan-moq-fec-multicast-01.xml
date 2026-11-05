@@ -139,7 +139,8 @@ source symbol of one FEC instance, grouped by block (Section
 6.2 of <xref target="MOQ-FEC-CORE"></xref>).</t>
 <t><strong>Keyframe Overlay</strong>: A second, independent FEC instance over an
 MMTP-packaged source track whose source symbols are only the fragments
-of Random Access Points, defined in Section 7.4
+of Random Access Points and the FT=0 and FT=1 data units that govern
+them, defined in Section 7.4
 of <xref target="MOQ-MMT"></xref>.  An overlay is not a repair layer and carries no layer
 index.</t>
 <t><strong>Interleave Depth</strong>: When positive, the complete time span, in
@@ -1111,7 +1112,8 @@ and so at least 192, so that it is shed first.</t>
 8.4 of <xref target="MOQ-FEC-CORE"></xref>, and this policy
 are
 complementary.  The overlay is publisher-side and proactive: it
-protects RAP fragments across a block of its own, needs no return
+protects RAP fragments and the FT=0 and FT=1 data units that govern
+them across a block of its own, needs no return
 path, and so also serves sessionless receivers.  This policy is
 receiver-side and reactive: it spends unicast repair only on
 keyframe-bearing blocks that in-band FEC actually failed to recover,
@@ -1127,18 +1129,19 @@ wait for overlay recovery, whose latency is the overlay's own block
 span (Section 7.4 of <xref target="MOQ-MMT"></xref>), not the base
 deadline;</t>
 </li>
-<li><t>ends its wait for a RAP with whichever of base decoding, overlay
-decoding, or unicast repair supplies the RAP's fragments first; and</t>
+<li><t>ends its wait for a RAP once it holds every part of it, the RAP's
+fragments and the FT=0 and FT=1 data units that govern it,
+whichever of base decoding, overlay decoding, or unicast repair
+supplies each part; and</t>
 </li>
-<li><t>having recovered a block's RAP MFU fragments through the overlay,
-and holding the FT=0 and FT=1 data units that govern them, conceals
-the rest of that block's loss as for a non-keyframe block
-(<xref target="other-video-blocks"></xref>) and SHOULD cancel any outstanding keyframe
-repair
-FETCH for it.  The overlay covers only packets that set <tt>RAP_flag</tt>
-(Section 7.4 of <xref target="MOQ-MMT"></xref>), so it does not by
-itself recover a lost FT=0 or
-FT=1 data unit.</t>
+<li><t>once it holds every part of a block's RAPs, the overlay having
+recovered one or more of them, conceals the rest of that block's
+loss as for a non-keyframe block (<xref target="other-video-blocks"></xref>) and SHOULD
+cancel any outstanding keyframe repair FETCH for it.  The overlay's
+members include the FT=0 and FT=1 data units that govern each RAP it
+covers (Section 7.4.2 of <xref target="MOQ-MMT"></xref>), so it can recover a lost FT=0
+or FT=1 data unit that governs such a RAP as it recovers the RAP's
+fragments.</t>
 </li>
 </ul>
 </section>
@@ -1387,6 +1390,28 @@ document.&quot;</li>
 <t>Changed sentences:</t>
 
 <ul spacing="compact">
+<li>In <xref target="conventions-and-definitions"></xref>, the Keyframe Overlay's source
+symbols are &quot;only the fragments of Random Access Points and the FT=0
+and FT=1 data units that govern them&quot;, where -00 had &quot;only the
+fragments of Random Access Points&quot;: <xref target="MOQ-MMT"></xref> Section 7.4.2 now
+makes those data units members of the overlay.</li>
+<li>In <xref target="relationship-to-the-keyframe-overlay"></xref>, the overlay &quot;protects RAP
+fragments and the FT=0 and FT=1 data units that govern them across a
+block of its own&quot; (-00: &quot;protects RAP fragments across a block of its
+own&quot;); a receiver ends its wait for a RAP once it holds every part of
+it, whichever of base decoding, overlay decoding, or unicast repair
+supplies each part, where -00 ended it when one of them supplied the
+RAP's fragments; and the bullet on concealment and on cancelling the
+keyframe repair FETCH applies once the receiver holds every part of a
+block's RAPs, the overlay having recovered one or more of them, where
+-00 applied it after an overlay recovery of the RAP MFU fragments with
+the FT=0 and FT=1 data units held.  &quot;The overlay covers only packets
+that set RAP_flag (Section 7.4 of [MOQ-MMT]), so it does not by
+itself recover a lost FT=0 or FT=1 data unit.&quot; now reads &quot;The
+overlay's members include the FT=0 and FT=1 data units that govern
+each RAP it covers (Section 7.4.2 of [MOQ-MMT]), so it can recover a
+lost FT=0 or FT=1 data unit that governs such a RAP as it recovers
+the RAP's fragments.&quot;</li>
 <li>In <xref target="changes-from-draft-ramadan-moq-fec-01"></xref>, &quot;is restated by this
 section's last paragraph and by <xref target="receiver-repair-policy"></xref>&quot; now reads
 &quot;is restated by this section's paragraph on the block deadline and
