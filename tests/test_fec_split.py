@@ -19,15 +19,18 @@ SET = {
     "MOQ-FEC-CORE": ("draft-ramadan-moq-fec-core-00.md", "CORE"),
     "MOQ-FEC-BLOCK": ("draft-ramadan-moq-fec-block-codes-00.md", "BLOCK"),
     "MOQ-FEC-CATALOG": ("draft-ramadan-moq-fec-catalog-00.md", "CATALOG"),
-    "MOQ-FEC-MULTICAST": ("draft-ramadan-moq-fec-multicast-00.md", "MCAST"),
+    "MOQ-FEC-MULTICAST": ("draft-ramadan-moq-fec-multicast-01.md", "MCAST"),
     "MOQ-MMT": ("draft-ramadan-moq-mmt-02.md", "MMT"),
     "MOQ-MULTICAST": ("draft-ramadan-moq-multicast-02.md", "MULTICAST"),
 }
+# a draft revised alone, which the others still cite at its previous, posted revision;
+# an entry goes once they cite the current one
+PREVIOUS = {"MOQ-FEC-MULTICAST": ("draft-ramadan-moq-fec-multicast-00",)}
 FRONT = {
     "CORE": ("draft-ramadan-moq-fec-core-00", "Forward Error Correction for Media over QUIC: Core Mechanism", ["Omar Ramadan", "Marc E. Fiuczynski"]),
     "BLOCK": ("draft-ramadan-moq-fec-block-codes-00", "Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ", ["Omar Ramadan"]),
     "CATALOG": ("draft-ramadan-moq-fec-catalog-00", "Catalog Binding for Forward Error Correction in Media over QUIC", ["Omar Ramadan"]),
-    "MCAST": ("draft-ramadan-moq-fec-multicast-00", "Forward Error Correction for Multicast Delivery of Media over QUIC", ["Omar Ramadan"]),
+    "MCAST": ("draft-ramadan-moq-fec-multicast-01", "Forward Error Correction for Multicast Delivery of Media over QUIC", ["Omar Ramadan"]),
     "MMT": ("draft-ramadan-moq-mmt-02", "MPEG Media Transport (MMT) Packaging for Media over QUIC", ["Omar Ramadan"]),
     "MULTICAST": ("draft-ramadan-moq-multicast-02", "Multicast Delivery and Endpoint Discovery for Media over QUIC", ["Omar Ramadan"]),
 }
@@ -178,7 +181,8 @@ class SplitContracts(unittest.TestCase):
                 self.assertEqual(cited - set(blocks), set(), f"{key} cites anchors without a reference block")
                 for anchor, (filename, _) in SET.items():
                     if anchor in blocks:
-                        self.assertEqual(blocks[anchor], filename[:-3], f"{key} cites {anchor} at the wrong revision")
+                        allowed = {filename[:-3], *PREVIOUS.get(anchor, ())}
+                        self.assertIn(blocks[anchor], allowed, f"{key} cites {anchor} at the wrong revision")
 
     def test_no_bcp14_keyword_in_informative_text(self):
         for key, text in self.text.items():
