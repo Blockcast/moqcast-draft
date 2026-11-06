@@ -617,7 +617,7 @@ transport hierarchy defined in Section 3.</t>
 <t>All multicast delivery uses MMTP packets.  Each UDP datagram, other
 than a manifest record on a protected endpoint (<xref target="manifest-record"></xref>),
 carries one MMTP packet -- the same packet format that MoQ objects carry on
-QUIC streams.  MMTP provides track routing (packet_id), send
+QUIC streams and as QUIC datagrams.  MMTP provides track routing (packet_id), send
 timestamps, sequencing (packet_sequence_number), FEC framing (FEC
 Type and the Source/Repair FEC Payload IDs) and random access
 signaling (RAP flag) in its packet header, and fragmentation (FI) in
@@ -643,7 +643,7 @@ rendition track (Section 4.1).</t>
 needed.  The MMTP packet format is defined in <xref target="ISO.23008-1"></xref>
 Clause 9.2, as profiled in <xref target="MOQ-MMT"></xref> Section
 3.1.</t>
-<t>This design means the same MMTP packet can be delivered via three
+<t>This design means the same MMTP packet can be delivered via four
 transports without modification:</t>
 <table>
 <thead>
@@ -657,6 +657,11 @@ transports without modification:</t>
 <tr>
 <td>Reliable QUIC stream</td>
 <td>MMTP packet as MoQ stream object</td>
+</tr>
+
+<tr>
+<td>Unicast QUIC datagram</td>
+<td>MMTP packet as MoQ datagram object (<xref target="MOQ-MMT"></xref> Section 4.3.1)</td>
 </tr>
 
 <tr>
@@ -3427,6 +3432,14 @@ editor's affiliation and states its status as a Community Group
 draft.  The sender's UDP source port rule in <xref target="digest"></xref> now reads
 &quot;with <tt>port</tt> as its UDP source port&quot;, which does not render as a
 doubled word in the text output.</li>
+<li>Section 5: the transport table again carries a unicast datagram
+row, &quot;Unicast QUIC datagram | MMTP packet as MoQ datagram object&quot;,
+and the sentence before it counts four transports, because
+<xref target="MOQ-MMT"></xref> Section 4.3.1 now lets an mmtp track send its objects as
+datagrams (<tt>mmtpMode</tt> &quot;mfu-datagram&quot;).  The first paragraph of
+Section 5 says that MoQ objects carry the MMTP packet format on QUIC
+streams and as QUIC datagrams.  The -00 entry below records why the
+row was dropped then.</li>
 </ul>
 </section>
 

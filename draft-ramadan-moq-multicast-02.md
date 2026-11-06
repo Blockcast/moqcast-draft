@@ -666,7 +666,7 @@ transport hierarchy defined in Section 3.
 All multicast delivery uses MMTP packets.  Each UDP datagram, other
 than a manifest record on a protected endpoint ((#manifest-record)),
 carries one MMTP packet -- the same packet format that MoQ objects carry on
-QUIC streams.  MMTP provides track routing (packet_id), send
+QUIC streams and as QUIC datagrams.  MMTP provides track routing (packet_id), send
 timestamps, sequencing (packet_sequence_number), FEC framing (FEC
 Type and the Source/Repair FEC Payload IDs) and random access
 signaling (RAP flag) in its packet header, and fragmentation (FI) in
@@ -695,12 +695,13 @@ needed.  The MMTP packet format is defined in [@!ISO.23008-1]
 Clause 9.2, as profiled in [@!MOQ-MMT] Section
 3.1.
 
-This design means the same MMTP packet can be delivered via three
+This design means the same MMTP packet can be delivered via four
 transports without modification:
 
 | Transport | Encapsulation |
 |-----------|---------------|
 | Reliable QUIC stream | MMTP packet as MoQ stream object |
+| Unicast QUIC datagram | MMTP packet as MoQ datagram object ([@!MOQ-MMT] Section 4.3.1) |
 | Multicast QUIC | MMTP packet as multicast QUIC DATAGRAM object |
 | Multicast UDP | MMTP packet as UDP datagram |
 
@@ -3445,6 +3446,14 @@ as an RFC.
   draft.  The sender's UDP source port rule in (#digest) now reads
   "with `port` as its UDP source port", which does not render as a
   doubled word in the text output.
+- Section 5: the transport table again carries a unicast datagram
+  row, "Unicast QUIC datagram | MMTP packet as MoQ datagram object",
+  and the sentence before it counts four transports, because
+  [@!MOQ-MMT] Section 4.3.1 now lets an mmtp track send its objects as
+  datagrams (`mmtpMode` "mfu-datagram").  The first paragraph of
+  Section 5 says that MoQ objects carry the MMTP packet format on QUIC
+  streams and as QUIC datagrams.  The -00 entry below records why the
+  row was dropped then.
 
 {#changes-since-draft-ramadan-moq-multicast-00}
 ## Changes Since draft-ramadan-moq-multicast-00

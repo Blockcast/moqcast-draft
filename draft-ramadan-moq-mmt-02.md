@@ -395,7 +395,9 @@ An MMT stream maps to MoQ tracks as follows:
 mmtp track does not follow that rule.  It maps each MPU
 data unit to one subgroup (Section 4.3), and the objects of a
 subgroup share one stream ([@!I-D.ietf-moq-transport] Section 2.2),
-so each data unit's fragments travel in order on one stream.  An mmtp
+so each data unit's fragments travel in order on one stream.  An
+"mfu-datagram" track sends each object as a datagram instead
+(Section 4.3.1).  An mmtp
 track keeps the Group and Object numbering of [@!I-D.ietf-moq-msf]
 Sections 6.1 and 6.2: Group numbers are unique and increase
 monotonically (Section 4.4.1), and Object IDs start at zero in each
@@ -456,7 +458,8 @@ of a sample (Section 5.2.1).
 ## Group Boundaries
 
 This section defines the object layout of mfu mode
-(`mmtpMode: "mfu"`, Section 13.1).
+(`mmtpMode: "mfu"`, Section 13.1), and Section 4.3.1 its datagram
+form (`mmtpMode: "mfu-datagram"`).
 
 Group boundaries align with MPU boundaries, and subgroup boundaries
 align with MPU data-unit boundaries:
@@ -523,14 +526,81 @@ or media bytes (Section 5.1).
 
 Mapping each data unit to its own subgroup makes a complete metadata
 unit or sample the unit of in-order delivery, loss, and FEC.  A
-publisher MUST send the objects of an mmtp track in subgroups, not as
-datagrams: a datagram object belongs to no subgroup
+publisher MUST send the objects of an "mfu" track in subgroups, not
+as datagrams: a datagram object belongs to no subgroup
 ([@!I-D.ietf-moq-transport] Section 2.2) and cannot carry this
 mapping.  Subgroups can be delivered concurrently, and a subgroup can
 still be lost, for example when its stream is reset on a delivery
 timeout ([@!I-D.ietf-moq-transport] Sections 5.2 and 11.3.2); the
 resulting gap invalidates the affected movie fragment rather than
 authorizing inferred metadata, timing, or cadence.
+
+{#datagram-delivery}
+### Datagram Delivery
+
+An "mfu-datagram" track (Section 13.1) has the Groups, Object IDs and
+object payloads that this section and Section 4.6 give an "mfu" track,
+and the publisher MUST send every one of its objects as a datagram
+([@!I-D.ietf-moq-transport] Section 11.2), one MMTP packet per
+datagram.  One lost datagram then erases one FEC source symbol, as on
+a multicast leg ((#iso-ssbg1-v1)), and nothing is retransmitted: a
+receiver on a lossy path with a deadline near the round-trip time
+recovers by FEC instead of waiting for a QUIC retransmission
+([@!MOQ-FEC-CORE] Section 3.3).  Support for "mfu-datagram" is
+OPTIONAL for publishers and subscribers.
+
+The objects of an "mfu-datagram" track have no Subgroup ID.
+Elsewhere in this document, on such a track, Subgroup 0 means the
+FT=0 object and the signaling object before it, a data unit's
+subgroup means the objects of that data unit, and ascending Subgroup
+ID order means the serial packet order that the receiver restores
+from the MMTP header (Section 5.3.3).  A rule that this document
+states for a multicast or AMT leg (Sections 5.3.4, 6.1 and 7.5)
+applies equally to an "mfu-datagram" track.
+
+Every object of an "mfu-datagram" track and of its repair tracks MUST
+fit one datagram: its MMTP packet, Source FEC Payload ID included,
+with its OBJECT_DATAGRAM header and Object Properties
+([@!I-D.ietf-moq-transport] Section 11.2.1), within the maximum
+datagram size of every session on the path.  An object that
+exceeds it is dropped without notification on every delivery
+([@!I-D.ietf-moq-transport] Section 11.2), and FEC cannot replace it,
+because a repair object of 12 + 13 + T bytes ((#repair-packet)) is
+larger than every source packet of its block.  A publisher sizes its
+packets for the smallest maximum datagram size among the sessions it
+serves, with room for Object Properties that relays add.  This
+mapping does not repacketize (Section 5.2), so the same MMTP packets
+travel on every path: when packets sized for a multicast UDP path do
+not fit, the publisher either has the origin packetizer emit packets
+that fit every path or does not offer an "mfu-datagram" track.  A
+subscriber whose session cannot carry a repair object of 12 + 13 + T
+bytes and its framing, T being the `symbolSize` of the track's FEC
+instance, SHOULD take the "mfu" track instead where one is offered.
+
+MoQ Transport fixes an object's delivery mode when the Original
+Publisher first sends it ([@!I-D.ietf-moq-transport] Section 2.1.1),
+so a subscriber chooses the delivery mode by choosing a track.  A
+publisher that offers both modes publishes an "mfu" track and an
+"mfu-datagram" track whose objects are identical in Group ID, Object
+ID and payload; the two MAY share a switching set (Section 4.4).
+They are the mmtp form of the conventional and FEC families of
+[@!MOQ-FEC-CORE] Section 6.4.  Each has its own repair tracks
+([@!MOQ-FEC-CORE] Section 10.3, rule 2), and the repair tracks of an
+"mfu-datagram" track SHOULD send their objects as datagrams, so that
+stream data does not delay the repair that is meant to beat
+retransmission.  A subscriber that does not support "mfu-datagram"
+rejects that track (Section 13.1) and takes the "mfu" track.
+
+FETCH sends a group's objects on a stream in Object ID order whatever
+their delivery mode ([@!I-D.ietf-moq-transport] Section 3.2.1), so
+the join of Section 6.1 is unchanged; only the subscription's objects
+arrive as datagrams.  The Object IDs of a group are contiguous from
+zero (Section 4.6), so the Object IDs missing between two received
+objects name objects that exist.  A receiver MAY FETCH an object that
+neither arrived nor was recovered by FEC in time, and fetches a
+block's repair by Group as [@!MOQ-FEC-CORE] Section 7.7 specifies.  A
+relay serves such a track only if it forwards every object of a
+datagram Group ([@!MOQ-FEC-CORE] Section 12, item 1).
 
 {#switching-sets}
 ## Switching Sets
@@ -1457,12 +1527,28 @@ A receiver admits a fragment only after its declared MPU payload
 boundary, outer FEC trailer, stream scope, subgroup order, and active-DU
 transition all validate.  Duplicate packets may be dropped by exact
 MMTP packet identity before admission, but a duplicate MUST NOT create
-or advance active state.  Multi-path combining and FEC recovery MUST
+or advance active state.  Multi-path combining, FEC recovery and
+datagram delivery (Section 4.3.1) MUST
 restore the same per-`packet_id` serial packet order before this state
 machine, using modulo-2^32 serial-number arithmetic across
 `packet_sequence_number` wrap within a bounded replay window.  The
 MMTP-session and MoQ-track scope are part of that ordering state;
-neither mechanism may fabricate a missing transition.
+no such mechanism may fabricate a missing transition.
+
+On an "mfu-datagram" track this serial order takes the place of
+stream scope and subgroup order: the receiver checks MoQ-track scope
+and restored serial order instead, the active state of Section 5.3.2
+records no destination subgroup, and the FT=0, FT=1 and FT=2 order of
+Section 4.3 is checked in restored serial order.  A packet that
+arrives ahead of a missing one is held, not admitted, until the
+missing packet arrives, is recovered by FEC, or is declared lost once
+the bounded replay window, and the FEC deadline of its block where the
+track has one ([@!MOQ-FEC-CORE] Section 9.3), have passed.  Only then
+does a new MPU declare loss of the prior MPU's incomplete data unit
+(Section 5.3.2), so a reordered datagram of the next MPU does not
+discard a data unit whose packets are still in flight.  Loss that
+remains is handled as on a multicast or AMT leg (Section 6.1, step 6)
+and never relaxes the identity and FT=1 record checks of this section.
 
 Completion is transactional.  For a whole-sample data unit the
 receiver first validates the full FI chain and the matching unconsumed
@@ -1701,8 +1787,9 @@ profile to state:
 - The symbol carriage of [@!MOQ-FEC-CORE] Section
   6.2, and with it the symbol track and the FEC
   Unit Start Property, does not apply to an mmtp track: its source
-  symbols reach a receiver inside the track's own objects or as
-  multicast datagrams ([@!MOQ-MULTICAST] Section
+  symbols reach a receiver inside the track's own objects, on streams
+  or as datagrams (Section 4.3.1), or as multicast datagrams
+  ([@!MOQ-MULTICAST] Section
   5), each carrying one whole FEC
   source packet.
 
@@ -2535,8 +2622,9 @@ time of the packet in NTP short format.
 
 Clients SHOULD attempt transports in the preference order that
 [@!MOQ-MULTICAST] Section 3 defines for native and browser clients.
-AL-FEC (Section 7) is the loss recovery on SSM/AMT paths, which have
-no retransmission.
+AL-FEC (Section 7) is the loss recovery on SSM/AMT paths and for an
+"mfu-datagram" track (Section 4.3.1), neither of which has
+retransmission.
 
 {#catalog-signaling}
 # Catalog Signaling
@@ -2581,7 +2669,7 @@ Per-track catalog fields for mmtp packaging:
 | Field | Status | Type | Description |
 |-------|--------|------|-------------|
 | `packaging` | REQUIRED | String | MUST be "mmtp" |
-| `mmtpMode` | REQUIRED | String | MUST be "mfu" (Section 5); defined by this document |
+| `mmtpMode` | REQUIRED | String | "mfu" or "mfu-datagram" (Sections 4.3, 4.3.1 and 5); defined by this document |
 | `timescale` | REQUIRED | Number | Media timescale in Hz ([@!I-D.ietf-moq-msf] Section 5.2.21, profiled REQUIRED here; Section 4.4.2) |
 | `presentationAnchorTicks` | REQUIRED for synchronized audio/video tracks | Signed integer | Track timestamp corresponding to shared presentation time zero (Section 4.4.1); defined by this document |
 | `groupDurationMs` | Conditional | Number | REQUIRED without the tick form; positive integer ms (Section 4.4.2); informational when ticks are present |
@@ -2599,11 +2687,14 @@ for media tracks per that section), `framerate`, `width`, `height`,
 `samplerate`, `channelConfig`, `bitrate`, and `lang` -- are flat,
 top-level fields of the track object.
 
-`mmtpMode` selects the object layout and MUST be "mfu".  It delivers
-one subgroup per FT=0, FT=1, or FT=2 data unit as defined in Sections
-4.3 and 5.  A subscriber MUST reject a track whose
-`mmtpMode` is absent or has any other value; the object layout cannot
-be inferred safely from received objects.
+`mmtpMode` selects the object layout and delivery mode and MUST be
+"mfu" or "mfu-datagram".  "mfu" delivers one subgroup per FT=0, FT=1,
+or FT=2 data unit as defined in Sections 4.3 and 5.  "mfu-datagram"
+delivers the same objects, each as a datagram (Section 4.3.1).  A
+subscriber MUST reject a track whose `mmtpMode` is absent or has any
+other value, and a subscriber that does not support "mfu-datagram"
+MUST reject a track that carries it; the object layout cannot be
+inferred safely from received objects.
 
 Example, with the `data` value shortened:
 
@@ -3209,6 +3300,23 @@ re-pointed.  The section numbers in the -00 entry below are those of
   this change log, described a field that is not on the wire; no byte
   of the message changes, since no reference writer or reader emitted
   or read it.
+- After the -02 posting: an mmtp track MAY be sent as datagrams.  The
+  new `mmtpMode` value "mfu-datagram" (Section 13.1) keeps the Groups,
+  Object IDs and object payloads of "mfu" and sends every object as a
+  datagram, one MMTP packet per datagram, so that a receiver on a lossy
+  path with a deadline near the round-trip time recovers by FEC
+  instead of by retransmission (new Section 4.3.1).  Section 4.3 now
+  requires subgroups of an "mfu" track only; the -00 entry below
+  records why it required them of every mmtp track.  Section 4.3.1
+  requires every object and repair object to fit one datagram, lets a
+  subscriber choose the mode by choosing an "mfu" or an "mfu-datagram"
+  track, gives each its own repair tracks, recovers a missing object
+  by FETCH, and reads this document's Subgroup references on such a
+  track as the serial packet order of Section 5.3.3.  Section 5.3.3
+  restores that order from the MMTP header and applies the new-MPU
+  loss rule only in restored order.  Sections 4.1, 7.1 and 12 name
+  datagram delivery.  A receiver that implements only "mfu" already
+  rejects an "mfu-datagram" track (Section 13.1).
 - Moved in from draft-ramadan-moq-fec-01: the "iso-ssbg1-v1" block
   profile definition (-01 Sections 5.1, 7.3, 7.4 and 8.3, as the new
   Section 7.1), the Source FEC Payload ID trailer and its relation to

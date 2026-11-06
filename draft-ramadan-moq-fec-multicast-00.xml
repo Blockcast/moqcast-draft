@@ -196,14 +196,15 @@ multicast, and AMT relays, found through DRIAD, for receivers on
 unicast-only networks.  The publisher generates FEC repair end to
 end, and the repair is the same on every leg.</li>
 </ul>
-<t>For an mmtp track, the same MoQ objects (source and repair) can be
+<t>For an mmtp track, the same MMTP packets (source and repair) can be
 transmitted over both
 unicast (QUIC/WebTransport) and multicast (UDP/SSM/AMT) paths.  Receivers
-on reliable unicast paths can skip FEC decoding (Section
+that take the track on QUIC streams can skip FEC decoding (Section
 3.3 of <xref target="MOQ-FEC-CORE"></xref>), while
-receivers on lossy multicast paths use FEC for recovery and apply the
-receiver repair policy of <xref target="receiver-repair-policy"></xref> to any block that
-FEC does not recover.  A multicast endpoint carries only mmtp tracks,
+receivers on lossy multicast paths, and receivers of an mmtp track
+sent as unicast datagrams (<xref target="MOQ-MMT"></xref> Section 4.3.1), use FEC for
+recovery and apply the receiver repair policy of
+<xref target="receiver-repair-policy"></xref> to any block that FEC does not recover.  A multicast endpoint carries only mmtp tracks,
 so a loc or cmaf track reaches multicast through an mmtp rendition
 track, which is a separate FEC instance (<xref target="MOQ-MULTICAST"></xref> Section
 4.1; see
@@ -661,8 +662,11 @@ a block under it does not create an FEC deadline
 <t>This section specifies what a receiver of a multicast or AMT leg does
 with a base-instance block of a source track that in-band FEC has not
 recovered by the block's FEC deadline (Section
-9.3 of <xref target="MOQ-FEC-CORE"></xref>).  A receiver on
-a reliable MoQ/QUIC leg relies on transport retransmission (Section
+9.3 of <xref target="MOQ-FEC-CORE"></xref>).  A MoQ leg on which an mmtp track arrives
+as datagrams (<xref target="MOQ-MMT"></xref> Section 4.3.1) has no retransmission either,
+and this section applies to it as to a multicast or AMT leg.  A
+receiver on a MoQ/QUIC leg that delivers the track on streams relies
+on transport retransmission (Section
 3.3 of <xref target="MOQ-FEC-CORE"></xref>)
 and does not need it, and nothing in this section adds a deadline or
 a timer to such a leg.  Multicast and AMT legs carry only mmtp tracks
@@ -1347,6 +1351,19 @@ to 11.4.6.</li>
 <t>Changed sentences:</t>
 
 <ul spacing="compact">
+<li>After the -00 posting: in <xref target="multicast-and-amt-delivery"></xref>, &quot;the same
+MoQ objects (source and repair)&quot; now reads &quot;the same MMTP packets
+(source and repair)&quot;, and &quot;Receivers on reliable unicast paths can
+skip FEC decoding ..., while receivers on lossy multicast paths use
+FEC&quot; now reads &quot;Receivers that take the track on QUIC streams can
+skip FEC decoding ..., while receivers on lossy multicast paths, and
+receivers of an mmtp track sent as unicast datagrams ([MOQ-MMT]
+Section 4.3.1), use FEC&quot;.  In <xref target="receiver-repair-policy"></xref>, the new
+sentence &quot;A MoQ leg on which an mmtp track arrives as datagrams
+([MOQ-MMT] Section 4.3.1) has no retransmission either, and this
+section applies to it as to a multicast or AMT leg.&quot; precedes the
+sentence whose &quot;a reliable MoQ/QUIC leg&quot; now reads &quot;a MoQ/QUIC leg
+that delivers the track on streams&quot;.</li>
 <li>In <xref target="multicast-and-amt-delivery"></xref>, &quot;A multicast endpoint carries only
 mmtp tracks, so a loc or cmaf track under moq-object-v1 reaches
 multicast through an mmtp rendition track&quot; now reads &quot;A multicast
