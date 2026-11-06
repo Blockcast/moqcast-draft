@@ -149,6 +149,53 @@ class PublishedExamples(unittest.TestCase):
                 self.assertIn(rule, text)
             self.assertNotIn("whatever the base instance carries", text)
 
+    def test_keyframe_overlay_members_include_the_governing_metadata(self):
+        # MMT -02 Section 7.4.2, change after the -02 posting (BLO-52085): the overlay's members are
+        # the fragments of each keyframe MFU it covers, the FT=0 of an MPU whose first sample is one
+        # and the FT=1 of a movie fragment that contains one; on a track under an overlay RAP_flag,
+        # membership and the 0x8B01 extension coincide.  FEC multicast -01 Section 6.6 follows.
+        # Covering a keyframe after the first sample of its MPU is the publisher's choice, and the
+        # overlay's own interleaveDepthMs tells a receiver how long to hold what a recovered FT=0 or
+        # FT=1 member governs.
+        mmt_md = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
+        mmt_xml = (ROOT / "draft-ramadan-moq-mmt-02.xml").read_text(encoding="utf-8")
+        self.assertIn("value='draft-ramadan-moq-fec-multicast-01'", mmt_md)
+        self.assertIn('value="draft-ramadan-moq-fec-multicast-01"', mmt_xml)
+        texts = (
+            section(mmt_md, "{#overlay-membership}", "{#overlay-header-extension}"),
+            re.sub(r"<[^>]+>", "", section(mmt_xml, 'anchor="overlay-membership"', 'anchor="overlay-header-extension"')),
+        )
+        for text in texts:
+            text = " ".join(text.replace("`", "").split())
+            for rule in (
+                "a keyframe MFU covered by the overlay, and, where that keyframe sample is partitioned",
+                "the FT=0 data unit, the MPU metadata, of an MPU whose first sample is such a keyframe",
+                "the FT=1 data unit, the movie fragment metadata, of a movie fragment that contains such a keyframe",
+                "the one FI=0 packet of an unfragmented keyframe MFU",
+                "a publisher that declares an overlay MUST NOT set RAP_flag on it",
+                "if and only if that packet is an overlay member",
+                "are therefore exactly its overlay members, the FT=0 and FT=1 members included",
+                "A publisher MAY also cover, keyframe by keyframe, any keyframe that is not the first "
+                "sample of its MPU",
+                "gives the overlay instance its own positive interleaveDepthMs",
+            ):
+                self.assertIn(rule, text)
+        stem = "draft-ramadan-moq-fec-multicast-01"
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        # scoped to Section 6.6: Appendix A quotes the removed sentence
+        texts = (
+            section(markdown, "{#relationship-to-the-keyframe-overlay}", "{#security-considerations}"),
+            re.sub(r"<[^>]+>", "", section(xml, 'anchor="relationship-to-the-keyframe-overlay"', 'anchor="security-considerations"')),
+        )
+        for text in texts:
+            text = " ".join(text.replace("`", "").split())
+            self.assertIn(
+                "so it can recover a lost FT=0 or FT=1 data unit that governs such a RAP as it recovers the RAP's fragments",
+                text,
+            )
+            self.assertNotIn("does not by itself recover", text)
+
     def test_mboned_manifest_draft_md_and_xml_agree_on_docname(self):
         stem = "draft-ramadan-mboned-mcast-manifest-01"
         markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")

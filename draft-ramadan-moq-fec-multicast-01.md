@@ -164,7 +164,8 @@ source symbol of one FEC instance, grouped by block (Section
 
 **Keyframe Overlay**: A second, independent FEC instance over an
 MMTP-packaged source track whose source symbols are only the fragments
-of Random Access Points, defined in Section 7.4
+of Random Access Points and the FT=0 and FT=1 data units that govern
+them, defined in Section 7.4
 of [@!MOQ-MMT].  An overlay is not a repair layer and carries no layer
 index.
 
@@ -1176,7 +1177,8 @@ The keyframe overlay of Section 7.4 of
 8.4 of [@!MOQ-FEC-CORE], and this policy
 are
 complementary.  The overlay is publisher-side and proactive: it
-protects RAP fragments across a block of its own, needs no return
+protects RAP fragments and the FT=0 and FT=1 data units that govern
+them across a block of its own, needs no return
 path, and so also serves sessionless receivers.  This policy is
 receiver-side and reactive: it spends unicast repair only on
 keyframe-bearing blocks that in-band FEC actually failed to recover,
@@ -1191,18 +1193,19 @@ and it needs a MoQ session.  A receiver that holds both:
   span (Section 7.4 of [@!MOQ-MMT]), not the base
   deadline;
 
-- ends its wait for a RAP with whichever of base decoding, overlay
-  decoding, or unicast repair supplies the RAP's fragments first; and
+- ends its wait for a RAP once it holds every part of it, the RAP's
+  fragments and the FT=0 and FT=1 data units that govern it,
+  whichever of base decoding, overlay decoding, or unicast repair
+  supplies each part; and
 
-- having recovered a block's RAP MFU fragments through the overlay,
-  and holding the FT=0 and FT=1 data units that govern them, conceals
-  the rest of that block's loss as for a non-keyframe block
-  ((#other-video-blocks)) and SHOULD cancel any outstanding keyframe
-  repair
-  FETCH for it.  The overlay covers only packets that set `RAP_flag`
-  (Section 7.4 of [@!MOQ-MMT]), so it does not by
-  itself recover a lost FT=0 or
-  FT=1 data unit.
+- once it holds every part of a block's RAPs, the overlay having
+  recovered one or more of them, conceals the rest of that block's
+  loss as for a non-keyframe block ((#other-video-blocks)) and SHOULD
+  cancel any outstanding keyframe repair FETCH for it.  The overlay's
+  members include the FT=0 and FT=1 data units that govern each RAP it
+  covers (Section 7.4.2 of [@!MOQ-MMT]), so it can recover a lost FT=0
+  or FT=1 data unit that governs such a RAP as it recovers the RAP's
+  fragments.
 
 {#security-considerations}
 # Security Considerations
@@ -1439,6 +1442,28 @@ New sentences:
 
 Changed sentences:
 
+- In (#conventions-and-definitions), the Keyframe Overlay's source
+  symbols are "only the fragments of Random Access Points and the FT=0
+  and FT=1 data units that govern them", where -00 had "only the
+  fragments of Random Access Points": [@!MOQ-MMT] Section 7.4.2 now
+  makes those data units members of the overlay.
+- In (#relationship-to-the-keyframe-overlay), the overlay "protects RAP
+  fragments and the FT=0 and FT=1 data units that govern them across a
+  block of its own" (-00: "protects RAP fragments across a block of its
+  own"); a receiver ends its wait for a RAP once it holds every part of
+  it, whichever of base decoding, overlay decoding, or unicast repair
+  supplies each part, where -00 ended it when one of them supplied the
+  RAP's fragments; and the bullet on concealment and on cancelling the
+  keyframe repair FETCH applies once the receiver holds every part of a
+  block's RAPs, the overlay having recovered one or more of them, where
+  -00 applied it after an overlay recovery of the RAP MFU fragments with
+  the FT=0 and FT=1 data units held.  "The overlay covers only packets
+  that set RAP_flag (Section 7.4 of [MOQ-MMT]), so it does not by
+  itself recover a lost FT=0 or FT=1 data unit." now reads "The
+  overlay's members include the FT=0 and FT=1 data units that govern
+  each RAP it covers (Section 7.4.2 of [MOQ-MMT]), so it can recover a
+  lost FT=0 or FT=1 data unit that governs such a RAP as it recovers
+  the RAP's fragments."
 - In (#changes-from-draft-ramadan-moq-fec-01), "is restated by this
   section's last paragraph and by (#receiver-repair-policy)" now reads
   "is restated by this section's paragraph on the block deadline and
