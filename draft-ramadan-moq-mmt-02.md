@@ -1983,8 +1983,9 @@ than the base window, without changing the base instance's latency.
 ### Overlay Instance
 
 An overlay is a separate FEC instance over the same source track.  It
-has its own `sourceSymbols` (K_overlay) and its own `repairSymbols`,
-declared on its own instance entry with its own repair track
+has its own `sourceSymbols` (K_overlay), its own `repairSymbols` and its
+own `interleaveDepthMs` ((#overlay-membership)), declared on its own
+instance entry with its own repair track
 ([@!MOQ-FEC-CATALOG] Section 3.1), and it shares
 the source track's `scheme`, `blockProfile` and `symbolSize`. It does
 not share the base instance's K, its block partition, its SS_ID space,
@@ -2130,8 +2131,8 @@ ones, are formed, located and wrapped exactly as base blocks are
 bound on their SSB_length.  Because a RAP and the metadata that governs
 it are a small fraction of the media, an overlay block spans many base
 blocks; the overlay's recovery
-latency is therefore its own block span and is unrelated to
-`interleaveDepthMs`.  An FT=0 or FT=1 member that the overlay recovers
+latency is therefore its own block span and is unrelated to the base
+instance's `interleaveDepthMs`.  An FT=0 or FT=1 member that the overlay recovers
 is of use to a receiver only while the receiver still holds the
 fragments that member governs unadmitted, within its bounded replay
 window ((#overlay-receiver-behavior)), so a receiver may have to hold
