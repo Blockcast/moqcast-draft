@@ -1990,7 +1990,7 @@ instance entry with its own repair track
 the source track's `scheme`, `blockProfile` and `symbolSize`. It does
 not share the base instance's K, its block partition, its SS_ID space,
 or its RS_ID space.  Because each source packet carries one base SS_ID,
-a different K or interleave window needs a separate rendition; the
+a different base K or interleave window needs a separate rendition; the
 keyframe overlay is a separate FEC instance, not a layer.
 
 The overlay's instance object carries one member that this document
