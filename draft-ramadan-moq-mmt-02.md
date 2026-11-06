@@ -2100,7 +2100,14 @@ Point with which its MPU begins (Section 5.3.4), to set `RAP_flag`.  On
 a track under an overlay that object is therefore a member, so the
 first sample of every MPU is a covered keyframe and the FT=0 data unit
 of every MPU is a member; an MPU without a Random Access Point does not
-occur in this profile.
+occur in this profile.  A publisher MAY also cover, keyframe by
+keyframe, any keyframe that is not the first sample of its MPU: the
+fragments of a keyframe so covered, and the FT=1 data unit of the movie
+fragment that contains it, are then members by the list above, and no
+packet of a keyframe that the publisher leaves uncovered sets
+`RAP_flag`.  A receiver needs no signal of that choice, since it takes
+membership from the 0x8B01 extension alone
+((#overlay-header-extension)).
 
 Overlay source symbols are numbered consecutively within the overlay
 instance, in the order the publisher emits them: the overlay SS_ID is 0
@@ -2124,7 +2131,17 @@ bound on their SSB_length.  Because a RAP and the metadata that governs
 it are a small fraction of the media, an overlay block spans many base
 blocks; the overlay's recovery
 latency is therefore its own block span and is unrelated to
-`interleaveDepthMs`.
+`interleaveDepthMs`.  An FT=0 or FT=1 member that the overlay recovers
+is of use to a receiver only while the receiver still holds the
+fragments that member governs unadmitted, within its bounded replay
+window ((#overlay-receiver-behavior)), so a receiver may have to hold
+them for up to that span.  A publisher that wants receivers to use
+such recoveries gives the overlay instance its own positive
+`interleaveDepthMs`, which bounds every overlay block's send span
+([@!MOQ-FEC-CORE] Section 9.3) and so tells a receiver how long to hold
+them, and can shorten the span by closing an overlay block once the
+last fragment of a covered keyframe has been emitted ([@!MOQ-FEC-CORE]
+Section 5.4).
 
 A receiver knows that a source packet is an overlay source symbol
 because the packet carries the 0x8B01 header extension
@@ -3284,8 +3301,13 @@ re-pointed.  The section numbers in the -00 entry below are those of
   the FT=1 data unit of each movie fragment that contains one.  Each
   member sets `RAP_flag`, carries its overlay SS_ID in the 0x8B01
   header extension, and takes the next overlay SS_ID in emission
-  order.  In -02, as in [@?I-D.ramadan-moq-fec] from which the overlay
-  moved, the overlay held only the keyframe MFU's fragments, so a loss
+  order.  The overlay covers the first sample of every MPU, and
+  covering a later keyframe is the publisher's choice; since a receiver
+  can use a recovered FT=0 or FT=1 member only within its bounded
+  replay window, a publisher that wants receivers to use one gives the
+  overlay instance its own positive `interleaveDepthMs`.  In -02, as in
+  [@?I-D.ramadan-moq-fec] from which the overlay moved, the overlay
+  held only the keyframe MFU's fragments, so a loss
   that also took the keyframe's FT=0 or FT=1 data unit left an
   overlay-recovered keyframe that a receiver could not admit (Sections
   4.3 and 5.1), and Section 6.6 of draft-ramadan-moq-fec-multicast-00

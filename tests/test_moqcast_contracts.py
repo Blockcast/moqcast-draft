@@ -154,6 +154,9 @@ class PublishedExamples(unittest.TestCase):
         # the fragments of each keyframe MFU it covers, the FT=0 of an MPU whose first sample is one
         # and the FT=1 of a movie fragment that contains one; on a track under an overlay RAP_flag,
         # membership and the 0x8B01 extension coincide.  FEC multicast -01 Section 6.6 follows.
+        # Covering a keyframe after the first sample of its MPU is the publisher's choice, and the
+        # overlay's own interleaveDepthMs tells a receiver how long to hold what a recovered FT=0 or
+        # FT=1 member governs.
         mmt_md = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
         mmt_xml = (ROOT / "draft-ramadan-moq-mmt-02.xml").read_text(encoding="utf-8")
         self.assertIn("value='draft-ramadan-moq-fec-multicast-01'", mmt_md)
@@ -172,6 +175,9 @@ class PublishedExamples(unittest.TestCase):
                 "a publisher that declares an overlay MUST NOT set RAP_flag on it",
                 "if and only if that packet is an overlay member",
                 "are therefore exactly its overlay members, the FT=0 and FT=1 members included",
+                "A publisher MAY also cover, keyframe by keyframe, any keyframe that is not the first "
+                "sample of its MPU",
+                "gives the overlay instance its own positive interleaveDepthMs",
             ):
                 self.assertIn(rule, text)
         stem = "draft-ramadan-moq-fec-multicast-01"
