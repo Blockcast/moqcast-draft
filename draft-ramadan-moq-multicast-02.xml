@@ -24,9 +24,9 @@ specification includes a multicast catalog extension for endpoint
 discovery and multi-path delivery across TV, mobile, and browser
 platforms.  All multicast media delivery uses MPEG Media Transport
 Protocol (MMTP) packets, the same packet format that MoQ objects carry
-on QUIC streams.  A manifest-based content-authentication profile
-protects multicast delivery with signed manifest records that travel
-in band beside those packets.</t>
+on QUIC streams and as QUIC datagrams.  A manifest-based
+content-authentication profile protects multicast delivery with signed
+manifest records that travel in band beside those packets.</t>
 </abstract>
 
 </front>
@@ -50,8 +50,8 @@ and their repair tracks, and a loc or cmaf track reaches multicast
 through an mmtp rendition track (Section 4.1).</li>
 <li><strong>MMTP wire format</strong>: All multicast media delivery uses MMTP
 packets -- the same packet format that MoQ objects carry on QUIC
-streams -- and on a protected endpoint signed manifest records
-travel in band beside them (Section 5).</li>
+streams and as QUIC datagrams -- and on a protected endpoint signed
+manifest records travel in band beside them (Section 5).</li>
 <li><strong>Multi-path delivery</strong>: Combining MoQ unicast and multicast for
 failover and FEC symbol deduplication</li>
 </ol>
@@ -346,10 +346,14 @@ track identifier used in the MoQ catalog.  The name is resolved
 in the namespace of the catalog track (<xref target="I-D.ietf-moq-msf"></xref>
 Section 5.2.2); an endpoint MUST NOT list a track whose catalog
 entry declares another namespace.  The named track MUST
-be a track whose <tt>packaging</tt> is <tt>mmtp</tt> (<xref target="MOQ-MMT"></xref> Section
-13.1)
+be a track whose <tt>packaging</tt> is <tt>mmtp</tt> and whose <tt>mmtpMode</tt> is
+&quot;mfu&quot; (<xref target="MOQ-MMT"></xref> Section 13.1)
 or a <tt>fec-repair</tt> track that repairs such a track
-(<xref target="MOQ-FEC-CATALOG"></xref> Section 3.3).</li>
+(<xref target="MOQ-FEC-CATALOG"></xref> Section 3.3).  An &quot;mfu-datagram&quot; track
+carries the same MMTP packet sub-flow as its &quot;mfu&quot; track
+(<xref target="MOQ-MMT"></xref> Section 4.3.1), which an endpoint lists in its place;
+the two are separate FEC instances (<xref target="MOQ-FEC-CORE"></xref> Section 5.1),
+so symbols of one never repair the other.</li>
 <li><strong>packetId</strong> (integer, REQUIRED): MMTP packet_id used for
 packet-level track routing on multicast.  Maps directly to the
 Packet ID field in the MMTP header (Section
@@ -617,7 +621,7 @@ transport hierarchy defined in Section 3.</t>
 <t>All multicast delivery uses MMTP packets.  Each UDP datagram, other
 than a manifest record on a protected endpoint (<xref target="manifest-record"></xref>),
 carries one MMTP packet -- the same packet format that MoQ objects carry on
-QUIC streams.  MMTP provides track routing (packet_id), send
+QUIC streams and as QUIC datagrams.  MMTP provides track routing (packet_id), send
 timestamps, sequencing (packet_sequence_number), FEC framing (FEC
 Type and the Source/Repair FEC Payload IDs) and random access
 signaling (RAP flag) in its packet header, and fragmentation (FI) in
@@ -643,7 +647,7 @@ rendition track (Section 4.1).</t>
 needed.  The MMTP packet format is defined in <xref target="ISO.23008-1"></xref>
 Clause 9.2, as profiled in <xref target="MOQ-MMT"></xref> Section
 3.1.</t>
-<t>This design means the same MMTP packet can be delivered via three
+<t>This design means the same MMTP packet can be delivered via four
 transports without modification:</t>
 <table>
 <thead>
@@ -660,8 +664,13 @@ transports without modification:</t>
 </tr>
 
 <tr>
+<td>Unicast QUIC datagram</td>
+<td>MMTP packet as MoQ datagram object (<xref target="MOQ-MMT"></xref> Section 4.3.1)</td>
+</tr>
+
+<tr>
 <td>Multicast QUIC</td>
-<td>MMTP packet as multicast QUIC DATAGRAM object</td>
+<td>MMTP packet as MoQ datagram object on a multicast QUIC channel (<xref target="MOQ-MMT"></xref> Section 4.3.1)</td>
 </tr>
 
 <tr>
@@ -826,8 +835,9 @@ field, so a mark set on the path never fails a digest.</t>
 <t>The same media content (source and repair) can be transmitted over
 both MoQ unicast (QUIC/WebTransport) and multicast (UDP/SSM/AMT)
 paths simultaneously.  Because the same MMTP packets are used on all
-transports, receivers can combine symbols from any path for FEC
-recovery (<xref target="MOQ-FEC-CORE"></xref> Section 5.5).</t>
+transports, receivers can combine the symbols of one track's FEC
+instance from any path that delivers that track (<xref target="MOQ-FEC-CORE"></xref>
+Section 5.5).</t>
 <t>When symbols arrive from multiple paths simultaneously, receivers:</t>
 
 <ol spacing="compact">
@@ -927,10 +937,11 @@ repair-track groups is their own policy.</t>
 <section anchor="unicast-subscriptions-after-a-switch-to-multicast"><name>Unicast Subscriptions After a Switch to Multicast</name>
 <t>After a receiver switches to multicast (Section 4.1), it still holds
 the unicast subscriptions that delivered the same media before the
-switch: to the tracks it now receives on multicast or to their loc
-or cmaf alternatives (Section 4.1), to the repair tracks of such a
-loc or cmaf alternative, and to the repair tracks that its multicast
-endpoints now carry.
+switch: to the tracks it now receives on multicast, to their loc or
+cmaf alternatives (Section 4.1) or their &quot;mfu-datagram&quot; tracks
+(<xref target="MOQ-MMT"></xref> Section 4.3.1), to the repair tracks of such an
+alternative or &quot;mfu-datagram&quot; track, and to the repair tracks that its
+multicast endpoints now carry.
 While these subscriptions forward objects, the receiver gets the
 media twice, and the network still carries the unicast copy that the
 multicast path replaces.  Once multicast delivery of a track is
@@ -3134,6 +3145,25 @@ as an RFC.</t>
 <section anchor="changes-since-draft-ramadan-moq-multicast-01"><name>Changes Since draft-ramadan-moq-multicast-01</name>
 
 <ul spacing="compact">
+<li>After the -02 posting: the transport table of Section 5 again
+carries a unicast datagram row, &quot;Unicast QUIC datagram | MMTP packet
+as MoQ datagram object&quot;, and the sentence before it counts four
+transports, because <xref target="MOQ-MMT"></xref> Section 4.3.1 now lets an mmtp track
+send its objects as datagrams (<tt>mmtpMode</tt> &quot;mfu-datagram&quot;).  The
+Multicast QUIC row now reads &quot;MMTP packet as MoQ datagram object on a
+multicast QUIC channel&quot; and cites the same section.  The Abstract,
+item 3 of Section 1 and the first paragraph of Section 5 say that MoQ
+objects carry the MMTP packet format on QUIC streams and as QUIC
+datagrams; the editorial entry below records that -02 had dropped
+the datagram wording from the Abstract.  The <tt>name</tt> rule of
+Section 4.1 admits an mmtp track only when its <tt>mmtpMode</tt> is &quot;mfu&quot;:
+an &quot;mfu-datagram&quot; track carries the same packet sub-flow as its
+&quot;mfu&quot; track, which an endpoint lists instead, under FEC instances of
+its own.  Section 6 now combines the symbols of one track's FEC
+instance from any path that delivers that track, and Section 6.3 also
+pauses the unicast subscriptions to an &quot;mfu-datagram&quot; track and its
+repair tracks.  The -00 entry below records why the datagram row was
+dropped then.</li>
 <li>References: draft-ramadan-moq-fec-01 is split into a core
 mechanism document and companions, and every citation of it now
 names the document that carries the cited text: <xref target="MOQ-FEC-CORE"></xref>
