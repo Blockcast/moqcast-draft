@@ -139,10 +139,14 @@ cf3c7f0b0558516d891b45b3630b065e6b50eb877cdba5bfdd649a1f2cbf62b9  draft-ramadan-
 The repository's `draft-ramadan-moq-mmt-02.md` and `.xml` have since taken one
 erratum (#25: an `iso-ssbg1-v1` AL-FEC entry carries neither
 `num_of_repair_symbol_per_packet` nor `num_of_symbol_element_per_source_symbol`,
-per ISO/IEC 23008-1 Table C.3). The `-02` checksum above is the posted copy's;
-the repository's `-02` XML no longer matches it. The files keep the `-02` name
-as the working copy until the next posting, which the Datatracker takes only as
-`-03`.
+per ISO/IEC 23008-1 Table C.3). They and the repository's
+`draft-ramadan-moq-multicast-02` and `draft-ramadan-moq-fec-multicast-00` files
+have also taken #28, which lets an mmtp track send its objects as MoQ datagrams
+(`mmtpMode` "mfu-datagram"). The checksums above are the posted copies'; the
+repository's XML of these three drafts no longer matches them. The files keep
+their posted names as working copies until the next posting, which the
+Datatracker takes only as `-03` for the MMT and multicast drafts and `-01` for
+the FEC multicast draft.
 
 Validation of the uploaded XML: each file is the output of mmark 2.2.48 for its
 markdown; `xmllint --noout --nonet` passes; idnits 3.1.0 in submission mode
