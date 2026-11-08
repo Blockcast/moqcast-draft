@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-02T00:00:00Z"
+date = "2026-11-03T00:00:00Z"
 keyword = ["FEC", "MoQ", "multicast", "AMT", "repair policy"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-moq-fec-multicast-00"
+value = "draft-ramadan-moq-fec-multicast-01"
 stream = "IETF"
 status = "standard"
 
@@ -927,10 +927,8 @@ video.
 When a keyframe-bearing block is still unrecovered at its FEC
 deadline, a receiver that holds a MoQ session with a relay serving the
 block's repair track MUST request on-demand unicast repair for it,
-with the priority of (#unicast-repair-budget), unless the block lies
-below a
-RAP the receiver has already admitted complete (the repair would be
-moot on completion, below); within a consumer that the
+with the priority of (#unicast-repair-budget), unless the repair is
+already moot (#moot-keyframe-repair); within a consumer that the
 bc-provenance profile of [@!MOQ-MULTICAST] Section
 7.2 governs for
 its blocks ((#provisional-blocks)), a block only symbols of an
@@ -994,10 +992,42 @@ the block's RAPs (including through a keyframe overlay,
 remaining loss as for a
 non-keyframe block ((#other-video-blocks)).
 
-If the next RAP arrives complete before a keyframe repair completes,
-the repair is moot: the receiver resumes from that RAP and SHOULD
-cancel the FETCH; a block that reaches its deadline already below
-such a RAP is not requested at all.
+{#moot-keyframe-repair}
+### Moot Keyframe Repair
+
+A keyframe repair is moot when both of the following hold:
+
+1. The receiver holds a RAP the receiver has already admitted complete
+   that lies above the block, that is, after the last SS_ID the block
+   covers.
+
+2. The repair cannot arrive by the block's playout deadline.  The
+   playout deadline is the later of the block's FEC deadline and the
+   presentation time of the earliest media the block would repair.  It
+   does not include any time for which the receiver holds video
+   presentation for the repair ((#keyframe-bearing-blocks)): a repair
+   that arrives by the playout deadline holds nothing, and a repair
+   that arrives only within such a hold stalls video for media the
+   receiver no longer needs.  The repair cannot arrive by the playout
+   deadline when either the current time is not earlier than it, or T +
+   RTT is not earlier than it, where RTT is the receiver's current
+   round-trip time estimate for the QUIC
+   connection that carries or would carry the FETCH (for instance the
+   smoothed_rtt of [@?RFC9002] Section 5.3), and T is the time the
+   receiver sent the FETCH or, for a repair not yet requested, the
+   current time.  A FETCH already sent is judged by the time it was
+   sent, not by the time the RAP completes.  A receiver that has no
+   round-trip time estimate for that connection treats the repair as
+   unable to arrive by the playout deadline.
+
+When a repair becomes moot, the receiver resumes from that RAP and
+SHOULD cancel the FETCH; a block whose repair is moot when it reaches
+its FEC deadline is not requested at all.  A repair that is not moot
+is requested and kept whatever RAP the receiver admits complete after
+it: while its playout deadline has not passed, the media it recovers is
+presented by that deadline.  Once the deadline has passed,
+a newer RAP the receiver has admitted complete makes an outstanding
+repair moot and the receiver SHOULD cancel it.
 
 {#other-video-blocks}
 ## Other Video Blocks
@@ -1361,6 +1391,25 @@ This document has no IANA actions.
   </front>
   <seriesInfo name='ISO/IEC' value='23001-7:2023'/>
 </reference>
+
+{#changes-from-00}
+# Changes from draft-ramadan-moq-fec-multicast-00
+
+This appendix is informative.
+
+- (#moot-keyframe-repair) is new.  In -00, and in -01 of
+  [@?I-D.ramadan-moq-fec] Section 11.4.2, a keyframe repair was moot
+  once a newer RAP had been admitted complete.  It is now moot only when, in
+  addition, it cannot arrive by the block's playout deadline, which
+  the section defines without the time a receiver may hold video for
+  the repair; a FETCH already sent is judged by its send time plus the
+  round-trip time estimate until the deadline passes, and by the
+  current time thereafter; a receiver without an estimate treats the
+  repair as moot.  The rule as written in -00 cancelled repairs
+  that would have arrived before their media was due, giving up that
+  media while stalling nothing.  The first paragraph of
+  (#keyframe-bearing-blocks) points to the new section instead of
+  restating the rule.
 
 {#changes-from-draft-ramadan-moq-fec-01}
 # Changes from draft-ramadan-moq-fec-01
