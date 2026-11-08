@@ -236,6 +236,26 @@ class SplitContracts(unittest.TestCase):
                 else:
                     self.assertIn("# Changes from draft-ramadan-moq-fec-01", text)
 
+    def test_moot_keyframe_repair_is_admission_and_deadline_scoped(self):
+        text = self.text["MCAST"]
+        start = text.index("{#moot-keyframe-repair}")
+        end = text.index("{#other-video-blocks}", start)
+        section = text[start:end]
+
+        self.assertRegex(
+            section,
+            r"(?s)1\.\s+The receiver holds a RAP the receiver has already admitted complete",
+        )
+        self.assertRegex(
+            section,
+            r"(?s)2\.\s+The repair cannot arrive.*?current time is not earlier than it",
+        )
+        self.assertIn("while its playout deadline has not passed, the media it recovers", section)
+        self.assertNotIn("cancelling it stalls nothing", section)
+
+        changes = text[text.index("# Changes from draft-ramadan-moq-fec-multicast-00") :]
+        self.assertIn("once a newer RAP had been admitted complete", changes)
+
 
 if __name__ == "__main__":
     unittest.main()

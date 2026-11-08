@@ -997,8 +997,9 @@ non-keyframe block ((#other-video-blocks)).
 
 A keyframe repair is moot when both of the following hold:
 
-1. The receiver holds complete a RAP of the track that lies above
-   the block, that is, after the last SS_ID the block covers.
+1. The receiver holds a RAP the receiver has already admitted complete
+   that lies above the block, that is, after the last SS_ID the block
+   covers.
 
 2. The repair cannot arrive by the block's playout deadline.  The
    playout deadline is the later of the block's FEC deadline and the
@@ -1008,8 +1009,9 @@ A keyframe repair is moot when both of the following hold:
    that arrives by the playout deadline holds nothing, and a repair
    that arrives only within such a hold stalls video for media the
    receiver no longer needs.  The repair cannot arrive by the playout
-   deadline when T + RTT is not earlier than it, where RTT is the
-   receiver's current round-trip time estimate for the QUIC
+   deadline when either the current time is not earlier than it, or T +
+   RTT is not earlier than it, where RTT is the receiver's current
+   round-trip time estimate for the QUIC
    connection that carries or would carry the FETCH (for instance the
    smoothed_rtt of [@?RFC9002] Section 5.3), and T is the time the
    receiver sent the FETCH or, for a repair not yet requested, the
@@ -1021,9 +1023,11 @@ A keyframe repair is moot when both of the following hold:
 When a repair becomes moot, the receiver resumes from that RAP and
 SHOULD cancel the FETCH; a block whose repair is moot when it reaches
 its FEC deadline is not requested at all.  A repair that is not moot
-is requested and kept whatever RAP completes after it: the media it
-recovers is presented by its playout deadline, so cancelling it
-stalls nothing and only discards that media.
+is requested and kept whatever RAP the receiver admits complete after
+it: while its playout deadline has not passed, the media it recovers is
+presented by that deadline.  Once the deadline has passed,
+a newer RAP the receiver has admitted complete makes an outstanding
+repair moot and the receiver SHOULD cancel it.
 
 {#other-video-blocks}
 ## Other Video Blocks
@@ -1395,12 +1399,13 @@ This appendix is informative.
 
 - (#moot-keyframe-repair) is new.  In -00, and in -01 of
   [@?I-D.ramadan-moq-fec] Section 11.4.2, a keyframe repair was moot
-  once a newer RAP was complete.  It is now moot only when, in
+  once a newer RAP had been admitted complete.  It is now moot only when, in
   addition, it cannot arrive by the block's playout deadline, which
   the section defines without the time a receiver may hold video for
   the repair; a FETCH already sent is judged by its send time plus the
-  round-trip time estimate, and a receiver without an estimate treats
-  the repair as moot.  The rule as written in -00 cancelled repairs
+  round-trip time estimate until the deadline passes, and by the
+  current time thereafter; a receiver without an estimate treats the
+  repair as moot.  The rule as written in -00 cancelled repairs
   that would have arrived before their media was due, giving up that
   media while stalling nothing.  The first paragraph of
   (#keyframe-bearing-blocks) points to the new section instead of
