@@ -683,6 +683,19 @@ above it gives, as step
 2 of [@!MOQ-MULTICAST] Section
 7.2.7 specifies.
 
+Under that profile a sender holds a datagram until the window that
+covers it closes, up to `manifestTimerMs`, and a receiver holds one
+whose signed record it lost until the record's twin arrives, which
+the sender transmits up to `maxAuthDelayMs / 2` after the record
+([@!MOQ-MULTICAST] Section 7.2.5); a symbol admitted after its
+block's FEC deadline is too late for the decode of
+(#receiver-repair-policy).  A publisher whose flows that profile
+protects SHOULD include both holds in an instance's
+`reorderToleranceMs`, the allowance for processing of Section 9.3
+of [@!MOQ-FEC-CORE], so that a short `interleaveDepthMs` does not
+let a block's deadline pass while a datagram that arrived in time
+awaits verification.
+
 A receiver bounds the state it holds for open blocks by the
 receiver-local policy of Section 9.4 of
 [@!MOQ-FEC-CORE], which forbids discarding a block that has an FEC
@@ -1410,6 +1423,11 @@ This appendix is informative.
   media while stalling nothing.  The first paragraph of
   (#keyframe-bearing-blocks) points to the new section instead of
   restating the rule.
+- (#deadline-anchoring-and-discard) adds that, under the
+  bc-provenance profile, a publisher is recommended to include in
+  `reorderToleranceMs` the time for which a sender holds a datagram
+  until its window closes and a receiver holds one whose record it
+  lost until the record's twin arrives.
 
 {#changes-from-draft-ramadan-moq-fec-01}
 # Changes from draft-ramadan-moq-fec-01
