@@ -1431,8 +1431,8 @@ This appendix is informative.
   relay that does not cache the repair track's objects.  Such a relay
   fetches them upstream ([@!I-D.ietf-moq-transport] Section 3.2.3),
   as Section
-  6.2 of [@!MOQ-MULTICAST] already said, so the FETCH fails
-  only when no publisher upstream still holds the group.  The
+  6.2 of [@!MOQ-MULTICAST] already said, so a relay's lack of a
+  cache does not by itself fail the FETCH.  The
   sentence in -00 came from -01 of [@?I-D.ramadan-moq-fec] Section
   11.4.2 and contradicted both.
 - (#deadline-anchoring-and-discard) adds that, under the
