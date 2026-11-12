@@ -346,7 +346,9 @@ Endpoint field definitions:
 
 **sourceAddress** (string, OPTIONAL): SSM source IP address per
   [@!RFC4607].  Its presence selects SSM and its absence Any-Source
-  Multicast (ASM).
+  Multicast (ASM).  An ASM endpoint is for use within one multicast
+  domain, because [@?RFC8815] (BCP 229) deprecates ASM between
+  domains.
 
 **protocol** (string, OPTIONAL): "ssm" or "asm", restating that
   mode.  An endpoint where it disagrees with `sourceAddress` is
@@ -3445,6 +3447,11 @@ as an RFC.
   draft.  The sender's UDP source port rule in (#digest) now reads
   "with `port` as its UDP source port", which does not render as a
   doubled word in the text output.
+- After the -02 posting: the `sourceAddress` definition of
+  (#multicast-endpoint-format) says that an ASM endpoint is for use
+  within one multicast domain, because [@?RFC8815] (BCP 229)
+  deprecates ASM between domains.  The sentence is new and adds no
+  requirement; [@?RFC8815] is a new informative reference.
 
 {#changes-since-draft-ramadan-moq-multicast-00}
 ## Changes Since draft-ramadan-moq-multicast-00

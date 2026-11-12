@@ -325,7 +325,9 @@ audio/video groups) use multiple elements:</t>
 <t>Endpoint field definitions:</t>
 <t><strong>sourceAddress</strong> (string, OPTIONAL): SSM source IP address per
   <xref target="RFC4607"></xref>.  Its presence selects SSM and its absence Any-Source
-  Multicast (ASM).</t>
+  Multicast (ASM).  An ASM endpoint is for use within one multicast
+  domain, because <xref target="RFC8815"></xref> (BCP 229) deprecates ASM between
+  domains.</t>
 <t><strong>protocol</strong> (string, OPTIONAL): &quot;ssm&quot; or &quot;asm&quot;, restating that
   mode.  An endpoint where it disagrees with <tt>sourceAddress</tt> is
   ignored (see below).</t>
@@ -3043,6 +3045,7 @@ catalog extension (Section 4) requires no registration.</t>
   <seriesInfo name="Internet-Draft" value="draft-jholland-quic-multicast-09"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8085.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8815.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.9706.xml"/>
 <reference anchor="WICG-DirectSockets" target="https://wicg.github.io/direct-sockets/">
   <front>
@@ -3427,6 +3430,11 @@ editor's affiliation and states its status as a Community Group
 draft.  The sender's UDP source port rule in <xref target="digest"></xref> now reads
 &quot;with <tt>port</tt> as its UDP source port&quot;, which does not render as a
 doubled word in the text output.</li>
+<li>After the -02 posting: the <tt>sourceAddress</tt> definition of
+<xref target="multicast-endpoint-format"></xref> says that an ASM endpoint is for use
+within one multicast domain, because <xref target="RFC8815"></xref> (BCP 229)
+deprecates ASM between domains.  The sentence is new and adds no
+requirement; <xref target="RFC8815"></xref> is a new informative reference.</li>
 </ul>
 </section>
 
