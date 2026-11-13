@@ -1335,7 +1335,11 @@ as incomplete (Section 5.2, item 5), like any other data unit; no
 additional sample-level timer is defined or permitted.
 
 The sample's RAP flag is the RAP flag of the FI=0 or FI=1 object of
-its offset-0 data unit.  FEC is unaffected by the partition: source
+its offset-0 data unit.  On a track under a keyframe overlay,
+`RAP_flag` marks overlay members ((#overlay-membership)), so a
+keyframe that the overlay leaves uncovered has a RAP flag of 0; a
+receiver that looks for random access points inside an MPU finds only
+the covered ones there.  FEC is unaffected by the partition: source
 symbols are MMTP packets ((#iso-ssbg1-v1)), and the packet stream's
 block and interleave structure does not depend on data-unit boundaries.
 
@@ -3328,7 +3332,9 @@ re-pointed.  The section numbers in the -00 entry below are those of
   member sets `RAP_flag`, carries its overlay SS_ID in the 0x8B01
   header extension, and takes the next overlay SS_ID in emission
   order.  The overlay covers the first sample of every MPU, and
-  covering a later keyframe is the publisher's choice; since a receiver
+  covering a later keyframe is the publisher's choice, so on such a
+  track a keyframe left uncovered has a sample RAP flag of 0 (Section
+  5.2.1); since a receiver
   can use a recovered FT=0 or FT=1 member only within its bounded
   replay window, the overlay instance's own positive
   `interleaveDepthMs` (Section 7.4.1) tells it how long to hold what

@@ -560,13 +560,17 @@ extent (Section 5.4 of [@!MOQ-FEC-CORE]).  The loss it measures for
 the overlay is then the RAP packets that it lacks and that base
 decoding has not recovered, which gaps in the overlay SS_IDs of the
 RAP packets it holds reveal (Sections 7.4.2 and 7.4.3 of
-[@!MOQ-MMT]).  On a multicast or AMT leg, a receiver of an overlay
+[@!MOQ-MMT]).  A gap shows only when the next member arrives, so this
+measure can lag a loss by up to one interval between covered
+keyframes, longer than the overlay's block span that bounds the
+hysteresis.  On a multicast or AMT leg, a receiver of an overlay
 whose instance omits `interleaveDepthMs` or sets it to zero keeps
 fixed whether it holds the overlay's repair track.  A positive
 overlay `interleaveDepthMs`, which [@!MOQ-MMT] Section 7.4.1
 recommends wherever the base instance carries one, lets receivers on
-those legs add and drop that track on loss.  Where one endpoint carries the overlay's repair
-track and a repair layer of the base instance, joining or leaving it
+those legs add and drop that track on loss.  Where one endpoint
+carries the overlay's repair track and a repair layer of the base
+instance, joining or leaving it
 changes both, and a receiver does so only when the rules for each
 allow it.
 
@@ -1478,7 +1482,9 @@ New sentences:
   blocks, `interleaveDepthMs` and `reorderToleranceMs`, and for a
   repair layer the base instance's.  A receiver that does not hold the
   track measures the overlay's loss as the RAP packets it lacks that
-  base decoding has not recovered.  On a multicast or AMT leg, a
+  base decoding has not recovered, a measure that can lag a loss by
+  up to one interval between covered keyframes.  On a multicast or AMT
+  leg, a
   receiver of an overlay whose instance omits `interleaveDepthMs` or
   sets it to zero keeps fixed whether it holds the track; a positive
   one, which [@!MOQ-MMT] Section 7.4.1 recommends, lets those
