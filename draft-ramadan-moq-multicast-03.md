@@ -665,7 +665,12 @@ Subscribers select the highest-priority available source per the
 transport hierarchy defined in Section 3.
 
 {#multicast-packet-format}
-# Multicast Packet Format
+# Bindings
+
+A binding carries the MMTP packets of a multicast endpoint over one
+transport.  This document specifies the binding to UDP.  Multicast
+QUIC [@?QUIC-MULTICAST] is a second binding; this document describes
+it informatively and does not depend on it.
 
 All multicast delivery uses MMTP packets.  Each UDP datagram, other
 than a manifest record on a protected endpoint ((#manifest-record)),
@@ -802,7 +807,13 @@ The Multicast QUIC row corresponds to [@?QUIC-MULTICAST], which adds
 QUIC's per-packet AEAD and integrity.  The mapping of MMTP packets
 onto its DATAGRAM frames, and the use of FEC [@!MOQ-FEC-CORE] on that
 channel, are described, informatively, in [@!MOQ-FEC-MULTICAST]
-Section 3.4.
+Section 3.4.  On that binding the MC_INTEGRITY frames of
+[@?QUIC-MULTICAST] protect each channel packet, so a channel can run
+without the records of (#content-authentication).  The two differ in
+what they authenticate a packet to: MC_INTEGRITY, to the server that
+holds the receiver's unicast connection; a signed record, to a
+publisher key that the catalog lists.  A deployment that needs the
+second on such a channel carries the records as well.
 
 {#explicit-congestion-notification}
 ## Explicit Congestion Notification
@@ -3163,6 +3174,12 @@ as an RFC.
   as a precondition of multicast reception.
 - (#explicit-congestion-notification): the example of a receiver that
   cannot read the ECN field no longer names one API.
+- (#multicast-packet-format) is retitled "Bindings".  It says that
+  this document specifies the UDP binding and describes Multicast QUIC
+  [@?QUIC-MULTICAST] informatively as a second one, and it sets the
+  MC_INTEGRITY frames of that binding beside the signed records of
+  (#content-authentication): what each authenticates a packet to, and
+  that such a channel can run without the records.
 
 {#changes-since-draft-ramadan-moq-multicast-01}
 ## Changes Since draft-ramadan-moq-multicast-01

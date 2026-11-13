@@ -621,7 +621,11 @@ transport hierarchy defined in Section 3.</t>
 </section>
 </section>
 
-<section anchor="multicast-packet-format"><name>Multicast Packet Format</name>
+<section anchor="multicast-packet-format"><name>Bindings</name>
+<t>A binding carries the MMTP packets of a multicast endpoint over one
+transport.  This document specifies the binding to UDP.  Multicast
+QUIC <xref target="QUIC-MULTICAST"></xref> is a second binding; this document describes
+it informatively and does not depend on it.</t>
 <t>All multicast delivery uses MMTP packets.  Each UDP datagram, other
 than a manifest record on a protected endpoint (<xref target="manifest-record"></xref>),
 carries one MMTP packet -- the same packet format that MoQ objects carry on
@@ -767,7 +771,13 @@ a MoQ object (<xref target="MOQ-MMT"></xref> Section 4.2).</t>
 QUIC's per-packet AEAD and integrity.  The mapping of MMTP packets
 onto its DATAGRAM frames, and the use of FEC <xref target="MOQ-FEC-CORE"></xref> on that
 channel, are described, informatively, in <xref target="MOQ-FEC-MULTICAST"></xref>
-Section 3.4.</t>
+Section 3.4.  On that binding the MC_INTEGRITY frames of
+<xref target="QUIC-MULTICAST"></xref> protect each channel packet, so a channel can run
+without the records of <xref target="content-authentication"></xref>.  The two differ in
+what they authenticate a packet to: MC_INTEGRITY, to the server that
+holds the receiver's unicast connection; a signed record, to a
+publisher key that the catalog lists.  A deployment that needs the
+second on such a channel carries the records as well.</t>
 
 <section anchor="explicit-congestion-notification"><name>Explicit Congestion Notification</name>
 <t>A sender SHOULD set ECT(0), an ECN-Capable Transport (ECT) codepoint,
@@ -3149,6 +3159,12 @@ as one path beside it.  <xref target="introduction"></xref>, <xref target="deliv
 as a precondition of multicast reception.</li>
 <li><xref target="explicit-congestion-notification"></xref>: the example of a receiver that
 cannot read the ECN field no longer names one API.</li>
+<li><xref target="multicast-packet-format"></xref> is retitled &quot;Bindings&quot;.  It says that
+this document specifies the UDP binding and describes Multicast QUIC
+<xref target="QUIC-MULTICAST"></xref> informatively as a second one, and it sets the
+MC_INTEGRITY frames of that binding beside the signed records of
+<xref target="content-authentication"></xref>: what each authenticates a packet to, and
+that such a channel can run without the records.</li>
 </ul>
 </section>
 
