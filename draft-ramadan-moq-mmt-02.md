@@ -1514,6 +1514,10 @@ where its next RAP falls, sends 0.  A publisher that sends a non-zero
 - MUST set the RAP flag on the FI=0 or FI=1 object that begins the
   offset-0 data unit of every RAP sample of that track, not only of
   the first sample of each group (Section 4.3);
+- MUST, if the catalog protects the track with a keyframe overlay,
+  cover every RAP sample of the track with the overlay
+  ((#overlay-membership)), since a packet of a keyframe that the
+  overlay leaves uncovered does not set `RAP_flag`;
 - MUST place exactly one sample in each movie fragment of an MPU that
   holds more than one movie fragment; and
 - MUST carry the same value in every subsample data unit of a sample
@@ -2101,7 +2105,9 @@ that declares an overlay MUST set `RAP_flag` on a source packet of the
 track, MUST include the packet in the overlay instance, and MUST carry
 the packet's overlay SS_ID in its 0x8B01 header extension
 ((#overlay-header-extension)), if and only if that packet's payload
-belongs to a keyframe MFU covered by the overlay.
+belongs to a keyframe MFU covered by the overlay.  A publisher that
+states dependent runs on the track covers every keyframe MFU with the
+overlay ((#random-access-and-priority)).
 
 Overlay source symbols are numbered consecutively within the overlay
 instance, in the order the publisher emits them: the overlay SS_ID is 0
@@ -3268,7 +3274,11 @@ re-pointed.  The section numbers in the -00 entry below are those of
   publisher may send one and what it then keeps.  Item 4 of Section
   5.2.1 requires a non-zero `dep_counter` to be identical across a
   sample's subsample data units.  Until now the field was a priority
-  hint only.
+  hint only.  A publisher that states dependent runs on a track under
+  a keyframe overlay covers every keyframe of the track with the
+  overlay (Sections 5.3.4 and 7.4.2): under an overlay, `RAP_flag`
+  marks overlay members only, so an uncovered keyframe would read as a
+  sample of a dependent run.
 - Erratum after the -02 posting: Section 8.3 no longer lists
   `num_of_repair_symbol_per_packet` among the fields of an
   "iso-ssbg1-v1" entry.  [@!ISO.23008-1] Table C.3, in the 2023 edition

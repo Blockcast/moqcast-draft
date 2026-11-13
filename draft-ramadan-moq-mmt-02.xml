@@ -1492,6 +1492,10 @@ where its next RAP falls, sends 0.  A publisher that sends a non-zero
 <li>MUST set the RAP flag on the FI=0 or FI=1 object that begins the
 offset-0 data unit of every RAP sample of that track, not only of
 the first sample of each group (Section 4.3);</li>
+<li>MUST, if the catalog protects the track with a keyframe overlay,
+cover every RAP sample of the track with the overlay
+(<xref target="overlay-membership"></xref>), since a packet of a keyframe that the
+overlay leaves uncovered does not set <tt>RAP_flag</tt>;</li>
 <li>MUST place exactly one sample in each movie fragment of an MPU that
 holds more than one movie fragment; and</li>
 <li>MUST carry the same value in every subsample data unit of a sample
@@ -2043,7 +2047,9 @@ that declares an overlay MUST set <tt>RAP_flag</tt> on a source packet of the
 track, MUST include the packet in the overlay instance, and MUST carry
 the packet's overlay SS_ID in its 0x8B01 header extension
 (<xref target="overlay-header-extension"></xref>), if and only if that packet's payload
-belongs to a keyframe MFU covered by the overlay.</t>
+belongs to a keyframe MFU covered by the overlay.  A publisher that
+states dependent runs on the track covers every keyframe MFU with the
+overlay (<xref target="random-access-and-priority"></xref>).</t>
 <t>Overlay source symbols are numbered consecutively within the overlay
 instance, in the order the publisher emits them: the overlay SS_ID is 0
 at the first overlay source symbol of the stream and advances by one per
@@ -3271,7 +3277,11 @@ that carries it; 0 states nothing.  The section says when a
 publisher may send one and what it then keeps.  Item 4 of Section
 5.2.1 requires a non-zero <tt>dep_counter</tt> to be identical across a
 sample's subsample data units.  Until now the field was a priority
-hint only.</li>
+hint only.  A publisher that states dependent runs on a track under
+a keyframe overlay covers every keyframe of the track with the
+overlay (Sections 5.3.4 and 7.4.2): under an overlay, <tt>RAP_flag</tt>
+marks overlay members only, so an uncovered keyframe would read as a
+sample of a dependent run.</li>
 <li>Erratum after the -02 posting: Section 8.3 no longer lists
 <tt>num_of_repair_symbol_per_packet</tt> among the fields of an
 &quot;iso-ssbg1-v1&quot; entry.  <xref target="ISO.23008-1"></xref> Table C.3, in the 2023 edition
