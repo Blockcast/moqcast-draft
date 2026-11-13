@@ -661,36 +661,38 @@ many Ranges, lists them (<xref target="I-D.ietf-moq-transport"></xref> Sections 
 9.1.6, 9.20.9 and 9.20.11).  It chooses its repair layers as
 <xref target="MOQ-FEC-CORE"></xref> Section 7.4 describes, and stops waiting for a repair
 where Section 6.1, step 6, says.</t>
-<t>No field signals when a receiver that took an &quot;mfu-datagram&quot; track
-gives it up for the &quot;mfu&quot; track: the receiver decides, from its own
-playout delay and the track's FEC instances.  Let D be the receiver's
-playout delay, the time that it keeps between the arrival of media and
-its presentation, and let W be the largest sum of <tt>interleaveDepthMs</tt>
-and <tt>reorderToleranceMs</tt> among the FEC instances of the track that the
+<t>No field signals when a receiver that took an &quot;mfu-datagram&quot; track gives
+it up for the &quot;mfu&quot; track: the receiver decides, from its own playout
+delay and the track's FEC instances.  Let D be the receiver's playout
+delay, the time that it keeps between the arrival of media and its
+presentation, and let W be the largest sum of <tt>interleaveDepthMs</tt> and
+<tt>reorderToleranceMs</tt> among the FEC instances of the track that the
 receiver decodes (<xref target="MOQ-FEC-CORE"></xref> Section 9.3); an omitted
-<tt>reorderToleranceMs</tt> adds nothing to that sum.  A receiver SHOULD NOT
-take an &quot;mfu-datagram&quot; track if none of the FEC instances that it
-decodes carries a positive <tt>interleaveDepthMs</tt>.  It SHOULD NOT take
-one whose W exceeds D either: a block's deadline then falls after the
-presentation time of the media that the block protects.  A receiver that took the track SHOULD
-return to the &quot;mfu&quot; track once no object of the track has arrived for
-the larger of D and W; by then the media that it holds has been
-presented, every block that it could still decode has passed its
-deadline, and every repair that it requested is due (Section 6.1,
-step 6).  While objects of the track still arrive, a receiver that
-has nothing to present SHOULD NOT return sooner than the larger of D
-and the sum of one Group duration, the duration of one access unit
-and W, because the loss of a RAP MFU leaves it nothing to present
-until the next Group (Section 6.1, step 6).  A subscription that
-starts at the next Group boundary, with no fill of the current Group
-(Section 6.1, step 3), can deliver its first object as late as one
-Group duration plus W after it is accepted, and the receiver allows
-that long before it judges the track silent.  A receiver that
-returned to the &quot;mfu&quot; track MAY take the &quot;mfu-datagram&quot; track again.
-It SHOULD then keep presenting from the &quot;mfu&quot; track until the first
-RAP MFU of the &quot;mfu-datagram&quot; track is complete, and SHOULD wait
-longer before each further attempt, by a random amount, so that
-receivers that lost the track together do not return together.</t>
+<tt>reorderToleranceMs</tt> adds nothing to that sum.  W is the sum that the
+catalog signals: a deadline of the receiver's own, or a local allowance
+for an omitted <tt>reorderToleranceMs</tt>, does not change it.  A receiver
+SHOULD NOT take an &quot;mfu-datagram&quot; track if none of the FEC instances
+that it decodes carries a positive <tt>interleaveDepthMs</tt>.  It SHOULD NOT
+take one whose W exceeds D either: a block's deadline then falls after
+the presentation time of the media that the block protects.  A receiver
+that took the track SHOULD return to the &quot;mfu&quot; track once no object of
+the track has arrived for the larger of D and W; by then the media that
+it holds has been presented, every block that it could still decode has
+passed its deadline, and every repair that it requested is due (Section
+6.1, step 6).  While objects of the track still arrive, a receiver that
+has nothing to present SHOULD NOT return sooner than the larger of D and
+the sum of one Group duration, the duration of one access unit and W,
+because the loss of a RAP MFU leaves it nothing to present until the
+next Group (Section 6.1, step 6).  A subscription that starts at the
+next Group boundary, with no fill of the current Group (Section 6.1,
+step 3), can deliver its first object as late as one Group duration plus
+W after it is accepted, and the receiver allows that long before it
+judges the track silent.  A receiver that returned to the &quot;mfu&quot; track
+MAY take the &quot;mfu-datagram&quot; track again.  It SHOULD then keep presenting
+from the &quot;mfu&quot; track until the first RAP MFU of the &quot;mfu-datagram&quot; track
+is complete, and SHOULD wait longer before each further attempt, by a
+random amount, so that receivers that lost the track together do not
+return together.</t>
 <t>A delivery timeout drops a datagram without notice
 (<xref target="I-D.ietf-moq-transport"></xref> Section 5.2), so the receiver learns of it
 only as a missing packet.  A subscriber MAY set an
