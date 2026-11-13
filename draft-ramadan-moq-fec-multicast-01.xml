@@ -197,14 +197,18 @@ multicast, and AMT relays, found through DRIAD, for receivers on
 unicast-only networks.  The publisher generates FEC repair end to
 end, and the repair is the same on every leg.</li>
 </ul>
-<t>For an mmtp track, the same MoQ objects (source and repair) can be
+<t>For an mmtp track, the same MMTP packets (source and repair) can be
 transmitted over both
 unicast (QUIC/WebTransport) and multicast (UDP/SSM/AMT) paths.  Receivers
-on reliable unicast paths can skip FEC decoding (Section
+that take the track on QUIC streams can skip FEC decoding (Section
 3.3 of <xref target="MOQ-FEC-CORE"></xref>), while
 receivers on lossy multicast paths use FEC for recovery and apply the
 receiver repair policy of <xref target="receiver-repair-policy"></xref> to any block that
-FEC does not recover.  A multicast endpoint carries only mmtp tracks,
+FEC does not recover.  Receivers that take its &quot;mfu-datagram&quot; track,
+which carries the same source packets as unicast datagrams under FEC
+instances and repair tracks of its own (<xref target="MOQ-MMT"></xref> Section 4.3.1),
+use FEC too, and repair as that section specifies.  A multicast
+endpoint carries only mmtp tracks,
 so a loc or cmaf track reaches multicast through an mmtp rendition
 track, which is a separate FEC instance (<xref target="MOQ-MULTICAST"></xref> Section
 4.1; see
@@ -314,7 +318,9 @@ unicast repair, because per-receiver retransmission does not scale.</t>
 <ol>
 <li><t><strong>Symbol-to-datagram mapping.</strong>  Each source or repair symbol (one MMTP
 packet, per <xref target="MOQ-MMT"></xref>) is best carried in exactly one QUIC DATAGRAM
-frame.  This aligns the erasure unit (a lost QUIC packet) with the FEC
+frame, as an object of an mmtp track sent as datagrams, or of its
+repair tracks (<xref target="MOQ-MMT"></xref> Section 4.3.1).  This aligns the erasure
+unit (a lost QUIC packet) with the FEC
 symbol, so one lost packet erases exactly one source symbol.  STREAM
 framing defeats symbol-aligned recovery of FEC-protected media on a
 multicast channel: a lost packet then spans a byte range crossing
@@ -710,8 +716,13 @@ a block under it does not create an FEC deadline
 <t>This section specifies what a receiver of a multicast or AMT leg does
 with a base-instance block of a source track that in-band FEC has not
 recovered by the block's FEC deadline (Section
-9.3 of <xref target="MOQ-FEC-CORE"></xref>).  A receiver on
-a reliable MoQ/QUIC leg relies on transport retransmission (Section
+9.3 of <xref target="MOQ-FEC-CORE"></xref>).  A receiver that takes an mmtp track as MoQ
+datagrams on a unicast QUIC path (<xref target="MOQ-MMT"></xref> Section 4.3.1) has no
+retransmission either, but its repair serves it alone, and it requests
+repair as that section specifies; on a multicast QUIC channel
+(<xref target="multicast-quic"></xref>) this section applies as on any multicast leg.  A
+receiver on a MoQ/QUIC leg that delivers the track on streams relies
+on transport retransmission (Section
 3.3 of <xref target="MOQ-FEC-CORE"></xref>)
 and does not need it, and nothing in this section adds a deadline or
 a timer to such a leg.  Multicast and AMT legs carry only mmtp tracks
@@ -955,10 +966,14 @@ repair; <xref target="relationship-to-the-keyframe-overlay"></xref> covers its i
 with a keyframe overlay.
 A FETCH completes or fails by MoQ Transport events, its last object
 or an error; a receiver MUST NOT declare it failed on a locally chosen
-timeout.  A relay answers it only where it caches the repair track's
-objects, datagram-delivered ones included (Section
-12 of <xref target="MOQ-FEC-CORE"></xref>); where it
-does not, the FETCH fails by those events.</t>
+timeout.  A relay answers it from its cache where it holds the repair
+track's objects, datagram-delivered ones included (Section
+12 of <xref target="MOQ-FEC-CORE"></xref>), and
+otherwise fetches them upstream (<xref target="I-D.ietf-moq-transport"></xref> Section
+3.2.3).  A FETCH for a group that neither the relay nor any publisher
+upstream of it still holds fails by those events or returns none of
+the group's objects (Section
+6.2 of <xref target="MOQ-MULTICAST"></xref>).</t>
 <t>Only a keyframe-bearing block may stall video.  While its unicast
 repair is outstanding, the receiver MAY hold video presentation for
 it.  The block is unrecoverable when its unicast repair fails or
@@ -1417,6 +1432,14 @@ that would have arrived before their media was due, giving up that
 media while stalling nothing.  The first paragraph of
 <xref target="keyframe-bearing-blocks"></xref> points to the new section instead of
 restating the rule.</li>
+<li><xref target="keyframe-bearing-blocks"></xref> no longer says that the FETCH fails at a
+relay that does not cache the repair track's objects.  Such a relay
+fetches them upstream (<xref target="I-D.ietf-moq-transport"></xref> Section 3.2.3),
+as Section
+6.2 of <xref target="MOQ-MULTICAST"></xref> already said, so a relay's lack of a
+cache does not by itself fail the FETCH.  The
+sentence in -00 came from -01 of <xref target="I-D.ramadan-moq-fec"></xref> Section
+11.4.2 and contradicted both.</li>
 <li><xref target="deadline-anchoring-and-discard"></xref> adds that, under the
 bc-provenance profile, a publisher is recommended to include in
 <tt>reorderToleranceMs</tt> the time for which a sender holds a datagram
@@ -1481,6 +1504,24 @@ section's last paragraph and by <xref target="receiver-repair-policy"></xref>&qu
 &quot;is restated by this section's paragraph on the block deadline and
 by <xref target="receiver-repair-policy"></xref>&quot;.  The last paragraph of that section
 was the one on amplification in -00 and is one on the overlay now.</li>
+<li>In <xref target="multicast-and-amt-delivery"></xref>, &quot;the same
+MoQ objects (source and repair)&quot; now reads &quot;the same MMTP packets
+(source and repair)&quot;, &quot;Receivers on reliable unicast paths&quot; now reads
+&quot;Receivers that take the track on QUIC streams&quot;, and the new sentence
+&quot;Receivers that take its &quot;mfu-datagram&quot; track, which carries the
+same source packets as unicast datagrams under FEC instances and
+repair tracks of its own ([MOQ-MMT] Section 4.3.1), use FEC too, and
+repair as that section specifies.&quot; follows that sentence.  In
+<xref target="receiver-repair-policy"></xref>, the new sentence &quot;A receiver that takes
+an mmtp track as MoQ datagrams on a unicast QUIC path ([MOQ-MMT]
+Section 4.3.1) has no retransmission either, but its repair serves
+it alone, and it requests repair as that section specifies; on a
+multicast QUIC channel (<xref target="multicast-quic"></xref>) this section applies as
+on any multicast leg.&quot; precedes the sentence whose &quot;a reliable
+MoQ/QUIC leg&quot; now reads &quot;a MoQ/QUIC leg that delivers the track on
+streams&quot;.  In <xref target="multicast-quic"></xref>, item 1 now says that the QUIC
+DATAGRAM frame carries the symbol as an object of an mmtp track sent
+as datagrams, or of its repair tracks ([MOQ-MMT] Section 4.3.1).</li>
 </ul>
 </section>
 
