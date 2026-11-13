@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
-<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-core-00" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-core-01" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
 <front>
-<title abbrev="MoQ FEC Core">Forward Error Correction for Media over QUIC: Core Mechanism</title><seriesInfo value="draft-ramadan-moq-fec-core-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<title abbrev="MoQ FEC Core">Forward Error Correction for Media over QUIC: Core Mechanism</title><seriesInfo value="draft-ramadan-moq-fec-core-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
 </address></author><author initials="M. E." surname="Fiuczynski" fullname="Marc E. Fiuczynski"><organization>Rutgers University</organization><address><postal><street></street>
 </postal><email>mef@scarletmail.rutgers.edu</email>
-</address></author><date year="2026" month="November" day="2"></date>
+</address></author><date year="2026" month="November" day="15"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -946,9 +946,9 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-01"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.1982.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
@@ -986,9 +986,9 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MMT" target="">
   <front>
@@ -996,9 +996,9 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-03"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MULTICAST" target="">
   <front>
@@ -1006,9 +1006,9 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-02"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-03"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.6330.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.6681.xml"/>
@@ -1017,7 +1017,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 </references>
 
 <section anchor="companion-documents" removeInRFC="true"><name>Companion Documents</name>
-<t>This section is informative. It lists the documents that complete this one, and what each takes from <xref target="I-D.ramadan-moq-fec"></xref>. The section numbers in the last column are those of draft-ramadan-moq-fec-01.</t>
+<t>This section is informative. It lists the documents that complete this one, and what each takes from <xref target="I-D.ramadan-moq-fec"></xref>. The section numbers in the last column are those of draft-ramadan-moq-fec-01. In this section, -01 means draft-ramadan-moq-fec-01, not a revision of this document.</t>
 <table>
 <thead>
 <tr>
@@ -1075,7 +1075,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 </section>
 
 <section anchor="changes-from-draft-ramadan-moq-fec-01" removeInRFC="true"><name>Changes from draft-ramadan-moq-fec-01</name>
-<t>This section is informative.</t>
+<t>This section is informative. In this section, -01 means draft-ramadan-moq-fec-01, not a revision of this document.</t>
 
 <ul spacing="compact">
 <li>The document no longer specifies an FEC code. Section 4 states the properties a scheme must have; Reed-Solomon and RaptorQ move to <xref target="MOQ-FEC-BLOCK"></xref>, which designates Reed-Solomon as mandatory to implement and RaptorQ as optional (Section 4.4).</li>
@@ -1124,6 +1124,8 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 <li>Section 5.1 forbids reusing a symbol's coordinates across instances and feeding a symbol to another instance's decoder, except by the cross-instance placement of Section 8.4 at the SS_ID the unit's FEC Source Info Property gives it there.</li>
 <li>Section 1.3 records as open that the MoQ Transport section cited in Section 15.1 for the &quot;MOQ Properties&quot; registry (-01 Section 15.1) is to be settled against the current MoQ Transport draft.</li>
 <li>After the -00 posting: Section 9.3 says that a block scheme spreads a block's repair by pacing it after the block closes, within a span that covers that time, and that spreading, not the declared value, buys burst tolerance. It recommends that a publisher declare the smallest span within which it sends every block's source and repair symbols, counting repair it withholds against that choice, and says that a publisher that sends a block's repair as soon as the block closes keeps a short span at a low bitrate by closing blocks early, or declares a longer span for that rendition. The typical values of Section 9.3 are those of a publisher that spreads each block across its span.</li>
+<li>After the -00 posting: the references to the companion documents now name draft-ramadan-moq-fec-catalog-01, draft-ramadan-moq-fec-multicast-01, draft-ramadan-moq-mmt-03 and draft-ramadan-moq-multicast-03.</li>
+<li>After the -00 posting: <xref target="companion-documents"></xref> and this section each gain the sentence &quot;In this section, -01 means draft-ramadan-moq-fec-01, not a revision of this document.&quot;</li>
 </ul>
 <t>The questions this revision leaves open are marked [open] in the text: the registry pointer of Section 15.1 (Section 1.3); whether Section 4.3 holds for sliding-window schemes (Section 4.3); whether this document should itself require the mandatory-to-implement scheme (Section 4.4); and, in Section 6.2, whether the FEC Unit Start Property is worth its codepoint and whether PRIOR_GROUP_ID_GAP should be required on symbol-track objects.</t>
 </section>

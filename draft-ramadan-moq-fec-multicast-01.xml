@@ -50,15 +50,15 @@ multicast leg, and this document specifies what is particular to it.</t>
 operator of the endpoint does.  This document defines how the repair
 layers of an FEC instance are placed on endpoints, including endpoints
 that carry only repair, and how a receiver that measures loss moves
-between them <xref target="repair-only-endpoints"></xref>.  It states which tracks a
+between them (<xref target="repair-only-endpoints"></xref>).  It states which tracks a
 multicast endpoint carries in this revision
-<xref target="symbol-tracks-on-multicast"></xref>, and how the mechanism relates to the
+(<xref target="symbol-tracks-on-multicast"></xref>), and how the mechanism relates to the
 repair that a multicast QUIC channel may provide below it
-<xref target="multicast-quic"></xref>.  Where a multicast content-authentication profile
+(<xref target="multicast-quic"></xref>).  Where a multicast content-authentication profile
 decides which packets a receiver may trust, it specifies how blocks
 delimited by packets that the profile has not admitted are held
-<xref target="provisional-symbols"></xref>.  Finally it specifies the receiver repair
-policy of a multicast or AMT leg <xref target="receiver-repair-policy"></xref>: every
+(<xref target="provisional-symbols"></xref>).  Finally it specifies the receiver repair
+policy of a multicast or AMT leg (<xref target="receiver-repair-policy"></xref>): every
 block gets in-band FEC first, and a receiver that holds a MoQ session
 requests unicast repair, by the per-block FETCH of <xref target="MOQ-FEC-CORE"></xref>,
 only for blocks that FEC did not recover, in an order and within a
@@ -972,7 +972,7 @@ video.</t>
 deadline, a receiver that holds a MoQ session with a relay serving the
 block's repair track MUST request on-demand unicast repair for it,
 with the priority of <xref target="unicast-repair-budget"></xref>, unless the repair is
-already moot <xref target="moot-keyframe-repair"></xref>; within a consumer that the
+already moot (<xref target="moot-keyframe-repair"></xref>); within a consumer that the
 bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section
 7.2 governs for
 its blocks (<xref target="provisional-blocks"></xref>), a block only symbols of an
@@ -1381,9 +1381,9 @@ Payload IDs included.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-CORE" target="">
   <front>
@@ -1394,9 +1394,9 @@ Payload IDs included.</t>
     <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
       <organization>Rutgers University</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MMT" target="">
   <front>
@@ -1404,9 +1404,9 @@ Payload IDs included.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-03"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MULTICAST" target="">
   <front>
@@ -1414,9 +1414,9 @@ Payload IDs included.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-02"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-03"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
@@ -1464,17 +1464,16 @@ Payload IDs included.</t>
 changed since draft-ramadan-moq-fec-multicast-00.</t>
 <t>New sentences:</t>
 
-<ul>
-<li><t><xref target="block-classification"></xref> gains the run rule.  A receiver may class a
+<ul spacing="compact">
+<li><xref target="block-classification"></xref> gains the run rule.  A receiver may class a
 block as non-keyframe-bearing from the dependent run that a
 publisher states in <tt>dep_counter</tt> (<xref target="MOQ-MMT"></xref> Section 5.3.4), read
 from the DU headers it holds on either side of the block's missing
 symbols.  Until now that class needed the catalog's exact keyframe
 interval and the decode times of the bounding packets.  A receiver
 applies the rule only to a track whose publisher it knows states
-dependent runs, since nothing in the stream says so.</t>
-</li>
-<li><t><xref target="moot-keyframe-repair"></xref> is new.  In -00, and in -01 of
+dependent runs, since nothing in the stream says so.</li>
+<li><xref target="moot-keyframe-repair"></xref> is new.  In -00, and in -01 of
 <xref target="I-D.ramadan-moq-fec"></xref> Section 11.4.2, a keyframe repair was moot
 once a newer RAP had been admitted complete.  It is now moot only when, in
 addition, it cannot arrive by the block's playout deadline, which
@@ -1486,24 +1485,21 @@ repair as moot.  The rule as written in -00 cancelled repairs
 that would have arrived before their media was due, giving up that
 media while stalling nothing.  The first paragraph of
 <xref target="keyframe-bearing-blocks"></xref> points to the new section instead of
-restating the rule.</t>
-</li>
-<li><t><xref target="keyframe-bearing-blocks"></xref> no longer says that the FETCH fails at a
+restating the rule.</li>
+<li><xref target="keyframe-bearing-blocks"></xref> no longer says that the FETCH fails at a
 relay that does not cache the repair track's objects.  Such a relay
 fetches them upstream (<xref target="I-D.ietf-moq-transport"></xref> Section 3.2.3),
 as Section
 6.2 of <xref target="MOQ-MULTICAST"></xref> already said, so a relay's lack of a
 cache does not by itself fail the FETCH.  The
 sentence in -00 came from -01 of <xref target="I-D.ramadan-moq-fec"></xref> Section
-11.4.2 and contradicted both.</t>
-</li>
-<li><t><xref target="deadline-anchoring-and-discard"></xref> adds that, under the
+11.4.2 and contradicted both.</li>
+<li><xref target="deadline-anchoring-and-discard"></xref> adds that, under the
 bc-provenance profile, a publisher is recommended to include in
 <tt>reorderToleranceMs</tt> the time for which a sender holds a datagram
 until its window closes and a receiver holds one whose record it
-lost until the record's twin arrives.</t>
-</li>
-<li><t>In <xref target="repair-only-endpoints"></xref>, three new last paragraphs on the repair
+lost until the record's twin arrives.</li>
+<li>In <xref target="repair-only-endpoints"></xref>, three new last paragraphs on the repair
 track of a keyframe overlay.  The track is not a layer of the base
 instance, but the section's rules for adding and dropping a repair
 layer apply to it: the join on measured loss, the capacity check,
@@ -1527,12 +1523,10 @@ it.  -00 stated these rules for repair layers and said in
 <xref target="conventions-and-definitions"></xref> that an overlay is not one, which
 left open whether they govern the overlay's repair track.  Its join
 rule already covered a repair-only endpoint that carries only that
-track; the other rules are new for the track.</t>
-</li>
-<li><t>In <xref target="changes-from-draft-ramadan-moq-fec-01"></xref>, the sentence &quot;In it,
+track; the other rules are new for the track.</li>
+<li>In <xref target="changes-from-draft-ramadan-moq-fec-01"></xref>, the sentence &quot;In it,
 -01 means draft-ramadan-moq-fec-01, not a revision of this
-document.&quot;</t>
-</li>
+document.&quot;</li>
 </ul>
 <t>Changed sentences:</t>
 
@@ -1582,6 +1576,13 @@ MoQ/QUIC leg&quot; now reads &quot;a MoQ/QUIC leg that delivers the track on
 streams&quot;.  In <xref target="multicast-quic"></xref>, item 1 now says that the QUIC
 DATAGRAM frame carries the symbol as an object of an mmtp track sent
 as datagrams, or of its repair tracks ([MOQ-MMT] Section 4.3.1).</li>
+<li>In <xref target="introduction"></xref>, the five cross-references of the second
+paragraph are now in parentheses.  -00 rendered each as a bare
+section number after the clause it supports, as in &quot;moves between
+them Section 4&quot;.  No word changes.</li>
+<li>The references to the companion documents now name
+draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
+draft-ramadan-moq-mmt-03 and draft-ramadan-moq-multicast-03.</li>
 </ul>
 </section>
 

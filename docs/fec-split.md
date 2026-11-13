@@ -20,6 +20,9 @@ posted to the IETF; the posted -01 drafts stay as they are, in the archive and i
 
 Names are placeholders, as Marc's README says; the author lists are his for the core and the owner's for the rest.
 
+The table names the revisions the split produced. Several have changed since: `docs/ietf-submissions.md` lists each
+posted revision beside its current working copy.
+
 ## Where each section of -01 went
 
 | -01 section | Destination |

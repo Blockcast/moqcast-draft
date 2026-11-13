@@ -2887,9 +2887,9 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-CORE" target="">
   <front>
@@ -2900,9 +2900,9 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
       <organization>Rutgers University</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-MULTICAST" target="">
   <front>
@@ -2910,9 +2910,9 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MMT" target="">
   <front>
@@ -2920,9 +2920,9 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-03"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.3168.xml"/>
@@ -2962,9 +2962,9 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-mboned-mcast-manifest-01"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-mboned-mcast-manifest-02"></seriesInfo>
 </reference>
 <reference anchor="QUIC-MULTICAST" target="https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/">
   <front>
@@ -3131,6 +3131,10 @@ explanatory text that no rule depends on, are cut in
 changes.</li>
 <li>This appendix no longer carries the changes from -00 to -01; they
 are in draft-ramadan-moq-multicast-02.</li>
+<li>References: the companion documents are now cited as
+draft-ramadan-moq-mmt-03, draft-ramadan-moq-fec-core-01,
+draft-ramadan-moq-fec-catalog-01, draft-ramadan-moq-fec-multicast-01
+and draft-ramadan-mboned-mcast-manifest-02.</li>
 </ul>
 </section>
 
