@@ -2148,13 +2148,12 @@ base instance's.  An FT=0 or FT=1 member that the overlay recovers
 is of use to a receiver only while the receiver still holds the
 fragments that member governs unadmitted, within its bounded replay
 window ((#overlay-receiver-behavior)), so a receiver may have to hold
-them for up to that span.  A publisher that wants receivers to use
-such recoveries gives the overlay instance its own positive
-`interleaveDepthMs`, which bounds every overlay block's send span
-([@!MOQ-FEC-CORE] Section 9.3) and so tells a receiver how long to hold
-them, and can shorten the span by closing an overlay block once the
-last fragment of a covered keyframe has been emitted ([@!MOQ-FEC-CORE]
-Section 5.4).
+them for up to that span.  The overlay instance's own positive
+`interleaveDepthMs`, which (#overlay-instance) recommends, bounds every
+overlay block's send span ([@!MOQ-FEC-CORE] Section 9.3) and so tells a
+receiver how long to hold them; a publisher can shorten the span by
+closing an overlay block once the last fragment of a covered keyframe
+has been emitted ([@!MOQ-FEC-CORE] Section 5.4).
 
 A receiver knows that a source packet is an overlay source symbol
 because the packet carries the 0x8B01 header extension
@@ -3331,8 +3330,9 @@ re-pointed.  The section numbers in the -00 entry below are those of
   order.  The overlay covers the first sample of every MPU, and
   covering a later keyframe is the publisher's choice; since a receiver
   can use a recovered FT=0 or FT=1 member only within its bounded
-  replay window, a publisher that wants receivers to use one gives the
-  overlay instance its own positive `interleaveDepthMs`.  In -02, as in
+  replay window, the overlay instance's own positive
+  `interleaveDepthMs` (Section 7.4.1) tells it how long to hold what
+  that member governs.  In -02, as in
   [@?I-D.ramadan-moq-fec] from which the overlay moved, the overlay
   held only the keyframe MFU's fragments, so a loss
   that also took the keyframe's FT=0 or FT=1 data unit left an

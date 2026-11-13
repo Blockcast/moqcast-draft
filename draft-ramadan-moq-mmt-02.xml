@@ -2090,13 +2090,12 @@ base instance's.  An FT=0 or FT=1 member that the overlay recovers
 is of use to a receiver only while the receiver still holds the
 fragments that member governs unadmitted, within its bounded replay
 window (<xref target="overlay-receiver-behavior"></xref>), so a receiver may have to hold
-them for up to that span.  A publisher that wants receivers to use
-such recoveries gives the overlay instance its own positive
-<tt>interleaveDepthMs</tt>, which bounds every overlay block's send span
-(<xref target="MOQ-FEC-CORE"></xref> Section 9.3) and so tells a receiver how long to hold
-them, and can shorten the span by closing an overlay block once the
-last fragment of a covered keyframe has been emitted (<xref target="MOQ-FEC-CORE"></xref>
-Section 5.4).</t>
+them for up to that span.  The overlay instance's own positive
+<tt>interleaveDepthMs</tt>, which <xref target="overlay-instance"></xref> recommends, bounds every
+overlay block's send span (<xref target="MOQ-FEC-CORE"></xref> Section 9.3) and so tells a
+receiver how long to hold them; a publisher can shorten the span by
+closing an overlay block once the last fragment of a covered keyframe
+has been emitted (<xref target="MOQ-FEC-CORE"></xref> Section 5.4).</t>
 <t>A receiver knows that a source packet is an overlay source symbol
 because the packet carries the 0x8B01 header extension
 (<xref target="overlay-header-extension"></xref>).  It knows that a repair packet belongs to
@@ -3335,8 +3334,9 @@ header extension, and takes the next overlay SS_ID in emission
 order.  The overlay covers the first sample of every MPU, and
 covering a later keyframe is the publisher's choice; since a receiver
 can use a recovered FT=0 or FT=1 member only within its bounded
-replay window, a publisher that wants receivers to use one gives the
-overlay instance its own positive <tt>interleaveDepthMs</tt>.  In -02, as in
+replay window, the overlay instance's own positive
+<tt>interleaveDepthMs</tt> (Section 7.4.1) tells it how long to hold what
+that member governs.  In -02, as in
 <xref target="I-D.ramadan-moq-fec"></xref> from which the overlay moved, the overlay
 held only the keyframe MFU's fragments, so a loss
 that also took the keyframe's FT=0 or FT=1 data unit left an

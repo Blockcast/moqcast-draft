@@ -552,10 +552,7 @@ overlay's repair track they read the overlay instance's blocks,
 the base instance's.  The overlay instance has its own block
 partition, whose blocks can span many base blocks ([@!MOQ-MMT] Section
 7.4.2), and its own block span (Sections 8.4, 9.3 and 10.1 of
-[@!MOQ-FEC-CORE]).  Where [@!MOQ-MMT] Section 7.4.2 calls the
-overlay's recovery latency unrelated to `interleaveDepthMs`, it means
-the base instance's value, which governs none of these rules for the
-overlay.
+[@!MOQ-FEC-CORE]).
 
 A receiver that does not hold the overlay's repair track cannot
 delimit an overlay block, because only repair packets carry a block's
@@ -565,10 +562,10 @@ decoding has not recovered, which gaps in the overlay SS_IDs of the
 RAP packets it holds reveal (Sections 7.4.2 and 7.4.3 of
 [@!MOQ-MMT]).  On a multicast or AMT leg, a receiver of an overlay
 whose instance omits `interleaveDepthMs` or sets it to zero keeps
-fixed whether it holds the overlay's repair track.  A publisher that
-wants receivers on those legs to add and drop the overlay's repair
-track on loss gives the overlay instance a positive
-`interleaveDepthMs`.  Where one endpoint carries the overlay's repair
+fixed whether it holds the overlay's repair track.  A positive
+overlay `interleaveDepthMs`, which [@!MOQ-MMT] Section 7.4.1
+recommends wherever the base instance carries one, lets receivers on
+those legs add and drop that track on loss.  Where one endpoint carries the overlay's repair
 track and a repair layer of the base instance, joining or leaving it
 changes both, and a receiver does so only when the rules for each
 allow it.
@@ -1479,15 +1476,13 @@ New sentences:
   make-before-break, the hysteresis and the fixed selection without a
   block deadline.  For the track they read the overlay instance's
   blocks, `interleaveDepthMs` and `reorderToleranceMs`, and for a
-  repair layer the base instance's; the `interleaveDepthMs` that
-  [@!MOQ-MMT] Section 7.4.2 calls unrelated to the overlay's recovery
-  latency is the base instance's.  A receiver that does not hold the
+  repair layer the base instance's.  A receiver that does not hold the
   track measures the overlay's loss as the RAP packets it lacks that
   base decoding has not recovered.  On a multicast or AMT leg, a
   receiver of an overlay whose instance omits `interleaveDepthMs` or
-  sets it to zero keeps fixed whether it holds the track, and a
-  publisher that wants receivers on those legs to add and drop it
-  gives the overlay instance a positive value.  A receiver joins or
+  sets it to zero keeps fixed whether it holds the track; a positive
+  one, which [@!MOQ-MMT] Section 7.4.1 recommends, lets those
+  receivers add and drop it.  A receiver joins or
   leaves an endpoint that carries both the track and a repair layer
   of the base instance only when the rules for each allow it.  Every
   rule of the paragraph on amplification applies to the track as to a

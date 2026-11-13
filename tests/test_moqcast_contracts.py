@@ -137,7 +137,8 @@ class PublishedExamples(unittest.TestCase):
                 "dropping the overlay's repair track",
                 "For the overlay's repair track they read the overlay instance's blocks, interleaveDepthMs "
                 "and reorderToleranceMs, and for a repair layer the base instance's.",
-                "it means the base instance's value, which governs none of these rules for the overlay",
+                "recommends wherever the base instance carries one, lets receivers on those legs add and "
+                "drop that track on loss",
                 "The loss it measures for the overlay is then the RAP packets that it lacks and that base "
                 "decoding has not recovered",
                 "a receiver of an overlay whose instance omits interleaveDepthMs or sets it to zero keeps "
@@ -148,6 +149,8 @@ class PublishedExamples(unittest.TestCase):
             ):
                 self.assertIn(rule, text)
             self.assertNotIn("whatever the base instance carries", text)
+            # The overlay's positive interleaveDepthMs is asked for once, in MMT Section 7.4.1.
+            self.assertNotIn("it means the base instance's value", text)
 
     def test_keyframe_overlay_members_include_the_governing_metadata(self):
         # MMT -02 Section 7.4.2, change after the -02 posting (BLO-52085): the overlay's members are
@@ -155,8 +158,8 @@ class PublishedExamples(unittest.TestCase):
         # and the FT=1 of a movie fragment that contains one; on a track under an overlay RAP_flag,
         # membership and the 0x8B01 extension coincide.  FEC multicast -01 Section 6.6 follows.
         # Covering a keyframe after the first sample of its MPU is the publisher's choice, and the
-        # overlay's own interleaveDepthMs tells a receiver how long to hold what a recovered FT=0 or
-        # FT=1 member governs.
+        # overlay's own interleaveDepthMs, which Section 7.4.1 recommends, tells a receiver how long
+        # to hold what a recovered FT=0 or FT=1 member governs.
         mmt_md = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
         mmt_xml = (ROOT / "draft-ramadan-moq-mmt-02.xml").read_text(encoding="utf-8")
         self.assertIn("value='draft-ramadan-moq-fec-multicast-01'", mmt_md)
@@ -177,7 +180,7 @@ class PublishedExamples(unittest.TestCase):
                 "are therefore exactly its overlay members, the FT=0 and FT=1 members included",
                 "A publisher MAY also cover, keyframe by keyframe, any keyframe that is not the first "
                 "sample of its MPU",
-                "gives the overlay instance its own positive interleaveDepthMs",
+                "recommends, bounds every overlay block's send span",
             ):
                 self.assertIn(rule, text)
         stem = "draft-ramadan-moq-fec-multicast-01"
