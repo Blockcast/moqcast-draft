@@ -142,8 +142,8 @@ erratum (#25: an `iso-ssbg1-v1` AL-FEC entry carries neither
 per ISO/IEC 23008-1 Table C.3) and one change (#27: the keyframe overlay's
 members include the FT=0 and FT=1 data units that govern each Random Access
 Point it covers, Section 7.4.2), and they cite
-`draft-ramadan-moq-fec-multicast-01`, the unposted revision of #24, so the two
-are posted together. The `-02` checksum above is the posted copy's;
+`draft-ramadan-moq-fec-multicast-01`, the unposted revision of #24, #29 and #30,
+so the two are posted together. The `-02` checksum above is the posted copy's;
 the repository's `-02` XML no longer matches it. The files keep the `-02` name
 as the working copy until the next posting, which the Datatracker takes only as
 `-03`.

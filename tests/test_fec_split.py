@@ -23,9 +23,13 @@ SET = {
     "MOQ-MMT": ("draft-ramadan-moq-mmt-02.md", "MMT"),
     "MOQ-MULTICAST": ("draft-ramadan-moq-multicast-02.md", "MULTICAST"),
 }
-# a draft revised alone, which the others still cite at its previous, posted revision;
-# an entry goes once they cite the current one
-PREVIOUS = {"MOQ-FEC-MULTICAST": ("draft-ramadan-moq-fec-multicast-00",)}
+# drafts revised since the batch posted on 2026-11-02; drafts posted with them still cite the previous revision
+REVISED = {"MOQ-FEC-MULTICAST"}
+
+
+def previous(name: str) -> str:
+    stem, rev = name.rsplit("-", 1)
+    return f"{stem}-{int(rev) - 1:02d}"
 FRONT = {
     "CORE": ("draft-ramadan-moq-fec-core-00", "Forward Error Correction for Media over QUIC: Core Mechanism", ["Omar Ramadan", "Marc E. Fiuczynski"]),
     "BLOCK": ("draft-ramadan-moq-fec-block-codes-00", "Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ", ["Omar Ramadan"]),
@@ -181,8 +185,7 @@ class SplitContracts(unittest.TestCase):
                 self.assertEqual(cited - set(blocks), set(), f"{key} cites anchors without a reference block")
                 for anchor, (filename, _) in SET.items():
                     if anchor in blocks:
-                        allowed = {filename[:-3], *PREVIOUS.get(anchor, ())}
-                        self.assertIn(blocks[anchor], allowed, f"{key} cites {anchor} at the wrong revision")
+                        self.assertIn(blocks[anchor], {filename[:-3]} | ({previous(filename[:-3])} if anchor in REVISED else set()), f"{key} cites {anchor} at the wrong revision")
 
     def test_no_bcp14_keyword_in_informative_text(self):
         for key, text in self.text.items():
@@ -232,6 +235,26 @@ class SplitContracts(unittest.TestCase):
                     self.assertRegex(text, rf"(?m)^## Changes Since {re.escape(name)}-01$")
                 else:
                     self.assertIn("# Changes from draft-ramadan-moq-fec-01", text)
+
+    def test_moot_keyframe_repair_is_admission_and_deadline_scoped(self):
+        text = self.text["MCAST"]
+        start = text.index("{#moot-keyframe-repair}")
+        end = text.index("{#other-video-blocks}", start)
+        section = text[start:end]
+
+        self.assertRegex(
+            section,
+            r"(?s)1\.\s+The receiver holds a RAP the receiver has already admitted complete",
+        )
+        self.assertRegex(
+            section,
+            r"(?s)2\.\s+The repair cannot arrive.*?current time is not earlier than it",
+        )
+        self.assertIn("while its playout deadline has not passed, the media it recovers", section)
+        self.assertNotIn("cancelling it stalls nothing", section)
+
+        changes = text[text.index("# Changes from draft-ramadan-moq-fec-multicast-00") :]
+        self.assertIn("once a newer RAP had been admitted complete", changes)
 
 
 if __name__ == "__main__":

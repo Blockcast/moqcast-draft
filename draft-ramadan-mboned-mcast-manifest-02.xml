@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
-<rfc version="3" ipr="trust200902" docName="draft-ramadan-mboned-mcast-manifest-01" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-mboned-mcast-manifest-02" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
 <front>
-<title abbrev="Multicast Manifests">Signed Digest Manifests for Multicast Datagram Authentication</title><seriesInfo value="draft-ramadan-mboned-mcast-manifest-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<title abbrev="Multicast Manifests">Signed Digest Manifests for Multicast Datagram Authentication</title><seriesInfo value="draft-ramadan-mboned-mcast-manifest-02" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="November" day="2"></date>
+</address></author><date year="2026" month="November" day="15"></date>
 <area>ops</area>
 <workgroup>mboned</workgroup>
 <keyword>multicast</keyword>
@@ -533,10 +533,11 @@ expire its windows as loss (<xref target="threat-model"></xref>).  A sender MAY 
 alone never closes more than 1000 windows per second.</t>
 <t>The signed record MUST be transmitted immediately before the first
 datagram it covers (only the twin of an earlier window MAY come
-between them), so the sender holds at most one window of data: 20 ms
-below about 21 Mbit/s, where the timer closes windows at the default,
-8.3 ms at 50 Mbit/s and 4.1 ms at 100 Mbit/s with 1400-octet
-datagrams.  A twin, a byte-identical copy of the record, MUST be
+between them), so a sender that does not pace (below) holds at most
+one window of data: 20 ms below about 21 Mbit/s, where the timer
+closes windows at the default, 8.3 ms at 50 Mbit/s and 4.1 ms at
+100 Mbit/s with 1400-octet datagrams.  A twin, a byte-identical copy
+of the record, MUST be
 transmitted after the last datagram the record covers, no later than
 <tt>maxAuthDelayMs / 2</tt> after the record and before the signed record of
 window <tt>mseq + 64</tt>, so that at most 63 later records precede it and
@@ -559,6 +560,40 @@ been sent, the twin of the record whose <tt>flags</tt> bit 0 is set included,
 follows that datagram at once.  A receiver handles either copy by
 step 1 of <xref target="processing"></xref> and drops the second with one lookup
 and one hash.</t>
+<t>After a window's signed record, a sender SHOULD pace the window's
+datagrams evenly across the following <tt>manifestTimerMs</tt> rather than
+transmit them at one instant.  A receiver can shed datagrams above an
+ingress ceiling under injection, as the browser profile does
+(<xref target="browser-profile"></xref>).  One that admits datagrams in arrival order up
+to that ceiling and sheds the rest lets them through no faster than
+the ceiling allows, so while injected traffic holds it there a window
+that arrives at one instant can be shed almost whole, where each paced
+datagram is admitted whenever the ceiling has allowed for one more
+datagram since the arrival before it.  How many paced datagrams such a
+receiver sheds depends on the injected traffic's timing as well as its
+rate: traffic at a fixed rate sheds more of them than traffic that
+arrives at random times at the same rate.  With such a receiver,
+pacing does not protect against injected traffic timed to the flow's
+schedule.  Traffic that arrives just before each window closes can
+shed a window's signed record and, placed as recommended above, its
+twin, which leave as windows close whether or not the sender paces,
+and so none of the window's data can be verified; traffic that arrives
+just ahead of each paced datagram can shed most of the window; and
+bursts that arrive soon after a window closes can shed paced datagrams
+that, sent when it closed, would have arrived ahead of them.  Against
+such traffic a sender that paces can lose more than one that transmits
+each window at once.  Where windows close at the count cap sooner than
+<tt>manifestTimerMs</tt>, much of each window still leaves at once, just
+before the next window's signed record.  The first datagram leaves
+with the record, and a sender that paces transmits any datagram of the
+window still unsent when the next window closes before that window's
+signed record, which keeps data in order and the twin, at its
+RECOMMENDED place, after the last datagram its record covers.  It can
+still transmit an epoch's last window at once when it ends the epoch,
+as at an orderly restart or a key change, so that the epoch's twins,
+which follow its last datagram at once, are not held back.  A sender
+that paces holds a datagram up to one <tt>manifestTimerMs</tt> longer, and up
+to two windows of data.</t>
 <t>At 37 digests per window, a record and its twin cost about 71 octets
 per 1400-octet datagram (5.1%); data datagrams are untouched.  With
 the 20 ms timer the two copies cost about 5.6% at 10 Mbit/s, about 9%
@@ -2228,6 +2263,19 @@ complement each other by deployment, not by format.</t>
 <section anchor="change-log"><name>Change Log</name>
 <t>This appendix is informative.  It is to be removed before publication
 as an RFC.</t>
+
+<section anchor="changes-since-draft-ramadan-mboned-mcast-manifest-01"><name>Changes Since draft-ramadan-mboned-mcast-manifest-01</name>
+
+<ul spacing="compact">
+<li>A sender SHOULD pace a window's datagrams evenly across the
+<tt>manifestTimerMs</tt> after its signed record, sending any still unsent
+when the next window closes before that window's record, rather
+than transmit them at one instant, and Sender Behavior says where
+pacing helps and where it does not (<xref target="sender-behavior"></xref>); an epoch's
+last window can still go at once; -01 did not say how a sender
+spaces a window's datagrams.</li>
+</ul>
+</section>
 
 <section anchor="changes-since-draft-ramadan-mboned-mcast-manifest-00"><name>Changes Since draft-ramadan-mboned-mcast-manifest-00</name>
 

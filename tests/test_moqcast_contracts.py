@@ -123,7 +123,7 @@ class PublishedExamples(unittest.TestCase):
         xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
         self.assertIn(f'value = "{stem}"', markdown)
         self.assertIn(f'docName="{stem}"', xml)
-        self.assertIn('anchor="changes-since-draft-ramadan-moq-fec-multicast-00"', xml)
+        self.assertIn('anchor="changes-from-00"', xml)
         texts = (
             section(markdown, "# Repair-Only Multicast Endpoints\n", "{#provisional-symbols}"),
             re.sub(r"<[^>]+>", "", section(xml, 'anchor="repair-only-endpoints"', 'anchor="provisional-symbols"')),
@@ -197,7 +197,7 @@ class PublishedExamples(unittest.TestCase):
             self.assertNotIn("does not by itself recover", text)
 
     def test_mboned_manifest_draft_md_and_xml_agree_on_docname(self):
-        stem = "draft-ramadan-mboned-mcast-manifest-01"
+        stem = "draft-ramadan-mboned-mcast-manifest-02"
         markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
         xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
         self.assertIn(f'value = "{stem}"', markdown)
@@ -215,11 +215,38 @@ class PublishedExamples(unittest.TestCase):
             self.assertEqual(document["version"], 1, f"well-known example at line {line}")
             self.assertTrue(document["channels"], f"well-known example at line {line}")
 
+    def test_mboned_senders_pace_each_window(self):
+        # Sender Behavior, -02: a receiver that admits in arrival order up to its ingress ceiling can
+        # shed almost all of a window sent at one instant, so a sender paces every window's datagrams
+        # across the next timer period after its record, and sends what is left before the next
+        # record (data in order, twin after its window's last datagram); an epoch's last window can
+        # go at once.
+        stem = "draft-ramadan-mboned-mcast-manifest-02"
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        texts = (
+            section(markdown, "\n# Sender Behavior\n", "\n# Receiver Behavior\n"),
+            re.sub(r"<[^>]+>", "", section(xml, 'anchor="sender-behavior"', 'anchor="receiver-behavior"')),
+        )
+        for text in texts:
+            text = " ".join(text.replace("`", "").split())
+            for rule in (
+                "a sender SHOULD pace the window's datagrams evenly across the following "
+                "manifestTimerMs rather than transmit them at one instant",
+                "a sender that paces transmits any datagram of the window still unsent when the "
+                "next window closes before that window's signed record",
+                "the twin, at its RECOMMENDED place, after the last datagram its record covers",
+                "can still transmit an epoch's last window at once when it ends the epoch",
+                "holds a datagram up to one manifestTimerMs longer, and up to two windows of data",
+                "a sender that does not pace (below) holds at most one window of data",
+            ):
+                self.assertIn(rule, text)
+
     def test_mboned_well_known_example_obeys_its_own_rules(self):
         # Sections 8.1/8.2: address literals of one family, 1..4 keys with distinct kid and
         # firstEpoch, publicKey 43 unpadded base64url characters for 32 octets, no manifestPort
         # (records travel in band on `port`) and no `port` shared by two channels of one (S, G).
-        markdown = (ROOT / "draft-ramadan-mboned-mcast-manifest-01.md").read_text(encoding="utf-8")
+        markdown = (ROOT / "draft-ramadan-mboned-mcast-manifest-02.md").read_text(encoding="utf-8")
         channels = 0
         for line, raw in fences(markdown, "json"):
             flows = set()
@@ -284,7 +311,7 @@ class PublishedExamples(unittest.TestCase):
 
         records = []
         for name, heading in (
-            ("draft-ramadan-mboned-mcast-manifest-01.md", "# Test Vectors\n"),
+            ("draft-ramadan-mboned-mcast-manifest-02.md", "# Test Vectors\n"),
             ("draft-ramadan-moq-multicast-02.md", "# Test Vectors: bc-provenance Version 2\n"),
         ):
             text = appendix(name, heading)
@@ -343,7 +370,7 @@ class PublishedExamples(unittest.TestCase):
         """Compare the recomputed Appendix A record with the matching case of the published libmmt JSON, pinned by its SHA-256."""
 
     def test_mboned_rate_arithmetic_is_consistent(self):
-        text = " ".join((ROOT / "draft-ramadan-mboned-mcast-manifest-01.md").read_text(encoding="utf-8").split())
+        text = " ".join((ROOT / "draft-ramadan-mboned-mcast-manifest-02.md").read_text(encoding="utf-8").split())
         moq = " ".join((ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8").split())
 
         def numbers(pattern: str, source: str = text):
@@ -407,7 +434,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertEqual(double, round(2 * single, 2))
         self.assertEqual(numbers(r"so these figures rise with V: ([\d,]+) per second, V at (\d+) Gbit/s", enforcement), [v_gig, gig])
         self.assertEqual(numbers(r"so the flood figure rises with V: ([\d,]+) per second, V at (\d+) Gbit/s"), [v_gig, gig])
-        for name, source in (("draft-ramadan-mboned-mcast-manifest-01", text), ("draft-ramadan-moq-multicast-02", moq)):
+        for name, source in (("draft-ramadan-mboned-mcast-manifest-02", text), ("draft-ramadan-moq-multicast-02", moq)):
             mbit_floor, record, mbit_v, v_stated = numbers(
                 r"more than V records per second on (?:the flow's )?`port` \(about ([\d.]+) Mbit/s of (\d+)-octet records "
                 r"at V's floor, ([\d.]+) Mbit/s at ([\d,]+)\)",
@@ -419,7 +446,7 @@ class PublishedExamples(unittest.TestCase):
                 self.assertNotIn(stale, source, name)
 
     def test_mboned_record_cap_arithmetic(self):
-        stem = "draft-ramadan-mboned-mcast-manifest-01"
+        stem = "draft-ramadan-mboned-mcast-manifest-02"
         texts = {suffix: " ".join((ROOT / f"{stem}.{suffix}").read_text(encoding="utf-8").split()) for suffix in ("md", "xml")}
         pattern = (
             r"one unfragmented datagram on a (\d+)-octet path\. At (\d+) digests the record is (\d+) octets: "
@@ -451,7 +478,7 @@ class PublishedExamples(unittest.TestCase):
 
     def test_replay_floor_is_written_without_unsigned_underflow(self):
         # Both drafts state the floor as a sum, `mseq + 64 <= highest_mseq`, and say neither counter wraps.
-        for stem in ("draft-ramadan-mboned-mcast-manifest-01", "draft-ramadan-moq-multicast-02"):
+        for stem in ("draft-ramadan-mboned-mcast-manifest-02", "draft-ramadan-moq-multicast-02"):
             markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
             xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
             self.assertIn("`mseq + 64 <= highest_mseq(kid, epoch)`", markdown, stem)

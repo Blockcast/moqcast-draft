@@ -296,10 +296,10 @@ instance's block profile gives it a meaning of its own
 ([@!MOQ-FEC-CORE] Section 10.1);
 "moq-object-v1" does not, and [@?MOQ-MMT] does for "iso-ssbg1-v1".
 
-**reorderToleranceMs** (number, OPTIONAL): A receiver-local allowance
-for packet reordering, network jitter, and local processing
-variance, in milliseconds ([@!MOQ-FEC-CORE] Section
-9.3).  It is a finite number greater
+**reorderToleranceMs** (number, OPTIONAL): The publisher's allowance
+for packet reordering, network jitter, and processing, in
+milliseconds, which a receiver adds once to a block deadline
+([@!MOQ-FEC-CORE] Section 9.3).  It is a finite number greater
 than or equal to zero, fractional values included.  That section
 states what an explicit value of zero and an omitted member each
 mean, and that a receiver keeps the two distinct.
@@ -1186,6 +1186,10 @@ New sentences, not carried from -01:
   multicast endpoint ([@?MOQ-FEC-MULTICAST] Section
   3.3)" and ", and K + P = 240 is
   within the "reed-solomon" bound of 255".
+- After the -00 posting: in (#instance-fields), `reorderToleranceMs`
+  is the publisher's allowance, which a receiver adds once to a block
+  deadline, as [@!MOQ-FEC-CORE] Section 9.3 states; -00 called it a
+  receiver-local allowance.
 
 {numbered="false"}
 # Acknowledgements

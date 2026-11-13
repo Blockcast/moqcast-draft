@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "ops"
 workgroup = "mboned"
 submissiontype = "IETF"
-date = "2026-11-02T00:00:00Z"
+date = "2026-11-15T00:00:00Z"
 keyword = ["multicast", "AMBI", "authentication", "manifest", "Ed25519", "SSM"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-mboned-mcast-manifest-01"
+value = "draft-ramadan-mboned-mcast-manifest-02"
 stream = "IETF"
 status = "standard"
 
@@ -516,10 +516,11 @@ alone never closes more than 1000 windows per second.
 
 The signed record MUST be transmitted immediately before the first
 datagram it covers (only the twin of an earlier window MAY come
-between them), so the sender holds at most one window of data: 20 ms
-below about 21 Mbit/s, where the timer closes windows at the default,
-8.3 ms at 50 Mbit/s and 4.1 ms at 100 Mbit/s with 1400-octet
-datagrams.  A twin, a byte-identical copy of the record, MUST be
+between them), so a sender that does not pace (below) holds at most
+one window of data: 20 ms below about 21 Mbit/s, where the timer
+closes windows at the default, 8.3 ms at 50 Mbit/s and 4.1 ms at
+100 Mbit/s with 1400-octet datagrams.  A twin, a byte-identical copy
+of the record, MUST be
 transmitted after the last datagram the record covers, no later than
 `maxAuthDelayMs / 2` after the record and before the signed record of
 window `mseq + 64`, so that at most 63 later records precede it and
@@ -542,6 +543,41 @@ been sent, the twin of the record whose `flags` bit 0 is set included,
 follows that datagram at once.  A receiver handles either copy by
 step 1 of (#processing) and drops the second with one lookup
 and one hash.
+
+After a window's signed record, a sender SHOULD pace the window's
+datagrams evenly across the following `manifestTimerMs` rather than
+transmit them at one instant.  A receiver can shed datagrams above an
+ingress ceiling under injection, as the browser profile does
+((#browser-profile)).  One that admits datagrams in arrival order up
+to that ceiling and sheds the rest lets them through no faster than
+the ceiling allows, so while injected traffic holds it there a window
+that arrives at one instant can be shed almost whole, where each paced
+datagram is admitted whenever the ceiling has allowed for one more
+datagram since the arrival before it.  How many paced datagrams such a
+receiver sheds depends on the injected traffic's timing as well as its
+rate: traffic at a fixed rate sheds more of them than traffic that
+arrives at random times at the same rate.  With such a receiver,
+pacing does not protect against injected traffic timed to the flow's
+schedule.  Traffic that arrives just before each window closes can
+shed a window's signed record and, placed as recommended above, its
+twin, which leave as windows close whether or not the sender paces,
+and so none of the window's data can be verified; traffic that arrives
+just ahead of each paced datagram can shed most of the window; and
+bursts that arrive soon after a window closes can shed paced datagrams
+that, sent when it closed, would have arrived ahead of them.  Against
+such traffic a sender that paces can lose more than one that transmits
+each window at once.  Where windows close at the count cap sooner than
+`manifestTimerMs`, much of each window still leaves at once, just
+before the next window's signed record.  The first datagram leaves
+with the record, and a sender that paces transmits any datagram of the
+window still unsent when the next window closes before that window's
+signed record, which keeps data in order and the twin, at its
+RECOMMENDED place, after the last datagram its record covers.  It can
+still transmit an epoch's last window at once when it ends the epoch,
+as at an orderly restart or a key change, so that the epoch's twins,
+which follow its last datagram at once, are not held back.  A sender
+that paces holds a datagram up to one `manifestTimerMs` longer, and up
+to two windows of data.
 
 At 37 digests per window, a record and its twin cost about 71 octets
 per 1400-octet datagram (5.1%); data datagrams are untouched.  With
@@ -2147,6 +2183,16 @@ complement each other by deployment, not by format.
 
 This appendix is informative.  It is to be removed before publication
 as an RFC.
+
+## Changes Since draft-ramadan-mboned-mcast-manifest-01
+
+- A sender SHOULD pace a window's datagrams evenly across the
+  `manifestTimerMs` after its signed record, sending any still unsent
+  when the next window closes before that window's record, rather
+  than transmit them at one instant, and Sender Behavior says where
+  pacing helps and where it does not ((#sender-behavior)); an epoch's
+  last window can still go at once; -01 did not say how a sender
+  spaces a window's datagrams.
 
 ## Changes Since draft-ramadan-mboned-mcast-manifest-00
 
