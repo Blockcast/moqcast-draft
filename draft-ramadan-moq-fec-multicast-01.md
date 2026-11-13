@@ -228,14 +228,18 @@ to recover from packet loss without retransmission:
   unicast-only networks.  The publisher generates FEC repair end to
   end, and the repair is the same on every leg.
 
-For an mmtp track, the same MoQ objects (source and repair) can be
+For an mmtp track, the same MMTP packets (source and repair) can be
 transmitted over both
 unicast (QUIC/WebTransport) and multicast (UDP/SSM/AMT) paths.  Receivers
-on reliable unicast paths can skip FEC decoding (Section
+that take the track on QUIC streams can skip FEC decoding (Section
 3.3 of [@!MOQ-FEC-CORE]), while
 receivers on lossy multicast paths use FEC for recovery and apply the
 receiver repair policy of (#receiver-repair-policy) to any block that
-FEC does not recover.  A multicast endpoint carries only mmtp tracks,
+FEC does not recover.  Receivers that take its "mfu-datagram" track,
+which carries the same source packets as unicast datagrams under FEC
+instances and repair tracks of its own ([@!MOQ-MMT] Section 4.3.1),
+use FEC too, and repair as that section specifies.  A multicast
+endpoint carries only mmtp tracks,
 so a loc or cmaf track reaches multicast through an mmtp rendition
 track, which is a separate FEC instance ([@!MOQ-MULTICAST] Section
 4.1; see
@@ -349,7 +353,9 @@ When this mechanism is carried over a multicast QUIC channel:
 
 1. **Symbol-to-datagram mapping.**  Each source or repair symbol (one MMTP
    packet, per [@!MOQ-MMT]) is best carried in exactly one QUIC DATAGRAM
-   frame.  This aligns the erasure unit (a lost QUIC packet) with the FEC
+   frame, as an object of an mmtp track sent as datagrams, or of its
+   repair tracks ([@!MOQ-MMT] Section 4.3.1).  This aligns the erasure
+   unit (a lost QUIC packet) with the FEC
    symbol, so one lost packet erases exactly one source symbol.  STREAM
    framing defeats symbol-aligned recovery of FEC-protected media on a
    multicast channel: a lost packet then spans a byte range crossing
@@ -729,8 +735,13 @@ a block under it does not create an FEC deadline
 This section specifies what a receiver of a multicast or AMT leg does
 with a base-instance block of a source track that in-band FEC has not
 recovered by the block's FEC deadline (Section
-9.3 of [@!MOQ-FEC-CORE]).  A receiver on
-a reliable MoQ/QUIC leg relies on transport retransmission (Section
+9.3 of [@!MOQ-FEC-CORE]).  A receiver that takes an mmtp track as MoQ
+datagrams on a unicast QUIC path ([@!MOQ-MMT] Section 4.3.1) has no
+retransmission either, but its repair serves it alone, and it requests
+repair as that section specifies; on a multicast QUIC channel
+((#multicast-quic)) this section applies as on any multicast leg.  A
+receiver on a MoQ/QUIC leg that delivers the track on streams relies
+on transport retransmission (Section
 3.3 of [@!MOQ-FEC-CORE])
 and does not need it, and nothing in this section adds a deadline or
 a timer to such a leg.  Multicast and AMT legs carry only mmtp tracks
@@ -1440,6 +1451,24 @@ This appendix is informative.
   `reorderToleranceMs` the time for which a sender holds a datagram
   until its window closes and a receiver holds one whose record it
   lost until the record's twin arrives.
+- In (#multicast-and-amt-delivery), "the same
+  MoQ objects (source and repair)" now reads "the same MMTP packets
+  (source and repair)", "Receivers on reliable unicast paths" now reads
+  "Receivers that take the track on QUIC streams", and the new sentence
+  "Receivers that take its "mfu-datagram" track, which carries the
+  same source packets as unicast datagrams under FEC instances and
+  repair tracks of its own ([MOQ-MMT] Section 4.3.1), use FEC too, and
+  repair as that section specifies." follows that sentence.  In
+  (#receiver-repair-policy), the new sentence "A receiver that takes
+  an mmtp track as MoQ datagrams on a unicast QUIC path ([MOQ-MMT]
+  Section 4.3.1) has no retransmission either, but its repair serves
+  it alone, and it requests repair as that section specifies; on a
+  multicast QUIC channel ((#multicast-quic)) this section applies as
+  on any multicast leg." precedes the sentence whose "a reliable
+  MoQ/QUIC leg" now reads "a MoQ/QUIC leg that delivers the track on
+  streams".  In (#multicast-quic), item 1 now says that the QUIC
+  DATAGRAM frame carries the symbol as an object of an mmtp track sent
+  as datagrams, or of its repair tracks ([MOQ-MMT] Section 4.3.1).
 
 {#changes-from-draft-ramadan-moq-fec-01}
 # Changes from draft-ramadan-moq-fec-01
