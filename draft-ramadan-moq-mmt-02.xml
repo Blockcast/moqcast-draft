@@ -662,11 +662,12 @@ playout delay and the track's FEC instances.  Let D be the receiver's
 playout delay, the time that it keeps between the arrival of media and
 its presentation, and let W be the largest sum of <tt>interleaveDepthMs</tt>
 and <tt>reorderToleranceMs</tt> among the FEC instances of the track that the
-receiver decodes (<xref target="MOQ-FEC-CORE"></xref> Section 9.3).  A receiver SHOULD
-NOT take an &quot;mfu-datagram&quot; track none of whose FEC instances that it
-decodes carries a positive <tt>interleaveDepthMs</tt>, or whose W exceeds D:
-a block's deadline then falls after the presentation time of the
-media that the block protects.  A receiver that took the track SHOULD
+receiver decodes (<xref target="MOQ-FEC-CORE"></xref> Section 9.3); an omitted
+<tt>reorderToleranceMs</tt> adds nothing to that sum.  A receiver SHOULD NOT
+take an &quot;mfu-datagram&quot; track if none of the FEC instances that it
+decodes carries a positive <tt>interleaveDepthMs</tt>.  It SHOULD NOT take
+one whose W exceeds D either: a block's deadline then falls after the
+presentation time of the media that the block protects.  A receiver that took the track SHOULD
 return to the &quot;mfu&quot; track once no object of the track has arrived for
 the larger of D and W; by then the media that it holds has been
 presented, every block that it could still decode has passed its
