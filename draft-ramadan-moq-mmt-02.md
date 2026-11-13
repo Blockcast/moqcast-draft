@@ -200,10 +200,12 @@ symbols; the ISO encoding symbol block ([@!ISO.23008-1] 3.1.5).
 
 **Keyframe Overlay**: A second, independent FEC instance over a source
 track whose source symbols are only the fragments of Random Access
-Points, with its own source symbol count, its own repair symbols, and
-its own repair track, declared with `"scope": "keyframe"`
-((#overlay-instance)).  An overlay is not a repair layer and carries no
-layer index.  It is defined only under "iso-ssbg1-v1".
+Points and the FT=0 and FT=1 data units that govern them
+((#overlay-membership)), with its own source symbol count, its own
+repair symbols, and its own repair track, declared with
+`"scope": "keyframe"` ((#overlay-instance)).  An overlay is not a repair
+layer and carries no layer index.  It is defined only under
+"iso-ssbg1-v1".
 
 **Base Instance**: Of a source track that a keyframe overlay protects,
 the instance that is not the overlay; of any other source track, its
@@ -346,10 +348,13 @@ Key fields for MoQ mapping:
   ID mode 0,
   3=AL-FEC repair packet for FEC payload ID mode 1 (not used by this
   mapping) ([@!ISO.23008-1] Clause 9.2.3)
-- **RAP Flag**: 1 indicates Random Access Point.  On a track that the
-  catalog protects with a keyframe overlay, a packet with RAP_flag 1
-  also carries the overlay's SS_ID in a header extension of type
-  0x8B01 ((#overlay-header-extension))
+- **RAP Flag**: 1 indicates Random Access Point, except on a track that
+  the catalog protects with a keyframe overlay.  There the packets with
+  RAP_flag 1 are exactly the overlay's members: the fragments of each
+  Random Access Point it covers and the FT=0 and FT=1 data units that
+  govern it ((#overlay-membership)), each of which also carries the
+  overlay's SS_ID in a header extension of type 0x8B01
+  ((#overlay-header-extension))
 
 A signaling packet (packet type 0x02, on packet_id 0) MUST carry its
 messages in the signaling message mode of [@!ISO.23008-1]
@@ -1464,7 +1469,8 @@ Origin packetizer requirements:
 3. Each subsample data unit of one sample MUST be published as its
    own subgroup per Section 5.3.2, contiguously per Section 5.2.2.
 4. `priority` and `dep_counter` describe the sample and SHOULD be
-   identical across its subsample data units.
+   identical across its subsample data units.  A non-zero
+   `dep_counter` MUST be identical across them (Section 5.3.4).
 
 Relays and this mapping MUST NOT create, merge, or re-partition
 subsample data units.
@@ -1487,7 +1493,11 @@ as incomplete (Section 5.2, item 5), like any other data unit; no
 additional sample-level timer is defined or permitted.
 
 The sample's RAP flag is the RAP flag of the FI=0 or FI=1 object of
-its offset-0 data unit.  FEC is unaffected by the partition: source
+its offset-0 data unit.  On a track under a keyframe overlay,
+`RAP_flag` marks overlay members ((#overlay-membership)), so a
+keyframe that the overlay leaves uncovered has a RAP flag of 0; a
+receiver that looks for random access points inside an MPU finds only
+the covered ones there.  FEC is unaffected by the partition: source
 symbols are MMTP packets ((#iso-ssbg1-v1)), and the packet stream's
 block and interleave structure does not depend on data-unit boundaries.
 
@@ -1690,6 +1700,49 @@ Section 4.3).  Accordingly a receiver:
   (Section 5.2; the subsample_priority and dependency_counter of
   [@!ISO.23008-1] Section 9.3.2.3), since these are decode-order
   roots upon which other access units depend.
+
+A publisher MAY state a sample's dependent run in the `dep_counter`
+of its DU header.  The value 0 states nothing.  A value N greater than
+0 states that each of the N samples that follow this sample in the
+track's authored order (Section 4.3) is not a RAP and cannot be
+decoded without this sample.  The value is a floor: a publisher MAY
+send less than the true count, and 255 states 255 or more.  This is
+the dependency_counter of [@!ISO.23008-1] Section 9.3.2.3, counted in
+samples and allowed to understate.
+
+A publisher MUST send 0 unless, when it sends the sample, it knows
+that the next N samples are not RAPs and depend on this one.  A
+publisher with a fixed keyframe interval of K samples, each of whose
+samples is predicted from the sample before it, knows this: the
+sample p samples after a RAP carries the smaller of 255 and K - 1 -
+p.  It counts from the latest RAP, not from the start of the group,
+since a group can hold more than one RAP
+((#catalog-signaling-of-keyframe-interval)).  A
+publisher that reorders frames, or that does not know where its next
+RAP falls (for example one that may insert a RAP at a scene cut),
+sends 0.  A publisher that sends a non-zero
+`dep_counter` on any sample of a track:
+
+- MUST set the RAP flag on the FI=0 or FI=1 object that begins the
+  offset-0 data unit of every RAP sample of that track, not only of
+  the first sample of each group (Section 4.3);
+- MUST, if the catalog protects the track with a keyframe overlay,
+  cover every RAP sample of the track with the overlay
+  ((#overlay-membership)), since a packet of a keyframe that the
+  overlay leaves uncovered does not set `RAP_flag`;
+- MUST place exactly one sample in each movie fragment of an MPU that
+  holds more than one movie fragment; and
+- MUST carry the same value in every subsample data unit of a sample
+  (Section 5.2.1).
+
+A receiver draws no conclusion from the value 0, and none about a
+sample that precedes the one that carries the counter.
+[@!MOQ-FEC-MULTICAST] Section 6.1 says how a receiver on a multicast
+leg uses a dependent run to show that a loss carries no part of a RAP.
+A track whose frames are reordered cannot state one.  A header
+extension that locates the latest RAP by its first packet sequence
+number and its packet count would serve such a track without knowledge
+of later samples; this document does not define it.
 
 On a multicast or AMT leg, [@!MOQ-FEC-MULTICAST] Section 6 specifies
 the receiver repair policy this implies, and on any other datagram
@@ -2085,8 +2138,10 @@ coordinate that recovered it, within that FEC instance's SS_ID space; an
 overlay coordinate does not yield a base SS_ID.
 
 Where a keyframe overlay applies ((#keyframe-overlay)), an object
-carrying a Random Access Point fragment is a source symbol of two FEC
-instances, whose SS_ID spaces are disjoint, so "the source symbol the
+carrying an overlay member ((#overlay-membership)), a fragment of a
+Random Access Point that the overlay covers or an FT=0 or FT=1 data
+unit that governs one, is a source symbol of two FEC instances, whose
+SS_ID spaces are disjoint, so "the source symbol the
 object carries" names two SS_IDs rather than one.  The Property carries
 the base instance's SS_ID -- the value the Source FEC Payload ID trailer
 carries -- and a publisher MUST NOT place an overlay SS_ID in it.  No
@@ -2168,7 +2223,8 @@ RSB_length or that fails a bound of the instance's scheme
 
 A source track MAY additionally be protected by a keyframe overlay: a
 second, independent FEC instance whose source symbols are only the
-fragments of Random Access Points of that source track.  It is this
+fragments of Random Access Points of that source track and the FT=0
+and FT=1 data units that govern them ((#overlay-membership)).  It is this
 profile's form of an overlapping instance ([@!MOQ-FEC-CORE] Section
 8.4).  The overlay is defined only for a
 source track under "iso-ssbg1-v1", because its membership and its
@@ -2179,21 +2235,25 @@ and a catalog that declares one for such a track fails the rule of
 (#overlay-instance).
 
 Losing part of a Random Access Point makes every dependent frame
-undecodable until the next one; the overlay protects RAP fragments
-across a block of its own, which can be wider than the base window,
-without changing the base instance's latency.
+undecodable until the next one.  Losing the FT=0 or FT=1 data unit that
+governs it does as much, since a receiver cannot admit the Random
+Access Point without it (Sections 4.3 and 5.1), and losing the FT=0
+data unit invalidates the whole group (Section 4.3).  The overlay
+protects all of these across a block of its own, which can be wider
+than the base window, without changing the base instance's latency.
 
 {#overlay-instance}
 ### Overlay Instance
 
 An overlay is a separate FEC instance over the same source track.  It
-has its own `sourceSymbols` (K_overlay) and its own `repairSymbols`,
-declared on its own instance entry with its own repair track
+has its own `sourceSymbols` (K_overlay), its own `repairSymbols` and its
+own `interleaveDepthMs` ((#overlay-membership)), declared on its own
+instance entry with its own repair track
 ([@!MOQ-FEC-CATALOG] Section 3.1), and it shares
 the source track's `scheme`, `blockProfile` and `symbolSize`. It does
 not share the base instance's K, its block partition, its SS_ID space,
 or its RS_ID space.  Because each source packet carries one base SS_ID,
-a different K or interleave window needs a separate rendition; the
+a different base K or interleave window needs a separate rendition; the
 keyframe overlay is a separate FEC instance, not a layer.
 
 An overlay instance whose base instance carries a positive
@@ -2274,19 +2334,65 @@ exceeds 255.  Under "reed-solomon", an overlay whose instance declares
 {#overlay-membership}
 ### Overlay Membership
 
-The overlay's source symbols are the fragments of the source track that
-belong to a Random Access Point, in transmission order.  A publisher
-that declares an overlay MUST set `RAP_flag` on a source packet of the
-track, MUST include the packet in the overlay instance, and MUST carry
-the packet's overlay SS_ID in its 0x8B01 header extension
-((#overlay-header-extension)), if and only if that packet's payload
-belongs to a keyframe MFU covered by the overlay.
+The overlay's source symbols are, in transmission order, the packets of
+the source track that a receiver needs to present each Random Access
+Point the overlay covers: the fragments of its MFUs and the FT=0 and
+FT=1 data units that govern it, which a receiver accepts before it
+admits the Random Access Point (Sections 4.3 and 5.1).  A source packet
+of the track is an overlay member if and only if its payload belongs
+to:
+
+- a keyframe MFU covered by the overlay, and, where that keyframe
+  sample is partitioned (Section 5.2.1), each of its subsample data
+  units;
+- the FT=0 data unit, the MPU metadata, of an MPU whose first sample is
+  such a keyframe; or
+- the FT=1 data unit, the movie fragment metadata, of a movie fragment
+  that contains such a keyframe.
+
+Every packet of a member data unit is a member: the one FI=0 packet of
+an unfragmented keyframe MFU, each FI=1, FI=2 and FI=3 fragment of a
+fragmented one, and the one FI=0 packet that carries an FT=0 or FT=1
+data unit, which this profile never fragments (Section 5.2, item 4).
+No other packet is a member; in particular, no packet of an FT=1 data
+unit whose movie fragment contains no covered keyframe, or of an FT=2
+data unit of any other sample, is one.  The AL-FEC signaling object of
+Section 8 is not an FEC source packet and is never a member, and a
+publisher that declares an overlay MUST NOT set `RAP_flag` on it.
+
+A publisher that declares an overlay MUST set `RAP_flag` on a source
+packet of the track, MUST include the packet in the overlay instance,
+and MUST carry the packet's overlay SS_ID in its 0x8B01 header
+extension ((#overlay-header-extension)), if and only if that packet is
+an overlay member.  On such a track the packets that set `RAP_flag`,
+which this document calls its RAP packets, are therefore exactly its
+overlay members, the FT=0 and FT=1 members included.  Section 4.3 maps
+each MPU to exactly one group and requires the FI=0 or FI=1 object that
+begins the first FT=2 sample of each timed group, the Random Access
+Point with which its MPU begins (Section 5.3.4), to set `RAP_flag`.  On
+a track under an overlay that object is therefore a member, so the
+first sample of every MPU is a covered keyframe and the FT=0 data unit
+of every MPU is a member; an MPU without a Random Access Point does not
+occur in this profile.  A publisher MAY also cover, keyframe by
+keyframe, any keyframe that is not the first sample of its MPU: the
+fragments of a keyframe so covered, and the FT=1 data unit of the movie
+fragment that contains it, are then members by the list above, and no
+packet of a keyframe that the publisher leaves uncovered sets
+`RAP_flag`.  A receiver needs no signal of that choice, since it takes
+membership from the 0x8B01 extension alone
+((#overlay-header-extension)).  A publisher that states dependent runs on
+the track covers every keyframe with the overlay
+((#random-access-and-priority)).
 
 Overlay source symbols are numbered consecutively within the overlay
 instance, in the order the publisher emits them: the overlay SS_ID is 0
 at the first overlay source symbol of the stream and advances by one per
 overlay source symbol, modulo 2^32 ([@!MOQ-FEC-CORE] Section
-7.6).  It is the value the RAP
+7.6).  Section 4.3 fixes that order within an MPU: its FT=0 data unit
+first, then, for each movie fragment that contains a covered keyframe,
+that fragment's FT=1 data unit followed by the fragments of the covered
+keyframes it contains (Section 5.2.2); a packet emitted between two
+members takes no overlay SS_ID.  The overlay SS_ID is the value the RAP
 source packet carries in its 0x8B01 header extension
 ((#overlay-header-extension)).  It lives in the overlay instance's own
 SS_ID space, independent of the base instance's, and the two IDs on one
@@ -2297,12 +2403,22 @@ ones, are formed, located and wrapped exactly as base blocks are
 5.5 and
 7.6), with K_overlay as the upper
 bound on their SSB_length.  An overlay block that holds the fragments
-of several RAPs spans many base blocks, since a RAP is a small
+of several RAPs spans many base blocks, since a RAP and the metadata
+that governs it are a small
 fraction of the media, and one that the publisher closes once its RAP
 has been sent spans little more than that RAP.  Either way the
 overlay's recovery latency is its own block span, which the overlay
 instance's own `interleaveDepthMs` bounds, and is unrelated to the
-base instance's.
+base instance's.  An FT=0 or FT=1 member that the overlay recovers
+is of use to a receiver only while the receiver still holds the
+fragments that member governs unadmitted, within its bounded replay
+window ((#overlay-receiver-behavior)), so a receiver may have to hold
+them for up to that span.  The overlay instance's own positive
+`interleaveDepthMs`, which (#overlay-instance) recommends, bounds every
+overlay block's send span ([@!MOQ-FEC-CORE] Section 9.3) and so tells a
+receiver how long to hold them; a publisher can shorten the span by
+closing an overlay block once the last fragment of a covered keyframe
+has been emitted ([@!MOQ-FEC-CORE] Section 5.4).
 
 A receiver knows that a source packet is an overlay source symbol
 because the packet carries the 0x8B01 header extension
@@ -2320,8 +2436,10 @@ instance is known ([@!MOQ-FEC-CORE] Section
 ### Overlay SS_ID Header Extension
 
 When the catalog declares a keyframe overlay for a source track
-((#keyframe-overlay)), a source packet of that track carrying a Random
-Access Point fragment is a source symbol of two FEC instances. It
+((#keyframe-overlay)), a source packet of that track that is an overlay
+member ((#overlay-membership)), one carrying a fragment of a Random
+Access Point that the overlay covers or an FT=0 or FT=1 data unit that
+governs one, is a source symbol of two FEC instances. It
 carries its base SS_ID in the one Source FEC Payload ID trailer that
 every FEC source packet carries ((#source-fec-payload-id)), and its
 overlay SS_ID ((#overlay-membership)) in an MMTP header extension
@@ -2347,9 +2465,15 @@ header extension, with X = 1, of exactly the source packets that it
 includes in the overlay instance, that is the packets on which it sets
 `RAP_flag` ((#overlay-membership)), and of no other packet of the track.
 An MMTP packet carries at most one header extension ([@!ISO.23008-1]
-Clause 9.2.3), so the RAP packets of a track under an overlay carry no
-other MMTP header extension, and a publisher that needs another header
-extension on those packets cannot use the overlay for that track.
+Clause 9.2.3), so the RAP packets of a track under an overlay, its
+FT=0 and FT=1 members included, carry no other MMTP header extension,
+and a publisher that needs another header extension on those packets
+cannot use the overlay for that track.  The extension adds eight octets
+to each of them.  An FT=0 or FT=1 data unit is always a single packet
+(Section 5.2, item 4) and cannot be fragmented to make room for it, so
+a publisher that declares an overlay chooses a `symbolSize` T under
+which every FT=0 and FT=1 member, extension included, still fits within
+the T - 2 octets that (#iso-ssbg1-v1) allows a protected packet.
 [@!ISO.23008-1] specifies no particular header extension and no registry
 of header extension types; this document uses the type 0x8B01 for the
 overlay SS_ID ((#iana-considerations)).
@@ -2401,9 +2525,18 @@ authenticated block assignment treats each as that section requires.
 ### Receiver Behavior
 
 A receiver that implements overlays and has joined the overlay repair
-track decodes the two instances independently and MAY use the recovered
-RAP fragments even when the base instance failed to recover the block
-that carried them.
+track decodes the two instances independently and MAY use the packets
+the overlay recovers, the fragments of a Random Access Point that it
+covers and the FT=0 and FT=1 data units that govern it
+((#overlay-membership)), even when the base instance failed to recover
+the block that carried them.  Like every recovered packet, they enter
+reassembly in serial packet order (Section 5.3.3).  That order puts a
+recovered FT=0 or FT=1 data unit before the fragments it governs only
+while the receiver still holds those fragments unadmitted: the replay
+window of Section 5.3.3 is bounded, the overlay's recovery latency is
+its own block span ((#overlay-membership)), and a fragment that reaches
+reassembly before the FT=0 or FT=1 data unit that governs it is
+rejected (Section 5.1).
 
 The overlay is the publisher-side half of keyframe protection.  On a
 multicast or AMT leg, the receiver-side half is the repair policy of
@@ -3372,9 +3505,9 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-01'/>
 </reference>
 
 <reference anchor='MOQ-MULTICAST'>
@@ -3447,6 +3580,24 @@ re-pointed.  The section numbers in the -00 entry below are those of
   count; it says such a value bounds the send span only when the
   publisher keeps it, by closing blocks early and withholding repair
   it cannot send in time.
+- After the -02 posting: Section 5.3.4 defines the dependent run.  A
+  non-zero `dep_counter` states that the samples that follow, as many
+  as its value, are not RAPs and cannot be decoded without the sample
+  that carries it; 0 states nothing.  The section says when a
+  publisher may send one and what it then keeps.  Item 4 of Section
+  5.2.1 requires a non-zero `dep_counter` to be identical across a
+  sample's subsample data units.  Until now the field was a priority
+  hint only.  A publisher that states dependent runs on a track under
+  a keyframe overlay covers every keyframe of the track with the
+  overlay (Sections 5.3.4 and 7.4.2): under an overlay, `RAP_flag`
+  marks overlay members only, so an uncovered keyframe would read as a
+  sample of a dependent run.  A publisher of -02 or earlier may have
+  sent a non-zero `dep_counter` as a priority hint, or as the
+  [@!ISO.23008-1] dependency_counter, which counts data units rather
+  than samples.  Such a value states no dependent run, and nothing in
+  the stream tells a receiver which reading applies, so a receiver
+  reads a dependent run only from a publisher that it knows follows
+  this revision.
 - Erratum after the -02 posting: Section 8.3 no longer lists
   `num_of_repair_symbol_per_packet` among the fields of an
   "iso-ssbg1-v1" entry.  [@!ISO.23008-1] Table C.3, in the 2023 edition
@@ -3457,6 +3608,37 @@ re-pointed.  The section numbers in the -00 entry below are those of
   this change log, described a field that is not on the wire; no byte
   of the message changes, since no reference writer or reader emitted
   or read it.
+- Change after the -02 posting: the keyframe overlay also protects the
+  metadata that a Random Access Point needs (Section 7.4.2).  Its
+  members are the fragments of each keyframe MFU it covers, and of
+  every subsample data unit of such a keyframe sample when it is
+  partitioned, the FT=0 data unit of each MPU whose first sample is
+  such a keyframe, which on a track under an overlay is every MPU, and
+  the FT=1 data unit of each movie fragment that contains one.  Each
+  member sets `RAP_flag`, carries its overlay SS_ID in the 0x8B01
+  header extension, and takes the next overlay SS_ID in emission
+  order.  The overlay covers the first sample of every MPU, and
+  covering a later keyframe is the publisher's choice, so on such a
+  track a keyframe left uncovered has a sample RAP flag of 0 (Section
+  5.2.1); since a receiver
+  can use a recovered FT=0 or FT=1 member only within its bounded
+  replay window, the overlay instance's own positive
+  `interleaveDepthMs` (Section 7.4.1) tells it how long to hold what
+  that member governs.  In -02, as in
+  [@?I-D.ramadan-moq-fec] from which the overlay moved, the overlay
+  held only the keyframe MFU's fragments, so a loss
+  that also took the keyframe's FT=0 or FT=1 data unit left an
+  overlay-recovered keyframe that a receiver could not admit (Sections
+  4.3 and 5.1), and Section 6.6 of draft-ramadan-moq-fec-multicast-00
+  said that the overlay does not recover those data units.  Sections
+  2, 3.1, 7.2, 7.4, 7.4.3 and 7.4.4 follow.  The extension's format is
+  unchanged: a receiver that takes overlay membership from the
+  extension alone, as Section 7.4.3 requires, decodes the overlay of a
+  publisher that follows either text.  An FT=0 or FT=1 packet that is
+  a member is eight octets longer than in -02 and carries no other
+  MMTP header extension.  [@!MOQ-FEC-MULTICAST] is now cited at its -01
+  revision, whose Section 6.6 says that the overlay can recover those
+  data units.
 - After the -02 posting: an mmtp track MAY be sent as datagrams.  The
   new `mmtpMode` value "mfu-datagram" (Section 13.1) keeps the Groups,
   Object IDs and object payloads of "mfu" and sends every object as a

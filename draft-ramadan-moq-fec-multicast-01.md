@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-03T00:00:00Z"
+date = "2026-11-15T00:00:00Z"
 keyword = ["FEC", "MoQ", "multicast", "AMT", "repair policy"]
 
 [seriesInfo]
@@ -164,7 +164,8 @@ source symbol of one FEC instance, grouped by block (Section
 
 **Keyframe Overlay**: A second, independent FEC instance over an
 MMTP-packaged source track whose source symbols are only the fragments
-of Random Access Points, defined in Section 7.4
+of Random Access Points and the FT=0 and FT=1 data units that govern
+them, defined in Section 7.4
 of [@!MOQ-MMT].  An overlay is not a repair layer and carries no layer
 index.
 
@@ -545,6 +546,45 @@ endpoint a receiver has already joined as a way of raising that
 receiver's protection (Section 14.4 of
 [@!MOQ-FEC-CORE]).
 
+The repair track of a keyframe overlay ([@!MOQ-MMT] Section 7.4) is
+not a layer of the base instance: it carries no `repairLayer` and
+stays outside the base instance's layer chain ([@!MOQ-MMT] Section
+7.4.1).  The rules of this section for adding and dropping a repair
+layer apply to adding and dropping the overlay's repair track: the
+join on measured loss, the capacity check, make-before-break, the
+hysteresis and the fixed selection without a block deadline.  For the
+overlay's repair track they read the overlay instance's blocks,
+`interleaveDepthMs` and `reorderToleranceMs`, and for a repair layer
+the base instance's.  The overlay instance has its own block
+partition, whose blocks can span many base blocks ([@!MOQ-MMT] Section
+7.4.2), and its own block span (Sections 8.4, 9.3 and 10.1 of
+[@!MOQ-FEC-CORE]).
+
+A receiver that does not hold the overlay's repair track cannot
+delimit an overlay block, because only repair packets carry a block's
+extent (Section 5.4 of [@!MOQ-FEC-CORE]).  The loss it measures for
+the overlay is then the RAP packets that it lacks and that base
+decoding has not recovered, which gaps in the overlay SS_IDs of the
+RAP packets it holds reveal (Sections 7.4.2 and 7.4.3 of
+[@!MOQ-MMT]).  A gap shows only when the next member arrives, so this
+measure can lag a loss by up to one interval between covered
+keyframes, which can be longer than the overlay's block span that
+bounds the hysteresis.  On a multicast or AMT leg, a receiver of an overlay
+whose instance omits `interleaveDepthMs` or sets it to zero keeps
+fixed whether it holds the overlay's repair track.  A positive
+overlay `interleaveDepthMs`, which [@!MOQ-MMT] Section 7.4.1
+recommends wherever the base instance carries one, lets receivers on
+those legs add and drop that track on loss.  Where one endpoint
+carries the overlay's repair track and a repair layer of the base
+instance, joining or leaving it
+changes both, and a receiver does so only when the rules for each
+allow it.
+
+The overlay's repair track adds P_overlay x T bytes per overlay block,
+P_overlay being the overlay instance's `repairSymbols`.  Every rule of
+the paragraph on amplification above applies to it as to a repair
+layer, and the bound on the layers a receiver may hold counts it.
+
 {#provisional-symbols}
 # Provisional Blocks and Admitted Packets
 
@@ -909,22 +949,67 @@ The block is keyframe-bearing if any of the following holds:
    conversion is exact; an inexact `keyframeIntervalMs` gives no usable
    interval.
 
-The block is non-keyframe-bearing only when none of these holds, the
-catalog carries a usable keyframe interval, the receiver holds both
-bounding packets, and it can determine every value item 3 needs.
+The block is non-keyframe-bearing only when none of these holds and
+one of two things is true: the catalog carries a usable keyframe
+interval, the receiver holds both bounding packets, and it can
+determine every value item 3 needs; or the run rule below holds.
 Every other block is of unknown class, and a receiver MUST treat a
-block of unknown class as keyframe-bearing.  In particular:
+block of unknown class as keyframe-bearing.
+
+The run rule reads the dependent run that a publisher states in the
+`dep_counter` of a DU header ([@!MOQ-MMT] Section 5.3.4).  It needs no
+keyframe interval, no decode time and no packet of the group's start.
+A receiver MUST NOT apply the run rule to a track unless it knows that
+the track's publisher states dependent runs as [@!MOQ-MMT] Section
+5.3.4 defines them.  Nothing in the stream says so: a publisher of
+earlier revisions may have sent `dep_counter` as a priority hint, or
+as the dependency_counter of [@!ISO.23008-1], which counts data units,
+and such a value states no run.
+The lower DU header is the last FT=2 source packet carrying a DU
+header that the receiver holds, in SS_ID order, before the block's
+first missing source symbol.  The upper DU header is the first one it
+holds after the block's last missing source symbol.  Either may lie
+in an adjacent block.  The run rule holds when all of the following
+do:
+
+- The two DU headers carry the same MPU sequence number.
+
+- The lower DU header carries `offset` zero, and its packet does not
+  set `RAP_flag`.
+
+- The lower DU header's `dep_counter` is at least 1 and at least n,
+  the number of samples after the lower DU header's sample up to and
+  including the upper DU header's sample.  Where the two headers carry
+  the same `movie_fragment_sequence_number`, n is the difference of
+  their `sample_number` values.  Where they carry different ones and
+  both carry `sample_number` 1, n is the difference of the two
+  `movie_fragment_sequence_number` values in serial number arithmetic.
+  In any other case n is undetermined and the run rule does not hold.
+
+Every sample the block's missing symbols can carry then lies from the
+lower DU header's sample through the upper one's.  The lower sample is
+not a RAP.  Each later one lies inside the lower sample's dependent
+run, so none is a RAP and no FT=1 data unit between the two headers
+governs one.  No
+FT=0 data unit lies between two FT=2 packets of one MPU.  A receiver
+MUST NOT apply a dependent run from a DU header that follows the
+missing symbols, MUST NOT apply one across MPU sequence numbers, and
+draws nothing from `priority`.
+
+In particular:
 
 - A block for which the receiver holds no lower or no upper bounding
-  packet at its FEC deadline is of unknown class, as is one for which
-  it cannot determine a decode time that item 3 needs.  So is a block
+  packet at its FEC deadline is of unknown class.  So is one for which
+  it cannot determine a decode time that item 3 needs, unless the run
+  rule holds for it.  So is a block
   discarded before its FEC deadline under a memory cap
   ((#deadline-anchoring-and-discard)).
 
 - On a video track whose catalog entry carries no usable keyframe
   interval, the receiver cannot exclude a keyframe after the group
-  start from any span, so every block of the track is keyframe-bearing
-  or of unknown class.
+  start from any span except by the run rule.  Every block of the
+  track for which the run rule does not hold is keyframe-bearing or of
+  unknown class.
 
 - A block's keyframe classification uses its actual source-packet
   range.  A block MAY contain a complete Group, span a Group boundary,
@@ -938,7 +1023,8 @@ publisher that wants receivers to be able to
 apply the non-keyframe treatment of (#other-video-blocks) publishes
 an exact
 keyframe interval, which then binds every keyframe of the track
-([@!MOQ-MMT] Section 4.4.3).
+([@!MOQ-MMT] Section 4.4.3), or states dependent runs ([@!MOQ-MMT]
+Section 5.3.4), or does both.
 
 The blocks of a track that the catalog identifies as audio are
 treated by (#audio-blocks), not classified by this section.  A track
@@ -1196,7 +1282,8 @@ The keyframe overlay of Section 7.4 of
 8.4 of [@!MOQ-FEC-CORE], and this policy
 are
 complementary.  The overlay is publisher-side and proactive: it
-protects RAP fragments across a block of its own, needs no return
+protects RAP fragments and the FT=0 and FT=1 data units that govern
+them across a block of its own, needs no return
 path, and so also serves sessionless receivers.  This policy is
 receiver-side and reactive: it spends unicast repair only on
 keyframe-bearing blocks that in-band FEC actually failed to recover,
@@ -1211,18 +1298,19 @@ and it needs a MoQ session.  A receiver that holds both:
   span (Section 7.4 of [@!MOQ-MMT]), not the base
   deadline;
 
-- ends its wait for a RAP with whichever of base decoding, overlay
-  decoding, or unicast repair supplies the RAP's fragments first; and
+- ends its wait for a RAP once it holds every part of it, the RAP's
+  fragments and the FT=0 and FT=1 data units that govern it,
+  whichever of base decoding, overlay decoding, or unicast repair
+  supplies each part; and
 
-- having recovered a block's RAP MFU fragments through the overlay,
-  and holding the FT=0 and FT=1 data units that govern them, conceals
-  the rest of that block's loss as for a non-keyframe block
-  ((#other-video-blocks)) and SHOULD cancel any outstanding keyframe
-  repair
-  FETCH for it.  The overlay covers only packets that set `RAP_flag`
-  (Section 7.4 of [@!MOQ-MMT]), so it does not by
-  itself recover a lost FT=0 or
-  FT=1 data unit.
+- once it holds every part of a block's RAPs, the overlay having
+  recovered one or more of them, conceals the rest of that block's
+  loss as for a non-keyframe block ((#other-video-blocks)) and SHOULD
+  cancel any outstanding keyframe repair FETCH for it.  The overlay's
+  members include the FT=0 and FT=1 data units that govern each RAP it
+  covers (Section 7.4.2 of [@!MOQ-MMT]), so it can recover a lost FT=0
+  or FT=1 data unit that governs such a RAP as it recovers the RAP's
+  fragments.
 
 {#security-considerations}
 # Security Considerations
@@ -1423,7 +1511,19 @@ This document has no IANA actions.
 {#changes-from-00}
 # Changes from draft-ramadan-moq-fec-multicast-00
 
-This appendix is informative.
+This appendix is informative.  It lists every sentence that is new or
+changed since draft-ramadan-moq-fec-multicast-00.
+
+New sentences:
+
+- (#block-classification) gains the run rule.  A receiver may class a
+  block as non-keyframe-bearing from the dependent run that a
+  publisher states in `dep_counter` ([@!MOQ-MMT] Section 5.3.4), read
+  from the DU headers it holds on either side of the block's missing
+  symbols.  Until now that class needed the catalog's exact keyframe
+  interval and the decode times of the bounding packets.  A receiver
+  applies the rule only to a track whose publisher it knows states
+  dependent runs, since nothing in the stream says so.
 
 - (#moot-keyframe-repair) is new.  In -00, and in -01 of
   [@?I-D.ramadan-moq-fec] Section 11.4.2, a keyframe repair was moot
@@ -1451,6 +1551,64 @@ This appendix is informative.
   `reorderToleranceMs` the time for which a sender holds a datagram
   until its window closes and a receiver holds one whose record it
   lost until the record's twin arrives.
+- In (#repair-only-endpoints), three new last paragraphs on the repair
+  track of a keyframe overlay.  The track is not a layer of the base
+  instance, but the section's rules for adding and dropping a repair
+  layer apply to it: the join on measured loss, the capacity check,
+  make-before-break, the hysteresis and the fixed selection without a
+  block deadline.  For the track they read the overlay instance's
+  blocks, `interleaveDepthMs` and `reorderToleranceMs`, and for a
+  repair layer the base instance's.  A receiver that does not hold the
+  track measures the overlay's loss as the RAP packets it lacks that
+  base decoding has not recovered, a measure that can lag a loss by
+  up to one interval between covered keyframes.  On a multicast or AMT
+  leg, a
+  receiver of an overlay whose instance omits `interleaveDepthMs` or
+  sets it to zero keeps fixed whether it holds the track; a positive
+  one, which [@!MOQ-MMT] Section 7.4.1 recommends, lets those
+  receivers add and drop it.  A receiver joins or
+  leaves an endpoint that carries both the track and a repair layer
+  of the base instance only when the rules for each allow it.  Every
+  rule of the paragraph on amplification applies to the track as to a
+  repair layer, and the bound on the layers a receiver may hold counts
+  it.  -00 stated these rules for repair layers and said in
+  (#conventions-and-definitions) that an overlay is not one, which
+  left open whether they govern the overlay's repair track.  Its join
+  rule already covered a repair-only endpoint that carries only that
+  track; the other rules are new for the track.
+- In (#changes-from-draft-ramadan-moq-fec-01), the sentence "In it,
+  -01 means draft-ramadan-moq-fec-01, not a revision of this
+  document."
+
+Changed sentences:
+
+- In (#conventions-and-definitions), the Keyframe Overlay's source
+  symbols are "only the fragments of Random Access Points and the FT=0
+  and FT=1 data units that govern them", where -00 had "only the
+  fragments of Random Access Points": [@!MOQ-MMT] Section 7.4.2 now
+  makes those data units members of the overlay.
+- In (#relationship-to-the-keyframe-overlay), the overlay "protects RAP
+  fragments and the FT=0 and FT=1 data units that govern them across a
+  block of its own" (-00: "protects RAP fragments across a block of its
+  own"); a receiver ends its wait for a RAP once it holds every part of
+  it, whichever of base decoding, overlay decoding, or unicast repair
+  supplies each part, where -00 ended it when one of them supplied the
+  RAP's fragments; and the bullet on concealment and on cancelling the
+  keyframe repair FETCH applies once the receiver holds every part of a
+  block's RAPs, the overlay having recovered one or more of them, where
+  -00 applied it after an overlay recovery of the RAP MFU fragments with
+  the FT=0 and FT=1 data units held.  "The overlay covers only packets
+  that set RAP_flag (Section 7.4 of [MOQ-MMT]), so it does not by
+  itself recover a lost FT=0 or FT=1 data unit." now reads "The
+  overlay's members include the FT=0 and FT=1 data units that govern
+  each RAP it covers (Section 7.4.2 of [MOQ-MMT]), so it can recover a
+  lost FT=0 or FT=1 data unit that governs such a RAP as it recovers
+  the RAP's fragments."
+- In (#changes-from-draft-ramadan-moq-fec-01), "is restated by this
+  section's last paragraph and by (#receiver-repair-policy)" now reads
+  "is restated by this section's paragraph on the block deadline and
+  by (#receiver-repair-policy)".  The last paragraph of that section
+  was the one on amplification in -00 and is one on the overlay now.
 - In (#multicast-and-amt-delivery), "the same
   MoQ objects (source and repair)" now reads "the same MMTP packets
   (source and repair)", "Receivers on reliable unicast paths" now reads
@@ -1475,7 +1633,8 @@ This appendix is informative.
 
 This appendix is informative.  It lists what this document takes from
 [@?I-D.ramadan-moq-fec] and every sentence that is new or changed
-rather than carried.
+rather than carried.  In it, -01 means draft-ramadan-moq-fec-01, not
+a revision of this document.
 
 Moved here, by section of this document:
 
@@ -1493,7 +1652,8 @@ Moved here, by section of this document:
   repair-layer endpoints).  The multicast rule of -01 Section 5.1
   (no block classification, no unicast repair and a fixed layer
   selection without a positive interleaveDepthMs) is restated by this
-  section's last paragraph and by (#receiver-repair-policy).
+  section's paragraph on the block deadline and by
+  (#receiver-repair-policy).
 - (#provisional-symbols): the bc-provenance clauses of -01 Sections
   7.4 (provisional blocks), 6.3.9 (anchoring of the fail-closed layer
   check), 7.5 (S_prev) and 9 (ts anchoring, discard policy).

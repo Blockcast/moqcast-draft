@@ -77,10 +77,10 @@ class PublishedExamples(unittest.TestCase):
             self.fail(f"published example section is missing: {start!r}")
 
     def test_multicast_revision_specifies_receiver_owned_dns_health(self):
-        markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
-        xml = (ROOT / "draft-ramadan-moq-multicast-02.xml").read_text(encoding="utf-8")
-        self.assertIn('value = "draft-ramadan-moq-multicast-02"', markdown)
-        self.assertIn('docName="draft-ramadan-moq-multicast-02"', xml)
+        markdown = (ROOT / "draft-ramadan-moq-multicast-03.md").read_text(encoding="utf-8")
+        xml = (ROOT / "draft-ramadan-moq-multicast-03.xml").read_text(encoding="utf-8")
+        self.assertIn('value = "draft-ramadan-moq-multicast-03"', markdown)
+        self.assertIn('docName="draft-ramadan-moq-multicast-03"', xml)
         self.assertIn('anchor="receiver-owned-dns-candidate-discovery"', xml)
         for text in (markdown, xml):
             self.assertIn("DNS answer order", text)
@@ -100,8 +100,8 @@ class PublishedExamples(unittest.TestCase):
         # Section 5.1 (CEO D18 A, 2026-11-01): a flow sent ECN-capable needs a congestion
         # reaction to CE (RFC 3168 s5); in multicast that reaction is the receiver's (RFC 8085 s4.1),
         # departing from the sender feedback of RFC 8085 s3.1.7.
-        markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
-        xml = (ROOT / "draft-ramadan-moq-multicast-02.xml").read_text(encoding="utf-8")
+        markdown = (ROOT / "draft-ramadan-moq-multicast-03.md").read_text(encoding="utf-8")
+        xml = (ROOT / "draft-ramadan-moq-multicast-03.xml").read_text(encoding="utf-8")
         texts = (
             section(markdown, "## Explicit Congestion Notification", "{#multi-path-delivery}"),
             re.sub(r"<[^>]+>", "", section(xml, 'anchor="explicit-congestion-notification"', "</section>")),
@@ -113,6 +113,91 @@ class PublishedExamples(unittest.TestCase):
             self.assertIn("MUST NOT wait for the sender to lower its rate in response to the marks", text)
             self.assertIn("E flag", text)
             self.assertNotIn("MAY use the fraction", text)
+
+    def test_fec_multicast_overlay_repair_track_follows_the_layer_rules(self):
+        # Section 4, -01 (author ruling 2026-11-04): the rules for adding and dropping a repair
+        # layer also govern a keyframe overlay's repair track, read on the overlay instance's own
+        # blocks and fields; the track stays outside the base instance's layer chain.
+        stem = "draft-ramadan-moq-fec-multicast-01"
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        self.assertIn(f'value = "{stem}"', markdown)
+        self.assertIn(f'docName="{stem}"', xml)
+        self.assertIn('anchor="changes-from-00"', xml)
+        texts = (
+            section(markdown, "# Repair-Only Multicast Endpoints\n", "{#provisional-symbols}"),
+            re.sub(r"<[^>]+>", "", section(xml, 'anchor="repair-only-endpoints"', 'anchor="provisional-symbols"')),
+        )
+        for text in texts:
+            text = " ".join(text.replace("`", "").split())
+            for rule in (
+                "The repair track of a keyframe overlay",
+                "is not a layer of the base instance: it carries no repairLayer",
+                "The rules of this section for adding and dropping a repair layer apply to adding and "
+                "dropping the overlay's repair track",
+                "For the overlay's repair track they read the overlay instance's blocks, interleaveDepthMs "
+                "and reorderToleranceMs, and for a repair layer the base instance's.",
+                "recommends wherever the base instance carries one, lets receivers on those legs add and "
+                "drop that track on loss",
+                "The loss it measures for the overlay is then the RAP packets that it lacks and that base "
+                "decoding has not recovered",
+                "a receiver of an overlay whose instance omits interleaveDepthMs or sets it to zero keeps "
+                "fixed whether it holds the overlay's repair track",
+                "joining or leaving it changes both, and a receiver does so only when the rules for each allow it",
+                "Every rule of the paragraph on amplification above applies to it as to a repair layer, and "
+                "the bound on the layers a receiver may hold counts it",
+            ):
+                self.assertIn(rule, text)
+            self.assertNotIn("whatever the base instance carries", text)
+            # The overlay's positive interleaveDepthMs is asked for once, in MMT Section 7.4.1.
+            self.assertNotIn("it means the base instance's value", text)
+
+    def test_keyframe_overlay_members_include_the_governing_metadata(self):
+        # MMT -02 Section 7.4.2, change after the -02 posting (BLO-52085): the overlay's members are
+        # the fragments of each keyframe MFU it covers, the FT=0 of an MPU whose first sample is one
+        # and the FT=1 of a movie fragment that contains one; on a track under an overlay RAP_flag,
+        # membership and the 0x8B01 extension coincide.  FEC multicast -01 Section 6.6 follows.
+        # Covering a keyframe after the first sample of its MPU is the publisher's choice, and the
+        # overlay's own interleaveDepthMs, which Section 7.4.1 recommends, tells a receiver how long
+        # to hold what a recovered FT=0 or FT=1 member governs.
+        mmt_md = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
+        mmt_xml = (ROOT / "draft-ramadan-moq-mmt-02.xml").read_text(encoding="utf-8")
+        self.assertIn("value='draft-ramadan-moq-fec-multicast-01'", mmt_md)
+        self.assertIn('value="draft-ramadan-moq-fec-multicast-01"', mmt_xml)
+        texts = (
+            section(mmt_md, "{#overlay-membership}", "{#overlay-header-extension}"),
+            re.sub(r"<[^>]+>", "", section(mmt_xml, 'anchor="overlay-membership"', 'anchor="overlay-header-extension"')),
+        )
+        for text in texts:
+            text = " ".join(text.replace("`", "").split())
+            for rule in (
+                "a keyframe MFU covered by the overlay, and, where that keyframe sample is partitioned",
+                "the FT=0 data unit, the MPU metadata, of an MPU whose first sample is such a keyframe",
+                "the FT=1 data unit, the movie fragment metadata, of a movie fragment that contains such a keyframe",
+                "the one FI=0 packet of an unfragmented keyframe MFU",
+                "a publisher that declares an overlay MUST NOT set RAP_flag on it",
+                "if and only if that packet is an overlay member",
+                "are therefore exactly its overlay members, the FT=0 and FT=1 members included",
+                "A publisher MAY also cover, keyframe by keyframe, any keyframe that is not the first "
+                "sample of its MPU",
+                "recommends, bounds every overlay block's send span",
+            ):
+                self.assertIn(rule, text)
+        stem = "draft-ramadan-moq-fec-multicast-01"
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        # scoped to Section 6.6: Appendix A quotes the removed sentence
+        texts = (
+            section(markdown, "{#relationship-to-the-keyframe-overlay}", "{#security-considerations}"),
+            re.sub(r"<[^>]+>", "", section(xml, 'anchor="relationship-to-the-keyframe-overlay"', 'anchor="security-considerations"')),
+        )
+        for text in texts:
+            text = " ".join(text.replace("`", "").split())
+            self.assertIn(
+                "so it can recover a lost FT=0 or FT=1 data unit that governs such a RAP as it recovers the RAP's fragments",
+                text,
+            )
+            self.assertNotIn("does not by itself recover", text)
 
     def test_mboned_manifest_draft_md_and_xml_agree_on_docname(self):
         stem = "draft-ramadan-mboned-mcast-manifest-02"
@@ -230,7 +315,7 @@ class PublishedExamples(unittest.TestCase):
         records = []
         for name, heading in (
             ("draft-ramadan-mboned-mcast-manifest-02.md", "# Test Vectors\n"),
-            ("draft-ramadan-moq-multicast-02.md", "# Test Vectors: bc-provenance Version 2\n"),
+            ("draft-ramadan-moq-multicast-03.md", "# Test Vectors: bc-provenance Version 2\n"),
         ):
             text = appendix(name, heading)
             flat, printed = " ".join(text.split()), table(text)
@@ -289,7 +374,7 @@ class PublishedExamples(unittest.TestCase):
 
     def test_mboned_rate_arithmetic_is_consistent(self):
         text = " ".join((ROOT / "draft-ramadan-mboned-mcast-manifest-02.md").read_text(encoding="utf-8").split())
-        moq = " ".join((ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8").split())
+        moq = " ".join((ROOT / "draft-ramadan-moq-multicast-03.md").read_text(encoding="utf-8").split())
 
         def numbers(pattern: str, source: str = text):
             match = re.search(pattern, source)
@@ -334,7 +419,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertEqual(megabytes, auth_delay * rate / 8000)
         (floor,) = numbers(r"`mseq \+ (\d+) <= highest_mseq\(kid, epoch\)`")
         self.assertIn(f"before the signed record of window `mseq + {floor}`, so that at most {floor - 1} later records precede it", text)
-        # Section 7.2.7 of draft-ramadan-moq-multicast-02 refills both of its buckets at the same V, from `bandwidth`.
+        # Section 7.2.7 of draft-ramadan-moq-multicast-03 refills both of its buckets at the same V, from `bandwidth`.
         enforcement = self.sec(moq, "### Receiver Enforcement and State", "### Threat Model")
         moq_depth, *v_moq = numbers(
             r"a token bucket of depth (\d+) refilled at V tokens per second, " + formula
@@ -352,7 +437,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertEqual(double, round(2 * single, 2))
         self.assertEqual(numbers(r"so these figures rise with V: ([\d,]+) per second, V at (\d+) Gbit/s", enforcement), [v_gig, gig])
         self.assertEqual(numbers(r"so the flood figure rises with V: ([\d,]+) per second, V at (\d+) Gbit/s"), [v_gig, gig])
-        for name, source in (("draft-ramadan-mboned-mcast-manifest-02", text), ("draft-ramadan-moq-multicast-02", moq)):
+        for name, source in (("draft-ramadan-mboned-mcast-manifest-02", text), ("draft-ramadan-moq-multicast-03", moq)):
             mbit_floor, record, mbit_v, v_stated = numbers(
                 r"more than V records per second on (?:the flow's )?`port` \(about ([\d.]+) Mbit/s of (\d+)-octet records "
                 r"at V's floor, ([\d.]+) Mbit/s at ([\d,]+)\)",
@@ -396,7 +481,7 @@ class PublishedExamples(unittest.TestCase):
 
     def test_replay_floor_is_written_without_unsigned_underflow(self):
         # Both drafts state the floor as a sum, `mseq + 64 <= highest_mseq`, and say neither counter wraps.
-        for stem in ("draft-ramadan-mboned-mcast-manifest-02", "draft-ramadan-moq-multicast-02"):
+        for stem in ("draft-ramadan-mboned-mcast-manifest-02", "draft-ramadan-moq-multicast-03"):
             markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
             xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
             self.assertIn("`mseq + 64 <= highest_mseq(kid, epoch)`", markdown, stem)
@@ -407,7 +492,7 @@ class PublishedExamples(unittest.TestCase):
                 self.assertIn("Neither counter wraps within an epoch", " ".join(text.split()), stem)  # hard-wrapped source
 
     def test_amt_discovery_combinations_are_unambiguous(self):
-        for name in ("draft-ramadan-moq-multicast-02.md", "draft-ramadan-moq-multicast-02.xml"):
+        for name in ("draft-ramadan-moq-multicast-03.md", "draft-ramadan-moq-multicast-03.xml"):
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertIn('"relay": "amt.example.com"', text)
             self.assertIn('"discovery": "dns"', text)
@@ -415,7 +500,7 @@ class PublishedExamples(unittest.TestCase):
             self.assertNotIn('"discovery": "driad",\n      "relay":', text)
             if name.endswith(".md"):
                 self.assertIn("**relay** (string, OPTIONAL)", text)
-        markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
+        markdown = (ROOT / "draft-ramadan-moq-multicast-03.md").read_text(encoding="utf-8")
         self.assertIn("discovery` is omitted and `relay` is a hostname", markdown)
         self.assertIn("discovery` is omitted and `relay` is a literal", markdown)
 
