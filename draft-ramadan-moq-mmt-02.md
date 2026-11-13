@@ -1504,11 +1504,15 @@ samples and allowed to understate.
 
 A publisher MUST send 0 unless, when it sends the sample, it knows
 that the next N samples are not RAPs and depend on this one.  A
-publisher with a fixed keyframe interval, each of whose samples is
-predicted from the sample before it, knows this: sample p of a group
-of G samples, with p counted from 0, carries the smaller of 255 and
-G - 1 - p.  A publisher that reorders frames, or that does not know
-where its next RAP falls, sends 0.  A publisher that sends a non-zero
+publisher with a fixed keyframe interval of K samples, each of whose
+samples is predicted from the sample before it, knows this: the
+sample p samples after a RAP carries the smaller of 255 and K - 1 -
+p.  It counts from the latest RAP, not from the start of the group,
+since a group can hold more than one RAP
+((#catalog-signaling-of-keyframe-interval)).  A
+publisher that reorders frames, or that does not know where its next
+RAP falls (for example one that may insert a RAP at a scene cut),
+sends 0.  A publisher that sends a non-zero
 `dep_counter` on any sample of a track:
 
 - MUST set the RAP flag on the FI=0 or FI=1 object that begins the
@@ -3278,7 +3282,13 @@ re-pointed.  The section numbers in the -00 entry below are those of
   a keyframe overlay covers every keyframe of the track with the
   overlay (Sections 5.3.4 and 7.4.2): under an overlay, `RAP_flag`
   marks overlay members only, so an uncovered keyframe would read as a
-  sample of a dependent run.
+  sample of a dependent run.  A publisher of -02 or earlier may have
+  sent a non-zero `dep_counter` as a priority hint, or as the
+  [@!ISO.23008-1] dependency_counter, which counts data units rather
+  than samples.  Such a value states no dependent run, and nothing in
+  the stream tells a receiver which reading applies, so a receiver
+  reads a dependent run only from a publisher that it knows follows
+  this revision.
 - Erratum after the -02 posting: Section 8.3 no longer lists
   `num_of_repair_symbol_per_packet` among the fields of an
   "iso-ssbg1-v1" entry.  [@!ISO.23008-1] Table C.3, in the 2023 edition

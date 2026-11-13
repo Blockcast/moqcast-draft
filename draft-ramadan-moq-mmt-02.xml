@@ -1481,11 +1481,15 @@ the dependency_counter of <xref target="ISO.23008-1"></xref> Section 9.3.2.3, co
 samples and allowed to understate.</t>
 <t>A publisher MUST send 0 unless, when it sends the sample, it knows
 that the next N samples are not RAPs and depend on this one.  A
-publisher with a fixed keyframe interval, each of whose samples is
-predicted from the sample before it, knows this: sample p of a group
-of G samples, with p counted from 0, carries the smaller of 255 and
-G - 1 - p.  A publisher that reorders frames, or that does not know
-where its next RAP falls, sends 0.  A publisher that sends a non-zero
+publisher with a fixed keyframe interval of K samples, each of whose
+samples is predicted from the sample before it, knows this: the
+sample p samples after a RAP carries the smaller of 255 and K - 1 -
+p.  It counts from the latest RAP, not from the start of the group,
+since a group can hold more than one RAP
+(<xref target="catalog-signaling-of-keyframe-interval"></xref>).  A
+publisher that reorders frames, or that does not know where its next
+RAP falls (for example one that may insert a RAP at a scene cut),
+sends 0.  A publisher that sends a non-zero
 <tt>dep_counter</tt> on any sample of a track:</t>
 
 <ul spacing="compact">
@@ -3281,7 +3285,13 @@ hint only.  A publisher that states dependent runs on a track under
 a keyframe overlay covers every keyframe of the track with the
 overlay (Sections 5.3.4 and 7.4.2): under an overlay, <tt>RAP_flag</tt>
 marks overlay members only, so an uncovered keyframe would read as a
-sample of a dependent run.</li>
+sample of a dependent run.  A publisher of -02 or earlier may have
+sent a non-zero <tt>dep_counter</tt> as a priority hint, or as the
+<xref target="ISO.23008-1"></xref> dependency_counter, which counts data units rather
+than samples.  Such a value states no dependent run, and nothing in
+the stream tells a receiver which reading applies, so a receiver
+reads a dependent run only from a publisher that it knows follows
+this revision.</li>
 <li>Erratum after the -02 posting: Section 8.3 no longer lists
 <tt>num_of_repair_symbol_per_packet</tt> among the fields of an
 &quot;iso-ssbg1-v1&quot; entry.  <xref target="ISO.23008-1"></xref> Table C.3, in the 2023 edition
