@@ -949,22 +949,67 @@ The block is keyframe-bearing if any of the following holds:
    conversion is exact; an inexact `keyframeIntervalMs` gives no usable
    interval.
 
-The block is non-keyframe-bearing only when none of these holds, the
-catalog carries a usable keyframe interval, the receiver holds both
-bounding packets, and it can determine every value item 3 needs.
+The block is non-keyframe-bearing only when none of these holds and
+one of two things is true: the catalog carries a usable keyframe
+interval, the receiver holds both bounding packets, and it can
+determine every value item 3 needs; or the run rule below holds.
 Every other block is of unknown class, and a receiver MUST treat a
-block of unknown class as keyframe-bearing.  In particular:
+block of unknown class as keyframe-bearing.
+
+The run rule reads the dependent run that a publisher states in the
+`dep_counter` of a DU header ([@!MOQ-MMT] Section 5.3.4).  It needs no
+keyframe interval, no decode time and no packet of the group's start.
+A receiver MUST NOT apply the run rule to a track unless it knows that
+the track's publisher states dependent runs as [@!MOQ-MMT] Section
+5.3.4 defines them.  Nothing in the stream says so: a publisher of
+earlier revisions may have sent `dep_counter` as a priority hint, or
+as the dependency_counter of [@!ISO.23008-1], which counts data units,
+and such a value states no run.
+The lower DU header is the last FT=2 source packet carrying a DU
+header that the receiver holds, in SS_ID order, before the block's
+first missing source symbol.  The upper DU header is the first one it
+holds after the block's last missing source symbol.  Either may lie
+in an adjacent block.  The run rule holds when all of the following
+do:
+
+- The two DU headers carry the same MPU sequence number.
+
+- The lower DU header carries `offset` zero, and its packet does not
+  set `RAP_flag`.
+
+- The lower DU header's `dep_counter` is at least 1 and at least n,
+  the number of samples after the lower DU header's sample up to and
+  including the upper DU header's sample.  Where the two headers carry
+  the same `movie_fragment_sequence_number`, n is the difference of
+  their `sample_number` values.  Where they carry different ones and
+  both carry `sample_number` 1, n is the difference of the two
+  `movie_fragment_sequence_number` values in serial number arithmetic.
+  In any other case n is undetermined and the run rule does not hold.
+
+Every sample the block's missing symbols can carry then lies from the
+lower DU header's sample through the upper one's.  The lower sample is
+not a RAP.  Each later one lies inside the lower sample's dependent
+run, so none is a RAP and no FT=1 data unit between the two headers
+governs one.  No
+FT=0 data unit lies between two FT=2 packets of one MPU.  A receiver
+MUST NOT apply a dependent run from a DU header that follows the
+missing symbols, MUST NOT apply one across MPU sequence numbers, and
+draws nothing from `priority`.
+
+In particular:
 
 - A block for which the receiver holds no lower or no upper bounding
-  packet at its FEC deadline is of unknown class, as is one for which
-  it cannot determine a decode time that item 3 needs.  So is a block
+  packet at its FEC deadline is of unknown class.  So is one for which
+  it cannot determine a decode time that item 3 needs, unless the run
+  rule holds for it.  So is a block
   discarded before its FEC deadline under a memory cap
   ((#deadline-anchoring-and-discard)).
 
 - On a video track whose catalog entry carries no usable keyframe
   interval, the receiver cannot exclude a keyframe after the group
-  start from any span, so every block of the track is keyframe-bearing
-  or of unknown class.
+  start from any span except by the run rule.  Every block of the
+  track for which the run rule does not hold is keyframe-bearing or of
+  unknown class.
 
 - A block's keyframe classification uses its actual source-packet
   range.  A block MAY contain a complete Group, span a Group boundary,
@@ -978,7 +1023,8 @@ publisher that wants receivers to be able to
 apply the non-keyframe treatment of (#other-video-blocks) publishes
 an exact
 keyframe interval, which then binds every keyframe of the track
-([@!MOQ-MMT] Section 4.4.3).
+([@!MOQ-MMT] Section 4.4.3), or states dependent runs ([@!MOQ-MMT]
+Section 5.3.4), or does both.
 
 The blocks of a track that the catalog identifies as audio are
 treated by (#audio-blocks), not classified by this section.  A track
@@ -1469,6 +1515,15 @@ This appendix is informative.  It lists every sentence that is new or
 changed since draft-ramadan-moq-fec-multicast-00.
 
 New sentences:
+
+- (#block-classification) gains the run rule.  A receiver may class a
+  block as non-keyframe-bearing from the dependent run that a
+  publisher states in `dep_counter` ([@!MOQ-MMT] Section 5.3.4), read
+  from the DU headers it holds on either side of the block's missing
+  symbols.  Until now that class needed the catalog's exact keyframe
+  interval and the decode times of the bounding packets.  A receiver
+  applies the rule only to a track whose publisher it knows states
+  dependent runs, since nothing in the stream says so.
 
 - (#moot-keyframe-repair) is new.  In -00, and in -01 of
   [@?I-D.ramadan-moq-fec] Section 11.4.2, a keyframe repair was moot

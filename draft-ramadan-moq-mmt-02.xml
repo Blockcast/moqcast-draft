@@ -1407,7 +1407,8 @@ and no overlap.</li>
 <li>Each subsample data unit of one sample MUST be published as its
 own subgroup per Section 5.3.2, contiguously per Section 5.2.2.</li>
 <li><tt>priority</tt> and <tt>dep_counter</tt> describe the sample and SHOULD be
-identical across its subsample data units.</li>
+identical across its subsample data units.  A non-zero
+<tt>dep_counter</tt> MUST be identical across them (Section 5.3.4).</li>
 </ol>
 <t>Relays and this mapping MUST NOT create, merge, or re-partition
 subsample data units.</t>
@@ -1640,6 +1641,48 @@ DU header carries a higher priority or dep_counter value
 <xref target="ISO.23008-1"></xref> Section 9.3.2.3), since these are decode-order
 roots upon which other access units depend.</li>
 </ul>
+<t>A publisher MAY state a sample's dependent run in the <tt>dep_counter</tt>
+of its DU header.  The value 0 states nothing.  A value N greater than
+0 states that each of the N samples that follow this sample in the
+track's authored order (Section 4.3) is not a RAP and cannot be
+decoded without this sample.  The value is a floor: a publisher MAY
+send less than the true count, and 255 states 255 or more.  This is
+the dependency_counter of <xref target="ISO.23008-1"></xref> Section 9.3.2.3, counted in
+samples and allowed to understate.</t>
+<t>A publisher MUST send 0 unless, when it sends the sample, it knows
+that the next N samples are not RAPs and depend on this one.  A
+publisher with a fixed keyframe interval of K samples, each of whose
+samples is predicted from the sample before it, knows this: the
+sample p samples after a RAP carries the smaller of 255 and K - 1 -
+p.  It counts from the latest RAP, not from the start of the group,
+since a group can hold more than one RAP
+(<xref target="catalog-signaling-of-keyframe-interval"></xref>).  A
+publisher that reorders frames, or that does not know where its next
+RAP falls (for example one that may insert a RAP at a scene cut),
+sends 0.  A publisher that sends a non-zero
+<tt>dep_counter</tt> on any sample of a track:</t>
+
+<ul spacing="compact">
+<li>MUST set the RAP flag on the FI=0 or FI=1 object that begins the
+offset-0 data unit of every RAP sample of that track, not only of
+the first sample of each group (Section 4.3);</li>
+<li>MUST, if the catalog protects the track with a keyframe overlay,
+cover every RAP sample of the track with the overlay
+(<xref target="overlay-membership"></xref>), since a packet of a keyframe that the
+overlay leaves uncovered does not set <tt>RAP_flag</tt>;</li>
+<li>MUST place exactly one sample in each movie fragment of an MPU that
+holds more than one movie fragment; and</li>
+<li>MUST carry the same value in every subsample data unit of a sample
+(Section 5.2.1).</li>
+</ul>
+<t>A receiver draws no conclusion from the value 0, and none about a
+sample that precedes the one that carries the counter.
+<xref target="MOQ-FEC-MULTICAST"></xref> Section 6.1 says how a receiver on a multicast
+leg uses a dependent run to show that a loss carries no part of a RAP.
+A track whose frames are reordered cannot state one.  A header
+extension that locates the latest RAP by its first packet sequence
+number and its packet count would serve such a track without knowledge
+of later samples; this document does not define it.</t>
 <t>On a multicast or AMT leg, <xref target="MOQ-FEC-MULTICAST"></xref> Section 6 specifies
 the receiver repair policy this implies, and on any other datagram
 leg Section 4.3.1 does.</t>
@@ -2234,7 +2277,9 @@ fragment that contains it, are then members by the list above, and no
 packet of a keyframe that the publisher leaves uncovered sets
 <tt>RAP_flag</tt>.  A receiver needs no signal of that choice, since it takes
 membership from the 0x8B01 extension alone
-(<xref target="overlay-header-extension"></xref>).</t>
+(<xref target="overlay-header-extension"></xref>).  A publisher that states dependent runs on
+the track covers every keyframe with the overlay
+(<xref target="random-access-and-priority"></xref>).</t>
 <t>Overlay source symbols are numbered consecutively within the overlay
 instance, in the order the publisher emits them: the overlay SS_ID is 0
 at the first overlay source symbol of the stream and advances by one per
@@ -3490,6 +3535,24 @@ Item 3 of Section 8.1 no longer forbids a value computed from a
 count; it says such a value bounds the send span only when the
 publisher keeps it, by closing blocks early and withholding repair
 it cannot send in time.</li>
+<li>After the -02 posting: Section 5.3.4 defines the dependent run.  A
+non-zero <tt>dep_counter</tt> states that the samples that follow, as many
+as its value, are not RAPs and cannot be decoded without the sample
+that carries it; 0 states nothing.  The section says when a
+publisher may send one and what it then keeps.  Item 4 of Section
+5.2.1 requires a non-zero <tt>dep_counter</tt> to be identical across a
+sample's subsample data units.  Until now the field was a priority
+hint only.  A publisher that states dependent runs on a track under
+a keyframe overlay covers every keyframe of the track with the
+overlay (Sections 5.3.4 and 7.4.2): under an overlay, <tt>RAP_flag</tt>
+marks overlay members only, so an uncovered keyframe would read as a
+sample of a dependent run.  A publisher of -02 or earlier may have
+sent a non-zero <tt>dep_counter</tt> as a priority hint, or as the
+<xref target="ISO.23008-1"></xref> dependency_counter, which counts data units rather
+than samples.  Such a value states no dependent run, and nothing in
+the stream tells a receiver which reading applies, so a receiver
+reads a dependent run only from a publisher that it knows follows
+this revision.</li>
 <li>Erratum after the -02 posting: Section 8.3 no longer lists
 <tt>num_of_repair_symbol_per_packet</tt> among the fields of an
 &quot;iso-ssbg1-v1&quot; entry.  <xref target="ISO.23008-1"></xref> Table C.3, in the 2023 edition
