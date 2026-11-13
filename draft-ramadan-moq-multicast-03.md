@@ -70,13 +70,7 @@ receiver on a unicast-only network reaches the same stream through an
 Automatic Multicast Tunneling (AMT) relay [@!RFC7450] that it finds
 in its own network, from a relay service hostname (Section 3.1), or
 with DNS Reverse IP AMT Discovery (DRIAD) [@!RFC8777].  Section 4.2.1
-describes how a catalog signals both.  Each network can therefore
-turn on multicast when it is ready.  Until then, its receivers that
-can run AMT, in the application or through the user agent (Section 3),
-use it, and the others stay on MoQ unicast.  An AMT relay can
-replicate packets in router forwarding
-hardware or in a kernel data plane, so relay fan-out does not cost a
-server per receiver.
+describes how a catalog signals both.
 
 {#multicast-as-supplement-to-moq-unicast}
 ## Multicast as Supplement to MoQ Unicast
@@ -104,9 +98,7 @@ one.  A receiver
 that holds the catalog takes both from the catalog, which remains
 authoritative for media and FEC parameters (Section 4.1; the FEC
 instance configuration of Section 10
-of [@!MOQ-FEC-CORE]).  A catalog-provided service name or relay
-address is only a discovery input; it is not proof that an upstream
-is reachable or healthy.
+of [@!MOQ-FEC-CORE]).
 ATSC 3.0 and ARIB STD-B60 [@?ARIB-B60] receivers consume MMTP over
 SSM as their native delivery path.
 
@@ -127,8 +119,7 @@ endpoints, the receiver repair policy and block classification.
 [@!MOQ-MMT] defines the MMTP packaging that multicast endpoints
 carry, and the part of that FEC that is specific to MMTP packets: the
 "iso-ssbg1-v1" block profile, the Source FEC Payload ID and the
-keyframe overlay.  The -01 revision of this document cited that
-material as [@?I-D.ramadan-moq-fec].
+keyframe overlay.
 
 {#terminology}
 # Terminology
@@ -259,10 +250,6 @@ form for a service that has multiple upstreams.
 
 {#multicast-catalog-extension}
 # Multicast Catalog Extension
-
-For tracks available via multicast, the MoQ catalog includes a
-top-level `multicast` field containing an `endpoints` array for
-endpoint discovery.
 
 The catalog is the MSF catalog track, named `catalog`
 ([@!I-D.ietf-moq-msf] Section 5; [@!MOQ-MMT] Section
@@ -476,11 +463,9 @@ join when multicast provides a concrete benefit over unicast.
 
 Joining an SSM endpoint requires source-specific group membership
 signaling: receivers MUST use IGMPv3 [@!RFC9776] (IPv4) or MLDv2
-[@!RFC9777] (IPv6) to convey (S,G) joins.  Earlier protocol
-versions (IGMPv2/MLDv1) cannot express source-specific joins; if
-the receiver's network segment operates at an earlier version (for
-example, due to an IGMPv2 querier or snooping switch on the
-segment), SSM joins fail silently.  Receivers SHOULD detect the
+[@!RFC9777] (IPv6) to convey (S,G) joins.  On a network segment
+that operates at an earlier version, SSM joins fail silently.
+Receivers SHOULD detect the
 absence of multicast data following a join and fall back to
 MoQ/QUIC unicast (Section 6).
 
@@ -498,9 +483,6 @@ first admitted datagram (step 2 of
 (#receiver-enforcement-and-state)), at which the receiver discards
 what the consumer still holds of the flow's tracks that it did not
 admit.
-
-If multicast reception fails or degrades, subscribers fall back
-to MoQ/QUIC unicast per Section 6.
 
 Receivers SHOULD implement hysteresis to prevent flapping between
 multicast and unicast paths.  Switch away from multicast after
@@ -540,8 +522,7 @@ Defined types:
 MUST be a hostname whose A and AAAA answers are candidate addresses.
 With `manual`, it MUST be the literal address of the explicitly
 configured relay.  It MUST be omitted with `driad`, because DRIAD
-supplies the relay candidates.  A literal address does not provide DNS
-locality steering.
+supplies the relay candidates.
 
 **port** (integer, OPTIONAL): UDP port on which the relay named by
   the `relay` field accepts requests.  When absent, the AMT port (2268,
@@ -603,11 +584,11 @@ subscriber's own network:
 The `discovery` and `relay` fields select at most one of steps 2 to 4
 for an endpoint.  A relay named by the `relay` field or found by DRIAD
 is one that the sender knows, and is not necessarily near the
-subscriber ([@!RFC8777] Section 3.1.1).  A local relay keeps more of
-the path on native multicast.  Every relay found in steps 1 to 4 is a
+subscriber ([@!RFC8777] Section 3.1.1).
+Every relay found in steps 1 to 4 is a
 candidate that the subscriber validates with the AMT protocol before
-selection (Section 3.1).  DRIAD requires AMTRELAY (TYPE260) reverse
-DNS records on the source IP.  Publishers without reverse DNS control
+selection (Section 3.1).
+Publishers without reverse DNS control
 SHOULD provide a stable `relay` service hostname.
 (#explicit-congestion-notification) requires a gateway to carry the
 Explicit Congestion Notification (ECN) field through decapsulation
@@ -689,20 +670,10 @@ Sections 5.2 and 6.1 of
 Section 4); a receiver without the catalog
 relies on the in-band signaling below.
 
-Frame-sized LOC [@?I-D.ietf-moq-loc] or CMAF [@?I-D.ietf-moq-cmsf]
-objects exceed a UDP datagram, while the MMTP MPU-mode payload format
-fragments media into MTU-sized packets ([@!ISO.23008-1]
-Clause 9.3.2; [@!MOQ-MMT] Section
-5.2).  Multicast
-carriage therefore uses MMTP: an endpoint lists only mmtp tracks
+Multicast carriage uses MMTP: an endpoint lists only mmtp tracks
 and their repair
 tracks, and a loc or cmaf track reaches multicast through an mmtp
 rendition track (Section 4.1).
-
-No additional multicast framing, encapsulation, or header format is
-needed.  The MMTP packet format is defined in [@!ISO.23008-1]
-Clause 9.2, as profiled in [@!MOQ-MMT] Section
-3.1.
 
 This design means the same MMTP packet can be delivered via three
 transports without modification:
@@ -792,9 +763,7 @@ holds the catalog routes a repair-only endpoint's `packetId` values
 from the catalog ([@!MOQ-FEC-MULTICAST] Section
 4).  A receiver without the catalog
 cannot discover a
-repair-only endpoint, because the MP table locates only Assets and
-the AL-FEC message names a repair flow by `packetId` without a
-location, so repair carried on a repair-only endpoint reaches only
+repair-only endpoint, so repair carried on one reaches only
 catalog-holding receivers.
 
 For a receiver that holds the catalog, the endpoint's `packetId`
@@ -948,10 +917,7 @@ group.  That group's ID is the block's extended SS_Start
 ([@!MOQ-FEC-CORE] Section 7.6):
 the SS_Start from the Repair FEC Payload
 ID of a multicast repair packet of the block, extended with the wrap
-epoch to a value in [0, 2^62).  MoQ Transport Group IDs range up to
-2^64 - 1 ([@!I-D.ietf-moq-transport] Section 8.1); repair Group IDs
-use only [0, 2^62), as [@!MOQ-FEC-CORE] Section
-7.6 specifies.
+epoch to a value in [0, 2^62).
 A receiver that takes its repair from multicast has usually received
 no repair-track Group ID over MoQ.  Before its first FETCH it
 therefore establishes the wrap epoch, as [@!MOQ-FEC-CORE] Section
@@ -990,9 +956,7 @@ switch: to the tracks it now receives on multicast or to their loc
 or cmaf alternatives (Section 4.1), to the repair tracks of such a
 loc or cmaf alternative, and to the repair tracks that its multicast
 endpoints now carry.
-While these subscriptions forward objects, the receiver gets the
-media twice, and the network still carries the unicast copy that the
-multicast path replaces.  Once multicast delivery of a track is
+Once multicast delivery of a track is
 verified, for example by the receipt on multicast of a complete group
 or a complete FEC block of the track, the receiver SHOULD pause these
 subscriptions or end them:
@@ -1019,8 +983,7 @@ and resuming without re-sending FILL_PARAMETERS opens none either
 the current group from its start therefore sends FILL_PARAMETERS, as
 in the join of Section 6, in a further REQUEST_UPDATE after it
 receives the REQUEST_UPDATE_OK for the update that resumed the
-subscription.  A receiver that ended its subscriptions subscribes
-again as Section 6 describes.
+subscription.
 
 Pausing or ending these subscriptions does not affect per-block
 unicast repair (Section 6.2), which uses FETCH.
@@ -1233,10 +1196,7 @@ at a fixed offset, and the signature is the last 64 octets.
 | 68 | 32 x count | digests, in emission order |
 | 68 + 32 x count | 64 | Ed25519 signature |
 
-Length is `132 + 32 x count` octets.  The cap of 37 digests is an MTU
-choice: the 1316-octet maximum is 1344 octets on the wire with IPv4
-and UDP headers and 1364 with IPv6, which leaves room for AMT
-encapsulation [@!RFC7450] on a 1500-octet path.
+Length is `132 + 32 x count` octets.
 
 `magic` is how a receiver tells a record from a data datagram on
 `port` ((#receiver-enforcement-and-state)), so a sender MUST NOT emit
@@ -1260,9 +1220,8 @@ epoch that ends unplanned, as at a crash, has no such record.
 `sent` is the sender's clock when the record is signed, truncated to
 whole seconds since 1970-01-01T00:00:00Z with leap seconds excluded,
 from a clock synchronized to UTC within 1 s; the twin of a record
-((#emission-and-cadence)) carries the original's value.  It is a count
-of seconds, not the 16.16 NTP short format, so it wraps in 2106 rather
-than every 18.2 hours.  A sender whose clock is further off than the
+((#emission-and-cadence)) carries the original's value.
+A sender whose clock is further off than the
 tolerance of (#receiver-enforcement-and-state) makes its flow
 unverifiable to receivers that check freshness.
 
@@ -1289,10 +1248,7 @@ signed_message =
 ~~~
 
 with `S`, `G`, `streamId` and `port` as declared for the
-endpoint ((#digest), (#catalog-signaling)).  The prefix binds the flow's network identity; a receiver needs no
-catalog state to check it beyond those four values, which a MoQ
-receiver takes from the catalog and a broadcast-only receiver from its
-provisioning ((#receiver-enforcement-and-state)).
+endpoint ((#digest), (#catalog-signaling)).  The prefix binds the flow's network identity.
 The MoQ context is bound inside the record by `ctx`:
 
 ~~~
@@ -1336,12 +1292,7 @@ is encoded, and the concatenation is unambiguous because every field
 but the length-prefixed `scheme` is fixed-width.  `blockProfile`,
 `reorderToleranceMs`, `instanceId`, `repairTrack`, `symbolTrack` and
 the per-track fields of [@!MOQ-FEC-CATALOG], an enhancement layer's
-`repairSymbols` included, are deliberately unbound, although
-`blockProfile` and `reorderToleranceMs` are part of the instance's
-geometry ([@!MOQ-FEC-CORE] Section 10.1):
-`params_hash` binds the five per-instance values that -01 bound, so
-the -01 values of `params_hash` and `ctx` are unchanged
-((#test-vectors-bc-provenance-version-2)).  An absent `interleaveDepthMs`
+`repairSymbols` included, are not bound.  An absent `interleaveDepthMs`
 is encoded as `u32(0)`; an entry with no
 `fec` array, or an empty one, is encoded as `lp16("none")` followed by
 four `u32(0)`, distinct from every instance because [@!MOQ-FEC-CORE]
@@ -1387,14 +1338,8 @@ records arriving on `port` raise, however fast the flow
 closes windows; RECOMMENDED is to transmit it immediately after
 the signed record of window `mseq + 2` and before the first datagram
 that record covers, or on its own at the `maxAuthDelayMs / 2`
-deadline when window `mseq + 2` has not closed by then.  The two
-copies then bracket the window's datagrams: a
-contiguous loss burst that removes both copies has removed every
-datagram between them, and a datagram that survives such a burst has a
-usable copy on one side of it, whatever the flow's rate and timer;
-only two separate losses can leave an arriving datagram without a
-copy, and then at most 37 datagrams expire from the hold queues
-((#threat-model)).  Every twin of an epoch MUST be transmitted before
+deadline when window `mseq + 2` has not closed by then.
+Every twin of an epoch MUST be transmitted before
 the first record of a later epoch, since a receiver drops the records
 of an earlier epoch once its grace period ends
 ((#receiver-enforcement-and-state)); every twin of the epoch not yet
@@ -1404,8 +1349,7 @@ once.  A receiver handles either copy by step 1 of
 (#receiver-enforcement-and-state) and drops the second with one
 lookup and one hash.
 
-At 37 digests per window, a record and its twin cost about 71 octets
-per 1400-octet datagram (5.1%); data datagrams are untouched.  Manifest
+Manifest
 records MUST NOT be FEC-protected; the twin is their loss remedy.
 
 A publisher MAY mirror the same record octets as objects on a MoQ
@@ -1603,14 +1547,8 @@ verification, a record whose `epoch` is outside its `kid`'s range
 receiver past its successor's `firstEpoch`.
 
 **minEpoch** (integer, REQUIRED): the lowest `epoch` a receiver
-accepts at join (step 1 of (#receiver-enforcement-and-state)); after
-its first verified record the current epoch is the floor, with the
-previous epoch admitted on `port` until that path's grace
-period ends, or while that path has started none, and never past the
-bound
-of (#emission-and-cadence) plus `maxAuthDelayMs + 2 x manifestTimerMs`
-after the current epoch became current, and on the manifest track
-within the earlier-started of the two paths' periods (step 1).  The
+accepts at join; step 1 of (#receiver-enforcement-and-state) gives
+the floor that applies after its first verified record.  The
 publisher MUST write the current
 `epoch` at every
 epoch change, sender restart included, so a joiner with a current
@@ -1766,10 +1704,7 @@ already-verified lookup of step 1 as its byte-identical copy, and,
 until the period on `port` ends or the previous epoch's
 deadline passes, the previous `epoch`, the deadline being the bound
 of (#emission-and-cadence) plus `maxAuthDelayMs + 2 x manifestTimerMs`
-after the current epoch became current (step 1; a record on
-`port` meets its own path's period and the deadline, one read
-from the manifest track the earlier-started of the two periods, which
-ends before the deadline); the flow's
+after the current epoch became current (step 1); the flow's
 `hash_alg`, fixed by its first verified
 record; per `(kid, epoch)` the verified `mseq` values above the
 replay floor of the path they arrived on, and those verified on the
@@ -1916,27 +1851,13 @@ variable-length interpretation before a cryptographic check:
    `now + maxAuthDelayMs + 2 x manifestTimerMs` plus the raised
    lead, `now` being its insertion time; and, once every such record
    is processed, each datagram held in either hold queue whose
-   digest is now recorded as admitted is dropped (step 2), so that
-   the datagrams of every record the mirror delivered under a lead
-   the receiver had not yet measured, within the bound of
-   (#emission-and-cadence), those of the records mirrored while the
-   raising copy was in flight included, are still admitted when
-   they arrive, a late copy of one a pair has admitted is
-   dropped rather than held, and a copy replayed within the
-   retention re-admits nothing a pair has admitted
-   ((#threat-model)); a dropped
+   digest is now recorded as admitted is dropped (step 2); a dropped
    copy whose bytes do not match counts as nothing); `epoch` is
    below the current epoch and is not the previous epoch within the
    grace period this record meets and before the previous epoch's
    deadline, the bound of (#emission-and-cadence) plus
    `maxAuthDelayMs + 2 x manifestTimerMs` after the current epoch
-   became current (below; a path on which no record of the current
-   epoch has yet been verified, or dropped by the lookup above as its
-   byte-identical copy, has started no grace period, so the previous
-   epoch stays admitted on `port` until the deadline passes
-   or, once such a record starts that path's period, until that
-   period ends, if sooner, and on the manifest track until the
-   earlier-started of the two paths' periods ends), or, when no
+   became current (below), or, when no
    record has yet been
    verified, is below
    `minEpoch` or below the pinned floor for its `kid`;
@@ -2410,12 +2331,8 @@ records the manifest track's bucket admitted within the raised lead
 and a corrupt symbol
 of an unlisted track
 at most two decodes of its block.  Telling a record from a data
-datagram costs one four-octet comparison per datagram on `port`.  A
-datagram injected on `port` with the magic "MHM2" goes to step 1,
-where it is dropped before any cryptography or charges the
-verification budget as any injected record does, and it never
-occupies a hold queue.  One injected without the magic is a data
-datagram, as above.  With one verification per 37
+datagram costs one four-octet comparison per datagram on `port`.
+With one verification per 37
 datagrams, a Cortex-A53 without
 SHA2 instructions spends about 0.26 of a core at 100 Mbit/s and,
 under a record flood at V's floor of 1000 verifications per second on
@@ -2439,13 +2356,8 @@ endpoint, stream generation, broadcast, key or epoch
 by `minEpoch` ((#catalog-signaling)) and, on a receiver that pins
 keys, by the epoch floor kept with the pin, and after the first
 verified record by the current epoch, the previous epoch admitted
-on `port` until that path's grace period ends, or while that
-path has started none, and never past the previous epoch's deadline,
-the bound of (#emission-and-cadence) plus
-`maxAuthDelayMs + 2 x manifestTimerMs` after the current epoch became
-current, and on the manifest track
-within the earlier-started of the two paths' periods
-((#receiver-enforcement-and-state)); and
+only within the grace periods and the deadline of step 1 of
+(#receiver-enforcement-and-state); and
 within an epoch a receiver that checks freshness admits no window
 whose `sent` is more than `7 s + maxAuthDelayMs` behind its clock,
 and, with the sender's clock within its 1 s bound and its own within
@@ -2519,10 +2431,7 @@ or `ctx` check, or
 resizes the verification budgets, the hold queues, pending expiry and
 the previous epoch's grace periods and deadline (`bandwidth`,
 `maxAuthDelayMs`, `manifestTimerMs`), which a receiver bounds by
-local policy ((#catalog-as-attack-surface)); the grace periods and
-the deadline also bound how long records a retired key signs are
-admitted after an epoch change (Key rotation,
-(#receiver-enforcement-and-state)).  A rewrite that removes
+local policy ((#catalog-as-attack-surface)).  A rewrite that removes
 `manifestTrack`, or the `auth` that carries it, leaves a receiver,
 one that pins keys as any other, no records for its MoQ unicast
 path, which during the join of (#multicast-endpoint-format) and
@@ -2774,13 +2683,9 @@ current group from its relay at once, a burst on the relays that
 grows with the audience and can recur every 30 s.  A receiver that
 holds the catalog naming the successor key accepts
 the retired `kid` only below the successor's `firstEpoch`
-((#catalog-signaling)), and records of the previous epoch on
-`port` until that path's grace period ends, or while that
-path has started none, and never past the bound of
-(#emission-and-cadence)
-plus `maxAuthDelayMs + 2 x manifestTimerMs` after the new epoch
-became current, and on the manifest track within the earlier-started
-of the two paths' periods (step 1), so for that receiver a key
+((#catalog-signaling)), and records of the previous epoch only within
+the grace periods and the deadline of step 1 of
+(#receiver-enforcement-and-state), so for that receiver a key
 retired at an epoch boundary signs records admitted on a path for at
 most `maxAuthDelayMs + 2 x manifestTimerMs` after the new epoch's
 first record is verified there, or dropped there as its
@@ -3180,6 +3085,17 @@ as an RFC.
   MC_INTEGRITY frames of that binding beside the signed records of
   (#content-authentication): what each authenticates a packet to, and
   that such a channel can run without the records.
+- Editorial: statements that this document made twice, and
+  explanatory text that no rule depends on, are cut in
+  (#introduction), (#multicast-as-supplement-to-moq-unicast),
+  (#relation-to-other-documents), (#multicast-catalog-extension),
+  (#multicast-endpoint-format), (#amt-automatic-multicast-tunneling),
+  (#multicast-packet-format), (#per-block-unicast-repair),
+  (#unicast-subscriptions-after-a-switch-to-multicast),
+  (#manifest-record), (#signature-context-binding),
+  (#emission-and-cadence), (#catalog-signaling),
+  (#receiver-enforcement-and-state) and (#threat-model); no rule
+  changes.
 - This appendix no longer carries the changes from -00 to -01; they
   are in draft-ramadan-moq-multicast-02.
 
