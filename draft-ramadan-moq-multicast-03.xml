@@ -606,9 +606,11 @@ transport hierarchy defined in Section 3.</t>
 
 <section anchor="multicast-packet-format"><name>Bindings</name>
 <t>A binding carries the MMTP packets of a multicast endpoint over one
-transport.  This document specifies the binding to UDP.  Multicast
-QUIC <xref target="QUIC-MULTICAST"></xref> is a second binding; this document describes
-it informatively and does not depend on it.</t>
+multicast transport.  This document specifies the binding to UDP.
+Multicast QUIC <xref target="QUIC-MULTICAST"></xref> is a second binding; this document
+describes it informatively and does not depend on it.  Unicast MoQ,
+which carries the same packets as objects, is not a binding in this
+sense.</t>
 <t>All multicast delivery uses MMTP packets.  Each UDP datagram, other
 than a manifest record on a protected endpoint (<xref target="manifest-record"></xref>),
 carries one MMTP packet -- the same packet format that MoQ objects carry on
@@ -3069,7 +3071,8 @@ as a precondition of multicast reception.</li>
 cannot read the ECN field no longer names one API.</li>
 <li><xref target="multicast-packet-format"></xref> is retitled &quot;Bindings&quot;.  It says that
 this document specifies the UDP binding and describes Multicast QUIC
-<xref target="QUIC-MULTICAST"></xref> informatively as a second one, and it sets the
+<xref target="QUIC-MULTICAST"></xref> informatively as a second one, that unicast MoQ is
+not a binding in this sense, and it sets the
 MC_INTEGRITY frames of that binding beside the signed records of
 <xref target="content-authentication"></xref>: what each authenticates a packet to, and
 that such a channel can run without the records.</li>

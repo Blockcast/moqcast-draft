@@ -649,9 +649,11 @@ transport hierarchy defined in Section 3.
 # Bindings
 
 A binding carries the MMTP packets of a multicast endpoint over one
-transport.  This document specifies the binding to UDP.  Multicast
-QUIC [@?QUIC-MULTICAST] is a second binding; this document describes
-it informatively and does not depend on it.
+multicast transport.  This document specifies the binding to UDP.
+Multicast QUIC [@?QUIC-MULTICAST] is a second binding; this document
+describes it informatively and does not depend on it.  Unicast MoQ,
+which carries the same packets as objects, is not a binding in this
+sense.
 
 All multicast delivery uses MMTP packets.  Each UDP datagram, other
 than a manifest record on a protected endpoint ((#manifest-record)),
@@ -3081,7 +3083,8 @@ as an RFC.
   cannot read the ECN field no longer names one API.
 - (#multicast-packet-format) is retitled "Bindings".  It says that
   this document specifies the UDP binding and describes Multicast QUIC
-  [@?QUIC-MULTICAST] informatively as a second one, and it sets the
+  [@?QUIC-MULTICAST] informatively as a second one, that unicast MoQ is
+  not a binding in this sense, and it sets the
   MC_INTEGRITY frames of that binding beside the signed records of
   (#content-authentication): what each authenticates a packet to, and
   that such a channel can run without the records.
