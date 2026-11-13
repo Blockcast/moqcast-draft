@@ -327,7 +327,8 @@ audio/video groups) use multiple elements:</t>
   <xref target="RFC4607"></xref>.  Its presence selects SSM and its absence Any-Source
   Multicast (ASM).  An ASM endpoint is for use within one multicast
   domain, because <xref target="RFC8815"></xref> (BCP 229) deprecates ASM between
-  domains.</t>
+  domains (Section 4.1) and does not preclude it within one (Section
+  4.8).</t>
 <t><strong>protocol</strong> (string, OPTIONAL): &quot;ssm&quot; or &quot;asm&quot;, restating that
   mode.  An endpoint where it disagrees with <tt>sourceAddress</tt> is
   ignored (see below).</t>
@@ -3433,7 +3434,8 @@ doubled word in the text output.</li>
 <li>After the -02 posting: the <tt>sourceAddress</tt> definition of
 <xref target="multicast-endpoint-format"></xref> says that an ASM endpoint is for use
 within one multicast domain, because <xref target="RFC8815"></xref> (BCP 229)
-deprecates ASM between domains.  The sentence is new and adds no
+deprecates ASM between domains (its Section 4.1) and does not
+preclude it within one (its Section 4.8).  The sentence is new and adds no
 requirement; <xref target="RFC8815"></xref> is a new informative reference.</li>
 </ul>
 </section>

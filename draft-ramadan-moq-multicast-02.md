@@ -348,7 +348,8 @@ Endpoint field definitions:
   [@!RFC4607].  Its presence selects SSM and its absence Any-Source
   Multicast (ASM).  An ASM endpoint is for use within one multicast
   domain, because [@?RFC8815] (BCP 229) deprecates ASM between
-  domains.
+  domains (Section 4.1) and does not preclude it within one (Section
+  4.8).
 
 **protocol** (string, OPTIONAL): "ssm" or "asm", restating that
   mode.  An endpoint where it disagrees with `sourceAddress` is
@@ -3450,7 +3451,8 @@ as an RFC.
 - After the -02 posting: the `sourceAddress` definition of
   (#multicast-endpoint-format) says that an ASM endpoint is for use
   within one multicast domain, because [@?RFC8815] (BCP 229)
-  deprecates ASM between domains.  The sentence is new and adds no
+  deprecates ASM between domains (its Section 4.1) and does not
+  preclude it within one (its Section 4.8).  The sentence is new and adds no
   requirement; [@?RFC8815] is a new informative reference.
 
 {#changes-since-draft-ramadan-moq-multicast-00}
