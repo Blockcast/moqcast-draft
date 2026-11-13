@@ -908,6 +908,12 @@ block of unknown class as keyframe-bearing.
 The run rule reads the dependent run that a publisher states in the
 `dep_counter` of a DU header ([@!MOQ-MMT] Section 5.3.4).  It needs no
 keyframe interval, no decode time and no packet of the group's start.
+A receiver MUST NOT apply the run rule to a track unless it knows that
+the track's publisher states dependent runs as [@!MOQ-MMT] Section
+5.3.4 defines them.  Nothing in the stream says so: a publisher of
+earlier revisions may have sent `dep_counter` as a priority hint, or
+as the dependency_counter of [@!ISO.23008-1], which counts data units,
+and such a value states no run.
 The lower DU header is the last FT=2 source packet carrying a DU
 header that the receiver holds, in SS_ID order, before the block's
 first missing source symbol.  The upper DU header is the first one it
@@ -1459,7 +1465,9 @@ This appendix is informative.
   publisher states in `dep_counter` ([@!MOQ-MMT] Section 5.3.4), read
   from the DU headers it holds on either side of the block's missing
   symbols.  Until now that class needed the catalog's exact keyframe
-  interval and the decode times of the bounding packets.
+  interval and the decode times of the bounding packets.  A receiver
+  applies the rule only to a track whose publisher it knows states
+  dependent runs, since nothing in the stream says so.
 
 - (#moot-keyframe-repair) is new.  In -00, and in -01 of
   [@?I-D.ramadan-moq-fec] Section 11.4.2, a keyframe repair was moot
