@@ -1281,7 +1281,8 @@ and no overlap.</li>
 <li>Each subsample data unit of one sample MUST be published as its
 own subgroup per Section 5.3.2, contiguously per Section 5.2.2.</li>
 <li><tt>priority</tt> and <tt>dep_counter</tt> describe the sample and SHOULD be
-identical across its subsample data units.</li>
+identical across its subsample data units.  A non-zero
+<tt>dep_counter</tt> MUST be identical across them (Section 5.3.4).</li>
 </ol>
 <t>Relays and this mapping MUST NOT create, merge, or re-partition
 subsample data units.</t>
@@ -1470,6 +1471,40 @@ DU header carries a higher priority or dep_counter value
 <xref target="ISO.23008-1"></xref> Section 9.3.2.3), since these are decode-order
 roots upon which other access units depend.</li>
 </ul>
+<t>A publisher MAY state a sample's dependent run in the <tt>dep_counter</tt>
+of its DU header.  The value 0 states nothing.  A value N greater than
+0 states that each of the N samples that follow this sample in the
+track's authored order (Section 4.3) is not a RAP and cannot be
+decoded without this sample.  The value is a floor: a publisher MAY
+send less than the true count, and 255 states 255 or more.  This is
+the dependency_counter of <xref target="ISO.23008-1"></xref> Section 9.3.2.3, counted in
+samples and allowed to understate.</t>
+<t>A publisher MUST send 0 unless, when it sends the sample, it knows
+that the next N samples are not RAPs and depend on this one.  A
+publisher with a fixed keyframe interval, each of whose samples is
+predicted from the sample before it, knows this: sample p of a group
+of G samples, with p counted from 0, carries the smaller of 255 and
+G - 1 - p.  A publisher that reorders frames, or that does not know
+where its next RAP falls, sends 0.  A publisher that sends a non-zero
+<tt>dep_counter</tt> on any sample of a track:</t>
+
+<ul spacing="compact">
+<li>MUST set the RAP flag on the FI=0 or FI=1 object that begins the
+offset-0 data unit of every RAP sample of that track, not only of
+the first sample of each group (Section 4.3);</li>
+<li>MUST place exactly one sample in each movie fragment of an MPU that
+holds more than one movie fragment; and</li>
+<li>MUST carry the same value in every subsample data unit of a sample
+(Section 5.2.1).</li>
+</ul>
+<t>A receiver draws no conclusion from the value 0, and none about a
+sample that precedes the one that carries the counter.
+<xref target="MOQ-FEC-MULTICAST"></xref> Section 6.1 says how a receiver on a multicast
+leg uses a dependent run to show that a loss carries no part of a RAP.
+A track whose frames are reordered cannot state one.  A header
+extension that locates the latest RAP by its first packet sequence
+number and its packet count would serve such a track without knowledge
+of later samples; this document does not define it.</t>
 <t>On a multicast or Automatic Multicast Tunneling (AMT) leg,
 <xref target="MOQ-FEC-MULTICAST"></xref> Section 6 specifies
 the receiver repair policy this implies.</t>
@@ -3229,6 +3264,14 @@ Item 3 of Section 8.1 no longer forbids a value computed from a
 count; it says such a value bounds the send span only when the
 publisher keeps it, by closing blocks early and withholding repair
 it cannot send in time.</li>
+<li>After the -02 posting: Section 5.3.4 defines the dependent run.  A
+non-zero <tt>dep_counter</tt> states that the samples that follow, as many
+as its value, are not RAPs and cannot be decoded without the sample
+that carries it; 0 states nothing.  The section says when a
+publisher may send one and what it then keeps.  Item 4 of Section
+5.2.1 requires a non-zero <tt>dep_counter</tt> to be identical across a
+sample's subsample data units.  Until now the field was a priority
+hint only.</li>
 <li>Erratum after the -02 posting: Section 8.3 no longer lists
 <tt>num_of_repair_symbol_per_packet</tt> among the fields of an
 &quot;iso-ssbg1-v1&quot; entry.  <xref target="ISO.23008-1"></xref> Table C.3, in the 2023 edition
