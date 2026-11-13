@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-02T00:00:00Z"
+date = "2026-11-15T00:00:00Z"
 keyword = ["MMT", "MMTP", "MoQ", "ATSC 3.0", "FEC"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-moq-mmt-02"
+value = "draft-ramadan-moq-mmt-03"
 stream = "IETF"
 status = "standard"
 
@@ -3474,9 +3474,9 @@ control-message codepoint.
     <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
       <organization>Rutgers University</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-BLOCK'>
@@ -3496,9 +3496,9 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-MULTICAST'>
@@ -3518,9 +3518,9 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-03'/>
 </reference>
 
 <reference anchor='ATSC-A331' target='https://www.atsc.org/atsc-documents/3312017-signaling-delivery-synchronization-error-protection/'>
@@ -3562,17 +3562,10 @@ control-message codepoint.
 This appendix is informative.  It is to be removed before
 publication as an RFC.
 
-{#changes-since-mmt-01}
-## Changes Since draft-ramadan-moq-mmt-01
+{#changes-since-mmt-02}
+## Changes Since draft-ramadan-moq-mmt-02
 
-The FEC draft [@?I-D.ramadan-moq-fec] was split into a core mechanism
-[@!MOQ-FEC-CORE] and companion documents [@!MOQ-FEC-BLOCK],
-[@!MOQ-FEC-CATALOG] and [@!MOQ-FEC-MULTICAST].  The MMTP block profile
-moved into this document, and every citation of the FEC draft was
-re-pointed.  The section numbers in the -00 entry below are those of
--01.
-
-- After the -02 posting: Section 7.4.1 recommends that an overlay
+- Section 7.4.1 recommends that an overlay
   instance whose base instance carries a positive `interleaveDepthMs`
   carry its own positive `interleaveDepthMs` and `reorderToleranceMs`,
   since without them a receiver has no deadline for an overlay block.
@@ -3582,7 +3575,7 @@ re-pointed.  The section numbers in the -00 entry below are those of
   count; it says such a value bounds the send span only when the
   publisher keeps it, by closing blocks early and withholding repair
   it cannot send in time.
-- After the -02 posting: Section 5.3.4 defines the dependent run.  A
+- Section 5.3.4 defines the dependent run.  A
   non-zero `dep_counter` states that the samples that follow, as many
   as its value, are not RAPs and cannot be decoded without the sample
   that carries it; 0 states nothing.  The section says when a
@@ -3600,7 +3593,7 @@ re-pointed.  The section numbers in the -00 entry below are those of
   the stream tells a receiver which reading applies, so a receiver
   reads a dependent run only from a publisher that it knows follows
   this revision.
-- Erratum after the -02 posting: Section 8.3 no longer lists
+- Erratum: Section 8.3 no longer lists
   `num_of_repair_symbol_per_packet` among the fields of an
   "iso-ssbg1-v1" entry.  [@!ISO.23008-1] Table C.3, in the 2023 edition
   and as replaced by [@!ISO.23008-1.AMD1], carries that field and
@@ -3610,7 +3603,7 @@ re-pointed.  The section numbers in the -00 entry below are those of
   this change log, described a field that is not on the wire; no byte
   of the message changes, since no reference writer or reader emitted
   or read it.
-- Change after the -02 posting: the keyframe overlay also protects the
+- The keyframe overlay also protects the
   metadata that a Random Access Point needs (Section 7.4.2).  Its
   members are the fragments of each keyframe MFU it covers, and of
   every subsample data unit of such a keyframe sample when it is
@@ -3641,7 +3634,7 @@ re-pointed.  The section numbers in the -00 entry below are those of
   MMTP header extension.  [@!MOQ-FEC-MULTICAST] is now cited at its -01
   revision, whose Section 6.6 says that the overlay can recover those
   data units.
-- After the -02 posting: an mmtp track MAY be sent as datagrams.  The
+- An mmtp track MAY be sent as datagrams.  The
   new `mmtpMode` value "mfu-datagram" (Section 13.1) keeps the Groups,
   Object IDs and object payloads of "mfu" and sends every object as a
   datagram, so that a receiver on a lossy path with a deadline near the
@@ -3691,27 +3684,41 @@ re-pointed.  The section numbers in the -00 entry below are those of
   rejects an `mmtpMode` that the subscriber does not implement, and in
   Section 13.2 a converter sets "mfu".  [@!RFC9000] is a new normative
   reference.
-- After the -02 posting: Section 4.3.1 now says when a receiver takes
-  and leaves an "mfu-datagram" track.  No field signals it.  With D the
-  receiver's playout delay and W the largest sum of `interleaveDepthMs`
-  and `reorderToleranceMs` among the track's FEC instances that the
-  receiver decodes (the sum that the catalog signals, whatever deadline
-  or local allowance the receiver itself applies; an omitted
-  `reorderToleranceMs` adds nothing), a receiver SHOULD NOT take a track
-  with no positive `interleaveDepthMs` or with W above D, SHOULD return
-  to the "mfu" track once no object has arrived for the larger of D and
-  W, and SHOULD NOT return for want of media to present sooner than the
-  larger of D and one Group duration plus one access unit plus W.  It
-  MAY take the track again, and then waits longer before each further
-  attempt, by a random amount.  Section 6.1, step 6, ends the wait for a
-  repair that may supply RAP, FT=0 or FT=1 data once the repair is moot,
-  by the rule that [@!MOQ-FEC-MULTICAST] Section 6.2.1 gives a multicast
-  leg, so both kinds of datagram leg end that wait the same way.  In
-  Section 13.1 a publisher of an "mfu-datagram" track SHOULD signal a
-  positive `interleaveDepthMs` close to the send span that it keeps.
-- Editorial after the -02 posting: items 4 and 5 of Section 5.2 render
+- Section 4.3.1 now says when a receiver takes and leaves an
+  "mfu-datagram" track.  No field signals it.  With D the receiver's
+  playout delay and W the largest sum of `interleaveDepthMs` and
+  `reorderToleranceMs` among the track's FEC instances that the receiver
+  decodes (the sum that the catalog signals, whatever deadline or local
+  allowance the receiver itself applies; an omitted `reorderToleranceMs`
+  adds nothing), a receiver SHOULD NOT take a track with no positive
+  `interleaveDepthMs` or with W above D, SHOULD return to the "mfu"
+  track once no object has arrived for the larger of D and W, and SHOULD
+  NOT return for want of media to present sooner than the larger of D
+  and one Group duration plus one access unit plus W.  It MAY take the
+  track again, and then waits longer before each further attempt, by a
+  random amount.  Section 6.1, step 6, ends the wait for a repair that
+  may supply RAP, FT=0 or FT=1 data once the repair is moot, by the rule
+  that [@!MOQ-FEC-MULTICAST] Section 6.2.1 gives a multicast leg, so
+  both kinds of datagram leg end that wait the same way.  In Section
+  13.1 a publisher of an "mfu-datagram" track SHOULD signal a positive
+  `interleaveDepthMs` close to the send span that it keeps.
+- Editorial: items 4 and 5 of Section 5.2 render
   as list items; in -02 they ran into the paragraph before them, so a
   citation of "Section 5.2, item 5" named no list item.
+- References: the companion documents are now cited as
+  draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
+  draft-ramadan-moq-fec-multicast-01 and draft-ramadan-moq-multicast-03.
+
+{#changes-since-mmt-01}
+## Changes Since draft-ramadan-moq-mmt-01
+
+The FEC draft [@?I-D.ramadan-moq-fec] was split into a core mechanism
+[@!MOQ-FEC-CORE] and companion documents [@!MOQ-FEC-BLOCK],
+[@!MOQ-FEC-CATALOG] and [@!MOQ-FEC-MULTICAST].  The MMTP block profile
+moved into this document, and every citation of the FEC draft was
+re-pointed.  The section numbers in the -00 entry below are those of
+-01.
+
 - Moved in from draft-ramadan-moq-fec-01: the "iso-ssbg1-v1" block
   profile definition (-01 Sections 5.1, 7.3, 7.4 and 8.3, as the new
   Section 7.1), the Source FEC Payload ID trailer and its relation to

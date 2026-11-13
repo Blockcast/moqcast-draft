@@ -1998,9 +1998,9 @@ policy.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-03'/>
 </reference>
 
 <reference anchor='ISO.23008-1'>
@@ -2193,6 +2193,8 @@ as an RFC.
   pacing helps and where it does not ((#sender-behavior)); an epoch's
   last window can still go at once; -01 did not say how a sender
   spaces a window's datagrams.
+- References: the MoQ multicast document is now cited as
+  draft-ramadan-moq-multicast-03.
 
 ## Changes Since draft-ramadan-mboned-mcast-manifest-00
 

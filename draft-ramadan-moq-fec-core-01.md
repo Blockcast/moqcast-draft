@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-02T00:00:00Z"
+date = "2026-11-15T00:00:00Z"
 keyword = ["FEC", "MoQ", "erasure code", "unequal error protection"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-moq-fec-core-00"
+value = "draft-ramadan-moq-fec-core-01"
 stream = "IETF"
 status = "standard"
 
@@ -951,9 +951,9 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-MULTICAST'>
@@ -962,9 +962,9 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-01'/>
 </reference>
 
 <reference anchor='MOQ-MMT'>
@@ -973,9 +973,9 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-02'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-03'/>
 </reference>
 
 <reference anchor='MOQ-MULTICAST'>
@@ -984,15 +984,15 @@ The block profile for MMTP packets, "iso-ssbg1-v1", is registered by [@?MOQ-MMT]
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-03'/>
 </reference>
 
 {#companion-documents removeInRFC="true"}
 # Companion Documents
 
-This section is informative. It lists the documents that complete this one, and what each takes from [@?I-D.ramadan-moq-fec]. The section numbers in the last column are those of draft-ramadan-moq-fec-01.
+This section is informative. It lists the documents that complete this one, and what each takes from [@?I-D.ramadan-moq-fec]. The section numbers in the last column are those of draft-ramadan-moq-fec-01. In this section, -01 means draft-ramadan-moq-fec-01, not a revision of this document.
 
 | Document | Content | From draft-ramadan-moq-fec-01 |
 |---|---|---|
@@ -1011,7 +1011,7 @@ LOC needs no document of its own: "moq-object-v1" covers LOC tracks, and Section
 {#changes-from-draft-ramadan-moq-fec-01 removeInRFC="true"}
 # Changes from draft-ramadan-moq-fec-01
 
-This section is informative.
+This section is informative. In this section, -01 means draft-ramadan-moq-fec-01, not a revision of this document.
 
 - The document no longer specifies an FEC code. Section 4 states the properties a scheme must have; Reed-Solomon and RaptorQ move to [@!MOQ-FEC-BLOCK], which designates Reed-Solomon as mandatory to implement and RaptorQ as optional (Section 4.4).
 - The "moq-object-v1" construction is kept unchanged and is no longer limited to loc and cmaf.
@@ -1058,6 +1058,8 @@ The following rules of draft-ramadan-moq-fec-01 were restored or changed by the 
 - Section 5.1 forbids reusing a symbol's coordinates across instances and feeding a symbol to another instance's decoder, except by the cross-instance placement of Section 8.4 at the SS_ID the unit's FEC Source Info Property gives it there.
 - Section 1.3 records as open that the MoQ Transport section cited in Section 15.1 for the "MOQ Properties" registry (-01 Section 15.1) is to be settled against the current MoQ Transport draft.
 - After the -00 posting: Section 9.3 says that a block scheme spreads a block's repair by pacing it after the block closes, within a span that covers that time, and that spreading, not the declared value, buys burst tolerance. It recommends that a publisher declare the smallest span within which it sends every block's source and repair symbols, counting repair it withholds against that choice, and says that a publisher that sends a block's repair as soon as the block closes keeps a short span at a low bitrate by closing blocks early, or declares a longer span for that rendition. The typical values of Section 9.3 are those of a publisher that spreads each block across its span.
+- After the -00 posting: the references to the companion documents now name draft-ramadan-moq-fec-catalog-01, draft-ramadan-moq-fec-multicast-01, draft-ramadan-moq-mmt-03 and draft-ramadan-moq-multicast-03.
+- After the -00 posting: (#companion-documents) and this section each gain the sentence "In this section, -01 means draft-ramadan-moq-fec-01, not a revision of this document."
 
 The questions this revision leaves open are marked [open] in the text: the registry pointer of Section 15.1 (Section 1.3); whether Section 4.3 holds for sliding-window schemes (Section 4.3); whether this document should itself require the mandatory-to-implement scheme (Section 4.4); and, in Section 6.2, whether the FEC Unit Start Property is worth its codepoint and whether PRIOR_GROUP_ID_GAP should be required on symbol-track objects.
 

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
-<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-mmt-02" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-mmt-03" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
 <front>
-<title abbrev="MMT for MoQ">MPEG Media Transport (MMT) Packaging for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-mmt-02" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<title abbrev="MMT for MoQ">MPEG Media Transport (MMT) Packaging for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-mmt-03" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="November" day="2"></date>
+</address></author><date year="2026" month="November" day="15"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>MMT</keyword>
@@ -3465,9 +3465,9 @@ control-message codepoint.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-CORE" target="">
   <front>
@@ -3478,9 +3478,9 @@ control-message codepoint.</t>
     <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
       <organization>Rutgers University</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-MULTICAST" target="">
   <front>
@@ -3498,9 +3498,9 @@ control-message codepoint.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-02"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-03"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
@@ -3559,16 +3559,10 @@ control-message codepoint.</t>
 <t>This appendix is informative.  It is to be removed before
 publication as an RFC.</t>
 
-<section anchor="changes-since-mmt-01"><name>Changes Since draft-ramadan-moq-mmt-01</name>
-<t>The FEC draft <xref target="I-D.ramadan-moq-fec"></xref> was split into a core mechanism
-<xref target="MOQ-FEC-CORE"></xref> and companion documents <xref target="MOQ-FEC-BLOCK"></xref>,
-<xref target="MOQ-FEC-CATALOG"></xref> and <xref target="MOQ-FEC-MULTICAST"></xref>.  The MMTP block profile
-moved into this document, and every citation of the FEC draft was
-re-pointed.  The section numbers in the -00 entry below are those of
--01.</t>
+<section anchor="changes-since-mmt-02"><name>Changes Since draft-ramadan-moq-mmt-02</name>
 
-<ul>
-<li>After the -02 posting: Section 7.4.1 recommends that an overlay
+<ul spacing="compact">
+<li>Section 7.4.1 recommends that an overlay
 instance whose base instance carries a positive <tt>interleaveDepthMs</tt>
 carry its own positive <tt>interleaveDepthMs</tt> and <tt>reorderToleranceMs</tt>,
 since without them a receiver has no deadline for an overlay block.
@@ -3578,7 +3572,7 @@ Item 3 of Section 8.1 no longer forbids a value computed from a
 count; it says such a value bounds the send span only when the
 publisher keeps it, by closing blocks early and withholding repair
 it cannot send in time.</li>
-<li>After the -02 posting: Section 5.3.4 defines the dependent run.  A
+<li>Section 5.3.4 defines the dependent run.  A
 non-zero <tt>dep_counter</tt> states that the samples that follow, as many
 as its value, are not RAPs and cannot be decoded without the sample
 that carries it; 0 states nothing.  The section says when a
@@ -3596,7 +3590,7 @@ than samples.  Such a value states no dependent run, and nothing in
 the stream tells a receiver which reading applies, so a receiver
 reads a dependent run only from a publisher that it knows follows
 this revision.</li>
-<li>Erratum after the -02 posting: Section 8.3 no longer lists
+<li>Erratum: Section 8.3 no longer lists
 <tt>num_of_repair_symbol_per_packet</tt> among the fields of an
 &quot;iso-ssbg1-v1&quot; entry.  <xref target="ISO.23008-1"></xref> Table C.3, in the 2023 edition
 and as replaced by <xref target="ISO.23008-1.AMD1"></xref>, carries that field and
@@ -3606,7 +3600,7 @@ and as replaced by <xref target="ISO.23008-1.AMD1"></xref>, carries that field a
 this change log, described a field that is not on the wire; no byte
 of the message changes, since no reference writer or reader emitted
 or read it.</li>
-<li>Change after the -02 posting: the keyframe overlay also protects the
+<li>The keyframe overlay also protects the
 metadata that a Random Access Point needs (Section 7.4.2).  Its
 members are the fragments of each keyframe MFU it covers, and of
 every subsample data unit of such a keyframe sample when it is
@@ -3637,7 +3631,7 @@ a member is eight octets longer than in -02 and carries no other
 MMTP header extension.  <xref target="MOQ-FEC-MULTICAST"></xref> is now cited at its -01
 revision, whose Section 6.6 says that the overlay can recover those
 data units.</li>
-<li>After the -02 posting: an mmtp track MAY be sent as datagrams.  The
+<li>An mmtp track MAY be sent as datagrams.  The
 new <tt>mmtpMode</tt> value &quot;mfu-datagram&quot; (Section 13.1) keeps the Groups,
 Object IDs and object payloads of &quot;mfu&quot; and sends every object as a
 datagram, so that a receiver on a lossy path with a deadline near the
@@ -3687,27 +3681,42 @@ notes that a datagram carries an absolute Object ID, Sections 4.1,
 rejects an <tt>mmtpMode</tt> that the subscriber does not implement, and in
 Section 13.2 a converter sets &quot;mfu&quot;.  <xref target="RFC9000"></xref> is a new normative
 reference.</li>
-<li>After the -02 posting: Section 4.3.1 now says when a receiver takes
-and leaves an &quot;mfu-datagram&quot; track.  No field signals it.  With D the
-receiver's playout delay and W the largest sum of <tt>interleaveDepthMs</tt>
-and <tt>reorderToleranceMs</tt> among the track's FEC instances that the
-receiver decodes (the sum that the catalog signals, whatever deadline
-or local allowance the receiver itself applies; an omitted
-<tt>reorderToleranceMs</tt> adds nothing), a receiver SHOULD NOT take a track
-with no positive <tt>interleaveDepthMs</tt> or with W above D, SHOULD return
-to the &quot;mfu&quot; track once no object has arrived for the larger of D and
-W, and SHOULD NOT return for want of media to present sooner than the
-larger of D and one Group duration plus one access unit plus W.  It
-MAY take the track again, and then waits longer before each further
-attempt, by a random amount.  Section 6.1, step 6, ends the wait for a
-repair that may supply RAP, FT=0 or FT=1 data once the repair is moot,
-by the rule that <xref target="MOQ-FEC-MULTICAST"></xref> Section 6.2.1 gives a multicast
-leg, so both kinds of datagram leg end that wait the same way.  In
-Section 13.1 a publisher of an &quot;mfu-datagram&quot; track SHOULD signal a
-positive <tt>interleaveDepthMs</tt> close to the send span that it keeps.</li>
-<li>Editorial after the -02 posting: items 4 and 5 of Section 5.2 render
+<li>Section 4.3.1 now says when a receiver takes and leaves an
+&quot;mfu-datagram&quot; track.  No field signals it.  With D the receiver's
+playout delay and W the largest sum of <tt>interleaveDepthMs</tt> and
+<tt>reorderToleranceMs</tt> among the track's FEC instances that the receiver
+decodes (the sum that the catalog signals, whatever deadline or local
+allowance the receiver itself applies; an omitted <tt>reorderToleranceMs</tt>
+adds nothing), a receiver SHOULD NOT take a track with no positive
+<tt>interleaveDepthMs</tt> or with W above D, SHOULD return to the &quot;mfu&quot;
+track once no object has arrived for the larger of D and W, and SHOULD
+NOT return for want of media to present sooner than the larger of D
+and one Group duration plus one access unit plus W.  It MAY take the
+track again, and then waits longer before each further attempt, by a
+random amount.  Section 6.1, step 6, ends the wait for a repair that
+may supply RAP, FT=0 or FT=1 data once the repair is moot, by the rule
+that <xref target="MOQ-FEC-MULTICAST"></xref> Section 6.2.1 gives a multicast leg, so
+both kinds of datagram leg end that wait the same way.  In Section
+13.1 a publisher of an &quot;mfu-datagram&quot; track SHOULD signal a positive
+<tt>interleaveDepthMs</tt> close to the send span that it keeps.</li>
+<li>Editorial: items 4 and 5 of Section 5.2 render
 as list items; in -02 they ran into the paragraph before them, so a
 citation of &quot;Section 5.2, item 5&quot; named no list item.</li>
+<li>References: the companion documents are now cited as
+draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
+draft-ramadan-moq-fec-multicast-01 and draft-ramadan-moq-multicast-03.</li>
+</ul>
+</section>
+
+<section anchor="changes-since-mmt-01"><name>Changes Since draft-ramadan-moq-mmt-01</name>
+<t>The FEC draft <xref target="I-D.ramadan-moq-fec"></xref> was split into a core mechanism
+<xref target="MOQ-FEC-CORE"></xref> and companion documents <xref target="MOQ-FEC-BLOCK"></xref>,
+<xref target="MOQ-FEC-CATALOG"></xref> and <xref target="MOQ-FEC-MULTICAST"></xref>.  The MMTP block profile
+moved into this document, and every citation of the FEC draft was
+re-pointed.  The section numbers in the -00 entry below are those of
+-01.</t>
+
+<ul>
 <li><t>Moved in from draft-ramadan-moq-fec-01: the &quot;iso-ssbg1-v1&quot; block
 profile definition (-01 Sections 5.1, 7.3, 7.4 and 8.3, as the new
 Section 7.1), the Source FEC Payload ID trailer and its relation to

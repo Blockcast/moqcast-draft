@@ -59,15 +59,15 @@ On a multicast endpoint the receiver does not choose tracks; the
 operator of the endpoint does.  This document defines how the repair
 layers of an FEC instance are placed on endpoints, including endpoints
 that carry only repair, and how a receiver that measures loss moves
-between them (#repair-only-endpoints).  It states which tracks a
+between them ((#repair-only-endpoints)).  It states which tracks a
 multicast endpoint carries in this revision
-(#symbol-tracks-on-multicast), and how the mechanism relates to the
+((#symbol-tracks-on-multicast)), and how the mechanism relates to the
 repair that a multicast QUIC channel may provide below it
-(#multicast-quic).  Where a multicast content-authentication profile
+((#multicast-quic)).  Where a multicast content-authentication profile
 decides which packets a receiver may trust, it specifies how blocks
 delimited by packets that the profile has not admitted are held
-(#provisional-symbols).  Finally it specifies the receiver repair
-policy of a multicast or AMT leg (#receiver-repair-policy): every
+((#provisional-symbols)).  Finally it specifies the receiver repair
+policy of a multicast or AMT leg ((#receiver-repair-policy)): every
 block gets in-band FEC first, and a receiver that holds a MoQ session
 requests unicast repair, by the per-block FETCH of [@!MOQ-FEC-CORE],
 only for blocks that FEC did not recover, in an order and within a
@@ -1038,7 +1038,7 @@ When a keyframe-bearing block is still unrecovered at its FEC
 deadline, a receiver that holds a MoQ session with a relay serving the
 block's repair track MUST request on-demand unicast repair for it,
 with the priority of (#unicast-repair-budget), unless the repair is
-already moot (#moot-keyframe-repair); within a consumer that the
+already moot ((#moot-keyframe-repair)); within a consumer that the
 bc-provenance profile of [@!MOQ-MULTICAST] Section
 7.2 governs for
 its blocks ((#provisional-blocks)), a block only symbols of an
@@ -1419,9 +1419,9 @@ This document has no IANA actions.
     <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
       <organization>Rutgers University</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-BLOCK'>
@@ -1441,9 +1441,9 @@ This document has no IANA actions.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-01'/>
 </reference>
 
 <reference anchor='MOQ-MMT'>
@@ -1452,9 +1452,9 @@ This document has no IANA actions.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-02'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-03'/>
 </reference>
 
 <reference anchor='MOQ-MULTICAST'>
@@ -1463,9 +1463,9 @@ This document has no IANA actions.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-03'/>
 </reference>
 
 <reference anchor='QUIC-MULTICAST' target='https://datatracker.ietf.org/doc/draft-jholland-quic-multicast/'>
@@ -1524,7 +1524,6 @@ New sentences:
   interval and the decode times of the bounding packets.  A receiver
   applies the rule only to a track whose publisher it knows states
   dependent runs, since nothing in the stream says so.
-
 - (#moot-keyframe-repair) is new.  In -00, and in -01 of
   [@?I-D.ramadan-moq-fec] Section 11.4.2, a keyframe repair was moot
   once a newer RAP had been admitted complete.  It is now moot only when, in
@@ -1627,6 +1626,13 @@ Changed sentences:
   streams".  In (#multicast-quic), item 1 now says that the QUIC
   DATAGRAM frame carries the symbol as an object of an mmtp track sent
   as datagrams, or of its repair tracks ([MOQ-MMT] Section 4.3.1).
+- In (#introduction), the five cross-references of the second
+  paragraph are now in parentheses.  -00 rendered each as a bare
+  section number after the clause it supports, as in "moves between
+  them Section 4".  No word changes.
+- The references to the companion documents now name
+  draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
+  draft-ramadan-moq-mmt-03 and draft-ramadan-moq-multicast-03.
 
 {#changes-from-draft-ramadan-moq-fec-01}
 # Changes from draft-ramadan-moq-fec-01

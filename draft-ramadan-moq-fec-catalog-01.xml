@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
-<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-catalog-00" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-catalog-01" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
 <front>
-<title abbrev="MoQ FEC Catalog Binding">Catalog Binding for Forward Error Correction in Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-catalog-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<title abbrev="MoQ FEC Catalog Binding">Catalog Binding for Forward Error Correction in Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-catalog-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="November" day="2"></date>
+</address></author><date year="2026" month="November" day="15"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -651,9 +651,9 @@ requests registration of:</t>
     <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
       <organization>Rutgers University</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-01"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8174.xml"/>
@@ -667,9 +667,9 @@ requests registration of:</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MMT" target="">
   <front>
@@ -677,9 +677,9 @@ requests registration of:</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-03"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MULTICAST" target="">
   <front>
@@ -687,9 +687,9 @@ requests registration of:</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="15"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-02"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-03"></seriesInfo>
 </reference>
 </references>
 </references>
@@ -1012,7 +1012,8 @@ Protected Object Units rather than MMTP packets.</t>
 
 <section anchor="changes-from-draft-ramadan-moq-fec-01"><name>Changes from draft-ramadan-moq-fec-01</name>
 <t>This appendix is informative.  Section numbers in it are those of
-<xref target="I-D.ramadan-moq-fec"></xref>.</t>
+<xref target="I-D.ramadan-moq-fec"></xref>.  In it, -01 means draft-ramadan-moq-fec-01, not a
+revision of this document.</t>
 <t>What moved here:</t>
 
 <ul spacing="compact">
@@ -1228,6 +1229,13 @@ within the &quot;reed-solomon&quot; bound of 255&quot;.</li>
 is the publisher's allowance, which a receiver adds once to a block
 deadline, as <xref target="MOQ-FEC-CORE"></xref> Section 9.3 states; -00 called it a
 receiver-local allowance.</li>
+<li>After the -00 posting: the references to the companion documents
+now name draft-ramadan-moq-fec-core-01,
+draft-ramadan-moq-fec-multicast-01, draft-ramadan-moq-mmt-03 and
+draft-ramadan-moq-multicast-03.</li>
+<li>After the -00 posting: the first paragraph of this appendix gains
+the sentence &quot;In it, -01 means draft-ramadan-moq-fec-01, not a
+revision of this document.&quot;</li>
 </ul>
 </section>
 

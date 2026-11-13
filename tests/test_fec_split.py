@@ -16,26 +16,27 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # anchor -> (file, KEY); KEY is the token prefix the drafts were written with
 SET = {
-    "MOQ-FEC-CORE": ("draft-ramadan-moq-fec-core-00.md", "CORE"),
+    "MOQ-FEC-CORE": ("draft-ramadan-moq-fec-core-01.md", "CORE"),
     "MOQ-FEC-BLOCK": ("draft-ramadan-moq-fec-block-codes-00.md", "BLOCK"),
-    "MOQ-FEC-CATALOG": ("draft-ramadan-moq-fec-catalog-00.md", "CATALOG"),
+    "MOQ-FEC-CATALOG": ("draft-ramadan-moq-fec-catalog-01.md", "CATALOG"),
     "MOQ-FEC-MULTICAST": ("draft-ramadan-moq-fec-multicast-01.md", "MCAST"),
-    "MOQ-MMT": ("draft-ramadan-moq-mmt-02.md", "MMT"),
+    "MOQ-MMT": ("draft-ramadan-moq-mmt-03.md", "MMT"),
     "MOQ-MULTICAST": ("draft-ramadan-moq-multicast-03.md", "MULTICAST"),
 }
-# drafts revised since the batch posted on 2026-11-02; drafts posted with them still cite the previous revision
-REVISED = {"MOQ-FEC-MULTICAST", "MOQ-MULTICAST"}
+# drafts revised since the batch posted on 2026-11-02; a draft that is still as posted cites their previous revision
+REVISED = {"MOQ-FEC-CORE", "MOQ-FEC-CATALOG", "MOQ-FEC-MULTICAST", "MOQ-MMT", "MOQ-MULTICAST"}
+AS_POSTED = {"BLOCK"}
 
 
 def previous(name: str) -> str:
     stem, rev = name.rsplit("-", 1)
     return f"{stem}-{int(rev) - 1:02d}"
 FRONT = {
-    "CORE": ("draft-ramadan-moq-fec-core-00", "Forward Error Correction for Media over QUIC: Core Mechanism", ["Omar Ramadan", "Marc E. Fiuczynski"]),
+    "CORE": ("draft-ramadan-moq-fec-core-01", "Forward Error Correction for Media over QUIC: Core Mechanism", ["Omar Ramadan", "Marc E. Fiuczynski"]),
     "BLOCK": ("draft-ramadan-moq-fec-block-codes-00", "Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ", ["Omar Ramadan"]),
-    "CATALOG": ("draft-ramadan-moq-fec-catalog-00", "Catalog Binding for Forward Error Correction in Media over QUIC", ["Omar Ramadan"]),
+    "CATALOG": ("draft-ramadan-moq-fec-catalog-01", "Catalog Binding for Forward Error Correction in Media over QUIC", ["Omar Ramadan"]),
     "MCAST": ("draft-ramadan-moq-fec-multicast-01", "Forward Error Correction for Multicast Delivery of Media over QUIC", ["Omar Ramadan"]),
-    "MMT": ("draft-ramadan-moq-mmt-02", "MPEG Media Transport (MMT) Packaging for Media over QUIC", ["Omar Ramadan"]),
+    "MMT": ("draft-ramadan-moq-mmt-03", "MPEG Media Transport (MMT) Packaging for Media over QUIC", ["Omar Ramadan"]),
     "MULTICAST": ("draft-ramadan-moq-multicast-03", "Multicast Delivery and Endpoint Discovery for Media over QUIC", ["Omar Ramadan"]),
 }
 REQUIRED_IDS = {
@@ -185,7 +186,7 @@ class SplitContracts(unittest.TestCase):
                 self.assertEqual(cited - set(blocks), set(), f"{key} cites anchors without a reference block")
                 for anchor, (filename, _) in SET.items():
                     if anchor in blocks:
-                        self.assertIn(blocks[anchor], {filename[:-3]} | ({previous(filename[:-3])} if anchor in REVISED else set()), f"{key} cites {anchor} at the wrong revision")
+                        self.assertIn(blocks[anchor], {filename[:-3]} | ({previous(filename[:-3])} if anchor in REVISED and key in AS_POSTED else set()), f"{key} cites {anchor} at the wrong revision")
 
     def test_no_bcp14_keyword_in_informative_text(self):
         for key, text in self.text.items():

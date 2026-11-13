@@ -160,8 +160,8 @@ class PublishedExamples(unittest.TestCase):
         # Covering a keyframe after the first sample of its MPU is the publisher's choice, and the
         # overlay's own interleaveDepthMs, which Section 7.4.1 recommends, tells a receiver how long
         # to hold what a recovered FT=0 or FT=1 member governs.
-        mmt_md = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
-        mmt_xml = (ROOT / "draft-ramadan-moq-mmt-02.xml").read_text(encoding="utf-8")
+        mmt_md = (ROOT / "draft-ramadan-moq-mmt-03.md").read_text(encoding="utf-8")
+        mmt_xml = (ROOT / "draft-ramadan-moq-mmt-03.xml").read_text(encoding="utf-8")
         self.assertIn("value='draft-ramadan-moq-fec-multicast-01'", mmt_md)
         self.assertIn('value="draft-ramadan-moq-fec-multicast-01"', mmt_xml)
         texts = (
@@ -561,7 +561,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertGreater(seen, 0)
 
     def test_mmt_negative_time_rows_compute_admission_and_unique_groups(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-mmt-03.md").read_text(encoding="utf-8")
         part = self.sec(text, "Negative authored timestamps use", "### Catalog Signaling")
         anchor = int(re.search(r"presentationAnchorTicks:\s*(-?\d+)", part).group(1))
         duration = int(re.search(r"groupDurationTicks:\s*(\d+)", part).group(1))
@@ -602,7 +602,7 @@ class PublishedExamples(unittest.TestCase):
         return vector, (lambda ticks: (ticks - anchor) // duration)
 
     def test_mmt_published_bframe_and_tick_only_examples(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-mmt-03.md").read_text(encoding="utf-8")
         definition = " ".join(self.sec(text, "- `ticks` is", "- `groupDurationTicks`").split())
         self.assertIn("first AU in decode order", definition)
         self.assertNotIn("presentation order", definition)
@@ -631,7 +631,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertEqual((track["timescale"], track["groupDurationTicks"]), (44100, 1470))
 
     def test_mmt_open_gop_leading_pictures_yield_increasing_groups(self):
-        text = (ROOT / "draft-ramadan-moq-mmt-02.md").read_text(encoding="utf-8")
+        text = (ROOT / "draft-ramadan-moq-mmt-03.md").read_text(encoding="utf-8")
         vector, group = self.decode_order_vector(text)
         closed, open_gop = vector["mpuSamplePtsInDecodeOrder"]
         self.assertEqual(closed[0], min(closed))  # closed GOP: both selections agree

@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-02T00:00:00Z"
+date = "2026-11-15T00:00:00Z"
 keyword = ["FEC", "MoQ", "catalog", "MSF", "CMSF"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-moq-fec-catalog-00"
+value = "draft-ramadan-moq-fec-catalog-01"
 stream = "IETF"
 status = "standard"
 
@@ -625,9 +625,9 @@ requests registration of:
     <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
       <organization>Rutgers University</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-BLOCK'>
@@ -647,9 +647,9 @@ requests registration of:
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-01'/>
 </reference>
 
 <reference anchor='MOQ-MMT'>
@@ -658,9 +658,9 @@ requests registration of:
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-02'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-03'/>
 </reference>
 
 <reference anchor='MOQ-MULTICAST'>
@@ -669,9 +669,9 @@ requests registration of:
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-02'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-03'/>
 </reference>
 
 {#worked-catalog}
@@ -976,7 +976,8 @@ Protected Object Units rather than MMTP packets.
 # Changes from draft-ramadan-moq-fec-01
 
 This appendix is informative.  Section numbers in it are those of
-[@?I-D.ramadan-moq-fec].
+[@?I-D.ramadan-moq-fec].  In it, -01 means draft-ramadan-moq-fec-01, not a
+revision of this document.
 
 What moved here:
 
@@ -1190,6 +1191,13 @@ New sentences, not carried from -01:
   is the publisher's allowance, which a receiver adds once to a block
   deadline, as [@!MOQ-FEC-CORE] Section 9.3 states; -00 called it a
   receiver-local allowance.
+- After the -00 posting: the references to the companion documents
+  now name draft-ramadan-moq-fec-core-01,
+  draft-ramadan-moq-fec-multicast-01, draft-ramadan-moq-mmt-03 and
+  draft-ramadan-moq-multicast-03.
+- After the -00 posting: the first paragraph of this appendix gains
+  the sentence "In it, -01 means draft-ramadan-moq-fec-01, not a
+  revision of this document."
 
 {numbered="false"}
 # Acknowledgements
