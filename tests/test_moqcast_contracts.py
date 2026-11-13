@@ -77,10 +77,10 @@ class PublishedExamples(unittest.TestCase):
             self.fail(f"published example section is missing: {start!r}")
 
     def test_multicast_revision_specifies_receiver_owned_dns_health(self):
-        markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
-        xml = (ROOT / "draft-ramadan-moq-multicast-02.xml").read_text(encoding="utf-8")
-        self.assertIn('value = "draft-ramadan-moq-multicast-02"', markdown)
-        self.assertIn('docName="draft-ramadan-moq-multicast-02"', xml)
+        markdown = (ROOT / "draft-ramadan-moq-multicast-03.md").read_text(encoding="utf-8")
+        xml = (ROOT / "draft-ramadan-moq-multicast-03.xml").read_text(encoding="utf-8")
+        self.assertIn('value = "draft-ramadan-moq-multicast-03"', markdown)
+        self.assertIn('docName="draft-ramadan-moq-multicast-03"', xml)
         self.assertIn('anchor="receiver-owned-dns-candidate-discovery"', xml)
         for text in (markdown, xml):
             self.assertIn("DNS answer order", text)
@@ -100,8 +100,8 @@ class PublishedExamples(unittest.TestCase):
         # Section 5.1 (CEO D18 A, 2026-11-01): a flow sent ECN-capable needs a congestion
         # reaction to CE (RFC 3168 s5); in multicast that reaction is the receiver's (RFC 8085 s4.1),
         # departing from the sender feedback of RFC 8085 s3.1.7.
-        markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
-        xml = (ROOT / "draft-ramadan-moq-multicast-02.xml").read_text(encoding="utf-8")
+        markdown = (ROOT / "draft-ramadan-moq-multicast-03.md").read_text(encoding="utf-8")
+        xml = (ROOT / "draft-ramadan-moq-multicast-03.xml").read_text(encoding="utf-8")
         texts = (
             section(markdown, "## Explicit Congestion Notification", "{#multi-path-delivery}"),
             re.sub(r"<[^>]+>", "", section(xml, 'anchor="explicit-congestion-notification"', "</section>")),
@@ -315,7 +315,7 @@ class PublishedExamples(unittest.TestCase):
         records = []
         for name, heading in (
             ("draft-ramadan-mboned-mcast-manifest-02.md", "# Test Vectors\n"),
-            ("draft-ramadan-moq-multicast-02.md", "# Test Vectors: bc-provenance Version 2\n"),
+            ("draft-ramadan-moq-multicast-03.md", "# Test Vectors: bc-provenance Version 2\n"),
         ):
             text = appendix(name, heading)
             flat, printed = " ".join(text.split()), table(text)
@@ -374,7 +374,7 @@ class PublishedExamples(unittest.TestCase):
 
     def test_mboned_rate_arithmetic_is_consistent(self):
         text = " ".join((ROOT / "draft-ramadan-mboned-mcast-manifest-02.md").read_text(encoding="utf-8").split())
-        moq = " ".join((ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8").split())
+        moq = " ".join((ROOT / "draft-ramadan-moq-multicast-03.md").read_text(encoding="utf-8").split())
 
         def numbers(pattern: str, source: str = text):
             match = re.search(pattern, source)
@@ -419,7 +419,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertEqual(megabytes, auth_delay * rate / 8000)
         (floor,) = numbers(r"`mseq \+ (\d+) <= highest_mseq\(kid, epoch\)`")
         self.assertIn(f"before the signed record of window `mseq + {floor}`, so that at most {floor - 1} later records precede it", text)
-        # Section 7.2.7 of draft-ramadan-moq-multicast-02 refills both of its buckets at the same V, from `bandwidth`.
+        # Section 7.2.7 of draft-ramadan-moq-multicast-03 refills both of its buckets at the same V, from `bandwidth`.
         enforcement = self.sec(moq, "### Receiver Enforcement and State", "### Threat Model")
         moq_depth, *v_moq = numbers(
             r"a token bucket of depth (\d+) refilled at V tokens per second, " + formula
@@ -437,7 +437,7 @@ class PublishedExamples(unittest.TestCase):
         self.assertEqual(double, round(2 * single, 2))
         self.assertEqual(numbers(r"so these figures rise with V: ([\d,]+) per second, V at (\d+) Gbit/s", enforcement), [v_gig, gig])
         self.assertEqual(numbers(r"so the flood figure rises with V: ([\d,]+) per second, V at (\d+) Gbit/s"), [v_gig, gig])
-        for name, source in (("draft-ramadan-mboned-mcast-manifest-02", text), ("draft-ramadan-moq-multicast-02", moq)):
+        for name, source in (("draft-ramadan-mboned-mcast-manifest-02", text), ("draft-ramadan-moq-multicast-03", moq)):
             mbit_floor, record, mbit_v, v_stated = numbers(
                 r"more than V records per second on (?:the flow's )?`port` \(about ([\d.]+) Mbit/s of (\d+)-octet records "
                 r"at V's floor, ([\d.]+) Mbit/s at ([\d,]+)\)",
@@ -481,7 +481,7 @@ class PublishedExamples(unittest.TestCase):
 
     def test_replay_floor_is_written_without_unsigned_underflow(self):
         # Both drafts state the floor as a sum, `mseq + 64 <= highest_mseq`, and say neither counter wraps.
-        for stem in ("draft-ramadan-mboned-mcast-manifest-02", "draft-ramadan-moq-multicast-02"):
+        for stem in ("draft-ramadan-mboned-mcast-manifest-02", "draft-ramadan-moq-multicast-03"):
             markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
             xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
             self.assertIn("`mseq + 64 <= highest_mseq(kid, epoch)`", markdown, stem)
@@ -492,7 +492,7 @@ class PublishedExamples(unittest.TestCase):
                 self.assertIn("Neither counter wraps within an epoch", " ".join(text.split()), stem)  # hard-wrapped source
 
     def test_amt_discovery_combinations_are_unambiguous(self):
-        for name in ("draft-ramadan-moq-multicast-02.md", "draft-ramadan-moq-multicast-02.xml"):
+        for name in ("draft-ramadan-moq-multicast-03.md", "draft-ramadan-moq-multicast-03.xml"):
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertIn('"relay": "amt.example.com"', text)
             self.assertIn('"discovery": "dns"', text)
@@ -500,7 +500,7 @@ class PublishedExamples(unittest.TestCase):
             self.assertNotIn('"discovery": "driad",\n      "relay":', text)
             if name.endswith(".md"):
                 self.assertIn("**relay** (string, OPTIONAL)", text)
-        markdown = (ROOT / "draft-ramadan-moq-multicast-02.md").read_text(encoding="utf-8")
+        markdown = (ROOT / "draft-ramadan-moq-multicast-03.md").read_text(encoding="utf-8")
         self.assertIn("discovery` is omitted and `relay` is a hostname", markdown)
         self.assertIn("discovery` is omitted and `relay` is a literal", markdown)
 
