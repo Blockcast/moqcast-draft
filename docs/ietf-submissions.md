@@ -139,10 +139,19 @@ cf3c7f0b0558516d891b45b3630b065e6b50eb877cdba5bfdd649a1f2cbf62b9  draft-ramadan-
 The repository's `draft-ramadan-moq-mmt-02.md` and `.xml` have since taken one
 erratum (#25: an `iso-ssbg1-v1` AL-FEC entry carries neither
 `num_of_repair_symbol_per_packet` nor `num_of_symbol_element_per_source_symbol`,
-per ISO/IEC 23008-1 Table C.3). The `-02` checksum above is the posted copy's;
-the repository's `-02` XML no longer matches it. The files keep the `-02` name
-as the working copy until the next posting, which the Datatracker takes only as
-`-03`.
+per ISO/IEC 23008-1 Table C.3) and one change (#27: the keyframe overlay's
+members include the FT=0 and FT=1 data units that govern each Random Access
+Point it covers, Section 7.4.2). They and the repository's
+`draft-ramadan-moq-multicast-02` and `draft-ramadan-moq-fec-multicast-01` files
+have also taken #28, which lets an mmtp track send its objects as MoQ datagrams
+(`mmtpMode` "mfu-datagram"). The MMT files cite
+`draft-ramadan-moq-fec-multicast-01`, the unposted revision of #24, #29 and #30,
+so the two are posted together. The checksums above are the posted copies'; the
+repository's XML of these three drafts no longer matches them. The MMT and
+multicast files keep their posted names as working copies until the next
+posting, which the Datatracker takes only as `-03`. The FEC multicast files
+already carry the name `-01` (#29), under which the Datatracker takes that
+draft's next posting.
 
 Validation of the uploaded XML: each file is the output of mmark 2.2.48 for its
 markdown; `xmllint --noout --nonet` passes; idnits 3.1.0 in submission mode

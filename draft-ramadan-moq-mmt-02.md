@@ -200,10 +200,12 @@ symbols; the ISO encoding symbol block ([@!ISO.23008-1] 3.1.5).
 
 **Keyframe Overlay**: A second, independent FEC instance over a source
 track whose source symbols are only the fragments of Random Access
-Points, with its own source symbol count, its own repair symbols, and
-its own repair track, declared with `"scope": "keyframe"`
-((#overlay-instance)).  An overlay is not a repair layer and carries no
-layer index.  It is defined only under "iso-ssbg1-v1".
+Points and the FT=0 and FT=1 data units that govern them
+((#overlay-membership)), with its own source symbol count, its own
+repair symbols, and its own repair track, declared with
+`"scope": "keyframe"` ((#overlay-instance)).  An overlay is not a repair
+layer and carries no layer index.  It is defined only under
+"iso-ssbg1-v1".
 
 **Base Instance**: Of a source track that a keyframe overlay protects,
 the instance that is not the overlay; of any other source track, its
@@ -220,6 +222,11 @@ packet-count alternative ((#interleaving)).
 **Object Transmission Information (OTI)**: Parameters required to
 configure a RaptorQ decoder, as defined in [@?RFC6330] and derived by
 [@!MOQ-FEC-BLOCK] Section 6.1.
+
+**Datagram Leg**: A delivery path on which each MMTP packet travels in
+a datagram of its own, outside any subgroup: a multicast or Automatic
+Multicast Tunneling (AMT) leg ([@!MOQ-MULTICAST] Section 5), or a MoQ
+subscription to an "mfu-datagram" track (Section 4.3.1).
 
 {#mmt-overview}
 # MMT Overview
@@ -341,10 +348,13 @@ Key fields for MoQ mapping:
   ID mode 0,
   3=AL-FEC repair packet for FEC payload ID mode 1 (not used by this
   mapping) ([@!ISO.23008-1] Clause 9.2.3)
-- **RAP Flag**: 1 indicates Random Access Point.  On a track that the
-  catalog protects with a keyframe overlay, a packet with RAP_flag 1
-  also carries the overlay's SS_ID in a header extension of type
-  0x8B01 ((#overlay-header-extension))
+- **RAP Flag**: 1 indicates Random Access Point, except on a track that
+  the catalog protects with a keyframe overlay.  There the packets with
+  RAP_flag 1 are exactly the overlay's members: the fragments of each
+  Random Access Point it covers and the FT=0 and FT=1 data units that
+  govern it ((#overlay-membership)), each of which also carries the
+  overlay's SS_ID in a header extension of type 0x8B01
+  ((#overlay-header-extension))
 
 A signaling packet (packet type 0x02, on packet_id 0) MUST carry its
 messages in the signaling message mode of [@!ISO.23008-1]
@@ -395,7 +405,9 @@ An MMT stream maps to MoQ tracks as follows:
 mmtp track does not follow that rule.  It maps each MPU
 data unit to one subgroup (Section 4.3), and the objects of a
 subgroup share one stream ([@!I-D.ietf-moq-transport] Section 2.2),
-so each data unit's fragments travel in order on one stream.  An mmtp
+so each data unit's fragments travel in order on one stream.  An
+"mfu-datagram" track sends each object as a datagram instead
+(Section 4.3.1).  An mmtp
 track keeps the Group and Object numbering of [@!I-D.ietf-moq-msf]
 Sections 6.1 and 6.2: Group numbers are unique and increase
 monotonically (Section 4.4.1), and Object IDs start at zero in each
@@ -456,7 +468,8 @@ of a sample (Section 5.2.1).
 ## Group Boundaries
 
 This section defines the object layout of mfu mode
-(`mmtpMode: "mfu"`, Section 13.1).
+(`mmtpMode: "mfu"`, Section 13.1).  Section 4.3.1 defines its datagram
+form (`mmtpMode: "mfu-datagram"`).
 
 Group boundaries align with MPU boundaries, and subgroup boundaries
 align with MPU data-unit boundaries:
@@ -523,14 +536,129 @@ or media bytes (Section 5.1).
 
 Mapping each data unit to its own subgroup makes a complete metadata
 unit or sample the unit of in-order delivery, loss, and FEC.  A
-publisher MUST send the objects of an mmtp track in subgroups, not as
-datagrams: a datagram object belongs to no subgroup
+publisher MUST send the objects of an "mfu" track in subgroups, not
+as datagrams: a datagram object belongs to no subgroup
 ([@!I-D.ietf-moq-transport] Section 2.2) and cannot carry this
 mapping.  Subgroups can be delivered concurrently, and a subgroup can
 still be lost, for example when its stream is reset on a delivery
 timeout ([@!I-D.ietf-moq-transport] Sections 5.2 and 11.3.2); the
 resulting gap invalidates the affected movie fragment rather than
 authorizing inferred metadata, timing, or cadence.
+
+{#datagram-delivery}
+### Datagram Delivery
+
+An "mfu-datagram" track (Section 13.1) has the Groups, Object IDs and
+object payloads of an "mfu" track (Sections 4.2, 4.3 and 4.6).  Its
+publisher MUST send every one of its objects as a datagram
+([@!I-D.ietf-moq-transport] Section 11.2), one MMTP packet per
+datagram.  One lost datagram then erases one FEC source symbol, as on
+a multicast leg ((#iso-ssbg1-v1)), and nothing is retransmitted: a
+receiver on a lossy path with a deadline near the round-trip time
+recovers by FEC instead of waiting for a QUIC retransmission
+([@!MOQ-FEC-CORE] Section 3.3).  Support for "mfu-datagram" is
+OPTIONAL for publishers and subscribers.  Over WebTransport on HTTP/2,
+datagrams are reliable and ordered and a lost packet blocks every
+stream ([@!I-D.ietf-moq-transport] Section 6.2), so a subscriber whose
+session runs over HTTP/2 SHOULD take the "mfu" track instead.
+
+The objects of an "mfu-datagram" track have no Subgroup ID, and a
+subscription to such a track is a datagram leg (Section 2), whose
+receiver takes them in the serial packet order of Section 5.3.3.
+Elsewhere in this document, on such a track, Subgroup 0 means the
+FT=0 object and the signaling object before it (Section 4.6), and a
+data unit's subgroup means the objects of that data unit.
+
+Every object of an "mfu-datagram" track and of its repair tracks MUST
+fit one datagram: its MMTP packet, Source FEC Payload ID included,
+with its OBJECT_DATAGRAM header and Object Properties
+([@!I-D.ietf-moq-transport] Section 11.2.1), within the maximum
+datagram size of every session on the path.  An object that exceeds
+the maximum datagram size of a session is dropped without notification
+whenever it is sent on that session as a datagram
+([@!I-D.ietf-moq-transport] Section 11.2), and FEC cannot replace it,
+because a repair object of 12 + 13 + T bytes ((#repair-packet)) is
+larger than every source packet of its block.  The size rule binds
+the FT=0 and FT=1 objects too: each is one unfragmented packet
+(Section 5.2, item 4).  A publisher that offers an "mfu-datagram"
+track SHOULD size every object of that track and of its repair tracks
+so that, with its QUIC and any WebTransport framing and room for
+Object Properties that relays add, it fits a UDP payload of 1200
+bytes, the smallest maximum datagram size that QUIC allows
+([@!RFC9000] Section 14); any QUIC path then carries it from the first
+packet, before path MTU discovery.  This mapping does not repacketize
+(Section 5.2), so the same MMTP packets travel on every path and this
+size bounds them on multicast too: a publisher whose packets do not
+fit either has the origin packetizer emit smaller ones or does not
+offer an "mfu-datagram" track.  A subscriber whose session cannot
+carry the track's repair objects SHOULD take the "mfu" track instead.
+
+MoQ Transport fixes an object's delivery mode when the Original
+Publisher first sends it ([@!I-D.ietf-moq-transport] Section 2.1.1),
+so a subscriber chooses the delivery mode by choosing a track.  A
+publisher MUST NOT publish an "mfu-datagram" track unless it also
+publishes, in the same Track Namespace, an "mfu" track whose objects
+are identical to those of the "mfu-datagram" track in Group ID, Object
+ID and payload, except that each track's AL-FEC signaling object
+(Section 8) describes its own track's FEC instance.  The two MAY
+share a switching set (Section 4.4).  They are the mmtp form of the
+conventional and FEC families of [@!MOQ-FEC-CORE] Section 6.4, except
+that each is a source track, so a receiver that moves from one to the
+other joins it as Section 6.1 specifies.  They carry the same MMTP
+packet sub-flow, so a multicast endpoint lists the "mfu" track and
+never the "mfu-datagram" track ([@!MOQ-MULTICAST] Section 4.1), and
+the signaling object of the "mfu-datagram" track is no packet of the
+signaling sub-flow that the endpoint carries ([@!MOQ-MULTICAST]
+Section 5).  Each track's FEC instances ([@!MOQ-FEC-CORE] Section 5.1)
+and repair tracks ([@!MOQ-FEC-CORE] Section 10.3, rule 2) are its own,
+so a receiver does not feed a symbol of one track to the decoder of
+the other.  Only repair objects delimit a block ([@!MOQ-FEC-CORE]
+Section 5.4), so the two tracks' base instances can differ in K, T,
+repair layers and block span although their source packets carry the
+same SS_IDs, and that of the "mfu-datagram" track can suit a deadline
+near the round-trip time.  A keyframe overlay is not free to differ in
+the same way: its membership and overlay SS_IDs ride in the source
+packets themselves, in `RAP_flag` and the 0x8B01 header extension
+((#overlay-membership), (#overlay-header-extension)), and the two
+tracks carry identical packets.  So either both tracks declare an
+overlay, with the same membership and overlay SS_IDs, or neither does,
+and only their overlay repair tracks can differ.  The repair tracks of an "mfu-datagram" track
+SHOULD send their objects as datagrams, so that stream data does not
+delay the repair that is meant to beat retransmission.
+
+FETCH sends a group's objects on a stream in Object ID order whatever
+their delivery mode ([@!I-D.ietf-moq-transport] Section 3.2.1), so
+the join of Section 6.1 is unchanged; only the subscription's objects
+arrive as datagrams.  The Object IDs of a group are contiguous from
+zero (Section 4.6), so the Object IDs missing between two received
+objects name objects that exist.  When an "mfu-datagram" track
+reaches a receiver on a unicast path, the receiver's repair serves it
+alone, so the receiver repair policy of [@!MOQ-FEC-MULTICAST]
+Section 6, which rations the repair of a multicast or AMT leg, does
+not apply; on a multicast QUIC channel ([@!MOQ-FEC-MULTICAST]
+Section 3.4), where many receivers share the repair path, that policy
+applies as on any multicast leg.  Once a receiver on a unicast path
+judges, after allowing for reordering ([@!MOQ-FEC-CORE] Section 9.3),
+that FEC will not rebuild a block or an object in time, it MAY fetch
+at once, without waiting for the block's deadline: a block's repair by
+Group as [@!MOQ-FEC-CORE] Section 7.7 specifies, or the missing
+objects of one Group in one FETCH whose LOCATION_FILTER spans them and
+whose OBJECTID_FILTER, where the peer's MAX_FILTER_RANGES admits that
+many Ranges, lists them ([@!I-D.ietf-moq-transport] Sections 3.3.2,
+9.1.6, 9.20.9 and 9.20.11).  It chooses its repair layers as
+[@!MOQ-FEC-CORE] Section 7.4 describes, and stops waiting for a repair
+where Section 6.1, step 6, says.
+
+A delivery timeout drops a datagram without notice
+([@!I-D.ietf-moq-transport] Section 5.2), so the receiver learns of it
+only as a missing packet.  A subscriber MAY set an
+OBJECT_DELIVERY_TIMEOUT ([@!I-D.ietf-moq-transport] Section 9.20.4)
+so that the publisher or relay serving it drops an object that has
+waited there longer than that, instead of sending it; the timeout
+counts only that wait, so it does not drop an object that was already
+late when it arrived there.  A relay serves an "mfu-datagram" track
+only if it forwards every object of a datagram Group that a delivery
+timeout does not drop ([@!MOQ-FEC-CORE] Section 12, item 1).
 
 {#switching-sets}
 ## Switching Sets
@@ -1029,13 +1157,15 @@ sends a group's objects in Object ID order
 ([@!I-D.ietf-moq-transport] Section 3.2.1), therefore delivers them
 in the order that Section 4.3 requires.
 
-MoQ Transport carries Object IDs as deltas on the wire
-([@!I-D.ietf-moq-transport] Sections 11.3.1 and 11.4.1.1), and the
-objects of every subgroup other than Subgroup 0 have Object IDs
-greater than zero.  A receiver MUST reconstruct each object's
-absolute Object ID from that encoding.  It MUST NOT assume that a
-subgroup's first Object ID is zero, that successive objects differ by
-a fixed step, or that an absolute Object ID is carried explicitly.
+MoQ Transport carries Object IDs as deltas on subgroup and fetch
+streams ([@!I-D.ietf-moq-transport] Sections 11.3.1 and 11.4.1.1) and
+as absolute values in datagrams ([@!I-D.ietf-moq-transport] Section
+11.2.1), and the objects of every subgroup other than Subgroup 0 have
+Object IDs greater than zero.  A receiver MUST reconstruct each
+object's absolute Object ID from that encoding.  It MUST NOT assume
+that a subgroup's first Object ID is zero, that successive objects
+differ by a fixed step, or that a stream carries an absolute Object ID
+explicitly.
 
 Object IDs identify preserved source objects
 within a group; they do not replace the MMTP packet sequence, FI
@@ -1257,6 +1387,7 @@ MUST NOT reassemble MFU fragments:
    stream.  When the packet's FEC Type is 1, the trailing 4-byte
    Source FEC Payload ID ((#source-fec-payload-id)) is excluded as
    well.
+
 4. FT=0 and FT=1 MUST each be unaggregated, complete FI=0 data units
    with `fragment_counter` zero.  Their payload length is six plus the
    metadata octets; they have no DU header.  Fragmented or empty
@@ -1330,7 +1461,11 @@ as incomplete (Section 5.2, item 5), like any other data unit; no
 additional sample-level timer is defined or permitted.
 
 The sample's RAP flag is the RAP flag of the FI=0 or FI=1 object of
-its offset-0 data unit.  FEC is unaffected by the partition: source
+its offset-0 data unit.  On a track under a keyframe overlay,
+`RAP_flag` marks overlay members ((#overlay-membership)), so a
+keyframe that the overlay leaves uncovered has a RAP flag of 0; a
+receiver that looks for random access points inside an MPU finds only
+the covered ones there.  FEC is unaffected by the partition: source
 symbols are MMTP packets ((#iso-ssbg1-v1)), and the packet stream's
 block and interleave structure does not depend on data-unit boundaries.
 
@@ -1447,8 +1582,9 @@ flag, subgroup, skipped/repeated counter, FI=2 at zero, or FI=3 before
 the expected counter reaches zero is a mismatch or gap.  The receiver
 MUST reject all of these and MUST NOT advance, replace, or consume valid state or pending sample
 timing on rejection.  A new MPU arriving while the prior MPU has an
-incomplete data unit declares loss and discontinuity; the incomplete
-unit is discarded and never emitted.
+incomplete data unit declares loss and discontinuity, except where
+Section 5.3.3 provides otherwise; the incomplete unit is discarded and
+never emitted.
 
 {#receiver-admission-and-completion}
 ### Receiver Admission and Completion
@@ -1457,12 +1593,53 @@ A receiver admits a fragment only after its declared MPU payload
 boundary, outer FEC trailer, stream scope, subgroup order, and active-DU
 transition all validate.  Duplicate packets may be dropped by exact
 MMTP packet identity before admission, but a duplicate MUST NOT create
-or advance active state.  Multi-path combining and FEC recovery MUST
-restore the same per-`packet_id` serial packet order before this state
-machine, using modulo-2^32 serial-number arithmetic across
-`packet_sequence_number` wrap within a bounded replay window.  The
-MMTP-session and MoQ-track scope are part of that ordering state;
-neither mechanism may fabricate a missing transition.
+or advance active state.  Whatever path or mechanism delivers or
+recovers a packet, the receiver MUST restore the same per-`packet_id`
+serial packet order before this state machine, using modulo-2^32
+serial-number arithmetic across `packet_sequence_number` wrap within a
+bounded replay window, except where a later MPU is released ahead of
+an earlier one (below).  The MMTP-session and MoQ-track scope are part
+of that ordering state and of the active state of Section 5.3.2, so an
+"mfu" track and its "mfu-datagram" track (Section 4.3.1), whose
+packets share a `packet_id`, share neither; no mechanism may fabricate
+a missing transition.
+
+On a datagram leg (Section 2), and on every other path of a track that
+a datagram leg also delivers ([@!MOQ-MULTICAST] Section 6), restored
+serial order takes the place of subgroup order, and MMTP-session or
+MoQ-track scope that of stream scope: the active state of
+Section 5.3.2 records no destination subgroup, and the FT=0, FT=1 and
+FT=2 order of Section 4.3 is checked in restored serial order.  A
+packet that arrives, or is recovered, ahead of a missing one is held,
+not admitted, until the missing packet arrives or is recovered, or the
+receiver declares it lost.  Where the receiver decodes FEC for the
+missing packet, it declares the packet lost once every block that it
+decodes and that holds the packet, the overlay block of a RAP packet
+included (Section 7.4.4), has passed the deadline that the receiver
+uses for it ([@!MOQ-FEC-CORE] Section 9.3) or been discarded
+([@!MOQ-FEC-CORE] Section 9.4), and otherwise once its bounded replay
+window has passed.  It does not declare the packet lost while it waits
+for a repair that it requested for the packet or its block, including
+one that it requests as such a deadline passes (Section 4.3.1;
+[@!MOQ-FEC-MULTICAST] Section 6.2), or for a fill fetch stream that
+can still deliver the packet (Section 6.1, step 3).  It cancels a
+repair that it stops waiting for ([@!I-D.ietf-moq-transport]
+Section 3.2.4); on a multicast or AMT leg it stops waiting where
+[@!MOQ-FEC-MULTICAST] Section 6 does not let it stall presentation,
+and on any other datagram leg where Section 6.1, step 6, says.
+
+On those paths, once the receiver holds an FT=0 packet that follows a
+missing packet in serial order, the missing packet, which belongs to
+an earlier MPU (Section 4.3), no longer holds that FT=0 packet or the
+packets after it, and the new MPU does not declare loss of the earlier
+MPU's incomplete data unit (Section 5.3.2): that unit is discarded
+only when its missing packet is declared lost.  The loss of a packet
+declared lost is unrecoverable (Section 5.2, item 5): before admitting
+a packet held behind it, the receiver discards the data unit, if any,
+that the lost packet would have continued, so that a following FI=0 or
+FI=1 is not an overlap and a continuation of the discarded unit is an
+orphan (Section 5.3.2).  A packet that arrives, or is recovered, after
+it was declared lost is late and is not admitted.
 
 Completion is transactional.  For a whole-sample data unit the
 receiver first validates the full FI chain and the matching unconsumed
@@ -1492,9 +1669,9 @@ Section 4.3).  Accordingly a receiver:
   [@!ISO.23008-1] Section 9.3.2.3), since these are decode-order
   roots upon which other access units depend.
 
-On a multicast or Automatic Multicast Tunneling (AMT) leg,
-[@!MOQ-FEC-MULTICAST] Section 6 specifies
-the receiver repair policy this implies.
+On a multicast or AMT leg, [@!MOQ-FEC-MULTICAST] Section 6 specifies
+the receiver repair policy this implies, and on any other datagram
+leg Section 4.3.1 does.
 
 {#subscriber-join-and-relay-behavior}
 # Subscriber Join and Relay Behavior
@@ -1572,10 +1749,16 @@ A subscriber joins a live mmtp-packaged track as follows:
    before the next completely reassembled RAP MFU (normally the
    start of the next group).  The same holds when the group's FT=0
    data unit, or the FT=1 data unit governing its RAP, is lost, since
-   the RAP then cannot be admitted (Section 4.3).  On a multicast or
-   AMT leg, loss that spares those three data units does not make the
-   track discontinuous; [@!MOQ-FEC-MULTICAST] Section
-   6 specifies its handling.
+   the RAP then cannot be admitted (Section 4.3).  On a datagram leg
+   (Section 2), loss that spares those three data units does not make
+   the track discontinuous.  On a multicast or AMT leg
+   [@!MOQ-FEC-MULTICAST] Section 6 specifies its handling.  On any
+   other datagram leg the receiver stops waiting for a repair that it
+   requested (Section 4.3.1) no later than the presentation time of the
+   first media that the repair would supply, unless the repair may
+   supply part of one of those three data units, and conceals what is
+   still missing, as [@!MOQ-FEC-MULTICAST] Sections 6.3 and 6.4
+   specify, without stalling presentation.
 
 {#relay-retention-for-late-joiners}
 ## Relay Retention for Late Joiners
@@ -1802,13 +1985,16 @@ modulo 2^32, in the order the publisher emits the packets
 ([@!ISO.23008-1] Section C.5.2), and the blocks of an FEC instance are
 consecutive: each starts at the SS_ID that follows the last source
 symbol of its predecessor ([@!MOQ-FEC-CORE] Section
-5.4).  Every transport path yields the same
+5.4).  Every transport path that delivers a track yields the same
 SS_ID for the same packet, because each path carries the same MMTP
-packet, so receivers MAY combine symbols from any transport path toward
-the same FEC block recovery.  A loc or cmaf track reaches multicast only
-through a separate mmtp rendition track ([@!MOQ-MULTICAST] Section
-4.1), whose symbols belong to
-another FEC instance.
+packet, so receivers MAY combine the symbols of a track from every
+transport path that delivers it toward the same FEC block recovery.
+An "mfu" track and its "mfu-datagram" track carry the same source
+packets but have FEC instances of their own (Section 4.3.1), and a loc
+or cmaf track reaches multicast only through a separate mmtp rendition
+track ([@!MOQ-MULTICAST] Section 4.1), whose symbols belong to another
+FEC instance; a receiver does not combine symbols across either pair
+([@!MOQ-FEC-CORE] Section 5.1).
 
 **OTI and sub-blocks**: MoQ carries no RaptorQ Object Transmission
 Information (OTI, [@?RFC6330] Section 3.3) in-session: receivers derive
@@ -1870,8 +2056,10 @@ coordinate that recovered it, within that FEC instance's SS_ID space; an
 overlay coordinate does not yield a base SS_ID.
 
 Where a keyframe overlay applies ((#keyframe-overlay)), an object
-carrying a Random Access Point fragment is a source symbol of two FEC
-instances, whose SS_ID spaces are disjoint, so "the source symbol the
+carrying an overlay member ((#overlay-membership)), a fragment of a
+Random Access Point that the overlay covers or an FT=0 or FT=1 data
+unit that governs one, is a source symbol of two FEC instances, whose
+SS_ID spaces are disjoint, so "the source symbol the
 object carries" names two SS_IDs rather than one.  The Property carries
 the base instance's SS_ID -- the value the Source FEC Payload ID trailer
 carries -- and a publisher MUST NOT place an overlay SS_ID in it.  No
@@ -1953,7 +2141,8 @@ RSB_length or that fails a bound of the instance's scheme
 
 A source track MAY additionally be protected by a keyframe overlay: a
 second, independent FEC instance whose source symbols are only the
-fragments of Random Access Points of that source track.  It is this
+fragments of Random Access Points of that source track and the FT=0
+and FT=1 data units that govern them ((#overlay-membership)).  It is this
 profile's form of an overlapping instance ([@!MOQ-FEC-CORE] Section
 8.4).  The overlay is defined only for a
 source track under "iso-ssbg1-v1", because its membership and its
@@ -1964,21 +2153,25 @@ and a catalog that declares one for such a track fails the rule of
 (#overlay-instance).
 
 Losing part of a Random Access Point makes every dependent frame
-undecodable until the next one; the overlay protects RAP fragments
-across a block of its own, which can be wider than the base window,
-without changing the base instance's latency.
+undecodable until the next one.  Losing the FT=0 or FT=1 data unit that
+governs it does as much, since a receiver cannot admit the Random
+Access Point without it (Sections 4.3 and 5.1), and losing the FT=0
+data unit invalidates the whole group (Section 4.3).  The overlay
+protects all of these across a block of its own, which can be wider
+than the base window, without changing the base instance's latency.
 
 {#overlay-instance}
 ### Overlay Instance
 
 An overlay is a separate FEC instance over the same source track.  It
-has its own `sourceSymbols` (K_overlay) and its own `repairSymbols`,
-declared on its own instance entry with its own repair track
+has its own `sourceSymbols` (K_overlay), its own `repairSymbols` and its
+own `interleaveDepthMs` ((#overlay-membership)), declared on its own
+instance entry with its own repair track
 ([@!MOQ-FEC-CATALOG] Section 3.1), and it shares
 the source track's `scheme`, `blockProfile` and `symbolSize`. It does
 not share the base instance's K, its block partition, its SS_ID space,
 or its RS_ID space.  Because each source packet carries one base SS_ID,
-a different K or interleave window needs a separate rendition; the
+a different base K or interleave window needs a separate rendition; the
 keyframe overlay is a separate FEC instance, not a layer.
 
 An overlay instance whose base instance carries a positive
@@ -2059,19 +2252,63 @@ exceeds 255.  Under "reed-solomon", an overlay whose instance declares
 {#overlay-membership}
 ### Overlay Membership
 
-The overlay's source symbols are the fragments of the source track that
-belong to a Random Access Point, in transmission order.  A publisher
-that declares an overlay MUST set `RAP_flag` on a source packet of the
-track, MUST include the packet in the overlay instance, and MUST carry
-the packet's overlay SS_ID in its 0x8B01 header extension
-((#overlay-header-extension)), if and only if that packet's payload
-belongs to a keyframe MFU covered by the overlay.
+The overlay's source symbols are, in transmission order, the packets of
+the source track that a receiver needs to present each Random Access
+Point the overlay covers: the fragments of its MFUs and the FT=0 and
+FT=1 data units that govern it, which a receiver accepts before it
+admits the Random Access Point (Sections 4.3 and 5.1).  A source packet
+of the track is an overlay member if and only if its payload belongs
+to:
+
+- a keyframe MFU covered by the overlay, and, where that keyframe
+  sample is partitioned (Section 5.2.1), each of its subsample data
+  units;
+- the FT=0 data unit, the MPU metadata, of an MPU whose first sample is
+  such a keyframe; or
+- the FT=1 data unit, the movie fragment metadata, of a movie fragment
+  that contains such a keyframe.
+
+Every packet of a member data unit is a member: the one FI=0 packet of
+an unfragmented keyframe MFU, each FI=1, FI=2 and FI=3 fragment of a
+fragmented one, and the one FI=0 packet that carries an FT=0 or FT=1
+data unit, which this profile never fragments (Section 5.2, item 4).
+No other packet is a member; in particular, no packet of an FT=1 data
+unit whose movie fragment contains no covered keyframe, or of an FT=2
+data unit of any other sample, is one.  The AL-FEC signaling object of
+Section 8 is not an FEC source packet and is never a member, and a
+publisher that declares an overlay MUST NOT set `RAP_flag` on it.
+
+A publisher that declares an overlay MUST set `RAP_flag` on a source
+packet of the track, MUST include the packet in the overlay instance,
+and MUST carry the packet's overlay SS_ID in its 0x8B01 header
+extension ((#overlay-header-extension)), if and only if that packet is
+an overlay member.  On such a track the packets that set `RAP_flag`,
+which this document calls its RAP packets, are therefore exactly its
+overlay members, the FT=0 and FT=1 members included.  Section 4.3 maps
+each MPU to exactly one group and requires the FI=0 or FI=1 object that
+begins the first FT=2 sample of each timed group, the Random Access
+Point with which its MPU begins (Section 5.3.4), to set `RAP_flag`.  On
+a track under an overlay that object is therefore a member, so the
+first sample of every MPU is a covered keyframe and the FT=0 data unit
+of every MPU is a member; an MPU without a Random Access Point does not
+occur in this profile.  A publisher MAY also cover, keyframe by
+keyframe, any keyframe that is not the first sample of its MPU: the
+fragments of a keyframe so covered, and the FT=1 data unit of the movie
+fragment that contains it, are then members by the list above, and no
+packet of a keyframe that the publisher leaves uncovered sets
+`RAP_flag`.  A receiver needs no signal of that choice, since it takes
+membership from the 0x8B01 extension alone
+((#overlay-header-extension)).
 
 Overlay source symbols are numbered consecutively within the overlay
 instance, in the order the publisher emits them: the overlay SS_ID is 0
 at the first overlay source symbol of the stream and advances by one per
 overlay source symbol, modulo 2^32 ([@!MOQ-FEC-CORE] Section
-7.6).  It is the value the RAP
+7.6).  Section 4.3 fixes that order within an MPU: its FT=0 data unit
+first, then, for each movie fragment that contains a covered keyframe,
+that fragment's FT=1 data unit followed by the fragments of the covered
+keyframes it contains (Section 5.2.2); a packet emitted between two
+members takes no overlay SS_ID.  The overlay SS_ID is the value the RAP
 source packet carries in its 0x8B01 header extension
 ((#overlay-header-extension)).  It lives in the overlay instance's own
 SS_ID space, independent of the base instance's, and the two IDs on one
@@ -2082,12 +2319,22 @@ ones, are formed, located and wrapped exactly as base blocks are
 5.5 and
 7.6), with K_overlay as the upper
 bound on their SSB_length.  An overlay block that holds the fragments
-of several RAPs spans many base blocks, since a RAP is a small
+of several RAPs spans many base blocks, since a RAP and the metadata
+that governs it are a small
 fraction of the media, and one that the publisher closes once its RAP
 has been sent spans little more than that RAP.  Either way the
 overlay's recovery latency is its own block span, which the overlay
 instance's own `interleaveDepthMs` bounds, and is unrelated to the
-base instance's.
+base instance's.  An FT=0 or FT=1 member that the overlay recovers
+is of use to a receiver only while the receiver still holds the
+fragments that member governs unadmitted, within its bounded replay
+window ((#overlay-receiver-behavior)), so a receiver may have to hold
+them for up to that span.  The overlay instance's own positive
+`interleaveDepthMs`, which (#overlay-instance) recommends, bounds every
+overlay block's send span ([@!MOQ-FEC-CORE] Section 9.3) and so tells a
+receiver how long to hold them; a publisher can shorten the span by
+closing an overlay block once the last fragment of a covered keyframe
+has been emitted ([@!MOQ-FEC-CORE] Section 5.4).
 
 A receiver knows that a source packet is an overlay source symbol
 because the packet carries the 0x8B01 header extension
@@ -2105,8 +2352,10 @@ instance is known ([@!MOQ-FEC-CORE] Section
 ### Overlay SS_ID Header Extension
 
 When the catalog declares a keyframe overlay for a source track
-((#keyframe-overlay)), a source packet of that track carrying a Random
-Access Point fragment is a source symbol of two FEC instances. It
+((#keyframe-overlay)), a source packet of that track that is an overlay
+member ((#overlay-membership)), one carrying a fragment of a Random
+Access Point that the overlay covers or an FT=0 or FT=1 data unit that
+governs one, is a source symbol of two FEC instances. It
 carries its base SS_ID in the one Source FEC Payload ID trailer that
 every FEC source packet carries ((#source-fec-payload-id)), and its
 overlay SS_ID ((#overlay-membership)) in an MMTP header extension
@@ -2132,9 +2381,15 @@ header extension, with X = 1, of exactly the source packets that it
 includes in the overlay instance, that is the packets on which it sets
 `RAP_flag` ((#overlay-membership)), and of no other packet of the track.
 An MMTP packet carries at most one header extension ([@!ISO.23008-1]
-Clause 9.2.3), so the RAP packets of a track under an overlay carry no
-other MMTP header extension, and a publisher that needs another header
-extension on those packets cannot use the overlay for that track.
+Clause 9.2.3), so the RAP packets of a track under an overlay, its
+FT=0 and FT=1 members included, carry no other MMTP header extension,
+and a publisher that needs another header extension on those packets
+cannot use the overlay for that track.  The extension adds eight octets
+to each of them.  An FT=0 or FT=1 data unit is always a single packet
+(Section 5.2, item 4) and cannot be fragmented to make room for it, so
+a publisher that declares an overlay chooses a `symbolSize` T under
+which every FT=0 and FT=1 member, extension included, still fits within
+the T - 2 octets that (#iso-ssbg1-v1) allows a protected packet.
 [@!ISO.23008-1] specifies no particular header extension and no registry
 of header extension types; this document uses the type 0x8B01 for the
 overlay SS_ID ((#iana-considerations)).
@@ -2186,17 +2441,25 @@ authenticated block assignment treats each as that section requires.
 ### Receiver Behavior
 
 A receiver that implements overlays and has joined the overlay repair
-track decodes the two instances independently and MAY use the recovered
-RAP fragments even when the base instance failed to recover the block
-that carried them.
+track decodes the two instances independently and MAY use the packets
+the overlay recovers, the fragments of a Random Access Point that it
+covers and the FT=0 and FT=1 data units that govern it
+((#overlay-membership)), even when the base instance failed to recover
+the block that carried them.  Like every recovered packet, they enter
+reassembly in serial packet order (Section 5.3.3).  That order puts a
+recovered FT=0 or FT=1 data unit before the fragments it governs only
+while the receiver still holds those fragments unadmitted: the replay
+window of Section 5.3.3 is bounded, the overlay's recovery latency is
+its own block span ((#overlay-membership)), and a fragment that reaches
+reassembly before the FT=0 or FT=1 data unit that governs it is
+rejected (Section 5.1).
 
-The overlay is the publisher-side half of keyframe protection.  The
-receiver-side half is the repair policy of [@!MOQ-FEC-MULTICAST] Section
-6, under which a receiver gives a
+The overlay is the publisher-side half of keyframe protection.  On a
+multicast or AMT leg, the receiver-side half is the repair policy of
+[@!MOQ-FEC-MULTICAST] Section 6, under which a receiver gives a
 keyframe-bearing base block that in-band decoding leaves unrecovered
-priority unicast repair; its Section
-6.6 states how the two
-combine.
+priority unicast repair; its Section 6.6 states how the two combine.
+On any other datagram leg it is the repair of Section 4.3.1.
 
 A receiver that does not implement overlays MUST fail closed on a
 catalog that declares one for a track it intends to consume, that is on
@@ -2551,8 +2814,8 @@ time of the packet in NTP short format.
 
 Clients SHOULD attempt transports in the preference order that
 [@!MOQ-MULTICAST] Section 3 defines for native and browser clients.
-AL-FEC (Section 7) is the loss recovery on SSM/AMT paths, which have
-no retransmission.
+AL-FEC (Section 7) is the loss recovery on a datagram leg (Section 2),
+which has no retransmission over UDP or QUIC.
 
 {#catalog-signaling}
 # Catalog Signaling
@@ -2597,7 +2860,7 @@ Per-track catalog fields for mmtp packaging:
 | Field | Status | Type | Description |
 |-------|--------|------|-------------|
 | `packaging` | REQUIRED | String | MUST be "mmtp" |
-| `mmtpMode` | REQUIRED | String | MUST be "mfu" (Section 5); defined by this document |
+| `mmtpMode` | REQUIRED | String | "mfu" or "mfu-datagram" (Sections 4.3, 4.3.1 and 5); defined by this document |
 | `timescale` | REQUIRED | Number | Media timescale in Hz ([@!I-D.ietf-moq-msf] Section 5.2.21, profiled REQUIRED here; Section 4.4.2) |
 | `presentationAnchorTicks` | REQUIRED for synchronized audio/video tracks | Signed integer | Track timestamp corresponding to shared presentation time zero (Section 4.4.1); defined by this document |
 | `groupDurationMs` | Conditional | Number | REQUIRED without the tick form; positive integer ms (Section 4.4.2); informational when ticks are present |
@@ -2615,11 +2878,13 @@ for media tracks per that section), `framerate`, `width`, `height`,
 `samplerate`, `channelConfig`, `bitrate`, and `lang` -- are flat,
 top-level fields of the track object.
 
-`mmtpMode` selects the object layout and MUST be "mfu".  It delivers
-one subgroup per FT=0, FT=1, or FT=2 data unit as defined in Sections
-4.3 and 5.  A subscriber MUST reject a track whose
-`mmtpMode` is absent or has any other value; the object layout cannot
-be inferred safely from received objects.
+`mmtpMode` selects the object layout and delivery mode and MUST be
+"mfu" or "mfu-datagram".  "mfu" delivers one subgroup per FT=0, FT=1,
+or FT=2 data unit as defined in Sections 4.3 and 5.  "mfu-datagram"
+delivers the same objects, each as a datagram (Section 4.3.1).  A
+subscriber MUST reject a track whose `mmtpMode` is absent or is a
+value that it does not implement; the object layout cannot be
+inferred safely from received objects.
 
 Example, with the `data` value shortened:
 
@@ -2955,7 +3220,9 @@ is an exact positive integer tick count; when the cadence is exact
 only in ticks it emits `groupDurationTicks`.
 The fixed-cadence profile cannot represent a source whose MPU cadence
 is not one constant positive duration, so conversion fails rather
-than rounding or inventing a cadence.  It sets `mmtpMode` itself.
+than rounding or inventing a cadence.  It sets `mmtpMode` to "mfu"
+on every mmtp track that it lists on an endpoint, the only mode such a
+track may have ([@!MOQ-MULTICAST] Section 4.1).
 The AL-FEC message does not name `blockProfile`, which is required on
 every FEC instance ([@!MOQ-FEC-CORE] Section
 10.1); the converter sets it to "iso-ssbg1-v1",
@@ -3150,9 +3417,9 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='15'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-01'/>
 </reference>
 
 <reference anchor='MOQ-MULTICAST'>
@@ -3235,6 +3502,90 @@ re-pointed.  The section numbers in the -00 entry below are those of
   this change log, described a field that is not on the wire; no byte
   of the message changes, since no reference writer or reader emitted
   or read it.
+- Change after the -02 posting: the keyframe overlay also protects the
+  metadata that a Random Access Point needs (Section 7.4.2).  Its
+  members are the fragments of each keyframe MFU it covers, and of
+  every subsample data unit of such a keyframe sample when it is
+  partitioned, the FT=0 data unit of each MPU whose first sample is
+  such a keyframe, which on a track under an overlay is every MPU, and
+  the FT=1 data unit of each movie fragment that contains one.  Each
+  member sets `RAP_flag`, carries its overlay SS_ID in the 0x8B01
+  header extension, and takes the next overlay SS_ID in emission
+  order.  The overlay covers the first sample of every MPU, and
+  covering a later keyframe is the publisher's choice, so on such a
+  track a keyframe left uncovered has a sample RAP flag of 0 (Section
+  5.2.1); since a receiver
+  can use a recovered FT=0 or FT=1 member only within its bounded
+  replay window, the overlay instance's own positive
+  `interleaveDepthMs` (Section 7.4.1) tells it how long to hold what
+  that member governs.  In -02, as in
+  [@?I-D.ramadan-moq-fec] from which the overlay moved, the overlay
+  held only the keyframe MFU's fragments, so a loss
+  that also took the keyframe's FT=0 or FT=1 data unit left an
+  overlay-recovered keyframe that a receiver could not admit (Sections
+  4.3 and 5.1), and Section 6.6 of draft-ramadan-moq-fec-multicast-00
+  said that the overlay does not recover those data units.  Sections
+  2, 3.1, 7.2, 7.4, 7.4.3 and 7.4.4 follow.  The extension's format is
+  unchanged: a receiver that takes overlay membership from the
+  extension alone, as Section 7.4.3 requires, decodes the overlay of a
+  publisher that follows either text.  An FT=0 or FT=1 packet that is
+  a member is eight octets longer than in -02 and carries no other
+  MMTP header extension.  [@!MOQ-FEC-MULTICAST] is now cited at its -01
+  revision, whose Section 6.6 says that the overlay can recover those
+  data units.
+- After the -02 posting: an mmtp track MAY be sent as datagrams.  The
+  new `mmtpMode` value "mfu-datagram" (Section 13.1) keeps the Groups,
+  Object IDs and object payloads of "mfu" and sends every object as a
+  datagram, so that a receiver on a lossy path with a deadline near the
+  round-trip time recovers by FEC instead of by retransmission (new
+  Section 4.3.1).  Section 4.3 now requires subgroups of an "mfu" track
+  only; the -00 entry below records that -01 first required them of
+  every mmtp track.  Section 4.3.1 requires every object and repair
+  object, FT=0 and FT=1 included, to fit one datagram, and recommends
+  sizing them for a UDP payload of 1200 bytes, which also sizes the
+  packets sent on multicast.  A publisher offers an "mfu-datagram"
+  track only beside an "mfu" track with the same MMTP packets, each
+  track's AL-FEC signaling object aside, so a subscriber, which chooses
+  the mode by choosing a track, always has an "mfu" track, and one
+  whose session runs over HTTP/2 SHOULD take it.  Each of the two
+  tracks has its own FEC instances, whose parameters may differ, and
+  its own repair tracks, except that a keyframe overlay, which rides in
+  the source packets, is declared on both tracks with the same
+  membership or on neither; a multicast endpoint lists only the "mfu"
+  track, and the signaling object of the "mfu-datagram" track is not
+  sent on multicast.  A receiver that takes an "mfu-datagram" track on
+  a unicast path MAY fetch what FEC will not rebuild in time without
+  waiting for the block's deadline, chooses its repair layers as
+  [@!MOQ-FEC-CORE] Section 7.4 describes, and, by Section 6.1, step 6,
+  stops waiting for a repair by the presentation time of what it would
+  supply and conceals the rest without stalling; on a multicast QUIC
+  channel [@!MOQ-FEC-MULTICAST] Section 6 governs its repair.  A
+  delivery timeout drops a datagram without notice, and a subscriber
+  MAY set an OBJECT_DELIVERY_TIMEOUT that bounds how long an object
+  waits at the hop that serves it.  New in Section 2, a datagram leg is
+  a multicast or AMT leg or a subscription to an "mfu-datagram" track.
+  On every datagram leg, and on every other path of a track that one
+  also delivers, Section 5.3.3 now checks restored serial order in
+  place of subgroup order; holds a packet behind a missing one until
+  the missing packet arrives, is recovered or is declared lost, which
+  it is only once neither FEC nor a repair or fill fetch stream that
+  the receiver waits for can still supply it; stops holding a later
+  MPU once that MPU's FT=0 packet is held; discards the data unit that
+  a lost packet would have continued; and does not admit a packet that
+  comes after it was declared lost.  This changes the receiver of a
+  multicast or AMT leg: there, a packet that was never recovered left
+  its data unit open, and Section 5.3.2 rejected every later data unit
+  of that MPU as an overlap.  An "mfu" track and its "mfu-datagram"
+  track keep separate ordering and active states, and Section 7.1
+  combines symbols only within one track's FEC instances.  Section 4.6
+  notes that a datagram carries an absolute Object ID, Sections 4.1,
+  5.3.2, 5.3.4, 7.4.4 and 12 refer to datagram delivery, Section 13.1
+  rejects an `mmtpMode` that the subscriber does not implement, and in
+  Section 13.2 a converter sets "mfu".  [@!RFC9000] is a new normative
+  reference.
+- Editorial after the -02 posting: items 4 and 5 of Section 5.2 render
+  as list items; in -02 they ran into the paragraph before them, so a
+  citation of "Section 5.2, item 5" named no list item.
 - Moved in from draft-ramadan-moq-fec-01: the "iso-ssbg1-v1" block
   profile definition (-01 Sections 5.1, 7.3, 7.4 and 8.3, as the new
   Section 7.1), the Source FEC Payload ID trailer and its relation to
