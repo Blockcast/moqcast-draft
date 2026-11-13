@@ -21,10 +21,10 @@ SET = {
     "MOQ-FEC-CATALOG": ("draft-ramadan-moq-fec-catalog-00.md", "CATALOG"),
     "MOQ-FEC-MULTICAST": ("draft-ramadan-moq-fec-multicast-01.md", "MCAST"),
     "MOQ-MMT": ("draft-ramadan-moq-mmt-02.md", "MMT"),
-    "MOQ-MULTICAST": ("draft-ramadan-moq-multicast-02.md", "MULTICAST"),
+    "MOQ-MULTICAST": ("draft-ramadan-moq-multicast-03.md", "MULTICAST"),
 }
 # drafts revised since the batch posted on 2026-11-02; drafts posted with them still cite the previous revision
-REVISED = {"MOQ-FEC-MULTICAST"}
+REVISED = {"MOQ-FEC-MULTICAST", "MOQ-MULTICAST"}
 
 
 def previous(name: str) -> str:
@@ -36,7 +36,7 @@ FRONT = {
     "CATALOG": ("draft-ramadan-moq-fec-catalog-00", "Catalog Binding for Forward Error Correction in Media over QUIC", ["Omar Ramadan"]),
     "MCAST": ("draft-ramadan-moq-fec-multicast-01", "Forward Error Correction for Multicast Delivery of Media over QUIC", ["Omar Ramadan"]),
     "MMT": ("draft-ramadan-moq-mmt-02", "MPEG Media Transport (MMT) Packaging for Media over QUIC", ["Omar Ramadan"]),
-    "MULTICAST": ("draft-ramadan-moq-multicast-02", "Multicast Delivery and Endpoint Discovery for Media over QUIC", ["Omar Ramadan"]),
+    "MULTICAST": ("draft-ramadan-moq-multicast-03", "Multicast Delivery and Endpoint Discovery for Media over QUIC", ["Omar Ramadan"]),
 }
 REQUIRED_IDS = {
     "BLOCK": ["scheme-identifiers", "raptorq", "raptorq-oti", "reed-solomon", "rs-code", "rs-parameters", "scheme-bounds", "repair-layers", "repair-symbols", "mandatory-to-implement", "security-considerations", "iana-considerations", "test-vectors"],

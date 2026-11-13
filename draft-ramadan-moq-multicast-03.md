@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-02T00:00:00Z"
+date = "2026-11-15T00:00:00Z"
 keyword = ["multicast", "MoQ", "AMT", "SSM", "TreeDN"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-moq-multicast-02"
+value = "draft-ramadan-moq-multicast-03"
 stream = "IETF"
 status = "standard"
 
@@ -72,8 +72,9 @@ in its own network, from a relay service hostname (Section 3.1), or
 with DNS Reverse IP AMT Discovery (DRIAD) [@!RFC8777].  Section 4.2.1
 describes how a catalog signals both.  Each network can therefore
 turn on multicast when it is ready.  Until then, its receivers that
-have UDP socket access (Section 3) use AMT, and the others stay on
-MoQ unicast.  An AMT relay can replicate packets in router forwarding
+can run AMT, in the application or through the user agent (Section 3),
+use it, and the others stay on MoQ unicast.  An AMT relay can
+replicate packets in router forwarding
 hardware or in a kernel data plane, so relay fan-out does not cost a
 server per receiver.
 
@@ -175,10 +176,13 @@ on platform capabilities:
 |-------------|----------------|
 | Native (TV, mobile) | SSM direct via OS multicast API |
 | Native (no multicast) | AMT tunneling over UDP [@!RFC7450] |
-| Browser with UDP socket access (e.g., [@?WICG-DirectSockets]) | SSM/AMT |
+| Browser, HTTPS page (the user agent receives, as in [@?MCAST-MANIFEST] Section 8.4) | SSM, or AMT through the user agent's own gateway |
+| Browser, socket API (e.g., [@?WICG-DirectSockets]) | SSM/AMT |
 | Browser (standard) | MoQ/WebTransport (unicast) |
 
-Both native SSM and AMT tunneling require UDP socket access.
+An application that joins SSM or runs AMT itself needs UDP socket
+access.  On the user-agent path the user agent holds the sockets and
+the page needs none.
 MoQ/WebTransport is the fallback that every client supports and
 requires no special platform capabilities.
 
@@ -465,8 +469,8 @@ rendition track only.
 
 Subscribers receiving a catalog with multicast endpoints MAY
 auto-connect to the multicast group when multicast APIs are
-available and multicast delivery is preferred (UDP socket access,
-native or AMT).  Multicast joins create
+available and multicast delivery is preferred (native SSM or AMT,
+Section 3).  Multicast joins create
 IGMP/MLD state on intermediate routers; subscribers SHOULD only
 join when multicast provides a concrete benefit over unicast.
 
@@ -831,8 +835,7 @@ in for the sender's: it is the receiver-driven congestion control of
 [@!RFC3168] Section 5 asks of the end systems of an ECN-capable
 transport, and it departs from [@RFC8085] Section 3.1.7, which
 requires CE feedback to the sender.  A receiver that cannot read the
-ECN field, as one that receives native SSM through the UDPMessage of
-[@?WICG-DirectSockets], which carries no ECN field, takes a CE-marked
+ECN field, as one whose socket API does not expose it, takes a CE-marked
 datagram for an unmarked one, and so reacts to a marking queue's
 congestion only once that queue drops.  A receiver that reads a mark
 still processes the datagram, and it MUST NOT count the mark toward
@@ -3148,6 +3151,18 @@ e2c1a942fe75cb6f8879f49d0b14a41f
 
 This appendix is informative.  It is to be removed before publication
 as an RFC.
+
+{#changes-since-draft-ramadan-moq-multicast-02}
+## Changes Since draft-ramadan-moq-multicast-02
+
+- (#delivery-paths): the table of delivery paths adds the user-agent
+  path, on which the user agent itself receives multicast for an HTTPS
+  page ([@?MCAST-MANIFEST] Section 8.4), and names the socket-API path
+  as one path beside it.  (#introduction), (#delivery-paths) and
+  (#multicast-catalog-extension) no longer describe UDP socket access
+  as a precondition of multicast reception.
+- (#explicit-congestion-notification): the example of a receiver that
+  cannot read the ECN field no longer names one API.
 
 {#changes-since-draft-ramadan-moq-multicast-01}
 ## Changes Since draft-ramadan-moq-multicast-01
