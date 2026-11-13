@@ -3688,20 +3688,21 @@ rejects an <tt>mmtpMode</tt> that the subscriber does not implement, and in
 Section 13.2 a converter sets &quot;mfu&quot;.  <xref target="RFC9000"></xref> is a new normative
 reference.</li>
 <li>After the -02 posting: Section 4.3.1 now says when a receiver takes
-and leaves an &quot;mfu-datagram&quot; track.  No field signals it.  With D
-the receiver's playout delay and W the largest sum of
-<tt>interleaveDepthMs</tt> and <tt>reorderToleranceMs</tt> among the track's FEC
-instances that the receiver decodes, a receiver SHOULD NOT take a
-track with no positive <tt>interleaveDepthMs</tt> or with W above D, SHOULD
-return to the &quot;mfu&quot; track once no object has arrived for the larger
-of D and W, and SHOULD NOT return for want of media to present
-sooner than the larger of D and one Group duration plus one access
-unit plus W.  It MAY take the track again, and then waits longer
-before each further attempt, by a random amount.  Section 6.1,
-step 6, ends the wait for a repair that may supply RAP, FT=0 or
-FT=1 data once the repair is moot, by the rule that
-<xref target="MOQ-FEC-MULTICAST"></xref> Section 6.2.1 gives a multicast leg, so both
-kinds of datagram leg end that wait the same way.  In
+and leaves an &quot;mfu-datagram&quot; track.  No field signals it.  With D the
+receiver's playout delay and W the largest sum of <tt>interleaveDepthMs</tt>
+and <tt>reorderToleranceMs</tt> among the track's FEC instances that the
+receiver decodes (the sum that the catalog signals, whatever deadline
+or local allowance the receiver itself applies; an omitted
+<tt>reorderToleranceMs</tt> adds nothing), a receiver SHOULD NOT take a track
+with no positive <tt>interleaveDepthMs</tt> or with W above D, SHOULD return
+to the &quot;mfu&quot; track once no object has arrived for the larger of D and
+W, and SHOULD NOT return for want of media to present sooner than the
+larger of D and one Group duration plus one access unit plus W.  It
+MAY take the track again, and then waits longer before each further
+attempt, by a random amount.  Section 6.1, step 6, ends the wait for a
+repair that may supply RAP, FT=0 or FT=1 data once the repair is moot,
+by the rule that <xref target="MOQ-FEC-MULTICAST"></xref> Section 6.2.1 gives a multicast
+leg, so both kinds of datagram leg end that wait the same way.  In
 Section 13.1 a publisher of an &quot;mfu-datagram&quot; track SHOULD signal a
 positive <tt>interleaveDepthMs</tt> close to the send span that it keeps.</li>
 <li>Editorial after the -02 posting: items 4 and 5 of Section 5.2 render
