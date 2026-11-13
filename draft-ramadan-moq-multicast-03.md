@@ -3080,6 +3080,27 @@ as an RFC.
 {#changes-since-draft-ramadan-moq-multicast-02}
 ## Changes Since draft-ramadan-moq-multicast-02
 
+- The transport table of Section 5 again
+  carries a unicast datagram row, "Unicast QUIC datagram | MMTP packet
+  as MoQ datagram object", and the sentence before it counts four
+  transports, because [@!MOQ-MMT] Section 4.3.1 now lets an mmtp track
+  send its objects as datagrams (`mmtpMode` "mfu-datagram").  The
+  Multicast QUIC row now reads "MMTP packet as MoQ datagram object on a
+  multicast QUIC channel" and cites the same section.  The Abstract,
+  item 3 of Section 1 and the second paragraph of Section 5 say that
+  MoQ objects carry the MMTP packet format on QUIC streams and as QUIC
+  datagrams; the Editorial entry of
+  (#changes-since-draft-ramadan-moq-multicast-01) records that -02 had
+  dropped the datagram wording from the Abstract.  The `name` rule of
+  Section 4.1 admits an mmtp track only when its `mmtpMode` is "mfu":
+  an "mfu-datagram" track carries the same packet sub-flow as its
+  "mfu" track, which an endpoint lists instead, under FEC instances of
+  its own.  Section 6 now combines the symbols of one track's FEC
+  instance from any path that delivers that track, and Section 6.3 also
+  pauses the unicast subscriptions to an "mfu-datagram" track and its
+  repair tracks.  The changes from -00 to -01, which
+  draft-ramadan-moq-multicast-02 lists, record why the datagram row was
+  dropped then.
 - (#delivery-paths): the table of delivery paths adds the user-agent
   path, on which the user agent itself receives multicast for an HTTPS
   page ([@?MCAST-MANIFEST] Section 8.4), and names the socket-API path
@@ -3112,25 +3133,6 @@ as an RFC.
 {#changes-since-draft-ramadan-moq-multicast-01}
 ## Changes Since draft-ramadan-moq-multicast-01
 
-- After the -02 posting: the transport table of Section 5 again
-  carries a unicast datagram row, "Unicast QUIC datagram | MMTP packet
-  as MoQ datagram object", and the sentence before it counts four
-  transports, because [@!MOQ-MMT] Section 4.3.1 now lets an mmtp track
-  send its objects as datagrams (`mmtpMode` "mfu-datagram").  The
-  Multicast QUIC row now reads "MMTP packet as MoQ datagram object on a
-  multicast QUIC channel" and cites the same section.  The Abstract,
-  item 3 of Section 1 and the first paragraph of Section 5 say that MoQ
-  objects carry the MMTP packet format on QUIC streams and as QUIC
-  datagrams; the editorial entry below records that -02 had dropped
-  the datagram wording from the Abstract.  The `name` rule of
-  Section 4.1 admits an mmtp track only when its `mmtpMode` is "mfu":
-  an "mfu-datagram" track carries the same packet sub-flow as its
-  "mfu" track, which an endpoint lists instead, under FEC instances of
-  its own.  Section 6 now combines the symbols of one track's FEC
-  instance from any path that delivers that track, and Section 6.3 also
-  pauses the unicast subscriptions to an "mfu-datagram" track and its
-  repair tracks.  The -00 entry below records why the datagram row was
-  dropped then.
 - References: draft-ramadan-moq-fec-01 is split into a core
   mechanism document and companions, and every citation of it now
   names the document that carries the cited text: [@!MOQ-FEC-CORE]
