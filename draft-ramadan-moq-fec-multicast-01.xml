@@ -929,10 +929,14 @@ repair; <xref target="relationship-to-the-keyframe-overlay"></xref> covers its i
 with a keyframe overlay.
 A FETCH completes or fails by MoQ Transport events, its last object
 or an error; a receiver MUST NOT declare it failed on a locally chosen
-timeout.  A relay answers it only where it caches the repair track's
-objects, datagram-delivered ones included (Section
-12 of <xref target="MOQ-FEC-CORE"></xref>); where it
-does not, the FETCH fails by those events.</t>
+timeout.  A relay answers it from its cache where it holds the repair
+track's objects, datagram-delivered ones included (Section
+12 of <xref target="MOQ-FEC-CORE"></xref>), and
+otherwise fetches them upstream (<xref target="I-D.ietf-moq-transport"></xref> Section
+3.2.3).  A FETCH for a group that neither the relay nor any publisher
+upstream of it still holds fails by those events or returns none of
+the group's objects (Section
+6.2 of <xref target="MOQ-MULTICAST"></xref>).</t>
 <t>Only a keyframe-bearing block may stall video.  While its unicast
 repair is outstanding, the receiver MAY hold video presentation for
 it.  The block is unrecoverable when its unicast repair fails or
@@ -1387,6 +1391,14 @@ that would have arrived before their media was due, giving up that
 media while stalling nothing.  The first paragraph of
 <xref target="keyframe-bearing-blocks"></xref> points to the new section instead of
 restating the rule.</li>
+<li><xref target="keyframe-bearing-blocks"></xref> no longer says that the FETCH fails at a
+relay that does not cache the repair track's objects.  Such a relay
+fetches them upstream (<xref target="I-D.ietf-moq-transport"></xref> Section 3.2.3),
+as Section
+6.2 of <xref target="MOQ-MULTICAST"></xref> already said, so a relay's lack of a
+cache does not by itself fail the FETCH.  The
+sentence in -00 came from -01 of <xref target="I-D.ramadan-moq-fec"></xref> Section
+11.4.2 and contradicted both.</li>
 <li><xref target="deadline-anchoring-and-discard"></xref> adds that, under the
 bc-provenance profile, a publisher is recommended to include in
 <tt>reorderToleranceMs</tt> the time for which a sender holds a datagram

@@ -992,10 +992,14 @@ repair; (#relationship-to-the-keyframe-overlay) covers its interplay
 with a keyframe overlay.
 A FETCH completes or fails by MoQ Transport events, its last object
 or an error; a receiver MUST NOT declare it failed on a locally chosen
-timeout.  A relay answers it only where it caches the repair track's
-objects, datagram-delivered ones included (Section
-12 of [@!MOQ-FEC-CORE]); where it
-does not, the FETCH fails by those events.
+timeout.  A relay answers it from its cache where it holds the repair
+track's objects, datagram-delivered ones included (Section
+12 of [@!MOQ-FEC-CORE]), and
+otherwise fetches them upstream ([@!I-D.ietf-moq-transport] Section
+3.2.3).  A FETCH for a group that neither the relay nor any publisher
+upstream of it still holds fails by those events or returns none of
+the group's objects (Section
+6.2 of [@!MOQ-MULTICAST]).
 
 Only a keyframe-bearing block may stall video.  While its unicast
 repair is outstanding, the receiver MAY hold video presentation for
@@ -1434,6 +1438,14 @@ This appendix is informative.
   media while stalling nothing.  The first paragraph of
   (#keyframe-bearing-blocks) points to the new section instead of
   restating the rule.
+- (#keyframe-bearing-blocks) no longer says that the FETCH fails at a
+  relay that does not cache the repair track's objects.  Such a relay
+  fetches them upstream ([@!I-D.ietf-moq-transport] Section 3.2.3),
+  as Section
+  6.2 of [@!MOQ-MULTICAST] already said, so a relay's lack of a
+  cache does not by itself fail the FETCH.  The
+  sentence in -00 came from -01 of [@?I-D.ramadan-moq-fec] Section
+  11.4.2 and contradicted both.
 - (#deadline-anchoring-and-discard) adds that, under the
   bc-provenance profile, a publisher is recommended to include in
   `reorderToleranceMs` the time for which a sender holds a datagram
