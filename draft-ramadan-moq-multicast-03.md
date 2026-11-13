@@ -3108,8 +3108,8 @@ as an RFC.
   (#multicast-endpoint-format) says that an ASM endpoint is for use
   within one multicast domain, because [@?RFC8815] (BCP 229)
   deprecates ASM between domains (its Section 4.1) and does not
-  preclude it within one (its Section 4.8).  The sentence is new and adds no
-  requirement; [@?RFC8815] is a new informative reference.
+  preclude it within one (its Section 4.8).  The sentence is new and
+  adds no requirement; [@?RFC8815] is a new informative reference.
 - (#delivery-paths): the table of delivery paths adds the user-agent
   path, on which the user agent itself receives multicast for an HTTPS
   page ([@?MCAST-MANIFEST] Section 8.4), and names the socket-API path
