@@ -1745,8 +1745,10 @@ supply part of one of those three data units, and conceals what is
 still missing, as <xref target="MOQ-FEC-MULTICAST"></xref> Sections 6.3 and 6.4
 specify, without stalling presentation.  It stops waiting for a
 repair that may supply part of one of those three data units once
-the next RAP MFU is completely reassembled: it resumes from that
-RAP, and the repair can no longer change what it presents.
+that repair is moot, as <xref target="MOQ-FEC-MULTICAST"></xref> Section 6.2.1 defines
+a moot keyframe repair, and then resumes from the RAP that made it
+moot.  A RAP MFU reassembled completely while the repair can still
+arrive by its playout deadline does not end the wait.
 Section 4.3.1 says when it leaves an &quot;mfu-datagram&quot; track that does
 not get that far.</t>
 </li>
@@ -3505,7 +3507,9 @@ sooner than the larger of D and one Group duration plus one access
 unit plus W.  It MAY take the track again, and then waits longer
 before each further attempt, by a random amount.  Section 6.1,
 step 6, ends the wait for a repair that may supply RAP, FT=0 or
-FT=1 data when the next RAP MFU is completely reassembled.  In
+FT=1 data once the repair is moot, by the rule that
+<xref target="MOQ-FEC-MULTICAST"></xref> Section 6.2.1 gives a multicast leg, so both
+kinds of datagram leg end that wait the same way.  In
 Section 13.1 a publisher of an &quot;mfu-datagram&quot; track SHOULD signal a
 positive <tt>interleaveDepthMs</tt> close to the send span that it keeps.</li>
 <li>Editorial after the -02 posting: items 4 and 5 of Section 5.2 render

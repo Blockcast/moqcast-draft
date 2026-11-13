@@ -1775,8 +1775,10 @@ A subscriber joins a live mmtp-packaged track as follows:
    still missing, as [@!MOQ-FEC-MULTICAST] Sections 6.3 and 6.4
    specify, without stalling presentation.  It stops waiting for a
    repair that may supply part of one of those three data units once
-   the next RAP MFU is completely reassembled: it resumes from that
-   RAP, and the repair can no longer change what it presents.
+   that repair is moot, as [@!MOQ-FEC-MULTICAST] Section 6.2.1 defines
+   a moot keyframe repair, and then resumes from the RAP that made it
+   moot.  A RAP MFU reassembled completely while the repair can still
+   arrive by its playout deadline does not end the wait.
    Section 4.3.1 says when it leaves an "mfu-datagram" track that does
    not get that far.
 
@@ -3508,7 +3510,9 @@ re-pointed.  The section numbers in the -00 entry below are those of
   unit plus W.  It MAY take the track again, and then waits longer
   before each further attempt, by a random amount.  Section 6.1,
   step 6, ends the wait for a repair that may supply RAP, FT=0 or
-  FT=1 data when the next RAP MFU is completely reassembled.  In
+  FT=1 data once the repair is moot, by the rule that
+  [@!MOQ-FEC-MULTICAST] Section 6.2.1 gives a multicast leg, so both
+  kinds of datagram leg end that wait the same way.  In
   Section 13.1 a publisher of an "mfu-datagram" track SHOULD signal a
   positive `interleaveDepthMs` close to the send span that it keeps.
 - Editorial after the -02 posting: items 4 and 5 of Section 5.2 render
