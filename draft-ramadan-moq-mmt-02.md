@@ -649,6 +649,39 @@ many Ranges, lists them ([@!I-D.ietf-moq-transport] Sections 3.3.2,
 [@!MOQ-FEC-CORE] Section 7.4 describes, and stops waiting for a repair
 where Section 6.1, step 6, says.
 
+No field signals when a receiver that took an "mfu-datagram" track gives
+it up for the "mfu" track: the receiver decides, from its own playout
+delay and the track's FEC instances.  Let D be the receiver's playout
+delay, the time that it keeps between the arrival of media and its
+presentation, and let W be the largest sum of `interleaveDepthMs` and
+`reorderToleranceMs` among the FEC instances of the track that the
+receiver decodes ([@!MOQ-FEC-CORE] Section 9.3); an omitted
+`reorderToleranceMs` adds nothing to that sum.  W is the sum that the
+catalog signals: a deadline of the receiver's own, or a local allowance
+for an omitted `reorderToleranceMs`, does not change it.  A receiver
+SHOULD NOT take an "mfu-datagram" track if none of the FEC instances
+that it decodes carries a positive `interleaveDepthMs`.  It SHOULD NOT
+take one whose W exceeds D either: a block's deadline then falls after
+the presentation time of the media that the block protects.  A receiver
+that took the track SHOULD return to the "mfu" track once no object of
+the track has arrived for the larger of D and W; by then the media that
+it holds has been presented, every block that it could still decode has
+passed its deadline, and every repair that it requested is due (Section
+6.1, step 6).  While objects of the track still arrive, a receiver that
+has nothing to present SHOULD NOT return sooner than the larger of D and
+the sum of one Group duration, the duration of one access unit and W,
+because the loss of a RAP MFU leaves it nothing to present until the
+next Group (Section 6.1, step 6).  A subscription that starts at the
+next Group boundary, with no fill of the current Group (Section 6.1,
+step 3), can deliver its first object as late as one Group duration plus
+W after it is accepted, and the receiver allows that long before it
+judges the track silent.  A receiver that returned to the "mfu" track
+MAY take the "mfu-datagram" track again.  It SHOULD then keep presenting
+from the "mfu" track until the first RAP MFU of the "mfu-datagram" track
+is complete, and SHOULD wait longer before each further attempt, by a
+random amount, so that receivers that lost the track together do not
+return together.
+
 A delivery timeout drops a datagram without notice
 ([@!I-D.ietf-moq-transport] Section 5.2), so the receiver learns of it
 only as a missing packet.  A subscriber MAY set an
@@ -1802,7 +1835,14 @@ A subscriber joins a live mmtp-packaged track as follows:
    first media that the repair would supply, unless the repair may
    supply part of one of those three data units, and conceals what is
    still missing, as [@!MOQ-FEC-MULTICAST] Sections 6.3 and 6.4
-   specify, without stalling presentation.
+   specify, without stalling presentation.  It stops waiting for a
+   repair that may supply part of one of those three data units once
+   that repair is moot, as [@!MOQ-FEC-MULTICAST] Section 6.2.1 defines
+   a moot keyframe repair, and then resumes from the RAP that made it
+   moot.  A RAP MFU reassembled completely while the repair can still
+   arrive by its playout deadline does not end the wait.
+   Section 4.3.1 says when it leaves an "mfu-datagram" track that does
+   not get that far.
 
 {#relay-retention-for-late-joiners}
 ## Relay Retention for Late Joiners
@@ -2930,7 +2970,11 @@ or FT=2 data unit as defined in Sections 4.3 and 5.  "mfu-datagram"
 delivers the same objects, each as a datagram (Section 4.3.1).  A
 subscriber MUST reject a track whose `mmtpMode` is absent or is a
 value that it does not implement; the object layout cannot be
-inferred safely from received objects.
+inferred safely from received objects.  A publisher of an
+"mfu-datagram" track SHOULD give each FEC instance of that track a
+positive `interleaveDepthMs` close to the send span that it keeps: a
+receiver decides from it whether to take the track and when to leave
+it (Section 4.3.1), and cannot assume less than the signaled value.
 
 Example, with the `data` value shortened:
 
@@ -3647,6 +3691,24 @@ re-pointed.  The section numbers in the -00 entry below are those of
   rejects an `mmtpMode` that the subscriber does not implement, and in
   Section 13.2 a converter sets "mfu".  [@!RFC9000] is a new normative
   reference.
+- After the -02 posting: Section 4.3.1 now says when a receiver takes
+  and leaves an "mfu-datagram" track.  No field signals it.  With D the
+  receiver's playout delay and W the largest sum of `interleaveDepthMs`
+  and `reorderToleranceMs` among the track's FEC instances that the
+  receiver decodes (the sum that the catalog signals, whatever deadline
+  or local allowance the receiver itself applies; an omitted
+  `reorderToleranceMs` adds nothing), a receiver SHOULD NOT take a track
+  with no positive `interleaveDepthMs` or with W above D, SHOULD return
+  to the "mfu" track once no object has arrived for the larger of D and
+  W, and SHOULD NOT return for want of media to present sooner than the
+  larger of D and one Group duration plus one access unit plus W.  It
+  MAY take the track again, and then waits longer before each further
+  attempt, by a random amount.  Section 6.1, step 6, ends the wait for a
+  repair that may supply RAP, FT=0 or FT=1 data once the repair is moot,
+  by the rule that [@!MOQ-FEC-MULTICAST] Section 6.2.1 gives a multicast
+  leg, so both kinds of datagram leg end that wait the same way.  In
+  Section 13.1 a publisher of an "mfu-datagram" track SHOULD signal a
+  positive `interleaveDepthMs` close to the send span that it keeps.
 - Editorial after the -02 posting: items 4 and 5 of Section 5.2 render
   as list items; in -02 they ran into the paragraph before them, so a
   citation of "Section 5.2, item 5" named no list item.
