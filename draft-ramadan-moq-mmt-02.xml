@@ -622,10 +622,16 @@ Section 5).  Each track's FEC instances (<xref target="MOQ-FEC-CORE"></xref> Sec
 and repair tracks (<xref target="MOQ-FEC-CORE"></xref> Section 10.3, rule 2) are its own,
 so a receiver does not feed a symbol of one track to the decoder of
 the other.  Only repair objects delimit a block (<xref target="MOQ-FEC-CORE"></xref>
-Section 5.4), so the two tracks' instances can differ in K, T, repair
-layers and block span although their source packets carry the same
-SS_IDs, and that of the &quot;mfu-datagram&quot; track can suit a deadline near
-the round-trip time.  The repair tracks of an &quot;mfu-datagram&quot; track
+Section 5.4), so the two tracks' base instances can differ in K, T,
+repair layers and block span although their source packets carry the
+same SS_IDs, and that of the &quot;mfu-datagram&quot; track can suit a deadline
+near the round-trip time.  A keyframe overlay is not free to differ in
+the same way: its membership and overlay SS_IDs ride in the source
+packets themselves, in <tt>RAP_flag</tt> and the 0x8B01 header extension
+(<xref target="overlay-membership"></xref>, <xref target="overlay-header-extension"></xref>), and the two
+tracks carry identical packets.  So either both tracks declare an
+overlay, with the same membership and overlay SS_IDs, or neither does,
+and only their overlay repair tracks can differ.  The repair tracks of an &quot;mfu-datagram&quot; track
 SHOULD send their objects as datagrams, so that stream data does not
 delay the repair that is meant to beat retransmission.</t>
 <t>FETCH sends a group's objects on a stream in Object ID order whatever
@@ -3463,7 +3469,9 @@ track's AL-FEC signaling object aside, so a subscriber, which chooses
 the mode by choosing a track, always has an &quot;mfu&quot; track, and one
 whose session runs over HTTP/2 SHOULD take it.  Each of the two
 tracks has its own FEC instances, whose parameters may differ, and
-its own repair tracks; a multicast endpoint lists only the &quot;mfu&quot;
+its own repair tracks, except that a keyframe overlay, which rides in
+the source packets, is declared on both tracks with the same
+membership or on neither; a multicast endpoint lists only the &quot;mfu&quot;
 track, and the signaling object of the &quot;mfu-datagram&quot; track is not
 sent on multicast.  A receiver that takes an &quot;mfu-datagram&quot; track on
 a unicast path MAY fetch what FEC will not rebuild in time without
