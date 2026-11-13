@@ -322,9 +322,9 @@ audio/video groups) use multiple elements:</t>
 <t><strong>sourceAddress</strong> (string, OPTIONAL): SSM source IP address per
   <xref target="RFC4607"></xref>.  Its presence selects SSM and its absence Any-Source
   Multicast (ASM).  An ASM endpoint is for use within one multicast
-  domain, because <xref target="RFC8815"></xref> (BCP 229) deprecates ASM between
-  domains (Section 4.1) and does not preclude it within one (Section
-  4.8).</t>
+  domain, because <xref target="RFC8815"></xref> (BCP 229) deprecates ASM between domains
+  (Section 4.1) and does not preclude it within one (Section 4.8),
+  although it prefers SSM there too (Section 4.5).</t>
 <t><strong>protocol</strong> (string, OPTIONAL): &quot;ssm&quot; or &quot;asm&quot;, restating that
   mode.  An endpoint where it disagrees with <tt>sourceAddress</tt> is
   ignored (see below).</t>
@@ -3097,12 +3097,12 @@ pauses the unicast subscriptions to an &quot;mfu-datagram&quot; track and its
 repair tracks.  The changes from -00 to -01, which
 draft-ramadan-moq-multicast-02 lists, record why the datagram row was
 dropped then.</li>
-<li>The <tt>sourceAddress</tt> definition of
-<xref target="multicast-endpoint-format"></xref> says that an ASM endpoint is for use
-within one multicast domain, because <xref target="RFC8815"></xref> (BCP 229)
-deprecates ASM between domains (its Section 4.1) and does not
-preclude it within one (its Section 4.8).  The sentence is new and
-adds no requirement; <xref target="RFC8815"></xref> is a new informative reference.</li>
+<li>The <tt>sourceAddress</tt> definition of <xref target="multicast-endpoint-format"></xref> says
+that an ASM endpoint is for use within one multicast domain, because
+<xref target="RFC8815"></xref> (BCP 229) deprecates ASM between domains (its Section
+4.1), does not preclude it within one (its Section 4.8) and prefers
+SSM there too (its Section 4.5).  The sentence is new and adds no
+requirement; <xref target="RFC8815"></xref> is a new informative reference.</li>
 <li><xref target="delivery-paths"></xref>: the table of delivery paths adds the user-agent
 path, on which the user agent itself receives multicast for an HTTPS
 page (<xref target="MCAST-MANIFEST"></xref> Section 8.4), and names the socket-API path

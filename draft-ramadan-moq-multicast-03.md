@@ -338,9 +338,9 @@ Endpoint field definitions:
 **sourceAddress** (string, OPTIONAL): SSM source IP address per
   [@!RFC4607].  Its presence selects SSM and its absence Any-Source
   Multicast (ASM).  An ASM endpoint is for use within one multicast
-  domain, because [@?RFC8815] (BCP 229) deprecates ASM between
-  domains (Section 4.1) and does not preclude it within one (Section
-  4.8).
+  domain, because [@?RFC8815] (BCP 229) deprecates ASM between domains
+  (Section 4.1) and does not preclude it within one (Section 4.8),
+  although it prefers SSM there too (Section 4.5).
 
 **protocol** (string, OPTIONAL): "ssm" or "asm", restating that
   mode.  An endpoint where it disagrees with `sourceAddress` is
@@ -3104,12 +3104,12 @@ as an RFC.
   repair tracks.  The changes from -00 to -01, which
   draft-ramadan-moq-multicast-02 lists, record why the datagram row was
   dropped then.
-- The `sourceAddress` definition of
-  (#multicast-endpoint-format) says that an ASM endpoint is for use
-  within one multicast domain, because [@?RFC8815] (BCP 229)
-  deprecates ASM between domains (its Section 4.1) and does not
-  preclude it within one (its Section 4.8).  The sentence is new and
-  adds no requirement; [@?RFC8815] is a new informative reference.
+- The `sourceAddress` definition of (#multicast-endpoint-format) says
+  that an ASM endpoint is for use within one multicast domain, because
+  [@?RFC8815] (BCP 229) deprecates ASM between domains (its Section
+  4.1), does not preclude it within one (its Section 4.8) and prefers
+  SSM there too (its Section 4.5).  The sentence is new and adds no
+  requirement; [@?RFC8815] is a new informative reference.
 - (#delivery-paths): the table of delivery paths adds the user-agent
   path, on which the user agent itself receives multicast for an HTTPS
   page ([@?MCAST-MANIFEST] Section 8.4), and names the socket-API path
