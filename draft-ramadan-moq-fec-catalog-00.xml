@@ -255,10 +255,10 @@ catalog-signaled span.  A value of zero is a violation unless the
 instance's block profile gives it a meaning of its own
 (<xref target="MOQ-FEC-CORE"></xref> Section 10.1);
 &quot;moq-object-v1&quot; does not, and <xref target="MOQ-MMT"></xref> does for &quot;iso-ssbg1-v1&quot;.</t>
-<t><strong>reorderToleranceMs</strong> (number, OPTIONAL): A receiver-local allowance
-for packet reordering, network jitter, and local processing
-variance, in milliseconds (<xref target="MOQ-FEC-CORE"></xref> Section
-9.3).  It is a finite number greater
+<t><strong>reorderToleranceMs</strong> (number, OPTIONAL): The publisher's allowance
+for packet reordering, network jitter, and processing, in
+milliseconds, which a receiver adds once to a block deadline
+(<xref target="MOQ-FEC-CORE"></xref> Section 9.3).  It is a finite number greater
 than or equal to zero, fractional values included.  That section
 states what an explicit value of zero and an omitted member each
 mean, and that a receiver keeps the two distinct.</t>
@@ -1224,6 +1224,10 @@ describes.&quot; and
 multicast endpoint (<xref target="MOQ-FEC-MULTICAST"></xref> Section
 3.3)&quot; and &quot;, and K + P = 240 is
 within the &quot;reed-solomon&quot; bound of 255&quot;.</li>
+<li>After the -00 posting: in <xref target="instance-fields"></xref>, <tt>reorderToleranceMs</tt>
+is the publisher's allowance, which a receiver adds once to a block
+deadline, as <xref target="MOQ-FEC-CORE"></xref> Section 9.3 states; -00 called it a
+receiver-local allowance.</li>
 </ul>
 </section>
 
