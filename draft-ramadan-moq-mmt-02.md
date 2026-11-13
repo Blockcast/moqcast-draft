@@ -608,10 +608,16 @@ Section 5).  Each track's FEC instances ([@!MOQ-FEC-CORE] Section 5.1)
 and repair tracks ([@!MOQ-FEC-CORE] Section 10.3, rule 2) are its own,
 so a receiver does not feed a symbol of one track to the decoder of
 the other.  Only repair objects delimit a block ([@!MOQ-FEC-CORE]
-Section 5.4), so the two tracks' instances can differ in K, T, repair
-layers and block span although their source packets carry the same
-SS_IDs, and that of the "mfu-datagram" track can suit a deadline near
-the round-trip time.  The repair tracks of an "mfu-datagram" track
+Section 5.4), so the two tracks' base instances can differ in K, T,
+repair layers and block span although their source packets carry the
+same SS_IDs, and that of the "mfu-datagram" track can suit a deadline
+near the round-trip time.  A keyframe overlay is not free to differ in
+the same way: its membership and overlay SS_IDs ride in the source
+packets themselves, in `RAP_flag` and the 0x8B01 header extension
+((#overlay-membership), (#overlay-header-extension)), and the two
+tracks carry identical packets.  So either both tracks declare an
+overlay, with the same membership and overlay SS_IDs, or neither does,
+and only their overlay repair tracks can differ.  The repair tracks of an "mfu-datagram" track
 SHOULD send their objects as datagrams, so that stream data does not
 delay the repair that is meant to beat retransmission.
 
@@ -3425,7 +3431,9 @@ re-pointed.  The section numbers in the -00 entry below are those of
   the mode by choosing a track, always has an "mfu" track, and one
   whose session runs over HTTP/2 SHOULD take it.  Each of the two
   tracks has its own FEC instances, whose parameters may differ, and
-  its own repair tracks; a multicast endpoint lists only the "mfu"
+  its own repair tracks, except that a keyframe overlay, which rides in
+  the source packets, is declared on both tracks with the same
+  membership or on neither; a multicast endpoint lists only the "mfu"
   track, and the signaling object of the "mfu-datagram" track is not
   sent on multicast.  A receiver that takes an "mfu-datagram" track on
   a unicast path MAY fetch what FEC will not rebuild in time without
