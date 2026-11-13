@@ -568,8 +568,8 @@ decoding has not recovered, which gaps in the overlay SS_IDs of the
 RAP packets it holds reveal (Sections 7.4.2 and 7.4.3 of
 [@!MOQ-MMT]).  A gap shows only when the next member arrives, so this
 measure can lag a loss by up to one interval between covered
-keyframes, longer than the overlay's block span that bounds the
-hysteresis.  On a multicast or AMT leg, a receiver of an overlay
+keyframes, which can be longer than the overlay's block span that
+bounds the hysteresis.  On a multicast or AMT leg, a receiver of an overlay
 whose instance omits `interleaveDepthMs` or sets it to zero keeps
 fixed whether it holds the overlay's repair track.  A positive
 overlay `interleaveDepthMs`, which [@!MOQ-MMT] Section 7.4.1
