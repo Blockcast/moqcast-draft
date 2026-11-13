@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
-<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-multicast-00" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-multicast-01" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
 <front>
-<title abbrev="MoQ FEC Multicast">Forward Error Correction for Multicast Delivery of Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-multicast-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<title abbrev="MoQ FEC Multicast">Forward Error Correction for Multicast Delivery of Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-multicast-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="November" day="2"></date>
+</address></author><date year="2026" month="November" day="3"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -634,6 +634,18 @@ SS_IDs in its range that the receiver lacks are runs of
 above it gives, as step
 2 of <xref target="MOQ-MULTICAST"></xref> Section
 7.2.7 specifies.</t>
+<t>Under that profile a sender holds a datagram until the window that
+covers it closes, up to <tt>manifestTimerMs</tt>, and a receiver holds one
+whose signed record it lost until the record's twin arrives, which
+the sender transmits up to <tt>maxAuthDelayMs / 2</tt> after the record
+(<xref target="MOQ-MULTICAST"></xref> Section 7.2.5); a symbol admitted after its
+block's FEC deadline is too late for the decode of
+<xref target="receiver-repair-policy"></xref>.  A publisher whose flows that profile
+protects SHOULD include both holds in an instance's
+<tt>reorderToleranceMs</tt>, the allowance for processing of Section 9.3
+of <xref target="MOQ-FEC-CORE"></xref>, so that a short <tt>interleaveDepthMs</tt> does not
+let a block's deadline pass while a datagram that arrived in time
+awaits verification.</t>
 <t>A receiver bounds the state it holds for open blocks by the
 receiver-local policy of Section 9.4 of
 <xref target="MOQ-FEC-CORE"></xref>, which forbids discarding a block that has an FEC
@@ -876,10 +888,8 @@ video.</t>
 <t>When a keyframe-bearing block is still unrecovered at its FEC
 deadline, a receiver that holds a MoQ session with a relay serving the
 block's repair track MUST request on-demand unicast repair for it,
-with the priority of <xref target="unicast-repair-budget"></xref>, unless the block lies
-below a
-RAP the receiver has already admitted complete (the repair would be
-moot on completion, below); within a consumer that the
+with the priority of <xref target="unicast-repair-budget"></xref>, unless the repair is
+already moot <xref target="moot-keyframe-repair"></xref>; within a consumer that the
 bc-provenance profile of <xref target="MOQ-MULTICAST"></xref> Section
 7.2 governs for
 its blocks (<xref target="provisional-blocks"></xref>), a block only symbols of an
@@ -941,10 +951,44 @@ the block's RAPs (including through a keyframe overlay,
 <xref target="relationship-to-the-keyframe-overlay"></xref>), it conceals the block's
 remaining loss as for a
 non-keyframe block (<xref target="other-video-blocks"></xref>).</t>
-<t>If the next RAP arrives complete before a keyframe repair completes,
-the repair is moot: the receiver resumes from that RAP and SHOULD
-cancel the FETCH; a block that reaches its deadline already below
-such a RAP is not requested at all.</t>
+
+<section anchor="moot-keyframe-repair"><name>Moot Keyframe Repair</name>
+<t>A keyframe repair is moot when both of the following hold:</t>
+
+<ol>
+<li><t>The receiver holds a RAP the receiver has already admitted complete
+that lies above the block, that is, after the last SS_ID the block
+covers.</t>
+</li>
+<li><t>The repair cannot arrive by the block's playout deadline.  The
+playout deadline is the later of the block's FEC deadline and the
+presentation time of the earliest media the block would repair.  It
+does not include any time for which the receiver holds video
+presentation for the repair (<xref target="keyframe-bearing-blocks"></xref>): a repair
+that arrives by the playout deadline holds nothing, and a repair
+that arrives only within such a hold stalls video for media the
+receiver no longer needs.  The repair cannot arrive by the playout
+deadline when either the current time is not earlier than it, or T +
+RTT is not earlier than it, where RTT is the receiver's current
+round-trip time estimate for the QUIC
+connection that carries or would carry the FETCH (for instance the
+smoothed_rtt of <xref target="RFC9002"></xref> Section 5.3), and T is the time the
+receiver sent the FETCH or, for a repair not yet requested, the
+current time.  A FETCH already sent is judged by the time it was
+sent, not by the time the RAP completes.  A receiver that has no
+round-trip time estimate for that connection treats the repair as
+unable to arrive by the playout deadline.</t>
+</li>
+</ol>
+<t>When a repair becomes moot, the receiver resumes from that RAP and
+SHOULD cancel the FETCH; a block whose repair is moot when it reaches
+its FEC deadline is not requested at all.  A repair that is not moot
+is requested and kept whatever RAP the receiver admits complete after
+it: while its playout deadline has not passed, the media it recovers is
+presented by that deadline.  Once the deadline has passed,
+a newer RAP the receiver has admitted complete makes an outstanding
+repair moot and the receiver SHOULD cancel it.</t>
+</section>
 </section>
 
 <section anchor="other-video-blocks"><name>Other Video Blocks</name>
@@ -1321,9 +1365,53 @@ Payload IDs included.</t>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.4607.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.7450.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.8777.xml"/>
+<xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.9002.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.9706.xml"/>
 </references>
 </references>
+
+<section anchor="changes-from-00"><name>Changes from draft-ramadan-moq-fec-multicast-00</name>
+<t>This appendix is informative.</t>
+
+<ul spacing="compact">
+<li><xref target="moot-keyframe-repair"></xref> is new.  In -00, and in -01 of
+<xref target="I-D.ramadan-moq-fec"></xref> Section 11.4.2, a keyframe repair was moot
+once a newer RAP had been admitted complete.  It is now moot only when, in
+addition, it cannot arrive by the block's playout deadline, which
+the section defines without the time a receiver may hold video for
+the repair; a FETCH already sent is judged by its send time plus the
+round-trip time estimate until the deadline passes, and by the
+current time thereafter; a receiver without an estimate treats the
+repair as moot.  The rule as written in -00 cancelled repairs
+that would have arrived before their media was due, giving up that
+media while stalling nothing.  The first paragraph of
+<xref target="keyframe-bearing-blocks"></xref> points to the new section instead of
+restating the rule.</li>
+<li><xref target="deadline-anchoring-and-discard"></xref> adds that, under the
+bc-provenance profile, a publisher is recommended to include in
+<tt>reorderToleranceMs</tt> the time for which a sender holds a datagram
+until its window closes and a receiver holds one whose record it
+lost until the record's twin arrives.</li>
+<li>In <xref target="multicast-and-amt-delivery"></xref>, &quot;the same
+MoQ objects (source and repair)&quot; now reads &quot;the same MMTP packets
+(source and repair)&quot;, &quot;Receivers on reliable unicast paths&quot; now reads
+&quot;Receivers that take the track on QUIC streams&quot;, and the new sentence
+&quot;Receivers that take its &quot;mfu-datagram&quot; track, which carries the
+same source packets as unicast datagrams under FEC instances and
+repair tracks of its own ([MOQ-MMT] Section 4.3.1), use FEC too, and
+repair as that section specifies.&quot; follows that sentence.  In
+<xref target="receiver-repair-policy"></xref>, the new sentence &quot;A receiver that takes
+an mmtp track as MoQ datagrams on a unicast QUIC path ([MOQ-MMT]
+Section 4.3.1) has no retransmission either, but its repair serves
+it alone, and it requests repair as that section specifies; on a
+multicast QUIC channel (<xref target="multicast-quic"></xref>) this section applies as
+on any multicast leg.&quot; precedes the sentence whose &quot;a reliable
+MoQ/QUIC leg&quot; now reads &quot;a MoQ/QUIC leg that delivers the track on
+streams&quot;.  In <xref target="multicast-quic"></xref>, item 1 now says that the QUIC
+DATAGRAM frame carries the symbol as an object of an mmtp track sent
+as datagrams, or of its repair tracks ([MOQ-MMT] Section 4.3.1).</li>
+</ul>
+</section>
 
 <section anchor="changes-from-draft-ramadan-moq-fec-01"><name>Changes from draft-ramadan-moq-fec-01</name>
 <t>This appendix is informative.  It lists what this document takes from
@@ -1358,24 +1446,6 @@ to 11.4.6.</li>
 <t>Changed sentences:</t>
 
 <ul spacing="compact">
-<li>After the -00 posting: in <xref target="multicast-and-amt-delivery"></xref>, &quot;the same
-MoQ objects (source and repair)&quot; now reads &quot;the same MMTP packets
-(source and repair)&quot;, &quot;Receivers on reliable unicast paths&quot; now reads
-&quot;Receivers that take the track on QUIC streams&quot;, and the new sentence
-&quot;Receivers that take its &quot;mfu-datagram&quot; track, which carries the
-same source packets as unicast datagrams under FEC instances and
-repair tracks of its own ([MOQ-MMT] Section 4.3.1), use FEC too, and
-repair as that section specifies.&quot; follows that sentence.  In
-<xref target="receiver-repair-policy"></xref>, the new sentence &quot;A receiver that takes
-an mmtp track as MoQ datagrams on a unicast QUIC path ([MOQ-MMT]
-Section 4.3.1) has no retransmission either, but its repair serves
-it alone, and it requests repair as that section specifies; on a
-multicast QUIC channel (<xref target="multicast-quic"></xref>) this section applies as
-on any multicast leg.&quot; precedes the sentence whose &quot;a reliable
-MoQ/QUIC leg&quot; now reads &quot;a MoQ/QUIC leg that delivers the track on
-streams&quot;.  In <xref target="multicast-quic"></xref>, item 1 now says that the QUIC
-DATAGRAM frame carries the symbol as an object of an mmtp track sent
-as datagrams, or of its repair tracks ([MOQ-MMT] Section 4.3.1).</li>
 <li>In <xref target="multicast-and-amt-delivery"></xref>, &quot;A multicast endpoint carries only
 mmtp tracks, so a loc or cmaf track under moq-object-v1 reaches
 multicast through an mmtp rendition track&quot; now reads &quot;A multicast

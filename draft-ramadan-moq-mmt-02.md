@@ -2187,6 +2187,15 @@ or its RS_ID space.  Because each source packet carries one base SS_ID,
 a different K or interleave window needs a separate rendition; the
 keyframe overlay is a separate FEC instance, not a layer.
 
+An overlay instance whose base instance carries a positive
+`interleaveDepthMs` SHOULD carry a positive `interleaveDepthMs` and a
+`reorderToleranceMs` of its own.  Without the first a receiver has no
+deadline for an overlay block ([@!MOQ-FEC-CORE] Section 9.3), so it
+holds what waits on the overlay until a deadline it chooses itself;
+without the second a receiver whose deadline needs a signaled
+allowance does not use the overlay at all ([@!MOQ-FEC-CORE]
+Section 9.3).
+
 The overlay's instance object carries one member that this document
 defines, under the rule of [@!MOQ-FEC-CATALOG] Section
 3.4 that lets a block profile's document define
@@ -2278,10 +2287,13 @@ ones, are formed, located and wrapped exactly as base blocks are
 ([@!MOQ-FEC-CORE] Sections 5.4,
 5.5 and
 7.6), with K_overlay as the upper
-bound on their SSB_length.  Because a RAP is a small fraction of the
-media, an overlay block spans many base blocks; the overlay's recovery
-latency is therefore its own block span and is unrelated to
-`interleaveDepthMs`.
+bound on their SSB_length.  An overlay block that holds the fragments
+of several RAPs spans many base blocks, since a RAP is a small
+fraction of the media, and one that the publisher closes once its RAP
+has been sent spans little more than that RAP.  Either way the
+overlay's recovery latency is its own block span, which the overlay
+instance's own `interleaveDepthMs` bounds, and is unrelated to the
+base instance's.
 
 A receiver knows that a source packet is an overlay source symbol
 because the packet carries the 0x8B01 header extension
@@ -2556,8 +2568,12 @@ publisher MUST, in addition to the encoder constraints of
    elapsed send span from the first source or repair packet of every
    block to its last does not exceed the signaled value.  A zero value
    is usable only with the ISO `protection_window_size` alternative of
-   (#interleaving).  The value is not derived from a group count, frame
-   count, or per-symbol interval.
+   (#interleaving).  A value computed from a group count, frame count,
+   or per-symbol interval does not by itself bound the send span; a
+   publisher that computes it that way, for example from the cadence
+   at which it closes blocks, keeps it as a bound by closing a block
+   early and by starting no repair symbol it cannot send within it
+   ([@!MOQ-FEC-CORE] Sections 5.4 and 9.3).
 
 {#repair-tracks}
 ## Repair Tracks
@@ -3412,6 +3428,16 @@ moved into this document, and every citation of the FEC draft was
 re-pointed.  The section numbers in the -00 entry below are those of
 -01.
 
+- After the -02 posting: Section 7.4.1 recommends that an overlay
+  instance whose base instance carries a positive `interleaveDepthMs`
+  carry its own positive `interleaveDepthMs` and `reorderToleranceMs`,
+  since without them a receiver has no deadline for an overlay block.
+  Section 7.4.2 no longer says that every overlay block spans many
+  base blocks: a publisher may close one once its RAP has been sent.
+  Item 3 of Section 8.1 no longer forbids a value computed from a
+  count; it says such a value bounds the send span only when the
+  publisher keeps it, by closing blocks early and withholding repair
+  it cannot send in time.
 - Erratum after the -02 posting: Section 8.3 no longer lists
   `num_of_repair_symbol_per_packet` among the fields of an
   "iso-ssbg1-v1" entry.  [@!ISO.23008-1] Table C.3, in the 2023 edition
