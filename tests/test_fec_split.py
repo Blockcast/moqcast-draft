@@ -45,6 +45,50 @@ REQUIRED_IDS = {
     "MCAST": ["repair-only-endpoints", "multicast-delivery", "deployment-applicability", "multicast-quic", "receiver-repair-policy", "block-classification", "unicast-repair-budget", "provisional-symbols", "symbol-tracks-on-multicast", "security-considerations"],
     "MMT": ["iso-ssbg1-v1", "source-fec-payload-id", "repair-packet", "keyframe-overlay", "overlay-header-extension", "interleaving", "al-fec-message", "atsc-compatibility", "a3sa-signed-region", "iana-considerations"],
 }
+# The drafts cite other Internet-Drafts through unversioned references, so a built document names
+# the latest posted revision of each. These are the sections the drafts cite, with their titles in
+# draft-ietf-moq-transport-23 and draft-ietf-moq-msf-02. A number that is not listed here fails:
+# check it against the latest posted text and add it with its title.
+TRANSPORT_23 = {
+    "2.1": "Objects", "2.1.1": "Object Fields", "2.2": "Subgroups", "2.4.1": "Track Naming",
+    "3.1": "Subscriptions", "3.1.1": "Pausing Subscriptions", "3.1.4": "Largest Object",
+    "3.2.1": "Fetch Object Delivery", "3.2.3": "Relay Fetch Handling", "3.2.4": "Fetch State Management",
+    "3.3.1": "Location Filters", "3.3.2": "Range Filters", "3.4": "Fill Semantics",
+    "3.4.1": "Opening and Closing Fill Fetch Streams", "3.5": "Joining an Ongoing Track",
+    "5.1.1": "Definitions", "5.1.2": "Scheduling Algorithm", "5.2": "Delivery Timeouts and Data Reliability",
+    "6.2": "Session establishment", "6.4.2.1": "Request ID", "7.7": "Publisher Interactions",
+    "7.9": "Relay Object Handling", "8.1": "Variable-Length Integers", "8.2": "Location Structure",
+    "8.3": "Key-Value-Pair Structure", "8.4": "Track and Object Properties", "9.1.6": "MAX FILTER RANGES",
+    "9.12": "TRACK_STATUS", "9.19.4": "OBJECT_DELIVERY_TIMEOUT Parameter",
+    "9.19.7": "SUBSCRIBER PRIORITY Parameter", "9.19.9": "LOCATION FILTER Parameter",
+    "9.19.11": "OBJECTID FILTER Parameter", "9.19.15": "FILL PARAMETERS Parameter",
+    "9.19.17": "LARGEST OBJECT Parameter", "9.19.18": "PAUSED Parameter",
+    "9.19.19": "NEW GROUP REQUEST Parameter", "10.4": "DEFAULT PUBLISHER PRIORITY", "10.6": "DYNAMIC GROUPS",
+    "10.7": "Immutable Properties", "10.8": "Prior Group ID Gap", "11.1.1": "Object Status",
+    "11.2": "Datagrams", "11.2.1": "Object Datagram", "11.3.1": "Subgroup Header",
+    "11.3.2": "Closing Subgroup Streams", "11.4.1.1": "Flags",
+}
+MSF_02 = {
+    "4.1.1": "LOC to MOQT Stream mapping", "4.2": "Time-alignment", "4.3": "Packaging for multi-variant track switching",
+    "5": "Catalog", "5.1": "Root Catalog Fields", "5.1.1": "MSF version", "5.1.7": "Initialization Data List", "5.2": "Track Object Fields",
+    "5.2.2": "Track namespace", "5.2.4": "Packaging", "5.2.8": "Is Live", "5.2.13": "Alternate group",
+    "5.2.14": "Initialization reference", "5.2.15": "Dependencies", "5.2.19": "Codec", "5.2.22": "Timescale",
+    "5.2.23": "Maximum Bitrate", "5.2.46": "Keyframe spacing", "6": "Media transmission",
+    "6.1": "Group numbering", "6.2": "Object Numbering", "6.3": "Multi-Variant Fast Track Switching",
+}
+# the parameter, message or field that a section defines; the drafts name it just before they cite the section
+NAMED_BEFORE = {
+    "transport": {"9.12": "TRACK_STATUS", "9.19.4": "OBJECT_DELIVERY_TIMEOUT", "9.19.7": "SUBSCRIBER_PRIORITY",
+                  "9.19.9": "LOCATION_FILTER", "9.19.11": "OBJECTID_FILTER", "9.19.15": "FILL_PARAMETERS",
+                  "9.19.17": "LARGEST_OBJECT", "9.19.18": "PAUSED", "9.19.19": "NEW_GROUP_REQUEST"},
+    "msf": {"4.1.1": "stream mapping", "5.1.1": "version", "5.2.2": "namespace", "5.2.4": "packaging", "5.2.8": "isLive", "5.2.13": "altGroup", "5.2.14": "initRef",
+            "5.2.15": "depends", "5.2.19": "codec", "5.2.22": "timescale", "5.2.23": "bitrate",
+            "5.2.46": "keyframeSpacing"},
+}
+CITED = re.compile(r"\[@[!?]I-D\.ietf-moq-(transport|msf)\],? Sections? (\d+(?:\.\d+)*(?:(?:, (?:and )?| and )\d+(?:\.\d+)*)*)")
+# names that draft-ietf-moq-transport-23 does not have: it renamed the first, replaced the second by PAUSED
+# with the opposite values, and has no message of the third name
+GONE_FROM_TRANSPORT = re.compile(r"\b(KEY_VALUE_FORMATTING_ERROR|FORWARD|UNSUBSCRIBE)\b")
 KEYWORDS = re.compile(r"\b(MUST NOT|MUST|REQUIRED|SHALL NOT|SHALL|SHOULD NOT|SHOULD|NOT RECOMMENDED|RECOMMENDED|MAY|OPTIONAL)\b")
 IPR = re.compile(r"(?i)\bpatent|\bIPR\b|intellectual property|licen[cs]e|royalt")
 
@@ -58,6 +102,16 @@ def body(text: str) -> str:
     first = text.index("%%%")
     second = text.index("%%%", first + 3)
     return text[second + 3:]
+
+
+def flat(text: str) -> str:
+    """The text with every run of white space as one space, so a phrase matches across line breaks."""
+    return " ".join(text.split())
+
+
+def without_change_log(text: str) -> str:
+    """The document without its change log, which may name what an earlier revision said."""
+    return re.sub(r"(?ms)^# (?:Change Log|Changes from )[^\n]*\n.*?(?=^# |\Z)", "", text)
 
 
 def headings(text: str) -> dict[str, tuple[str, str]]:
@@ -227,6 +281,89 @@ class SplitContracts(unittest.TestCase):
             self.assertIn("[@!MOQ-FEC-BLOCK]", self.text["CATALOG"], "the binding cites the block-codes draft for scheme bounds")
         if "MMT" in self.text:
             self.assertRegex(self.text["MMT"], r"12 \+ 13 \+ T|25 \+ T")
+
+    def test_cited_sections_are_those_of_the_latest_posted_revisions(self):
+        tables = {"transport": TRANSPORT_23, "msf": MSF_02}
+        checked = 0
+        for key, text in self.text.items():
+            text = flat(text)
+            for m in CITED.finditer(text):
+                draft = m.group(1)
+                for number in re.findall(r"\d+(?:\.\d+)*", m.group(2)):
+                    with self.subTest(draft=key, cites=draft, section=number):
+                        self.assertIn(number, tables[draft], f"{key} cites {draft} Section {number}, which is not in the table of its latest revision")
+                        name = NAMED_BEFORE[draft].get(number)
+                        if name:
+                            before = text[max(0, m.start() - 200) : m.start()].lower()
+                            self.assertIn(name.lower(), before, f"{key} cites {draft} Section {number} ({tables[draft][number]}) without naming {name}")
+                        checked += 1
+        if "MMT" in self.text and "MULTICAST" in self.text:
+            self.assertGreater(checked, 100)
+
+    def test_names_and_rules_are_those_of_the_latest_posted_revisions(self):
+        for key, text in self.text.items():
+            with self.subTest(draft=key):
+                self.assertEqual(GONE_FROM_TRANSPORT.findall(without_change_log(text)), [])
+        if "CORE" in self.text:
+            core = flat(self.text["CORE"])
+            self.assertIn("MUST close the session with MALFORMED_KEY_VALUE", core)
+            # transport-23 Section 8.4: more instances of a supported Property than allowed make the track malformed
+            self.assertIn("carries more than one, a receiver that implements this document MUST also treat the track as malformed", core)
+            self.assertIn('"MOQ Properties" registry of [@!I-D.ietf-moq-transport] (Section 16.8 of that document)', core)
+        if "MULTICAST" in self.text:
+            multicast = flat(self.text["MULTICAST"])
+            # transport-23 Section 3.1.1: PAUSED set to 1 pauses, PAUSED set to 0 resumes
+            self.assertIn("To pause a subscription, the receiver sends a REQUEST_UPDATE with the PAUSED parameter set to 1", multicast)
+            self.assertIn("resumes a paused subscription with a REQUEST_UPDATE that sets PAUSED to 0", multicast)
+        if "MMT" in self.text:
+            mmt = flat(self.text["MMT"])
+            # msf-02 Section 6 leaves the stream mapping to the packaging; msf-01 put each object on a new stream
+            self.assertNotIn("maps each object to a new stream", mmt)
+            self.assertIn("Section 6 leaves the mapping of objects to streams to the packaging of each track", mmt)
+            # msf-02 Sections 4.3, 5.2.46 and 6.3 are new; the mmtp switching set keeps its own rules
+            self.assertIn("An mmtp track therefore does not carry the `keyframeSpacing` field", mmt)
+            self.assertIn("apply unchanged, except `keyframeSpacing`", mmt)
+        if "CATALOG" in self.text:
+            catalog = flat(self.text["CATALOG"])
+            # msf-02 Section 5.2.15 no longer says in which namespace a dependency is resolved
+            self.assertNotIn("does for `depends`", catalog)
+            self.assertIn("as a string entry of `depends` does ([@!I-D.ietf-moq-msf] Section 5.2.15), and a receiver resolves each in the source track's Track Namespace", catalog)
+        if "CORE" in self.text:
+            # msf-02 Section 4.1.1: by default the objects of a Group share one Subgroup, so an example that loses
+            # two objects of a Group to a delivery timeout and receives the rest declares the "object" mapping
+            self.assertIn('"packagingMetadata": "streamMapping=object"', self.text["CORE"])
+            self.assertIn('The track declares the "object" stream mapping ([@?I-D.ietf-moq-msf] Section 4.1.1)', self.text["CORE"])
+        # msf-02 Section 5.1.1: the root `version` is a String, and "draft-02" names that revision
+        for key, text in self.text.items():
+            if key in AS_POSTED:
+                continue
+            for m in re.finditer(r"^~~~ json\n(\{.*?)^~~~$", text, re.S | re.M):
+                document = json.loads(m.group(1))
+                if "tracks" in document:
+                    with self.subTest(draft=key, at=text[: m.start()].count("\n") + 1):
+                        self.assertEqual(document.get("version"), "draft-02")
+
+    def test_fec_source_info_is_requested_as_0x85_and_0x11_is_retired(self):
+        if "CORE" not in self.text:
+            self.skipTest("the core draft is not present")
+        core = self.text["CORE"]
+        rows = re.findall(r"^\| (\S+) \| (FEC_[A-Z_]+) \| Object \|", core, re.M)
+        self.assertEqual(rows, [("0x85", "FEC_SOURCE_INFO"), ("TBD1", "FEC_UNIT_START")])
+        value = int(rows[0][0], 16)
+        self.assertEqual(value % 2, 1, "a value of bytes needs an odd type")
+        self.assertTrue(0x80 <= value <= 0x37FF, "the Specification Required range of draft-ietf-moq-transport-23 Section 16.8")
+        self.assertNotEqual((value - 0x9D) % 0x7F, 0, "a grease value")
+        self.assertIn("whose type is the odd value 0x85 (Section 15.1)", core)
+        self.assertIn("0x85 is the value this document requests", core)
+        self.assertIn("It is requested as 0x85, an odd value from the range 0x80 to 0x37FF", core)
+        # draft-ietf-moq-loc-05 assigns 0x11 to its Codec String Property
+        self.assertIn("MUST NOT send 0x11 for this purpose and MUST NOT read a Property of type 0x11 as FEC Source Info", core)
+        for stale in ("whose type is the odd value 0x11", "0x11 is the value this document requests", "asks for 0x11", "| 0x11 |"):
+            self.assertFalse(stale in core, f"the core draft still says {stale!r}")
+        for key, text in self.text.items():
+            if key != "CORE":
+                with self.subTest(draft=key):
+                    self.assertNotRegex(flat(text), r"FEC Source Info Object Property \(type", "the type is stated in the core draft only")
 
     def test_changes_appendix_records_the_move(self):
         for key, text in self.text.items():

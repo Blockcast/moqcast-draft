@@ -401,8 +401,10 @@ An MMT stream maps to MoQ tracks as follows:
 | AL-FEC signaling message (OPTIONAL, packet_id 0) | Object in Subgroup 0 immediately before FT=0 (Section 8) |
 | AL-FEC repair | Track "video/repair" |
 
-[@!I-D.ietf-moq-msf] Section 6 maps each object to a new stream.  An
-mmtp track does not follow that rule.  It maps each MPU
+[@!I-D.ietf-moq-msf] Section 6 leaves the mapping of objects to
+streams to the packaging of each track, and recommends Subgroup 0
+for each object where the packaging defines no other mapping.  This
+document defines the mapping for an mmtp track.  It maps each MPU
 data unit to one subgroup (Section 4.3), and the objects of a
 subgroup share one stream ([@!I-D.ietf-moq-transport] Section 2.2),
 so each data unit's fragments travel in order on one stream.  An
@@ -434,8 +436,8 @@ packet, the Source FEC Payload ID and any profile-defined MMTP header
 extensions remain in their specified wire locations.  No object-layer
 prefix, suffix, or private replacement for those fields is permitted.
 [@!MOQ-FEC-CORE] Section 5.6 requires
-every source object to carry the FEC Source Info Object Property (type
-`0x11`); on an mmtp source object its value is the four-byte form of
+every source object to carry the FEC Source Info Object Property; on
+an mmtp source object its value is the four-byte form of
 that section, which names instance 0 and carries the network-byte-order
 `SS_ID` of the base instance, the value of the packet's Source FEC
 Payload ID ((#source-fec-payload-id)); the property is object metadata
@@ -659,7 +661,7 @@ Group as [@!MOQ-FEC-CORE] Section 7.7 specifies, or the missing
 objects of one Group in one FETCH whose LOCATION_FILTER spans them and
 whose OBJECTID_FILTER, where the peer's MAX_FILTER_RANGES admits that
 many Ranges, lists them ([@!I-D.ietf-moq-transport] Sections 3.3.2,
-9.1.6, 9.20.9 and 9.20.11).  It chooses its repair layers as
+9.1.6, 9.19.9 and 9.19.11).  It chooses its repair layers as
 [@!MOQ-FEC-CORE] Section 7.4 describes, and stops waiting for a repair
 where Section 6.1, step 6, says.
 
@@ -699,7 +701,7 @@ return together.
 A delivery timeout drops a datagram without notice
 ([@!I-D.ietf-moq-transport] Section 5.2), so the receiver learns of it
 only as a missing packet.  A subscriber MAY set an
-OBJECT_DELIVERY_TIMEOUT ([@!I-D.ietf-moq-transport] Section 9.20.4)
+OBJECT_DELIVERY_TIMEOUT ([@!I-D.ietf-moq-transport] Section 9.19.4)
 so that the publisher or relay serving it drops an object that has
 waited there longer than that, instead of sending it; the timeout
 counts only that wait, so it does not drop an object that was already
@@ -737,7 +739,7 @@ per-track field:
 altGroup (OPTIONAL, unsigned integer)
 ~~~
 
-defined by [@!I-D.ietf-moq-msf] Section 5.2.12: an integer
+defined by [@!I-D.ietf-moq-msf] Section 5.2.13: an integer
 identifying a group of tracks that are alternate versions of one
 another.  Two tracks are members of the same switching set if and only if both
 carry the `altGroup` field and the values are equal.  A track that
@@ -958,14 +960,14 @@ groupDurationMs (REQUIRED unless groupDurationTicks is present,
 ~~~
 
 The timescale is the MSF `timescale` field ([@!I-D.ietf-moq-msf]
-Section 5.2.21), resolved per the track's `packaging` value
+Section 5.2.22), resolved per the track's `packaging` value
 ([@!I-D.ietf-moq-msf] Section 5.2.4; this document adds `mmtp`,
 Section 13.1):
 
 | `packaging` | Timescale source |
 |-----------|------------------|
 | `mmtp`    | The `timescale` field, REQUIRED for mmtp tracks (Section 13.1); absence is a catalog error, and the 90 000 `asset_timescale` default of [@!ISO.23008-1] Clause 10.3.9.3 does not apply. |
-| `cmaf`    | The `timescale` field.  [@!I-D.ietf-moq-msf] Section 5.2.21 makes it optional, so this document makes it REQUIRED for any cmaf track to which this section applies (a member of a switching set governed by Section 4.4.1); leaving it unset on such a track is a catalog error. |
+| `cmaf`    | The `timescale` field.  [@!I-D.ietf-moq-msf] Section 5.2.22 makes it optional, so this document makes it REQUIRED for any cmaf track to which this section applies (a member of a switching set governed by Section 4.4.1); leaving it unset on such a track is a catalog error. |
 | `loc`     | The `timescale` field.  As for cmaf, this document makes it REQUIRED for any loc track to which this section applies; leaving it unset on such a track is a catalog error.  When the publisher also sends the TIMESCALE Property ([@!I-D.ietf-moq-loc] Section 2.3.1.2) on such a track, its value MUST equal the field. |
 | (unrecognized `packaging`) | 1 000 000 (microseconds).  This row covers track entries whose `packaging` value is unrecognized; the convention is fixed by this document and does not derive from [@!I-D.ietf-moq-transport].  A track entry without `packaging` is malformed ([@!I-D.ietf-moq-msf] Section 5.2.4) and fails catalog validation (Section 6.1, step 1). |
 
@@ -1009,7 +1011,7 @@ not an integer millisecond value:
 
 ~~~ json
 {
-  "version": 1,
+  "version": "draft-02",
   "tracks": [{
     "name": "video-30fps",
     "packaging": "mmtp",
@@ -1077,6 +1079,19 @@ intra-only tracks of one switching set is group-aligned only at GOP
 track group boundaries.  The exception does not
 apply to a switching set with no GOP track: intra-only tracks with no
 GOP peer still require exact equality.
+
+For an intra-only mmtp track and the GOP tracks of its switching set,
+the Group mapping of this exception takes the place of the packaging
+and the switching procedure that [@!I-D.ietf-moq-msf] Sections 4.3
+and 6.3 define for alternate tracks with dissimilar keyframe
+intervals.  Those sections rest on one frame per object, on one
+starting Group ID for all the tracks, and on Group IDs that rise by
+one; an mmtp object is an MMTP packet (Section 4.2), and mmtp Group
+numbers follow media time (Section 4.4.1).  An mmtp track therefore
+does not carry the `keyframeSpacing` field of [@!I-D.ietf-moq-msf]
+Section 5.2.46, and a receiver ignores that field on an mmtp track.
+Section 4.4.3 defines the field by which an mmtp track states its
+keyframe cadence.
 
 For example, an mmtp 15 fps intra-only base track with `timescale: 90000` and
 `groupDurationTicks: 6000` may share a switching set with a 15 fps GOP
@@ -1176,7 +1191,7 @@ whose `data` is the base64 encoding of an ISOBMFF initialization
 segment (`ftyp` + `moov`) sufficient to initialize the decoder for
 the track (including the codec configuration record, e.g. avcC or
 hvcC).  The track's `initRef` field ([@!I-D.ietf-moq-msf]
-Section 5.2.13) holds that entry's `id`.  This lets a subscriber
+Section 5.2.14) holds that entry's `id`.  This lets a subscriber
 initialize its decoder at catalog load, before the first FT=0 MPU
 metadata object arrives, removing one delivery round trip from the
 join path (Section 6.1).  A receiver ignores an `initRef` that names
@@ -1925,7 +1940,7 @@ A subscriber joins a live mmtp-packaged track as follows:
    describes.  Send SUBSCRIBE with a LOCATION_FILTER of type 0x05
    (Next Object) and a FILL_PARAMETERS parameter whose
    LOCATION_FILTER has type 0x01 (Relative Start) and StartGroup = 1
-   ([@!I-D.ietf-moq-transport] Sections 3.4, 9.20.9, and 9.20.15).
+   ([@!I-D.ietf-moq-transport] Sections 3.4, 9.19.9, and 9.19.15).
    The publisher sends the current group, from its start up to the
    Largest Object, on a fill fetch stream, and every later object on
    the subscription, so each object arrives once.  The group start
@@ -1940,7 +1955,7 @@ A subscriber joins a live mmtp-packaged track as follows:
    next group, which the subscription delivers from its start.  A
    subscriber that does not want the current group sends SUBSCRIBE
    with a LOCATION_FILTER of type 0x01 and StartGroup = 0 instead.  A
-   NEW_GROUP_REQUEST ([@!I-D.ietf-moq-transport] Section 9.20.19)
+   NEW_GROUP_REQUEST ([@!I-D.ietf-moq-transport] Section 9.19.19)
    cannot shorten that wait (Section 4.4.1).
 
 4. **Repair track.** If the subscriber wants FEC protection and the
@@ -3085,19 +3100,20 @@ Per-track catalog fields for mmtp packaging:
 |-------|--------|------|-------------|
 | `packaging` | REQUIRED | String | MUST be "mmtp" |
 | `mmtpMode` | REQUIRED | String | "mfu" or "mfu-datagram" (Sections 4.3, 4.3.1 and 5); defined by this document |
-| `timescale` | REQUIRED | Number | Media timescale in Hz ([@!I-D.ietf-moq-msf] Section 5.2.21, profiled REQUIRED here; Section 4.4.2) |
+| `timescale` | REQUIRED | Number | Media timescale in Hz ([@!I-D.ietf-moq-msf] Section 5.2.22, profiled REQUIRED here; Section 4.4.2) |
 | `presentationAnchorTicks` | REQUIRED for synchronized audio/video tracks | Signed integer | Track timestamp corresponding to shared presentation time zero (Section 4.4.1); defined by this document |
 | `groupDurationMs` | Conditional | Number | REQUIRED without the tick form; positive integer ms (Section 4.4.2); informational when ticks are present |
 | `groupDurationTicks` | OPTIONAL | Number | Positive exact group duration in track ticks; authoritative when present (Section 4.4.2); defined by this document |
-| `altGroup` | OPTIONAL | Number | Switching-set membership key ([@!I-D.ietf-moq-msf] Section 5.2.12, profiled in Section 4.4) |
+| `altGroup` | OPTIONAL | Number | Switching-set membership key ([@!I-D.ietf-moq-msf] Section 5.2.13, profiled in Section 4.4) |
 | `keyframeIntervalMs` | OPTIONAL | Number | Keyframe cadence, integer ms; video only; never shorter than the group duration, and equal to it where every keyframe begins a group (Section 4.4.3); defined by this document |
 | `keyframeIntervalTicks` | OPTIONAL | Number | Integer-tick override for the keyframe interval (Section 4.4.3); defined by this document |
-| `initRef` | OPTIONAL | String | `id` of the root `initDataList` entry, of type "inline", that holds the base64 ftyp+moov init segment ([@!I-D.ietf-moq-msf] Sections 5.1.7 and 5.2.13, profiled in Section 4.5) |
+| `initRef` | OPTIONAL | String | `id` of the root `initDataList` entry, of type "inline", that holds the base64 ftyp+moov init segment ([@!I-D.ietf-moq-msf] Sections 5.1.7 and 5.2.14, profiled in Section 4.5) |
 | `fec` | OPTIONAL | Array | FEC instances, encoded per [@!MOQ-FEC-CATALOG] Section 3 (Section 8) |
 
 All other base track fields of [@!I-D.ietf-moq-msf] Section 5.2
-apply unchanged.  In particular `name` and the rendition
-parameters -- `codec` ([@!I-D.ietf-moq-msf] Section 5.2.18; required
+apply unchanged, except `keyframeSpacing` (Section 4.4.2).  In
+particular `name` and the rendition
+parameters -- `codec` ([@!I-D.ietf-moq-msf] Section 5.2.19; required
 for media tracks per that section), `framerate`, `width`, `height`,
 `samplerate`, `channelConfig`, `bitrate`, and `lang` -- are flat,
 top-level fields of the track object.
@@ -3118,7 +3134,7 @@ Example, with the `data` value shortened:
 
 ~~~ json
 {
-  "version": 1,
+  "version": "draft-02",
   "tracks": [{
     "name": "video",
     "packaging": "mmtp",
@@ -3400,13 +3416,13 @@ format of [@!MOQ-MULTICAST] Section
   never rounded down; when the span is unknown, or the message
   signals zero (the size-based case), the converter omits it
 - a live service -> `isLive` = true ([@!I-D.ietf-moq-msf]
-  Section 5.2.7) on each media track and on its repair track, which
+  Section 5.2.8) on each media track and on its repair track, which
   the converter publishes while it ingests the service
 - the source composition/edit-list origin for each synchronized media
   track -> `presentationAnchorTicks`; a converter preserves one
   common presentation origin across audio and video, and does not
   emit zero merely because the source offset was unavailable
-- `bitrate` ([@!I-D.ietf-moq-msf] Section 5.2.22) from whatever
+- `bitrate` ([@!I-D.ietf-moq-msf] Section 5.2.23) from whatever
   signaling carries it, or from another source, or the conversion of
   that track fails
 
@@ -3466,7 +3482,7 @@ payload headers are not encrypted by CENC, so receivers, and MMTP
 gateways outside MoQ, can inspect packet type, sequence, and
 fragmentation metadata without accessing media sample content.  A MoQ
 relay treats the object payload, MMTP headers included, as opaque
-([@!I-D.ietf-moq-transport] Section 7.8) and never parses MMTP
+([@!I-D.ietf-moq-transport] Section 7.9) and never parses MMTP
 (Section 6.2).
 
 {#a3sa-signed-region}
@@ -3887,6 +3903,30 @@ publication as an RFC.
 - References: the companion documents are now cited as
   draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
   draft-ramadan-moq-fec-multicast-01 and draft-ramadan-moq-multicast-03.
+- Section 4.2 no longer restates the type of the FEC Source Info
+  Object Property, which [@!MOQ-FEC-CORE] Section 5.6 gives.  -02 said
+  0x11, which that document no longer uses.
+- Citations of other Internet-Drafts follow
+  draft-ietf-moq-transport-23, draft-ietf-moq-msf-02,
+  draft-ietf-moq-loc-05 and draft-ietf-moq-cmsf-01.  The text was
+  written against draft-ietf-moq-transport-22 and
+  draft-ietf-moq-msf-01.  Against them, six cited MoQ Transport
+  sections and the sections of six fields of the MOQT Streaming
+  Format (`altGroup`, `initRef`, `codec`, `timescale`, `bitrate` and
+  `isLive`) have new numbers, in this Change Log as well.
+- Two statements follow what draft-ietf-moq-msf-02 says.  Section 4.1
+  no longer says that an mmtp track departs from a rule of that
+  format, whose Section 6 now leaves the mapping of objects to
+  streams to the packaging.  Section 4.4.2 says that the Group
+  mapping of an intra-only mmtp track takes the place of the rules
+  that draft-ietf-moq-msf-02 adds, in its Sections 4.3 and 6.3, for
+  alternate tracks with dissimilar keyframe intervals, and Sections
+  4.4.2 and 13.1 say that an mmtp track does not carry the
+  `keyframeSpacing` field that it adds.  Neither statement changes
+  an mmtp track on the wire.
+- The worked catalogs carry `"version": "draft-02"`.  The `version`
+  field is a string ([@!I-D.ietf-moq-msf] Section 5.1.1), and
+  "draft-02" names draft-ietf-moq-msf-02; -02 carried the number 1.
 
 {#changes-since-mmt-01}
 ## Changes Since draft-ramadan-moq-mmt-01
@@ -3977,8 +4017,9 @@ re-pointed.  The section numbers in the -00 entry below are those of
   profile, the overlay and the ATSC 3.0 interworking.  Sections 10 to 14
   of -01 are now Sections 11 to 15.
 
-- The worked catalogs carry `"version": 1`, the catalog version of
-  [@!MOQ-FEC-CATALOG], in place of the `"draft-01"` string of -01.
+- The worked catalogs carried `"version": 1` in -02, in place of the
+  `"draft-01"` string of -01.  They now carry `"version": "draft-02"`
+  (see the changes since -02).
 - Sentences that are new rather than moved, listed verbatim with the -01
   text they replace where one exists:
 
@@ -4054,8 +4095,8 @@ re-pointed.  The section numbers in the -00 entry below are those of
     2 carries the same text.)
 
   - [MOQ-FEC-CORE] Section 5.6 requires
-    every source object to carry the FEC Source Info Object Property
-    (type 0x11); on an mmtp source object its value is the four-byte
+    every source object to carry the FEC Source Info Object Property;
+    on an mmtp source object its value is the four-byte
     form of that section, which names instance 0 and carries the
     network-byte-order SS_ID of the base instance, the value of the
     packet's Source FEC Payload ID (Section 7.2); the property is object
@@ -4499,9 +4540,10 @@ re-pointed.  The section numbers in the -00 entry below are those of
   Object ID, which [@!I-D.ietf-moq-transport] Section 2.1 does not allow
   (Sections 3.1, 4.1, 4.6, 5, 5.2, and 8). Section 4.6 is retitled
   "Object Identifier Assignment and Reconstruction".
-- Section 4.1 states that an mmtp track maps one data unit, not one
-  object, to a stream, unlike [@!I-D.ietf-moq-msf] Section 6, and keeps
-  the Group and Object numbering of its Sections 6.1 and 6.2.
+- Section 4.1 states that an mmtp track maps one data unit to a
+  stream, a mapping that [@!I-D.ietf-moq-msf] Section 6 leaves to the
+  packaging, and keeps the Group and Object numbering of its Sections
+  6.1 and 6.2.
 - The join (Section 6.1, step 3) uses the current-group join of
   [@!I-D.ietf-moq-transport] Section 3.5: SUBSCRIBE with a Next Object
   LOCATION_FILTER and FILL_PARAMETERS with StartGroup = 1. Section 6.2
@@ -4543,7 +4585,7 @@ re-pointed.  The section numbers in the -00 entry below are those of
   [@!I-D.ietf-moq-msf] Section 4.2, and the 10^-3 tolerance only
   classifies a track as intra-only.
 - Section 4.4.2, Table 3: the optional `timescale` field of cmaf tracks
-  is attributed to [@!I-D.ietf-moq-msf] Section 5.2.21, not to
+  is attributed to [@!I-D.ietf-moq-msf] Section 5.2.22, not to
   [@?I-D.ietf-moq-cmsf].  A loc switching-set member, like a cmaf one,
   carries a catalog `timescale`, which a TIMESCALE Property on the track
   must equal, so [@!I-D.ietf-moq-loc] is now a normative reference.  A
