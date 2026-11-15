@@ -865,8 +865,8 @@ keyframe-bearing block ((#keyframe-bearing-blocks)).
 
 This section applies to tracks protected under the `iso-ssbg1-v1`
 block profile of [@!MOQ-MMT], and the fields it reads are those of
-the MMTP packet header and of the keyframe overlay header extension,
-as Sections 7.1 and 7.4 of
+the MMTP packet header, of the MPU-mode payload header and of the DU
+header, as Sections 3.1 and 5.2 of
 [@!MOQ-MMT] define them.  The classification is a receiver-side
 repair-ordering policy computed from MMTP packet headers that the
 receiver already holds: it decides which unrecovered blocks are
@@ -886,20 +886,24 @@ that Sections 7.4 and
 7.7 of [@!MOQ-FEC-CORE] leave
 to the receiver.
 
-A base block of a video source track is keyframe-bearing if it
-carries, or may carry, any part of a RAP: a fragment of a RAP MFU, or
-of the FT=0 or FT=1 data unit that governs it ([@!MOQ-MMT]
-Sections 4.3 and
-5.1).  The receiver classifies
-each block when the
-block reaches its FEC deadline, from two inputs and only from them:
-in-band evidence in the source packets it holds, and the
-catalog-authored timing of the track, that is its group structure,
-one MPU per group of the catalog group duration ([@!MOQ-MMT]
-Sections 4.3 and
-4.4.2), and its keyframe
-interval ([@!MOQ-MMT]
-Section 4.4.3).  The block's
+A base block of a video source track is keyframe-bearing if the
+source symbols that the receiver lacks from it carry, or may carry,
+any part of a RAP: a fragment of a RAP MFU, or of the FT=0 or FT=1
+data unit that governs it ([@!MOQ-MMT] Sections 4.3 and 5.1).  The
+class goes by what the receiver lacks: it orders repair and decides
+what may stall video.  The budget of (#unicast-repair-budget) is
+credited by what a block carries, held or not, as that section says.
+The receiver classifies each block when the block reaches its FEC
+deadline, from two inputs and only from them: fields of the source
+packets that it holds, and the track's keyframe interval and group
+duration in the catalog ([@!MOQ-MMT] Sections 4.4.2 and 4.4.3).  A
+video MPU holds exactly one RAP, its first sample ([@!MOQ-MMT]
+Section 5.3.4), and every packet of an MPU carries the MPU sequence
+number.  A keyframe interval that is equal to the group duration
+tells the receiver that the publisher keeps to this.  The receiver
+reads neither `priority` nor `dep_counter`.  It reads a decode time
+for one purpose only, to check that statement, as this section says
+below.  The block's
 SS_Start and SSB_length, once known
 (Section 5.4 of [@!MOQ-FEC-CORE]), fix
 which SS_IDs belong to the block, and a positive
@@ -922,94 +926,138 @@ symbols can carry lies
 between the data units of the two bounding packets, those two
 included.
 
-The block is keyframe-bearing if any of the following holds:
+The bounding packets bound that data.  The class comes from two DU
+headers, which the MPU rule reads and which need not be the bounding
+packets.  The lower DU header is the last FT=2 source packet
+carrying a DU header that the receiver holds, in SS_ID order, before
+the block's first missing source symbol.  The upper DU header is the
+first one it holds after the block's last missing source symbol.
+Either may lie in an adjacent block.
 
-1. A source packet the receiver holds from the block sets `RAP_flag`,
-   carries the 0x8B01 overlay header extension (Section
-   7.4.3 of [@!MOQ-MMT]), or is
-   an FT=0 packet, or two source packets it holds from the block carry
-   different MPU sequence numbers.
+The rule uses two things that the receiver knows about what it holds:
 
-2. The two bounding packets carry different MPU sequence numbers, or
-   the lower bounding packet is the FT=0 packet or the first FT=1
-   packet of its MPU, or belongs to the first FT=2 sample of its MPU.
-   The missing symbols can then carry part of a group-start RAP, or of
-   the metadata that governs it ([@!MOQ-MMT] Section
-   4.3).
+- The lower side is clear when the receiver can tell that the lower
+  DU header's sample is not the first sample of its MPU, or when it
+  holds every packet of that first sample.  The block's missing
+  symbols then carry no
+  part of the RAP of the lower header's MPU.  [@!MOQ-MMT] Section 4.3
+  sets `RAP_flag` on the packet that begins the first sample of an
+  MPU, the packet whose DU header carries `offset` zero, and
+  [@!MOQ-MMT] Section 5.3.4 lets no packet of a later sample set it.
+  So a DU header that carries `offset` zero in a packet that does not
+  set `RAP_flag` belongs to a later sample.  So does a DU header whose
+  `movie_fragment_sequence_number` or `sample_number` differs from
+  those of a DU header of the same MPU whose packet sets `RAP_flag`.
 
-3. The catalog carries a usable keyframe interval, and the closed
-   interval between the authored decode times ([@!MOQ-MMT]
-   Section 5.1) of the samples of
-   the two bounding packets contains an
-   instant a positive whole number of keyframe intervals after the
-   decode time of the first sample of their MPU.  Where a bounding
-   packet is an FT=1 packet, its time is the decode time of the first
-   sample it describes.  The interval is `keyframeIntervalTicks`, or
-   `keyframeIntervalMs` converted to the track timescale where that
-   conversion is exact; an inexact `keyframeIntervalMs` gives no usable
-   interval.
+- The start of an MPU is held whole when the receiver holds the MPU
+  metadata packet (FT=0) of that MPU, the movie fragment metadata
+  packet (FT=1) sent before its first sample, and every packet of
+  that first sample.
 
-The block is non-keyframe-bearing only when none of these holds and
-one of two things is true: the catalog carries a usable keyframe
-interval, the receiver holds both bounding packets, and it can
-determine every value item 3 needs; or the run rule below holds.
-Every other block is of unknown class, and a receiver MUST treat a
-block of unknown class as keyframe-bearing.
+A receiver holds every packet of a sample when it has reassembled the
+sample completely ([@!MOQ-MMT] Section 5.3.3).  The MPU rule has four
+items:
 
-The run rule reads the dependent run that a publisher states in the
-`dep_counter` of a DU header ([@!MOQ-MMT] Section 5.3.4).  It needs no
-keyframe interval, no decode time and no packet of the group's start.
-A receiver MUST NOT apply the run rule to a track unless it knows that
-the track's publisher states dependent runs as [@!MOQ-MMT] Section
-5.3.4 defines them.  Nothing in the stream says so: a publisher of
-earlier revisions may have sent `dep_counter` as a priority hint, or
-as the dependency_counter of [@!ISO.23008-1], which counts data units,
-and such a value states no run.
-The lower DU header is the last FT=2 source packet carrying a DU
-header that the receiver holds, in SS_ID order, before the block's
-first missing source symbol.  The upper DU header is the first one it
-holds after the block's last missing source symbol.  Either may lie
-in an adjacent block.  The run rule holds when all of the following
-do:
+1. Same MPU.  The two DU headers carry the same MPU sequence number,
+   and the lower side is clear.  Every missing symbol then belongs to
+   that MPU and lies after its first sample, so none carries part of a
+   RAP or of the FT=0 or FT=1 data unit that governs one.  The block
+   is non-keyframe-bearing.
 
-- The two DU headers carry the same MPU sequence number.
+2. Next MPU.  The upper DU header's MPU sequence number is the lower
+   DU header's plus one, modulo 2^32.  The start of the upper
+   header's MPU then lies between the two headers.  The block is
+   non-keyframe-bearing if the lower side is clear and the receiver
+   holds the start of the upper header's MPU whole.  Otherwise it is
+   keyframe-bearing.  Where the upper DU header begins the first
+   sample of its MPU, that is, it carries `offset` zero and its packet
+   sets `RAP_flag`, the FT=0 and FT=1 packets of that start are
+   enough: every other packet of the sample follows the header, so
+   none is a missing symbol of this block.
 
-- The lower DU header carries `offset` zero, and its packet does not
-  set `RAP_flag`.
+3. More than one MPU apart.  The two MPU sequence numbers differ in
+   any other way.  A whole MPU can then lie between the two headers,
+   its RAP with it.  The block is keyframe-bearing.
 
-- The lower DU header's `dep_counter` is at least 1 and at least n,
-  the number of samples after the lower DU header's sample up to and
-  including the upper DU header's sample.  Where the two headers carry
-  the same `movie_fragment_sequence_number`, n is the difference of
-  their `sample_number` values.  Where they carry different ones and
-  both carry `sample_number` 1, n is the difference of the two
-  `movie_fragment_sequence_number` values in serial number arithmetic.
-  In any other case n is undetermined and the run rule does not hold.
+4. No header on one side.  The receiver holds no lower or no upper DU
+   header.  The block is of unknown class.
 
-Every sample the block's missing symbols can carry then lies from the
-lower DU header's sample through the upper one's.  The lower sample is
-not a RAP.  Each later one lies inside the lower sample's dependent
-run, so none is a RAP and no FT=1 data unit between the two headers
-governs one.  No
-FT=0 data unit lies between two FT=2 packets of one MPU.  A receiver
-MUST NOT apply a dependent run from a DU header that follows the
-missing symbols, MUST NOT apply one across MPU sequence numbers, and
-draws nothing from `priority`.
+A block whose two DU headers carry the same MPU sequence number, and
+whose lower side is not clear, is keyframe-bearing: its missing
+symbols can carry part of the first sample of that MPU.  A receiver
+MUST treat a block of unknown class as keyframe-bearing.  A block of
+unknown class takes its class from items 1 to 3 once the receiver
+holds the header that it lacked, also after the block's FEC deadline,
+and the receiver treats it by that class from then on.  A repair that
+it already requested for the block stands as requested.
+
+The rule compares fields that every packet of the track already
+carries.  Its four items read no decode time and need no knowledge of
+the samples that follow a loss, so it holds for any frame structure:
+a chain of
+frames each predicted from the one before, reordered frames, or
+layers.  Its cost is that the class of a loss at the end of what the
+receiver holds is known only when the next DU header arrives.
+
+The rule rests on two things that a publisher keeps: exactly one RAP
+in a video MPU ([@!MOQ-MMT] Section 5.3.4), and an MPU sequence number
+that is never used twice on a track ([@!MOQ-MMT] Section 4.3).  A
+publisher of an earlier revision of [@!MOQ-MMT] could place further
+RAPs in an MPU, and no packet names the revision.  A receiver
+MUST NOT apply items 1 and 2 to a track unless its catalog carries a
+keyframe interval that is equal to the track's group duration
+([@!MOQ-MMT] Section 4.4.3).  It MUST NOT apply them to a track once
+it has found on that track either of two things:
+
+- a RAP that is not the first sample of its MPU; or
+
+- an MPU that lasts longer than the keyframe interval, that is, an MPU
+  one of whose samples has an authored decode time ([@!MOQ-MMT]
+  Section 5.1) one keyframe interval or more after that of its first
+  sample.
+
+A track of an earlier revision whose keyframe interval equals its
+group duration can hold a further RAP only in an MPU of the second
+kind.  A receiver that applies items 1 and 2 MUST look for the second
+before it classes a block, among the samples whose decode times it
+can determine, those of the block's two DU headers included.  This is
+the only use of a decode time in this section.  It decides whether
+the rule applies to the track, never the class of a block.  Once the
+receiver has found either thing, every block that item 1 or item 2
+classed, or would class, is of unknown class.
+
+The second check reaches only the samples whose decode times the
+receiver can determine.  Until it has found such an MPU, for example
+where the FT=1 packet that times the upper DU header's sample was
+lost, a receiver can class as non-keyframe-bearing a block whose
+missing symbols carry a further RAP of a track of an earlier revision.
+It then requests that repair at the lower priority and does not stall
+video for it.  The cost is bounded.  Such a track carries no statement
+of [@!MOQ-MMT] Section 5.3.4, so concealment runs to the next RAP that
+the receiver holds ((#other-video-blocks)).  A track of this revision
+holds no further RAP, so the case does not arise on it.
+
+A track to which items 1 and 2 do not apply gets no
+non-keyframe-bearing block from this section.  Each loss on it is
+treated as one that may hold a RAP: its repair is requested at
+keyframe priority, video may stall for it, and where the repair fails
+video does not resume before the next RAP
+((#keyframe-bearing-blocks)).  The statements of
+[@!MOQ-MMT] Section 5.3.4 cannot end concealment earlier on such a
+track.  This is the case of a track with no keyframe interval, of a
+track whose keyframes are not one group duration apart, for example
+one that moves a keyframe to a scene cut, and of a track of an earlier
+revision whose keyframe interval is shorter than its group duration.
+
+The same four items class a run of packets that a receiver lacks on
+any datagram leg ([@!MOQ-MMT] Section 6.1, step 6), read with the last
+DU header that it holds before the run and the first that it holds
+after it.
 
 In particular:
 
-- A block for which the receiver holds no lower or no upper bounding
-  packet at its FEC deadline is of unknown class.  So is one for which
-  it cannot determine a decode time that item 3 needs, unless the run
-  rule holds for it.  So is a block
-  discarded before its FEC deadline under a memory cap
-  ((#deadline-anchoring-and-discard)).
-
-- On a video track whose catalog entry carries no usable keyframe
-  interval, the receiver cannot exclude a keyframe after the group
-  start from any span except by the run rule.  Every block of the
-  track for which the run rule does not hold is keyframe-bearing or of
-  unknown class.
+- A block discarded before its FEC deadline under a memory cap
+  ((#deadline-anchoring-and-discard)) is of unknown class.
 
 - A block's keyframe classification uses its actual source-packet
   range.  A block MAY contain a complete Group, span a Group boundary,
@@ -1019,12 +1067,11 @@ In particular:
 A receiver MUST NOT classify a block from any input other than those
 this section names; in particular, the absence of `RAP_flag` on the
 packets it holds says nothing about a packet that was lost.  A
-publisher that wants receivers to be able to
-apply the non-keyframe treatment of (#other-video-blocks) publishes
-an exact
-keyframe interval, which then binds every keyframe of the track
-([@!MOQ-MMT] Section 4.4.3), or states dependent runs ([@!MOQ-MMT]
-Section 5.3.4), or does both.
+publisher that wants receivers to be able to apply the non-keyframe
+treatment of (#other-video-blocks) begins an MPU at every RAP, one
+every group duration, and publishes a keyframe interval equal to that
+duration ([@!MOQ-MMT] Sections 5.3.4 and 4.4.3).  It states nothing
+else, and nothing about later samples.
 
 The blocks of a track that the catalog identifies as audio are
 treated by (#audio-blocks), not classified by this section.  A track
@@ -1098,9 +1145,13 @@ If the data of an unrecoverable block that the receiver could not
 recover includes, or may include, any part of a RAP
 ((#block-classification)),
 the receiver treats the track as discontinuous, MAY stall video, and
-does not resume video before the next RAP ([@!MOQ-MMT] Section
-6.1,
-step 6).  Otherwise, as when it holds or has recovered every part of
+does not resume video before the earlier of these two samples: the
+next RAP ([@!MOQ-MMT] Section 6.1, step 6); the first sample whose DU
+header, taken as the upper DU header of the MPU rule
+((#block-classification)), shows by item 1 or item 2 of that rule
+that the data it could not recover includes no part of a RAP.  From
+such a sample it conceals as (#other-video-blocks) specifies.
+Otherwise, as when it holds or has recovered every part of
 the block's RAPs (including through a keyframe overlay,
 (#relationship-to-the-keyframe-overlay)), it conceals the block's
 remaining loss as for a
@@ -1157,14 +1208,20 @@ and only within the budget that keyframe repair leaves unspent.
 When such a block is unrecovered -- at its FEC deadline without
 unicast repair, or when its unicast repair has not completed by the
 presentation time of the first media it would repair -- the receiver
-MUST NOT stall.  It conceals the affected frames, and every frame that
-depends on them, until the next RAP, and keeps presentation and
-audio/video synchronization running:
+MUST NOT stall.  It conceals the affected frames and every frame that
+depends on them, and keeps presentation and audio/video
+synchronization running, as the list below specifies.  Where the
+publisher states what each sample needs ([@!MOQ-MMT] Section 5.3.4), a
+later frame depends on a lost frame when its anchor was lost or was
+itself concealed.  A frame that states nothing depends on every frame
+since the latest RAP, so without statements every frame up to the
+next RAP is concealed.
 
 - Concealment fills the presentation interval of the frames it
   replaces and ends at the authored presentation time of the next
   frame the receiver presents.  The receiver MUST NOT drop later
-  frames to absorb the loss.  It derives no
+  frames to absorb the loss.  Withholding a frame that depends on a
+  lost frame is concealment, not such a drop.  The receiver derives no
   timing for the frames it replaces ([@!MOQ-MMT] Section
   5.1).
 
@@ -1174,10 +1231,18 @@ audio/video synchronization running:
   as a solid or green fill).  The receiver MUST NOT submit to the
   decoder a sample that the packaging's reassembly rules have
   invalidated ([@!MOQ-MMT] Section
-  5.2).
+  5.2).  A receiver MUST NOT submit to a decoder a frame that depends
+  on a lost frame, unless it knows that the decoder produces output
+  from a sample with a missing reference.  Which decoders do is local
+  knowledge of the receiver.  No field of the stream states it.  A
+  receiver whose decoder reports an error on a frame that the
+  statements showed to depend on no lost frame SHOULD read no further
+  statement of that track, and conceals until the next RAP.
 
-- The next RAP ends concealment, and the receiver resumes normal
-  decoding from it.
+- Concealment ends at the first frame that depends on no lost frame,
+  and the receiver resumes decoding from it.  That frame is the next
+  RAP unless the publisher's statements show an earlier one.  A
+  receiver MAY conceal until the next RAP.
 
 {#audio-blocks}
 ## Audio Blocks
@@ -1207,16 +1272,24 @@ session and counted in bytes of repair symbol data, a repair symbol of
 a track counting as that track's `symbolSize` T (Section
 10.1 of [@!MOQ-FEC-CORE]).
 
-- Each block that (#block-classification) treats as keyframe-bearing,
-  including
-  a block of unknown class, credits the budget with P_t x T bytes when
-  it reaches its FEC deadline, where P_t is the total repair count of
+- A block of a video source track that carries, or may carry, the
+  start of an MPU credits the budget with P_t x T bytes when it
+  reaches its FEC deadline, where P_t is the total repair count of
   its base instance, the sum of P_i over its published layers (Section
   7.3.1 of [@!MOQ-FEC-CORE]), and T is its
-  track's `symbolSize`.
+  track's `symbolSize`.  The start of an MPU is its FT=0 data unit,
+  the FT=1 data unit sent before its first sample, and that sample.
+  The credit goes by what the block carries, whether or not the
+  receiver lacks any of it: a block that arrives whole credits the
+  budget as one with losses does.  A block carries the start of an MPU
+  when a source packet that the receiver holds from it is an FT=0
+  packet or sets `RAP_flag`, or when two source packets that the
+  receiver holds from it carry different MPU sequence numbers.  A
+  block may carry one when (#block-classification) classes it as
+  keyframe-bearing or of unknown class.
 
-- A credit expires when the next keyframe-bearing block of the same
-  source track reaches its FEC deadline, so unspent budget never
+- A credit expires when the next block of the same source track that
+  credits the budget reaches its FEC deadline, so unspent budget never
   accumulates beyond one block's credit per source track.
 
 - Every unicast repair FETCH debits the budget with the repair symbol
@@ -1243,7 +1316,7 @@ a track counting as that track's `symbolSize` T (Section
    outstanding for the same block and repair layer.
 
 2. Non-keyframe and audio repair MAY spend only unexpired credit that
-   keyframe-bearing blocks left unspent, and a receiver MUST NOT issue
+   keyframe repair left unspent, and a receiver MUST NOT issue
    a non-keyframe or audio repair FETCH that the remaining credit does
    not cover.  Because the cost of a Group range FETCH is not known
    before it is issued, a receiver MUST NOT request non-keyframe or
@@ -1392,7 +1465,23 @@ apply:
    before the genuine ones, can mis-delimit a block, mark it complete
    early, or cause its genuine repair packets to be discarded as
    inconsistent (Section 5.4 of
-   [@!MOQ-FEC-CORE]).  Deployments
+   [@!MOQ-FEC-CORE]).  An injected source packet can also carry a
+   false statement of what a sample needs ([@!MOQ-MMT] Section 5.3.4),
+   which leads a receiver to give a decoder a frame whose reference
+   is missing ((#other-video-blocks)).  An injected packet that shows
+   a RAP after the first sample of an MPU, or an MPU that lasts longer
+   than the keyframe interval, ends the use of items 1 and 2 of
+   (#block-classification) for that track at that receiver.  Each
+   later block of the track that stays unrecovered is then treated as
+   keyframe-bearing: it costs the repair that its own credit covers,
+   and video may stall for it.  The finding belongs to the track.  A
+   new track, such as the one that a publisher starts under
+   [@!MOQ-MMT] Section 4.4.1 when it cannot continue its numbering,
+   begins without it.  A change of the catalog does not end it,
+   because it does not refute what the receiver saw.  Where a receiver
+   verifies an integrity mechanism of the kind named next before it
+   reads a packet, an injected packet cannot produce either finding.
+   Deployments
    exposed to injection SHOULD authenticate source and repair packets
    with an integrity mechanism whose coverage includes the complete
    packet, the Source FEC Payload ID and the Repair FEC Payload ID
@@ -1516,14 +1605,57 @@ changed since draft-ramadan-moq-fec-multicast-00.
 
 New sentences:
 
-- (#block-classification) gains the run rule.  A receiver may class a
-  block as non-keyframe-bearing from the dependent run that a
-  publisher states in `dep_counter` ([@!MOQ-MMT] Section 5.3.4), read
-  from the DU headers it holds on either side of the block's missing
-  symbols.  Until now that class needed the catalog's exact keyframe
-  interval and the decode times of the bounding packets.  A receiver
-  applies the rule only to a track whose publisher it knows states
-  dependent runs, since nothing in the stream says so.
+- (#block-classification) classes a block by the MPU rule.
+  [@!MOQ-MMT] Section 5.3.4 now puts exactly one RAP in a video MPU,
+  its first sample, so the MPU sequence numbers of the DU headers that
+  a receiver holds on the two sides of a block's missing symbols show
+  whether those symbols can carry part of a RAP.  The rule has four
+  items: same MPU, next MPU, more than one MPU apart, and no header on
+  one side.  It replaces items 1 to 3 of -00.  Item 3 of -00 placed
+  keyframes inside an MPU from the catalog's keyframe interval and the
+  decode times of the bounding packets.  The rule reads no decode
+  time, no `priority` and no `dep_counter`.  Of the catalog it reads
+  one thing: a receiver applies items 1 and 2 only where the keyframe
+  interval is equal to the group duration, which states that every
+  keyframe begins a group and that a group lasts one group duration.
+  It stops applying them once it has found a RAP that is not the
+  first sample of its MPU, or an MPU that lasts longer than the
+  keyframe interval.  The second check is the one use of a decode
+  time: a track of an earlier revision with equal values can hold a
+  further RAP only in such an MPU.  A track that does not make the
+  statement gets no non-keyframe-bearing block, so each of its losses
+  is treated as one that may hold a RAP.  -00 treated a track with no
+  keyframe interval that way.  A track of an earlier revision whose
+  keyframe interval is shorter than its group duration is now treated
+  that way too, where item 3 of -00 classed its blocks by decode
+  time.  The rule relies on an MPU sequence number that is never used
+  twice on a track ([@!MOQ-MMT] Section 4.3).  A block is now
+  keyframe-bearing by what the symbols that the receiver lacks can
+  carry; -00 also counted a RAP that the receiver holds.  The budget
+  of (#unicast-repair-budget) is still credited by what a block
+  carries, so a block that arrives whole with the start of an MPU
+  credits it as before, and that section now says so in its own
+  words.  A block of
+  unknown class takes its class once the header that it lacked
+  arrives.  The first paragraph of the
+  section names the MPU-mode payload header and the DU header among
+  the fields read, where -00 named the overlay header extension.
+- In (#keyframe-bearing-blocks), a receiver that could not recover a
+  block whose loss may include part of a RAP no longer waits for the
+  next RAP in every case.  It resumes at the first sample whose DU
+  header shows, by the MPU rule, that the loss includes no part of a
+  RAP, where that sample comes first.
+- In (#other-video-blocks), concealment no longer runs to the next
+  RAP in every case.  It ends at the first frame that depends on no
+  lost frame, which the per-sample statements of [@!MOQ-MMT]
+  Section 5.3.4 can show to come before the next RAP.  A frame that
+  depends on a lost frame is withheld from a decoder that is not known
+  to produce output from a sample with a missing reference.  A
+  receiver that conceals until the next RAP still conforms.
+- In (#security-considerations), item 5 adds that an injected source
+  packet can carry a false statement of what a sample needs, and that
+  one can end the use of items 1 and 2 of (#block-classification) for
+  a track.
 - (#moot-keyframe-repair) is new.  In -00, and in -01 of
   [@?I-D.ramadan-moq-fec] Section 11.4.2, a keyframe repair was moot
   once a newer RAP had been admitted complete.  It is now moot only when, in
@@ -1664,7 +1796,9 @@ Moved here, by section of this document:
   7.4 (provisional blocks), 6.3.9 (anchoring of the fail-closed layer
   check), 7.5 (S_prev) and 9 (ts anchoring, discard policy).
 - (#receiver-repair-policy) and its subsections: -01 Sections 11.4
-  to 11.4.6.
+  to 11.4.6.  The classification of (#block-classification) and the
+  end of concealment in (#other-video-blocks) have changed since;
+  (#changes-from-00) says how.
 - (#security-considerations): -01 Section 14.4.
 - (#acknowledgements): -01 Appendix E.
 
