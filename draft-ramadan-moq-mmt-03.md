@@ -2832,8 +2832,9 @@ publisher MUST, in addition to the encoder constraints of
    integer-millisecond form is exact, or as the exact positive
    `groupDurationTicks`; when both are present, `groupDurationTicks`
    wins and `groupDurationMs` is informational.  Signal the keyframe
-   cadence in `keyframeIntervalMs` (or `keyframeIntervalTicks`), and the
-   frame rate in the `framerate` field (Sections 4.4.2, 4.4.3 and 13.1).
+   interval in `keyframeIntervalMs` (or `keyframeIntervalTicks`) where
+   Section 4.4.3 permits one, and the frame rate in the `framerate`
+   field (Sections 4.4.2, 4.4.3 and 13.1).
    The ISO 23008-1 AL-FEC message has no field for either value
    ([@!ISO.23008-1] Table C.3), so an encoder signals neither there, and
    a receiver takes neither from it.

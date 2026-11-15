@@ -2768,8 +2768,9 @@ catalog: publish a positive duration as <tt>groupDurationMs</tt> when its
 integer-millisecond form is exact, or as the exact positive
 <tt>groupDurationTicks</tt>; when both are present, <tt>groupDurationTicks</tt>
 wins and <tt>groupDurationMs</tt> is informational.  Signal the keyframe
-cadence in <tt>keyframeIntervalMs</tt> (or <tt>keyframeIntervalTicks</tt>), and the
-frame rate in the <tt>framerate</tt> field (Sections 4.4.2, 4.4.3 and 13.1).
+interval in <tt>keyframeIntervalMs</tt> (or <tt>keyframeIntervalTicks</tt>) where
+Section 4.4.3 permits one, and the frame rate in the <tt>framerate</tt>
+field (Sections 4.4.2, 4.4.3 and 13.1).
 The ISO 23008-1 AL-FEC message has no field for either value
 (<xref target="ISO.23008-1"></xref> Table C.3), so an encoder signals neither there, and
 a receiver takes neither from it.</t>

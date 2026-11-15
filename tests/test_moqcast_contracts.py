@@ -213,6 +213,28 @@ class PublishedExamples(unittest.TestCase):
         ):
             yield " ".join(text.replace("`", "").split())
 
+    def test_guard_reach_is_stated_and_the_interval_is_signalled_only_where_permitted(self):
+        # FEC multicast Section 6.1 says what the decode-time guard cannot see and what that costs.
+        # MMT's operational list must not demand a keyframe interval that Section 4.4.3 lets a
+        # publisher omit (one that cannot state one interval for the track).
+        for text in self.plain("draft-ramadan-moq-fec-multicast-01", "block-classification", "audio-blocks"):
+            for rule in (
+                "The second check reaches only the samples whose decode times the receiver can determine.",
+                "It then requests that repair at the lower priority and does not stall video for it.",
+                "so concealment runs to the next RAP that the receiver holds",
+                "A track of this revision holds no further RAP, so the case does not arise on it.",
+            ):
+                self.assertIn(rule, text)
+        for suffix in ("md", "xml"):
+            raw = (ROOT / f"draft-ramadan-moq-mmt-03.{suffix}").read_text(encoding="utf-8")
+            if suffix == "xml":  # the markdown has bare "<" signs, so tags are stripped from the XML only
+                raw = html.unescape(re.sub(r"<[^>]+>", "", raw))
+            text = " ".join(raw.replace("`", "").split())
+            self.assertIn("Signal the keyframe interval in keyframeIntervalMs (or keyframeIntervalTicks) where "
+                          "Section 4.4.3 permits one", text)
+            self.assertNotIn("Signal the keyframe cadence in", text)
+            self.assertIn("a publisher that cannot state one interval for the track omits it", text)
+
     def test_the_dependent_run_and_the_run_rule_stay_out(self):
         # Author ruling 2026-11-15: the MPU rule replaces the dependent run of MMT Section 5.3.4
         # and the run rule of FEC multicast Section 6.1.  dep_counter stays ISO's field, with no

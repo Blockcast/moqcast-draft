@@ -1026,6 +1026,17 @@ the rule applies to the track, never the class of a block.  Once the
 receiver has found either thing, every block that item 1 or item 2
 classed, or would class, is of unknown class.
 
+The second check reaches only the samples whose decode times the
+receiver can determine.  Until it has found such an MPU, for example
+where the FT=1 packet that times the upper DU header's sample was
+lost, a receiver can class as non-keyframe-bearing a block whose
+missing symbols carry a further RAP of a track of an earlier revision.
+It then requests that repair at the lower priority and does not stall
+video for it.  The cost is bounded.  Such a track carries no statement
+of [@!MOQ-MMT] Section 5.3.4, so concealment runs to the next RAP that
+the receiver holds ((#other-video-blocks)).  A track of this revision
+holds no further RAP, so the case does not arise on it.
+
 A track to which items 1 and 2 do not apply gets no
 non-keyframe-bearing block from this section.  Each loss on it is
 treated as one that may hold a RAP: its repair is requested at
