@@ -511,7 +511,9 @@ align with MPU data-unit boundaries:
   in Subgroup 0, or a second one in a group, invalidates the group.
 - The FI=0 or FI=1 object that begins the first FT=2 sample of each
   timed group -- for a subsample-partitioned sample, the object that
-  begins its offset-0 data unit -- MUST have RAP Flag = 1.
+  begins its offset-0 data unit -- MUST have RAP Flag = 1.  On a video
+  track that sample is the group's only RAP, and no object of a later
+  sample of the group has RAP Flag = 1 (Section 5.3.4).
 
 The MPU sequence number remains present in-band (in the MMTP payload
 header of every MPU fragment) and delimits which packets belong to the
@@ -525,6 +527,18 @@ Asset-local: independently packetized renditions need not assign the
 same MPU number to the same media instant.  Counter-based group
 numbering therefore cannot satisfy the switching-set alignment
 requirements of Section 4.4.)
+
+On a track instance a publisher MUST give each MPU a greater MPU
+sequence number than the MPU before it, in serial number arithmetic
+modulo 2^32: greater by one, or by more where it dropped MPUs between
+the two.  It MUST NOT go back to a number that it has used on that
+track instance; [@!ISO.23008-1] Section 7.3.3 says that "The sequence
+number is unique within an Asset".  A publisher that restarts and
+cannot continue the count MUST close the track instance and start a
+new track with a distinct (namespace, track name) pair, as
+Section 4.4.1 requires of a publisher that cannot continue the Group
+numbers.  A receiver tells the packets of one MPU from those of the
+next by this number ([@!MOQ-FEC-MULTICAST] Section 6.1).
 
 For an ISOBMFF source, the publisher MUST preserve initialization in
 FT=0, MUST copy the authored `moof` and the original `mdat` prefix
@@ -1081,27 +1095,26 @@ on such tracks will produce group-boundary discontinuities.
 {#catalog-signaling-of-keyframe-interval}
 ### Catalog Signaling of Keyframe Interval
 
-The group duration above describes the cadence of MMTP media groups
-(one MPU per group, Section 4.3).  It does not describe whether an MPU
-contains additional keyframes after its required group-start random
-access point.  This document defines an OPTIONAL per-track field for
-the cadence of all keyframes, which the repair policy of
-[@!MOQ-FEC-MULTICAST] Section 6.1 uses to
-classify FEC blocks:
+A video MPU holds exactly one RAP, its first sample (Section 5.3.4),
+and an MPU is one group (Section 4.3), so the keyframes of a video
+track are its group starts.  The packets of a stream do not say that
+their publisher keeps to this.  This document defines an OPTIONAL
+per-track field by which the publisher says so in the catalog, and
+which the repair policy of [@!MOQ-FEC-MULTICAST] Section 6.1 reads
+before it takes a group boundary to bound the track's keyframes:
 
 ~~~
 keyframeIntervalMs (OPTIONAL, unsigned integer, milliseconds)
 ~~~
 
 `keyframeIntervalMs` is the interval between consecutive video
-keyframes, in integer milliseconds.  It is distinct from
-`groupDurationMs`: `groupDurationMs` is the duration of
-one MPU/group, whereas `keyframeIntervalMs` describes every keyframe,
-including any additional keyframes inside an MPU.  When the only
-keyframes are the required group-start RAPs and group duration is
-constant, the two values are equal; additional RAPs can make the
-keyframe interval shorter.  The field applies to video tracks only; a
-publisher that cannot determine the cadence simply omits it.
+keyframes, in integer milliseconds.  On a track whose groups each last
+one group duration (Section 4.4.2) it equals the group duration, and
+that equality is the statement that receivers read.  A
+publisher MUST NOT publish a keyframe interval shorter than the
+track's group duration: such a value states keyframes inside a group,
+which Section 5.3.4 forbids.  The field applies to video tracks only;
+a publisher that cannot state one interval for the track omits it.
 
 Its absence is not a catalog error:
 subscribers MUST NOT reject a catalog solely because it is missing,
@@ -1109,13 +1122,25 @@ and a receiver MUST NOT substitute a locally chosen or observed
 cadence for it.  When present, `keyframeIntervalMs` MUST be a
 positive integer; a zero value is a catalog error.
 
-The repair policy of [@!MOQ-FEC-MULTICAST] Section
-6.1 relies on a published keyframe interval
-to exclude keyframes from part of a group, so when
-the field is present it binds every keyframe of the track: the publisher MUST NOT emit a
-keyframe other than at a group start or a whole number of intervals
-after one.  A publisher whose encoder can place keyframes off that
-cadence, for example at scene cuts, omits the field.
+A published keyframe interval binds every keyframe of the track: the
+publisher MUST NOT emit a keyframe other than at a group start, and a
+publisher whose keyframe interval equals the group duration MUST NOT
+let an MPU of the track last longer than one group duration.  A
+receiver that reads a keyframe interval equal to the group duration
+relies on every keyframe of the track being the first sample of an
+MPU.  It does not rely on that for a track whose catalog carries no
+keyframe interval, or one that differs from the group duration.
+Revisions of this document up to -02 let an MPU hold further keyframes
+after its first sample, each a whole number of keyframe intervals
+after the group start, and did not bound how long an MPU lasts.  Their
+publishers described such keyframes with an interval shorter than the
+group duration, and omitted the field where an encoder could place
+keyframes off its cadence, for example at scene cuts.  On a track of
+such a revision whose keyframe interval equals its group duration, an
+MPU that lasts no longer than the interval holds one keyframe, and a
+longer MPU can hold more.  [@!MOQ-FEC-MULTICAST] Section 6.1 says how
+a receiver guards against a longer MPU, and what it does with a track
+that does not make the statement.
 
 As with the group duration, the integer-millisecond form cannot
 express a keyframe cadence whose tick count is non-integer on the
@@ -1128,10 +1153,11 @@ keyframeIntervalTicks (OPTIONAL, unsigned integer)
 expressed in the same timescale as `groupDurationTicks` (Section 4.4.2,
 selected by the track's `packaging`).  If both
 `keyframeIntervalMs` and `keyframeIntervalTicks` are present,
-`keyframeIntervalTicks` wins.  Unlike
-`groupDurationTicks`, this document places no switching-set agreement
-requirement on the keyframe interval: it is a per-track hint,
-and tracks in a switching set MAY carry different keyframe cadences.
+`keyframeIntervalTicks` wins.  The interval is compared with the group
+duration in ticks of that timescale: `keyframeIntervalTicks`, or
+`keyframeIntervalMs` converted to the track timescale where that
+conversion is exact, against `groupDurationTicks`.  An inexact
+`keyframeIntervalMs` gives no usable interval.
 
 {#init-segment-signaling}
 ## Init Segment Signaling
@@ -1471,8 +1497,9 @@ Origin packetizer requirements:
 3. Each subsample data unit of one sample MUST be published as its
    own subgroup per Section 5.3.2, contiguously per Section 5.2.2.
 4. `priority` and `dep_counter` describe the sample and SHOULD be
-   identical across its subsample data units.  A non-zero
-   `dep_counter` MUST be identical across them (Section 5.3.4).
+   identical across its subsample data units.  `priority` MUST be
+   identical across them on every sample of an MPU whose RAP carries
+   `priority` 254 in any of its data units (Section 5.3.4).
 
 Relays and this mapping MUST NOT create, merge, or re-partition
 subsample data units.
@@ -1495,11 +1522,10 @@ as incomplete (Section 5.2, item 5), like any other data unit; no
 additional sample-level timer is defined or permitted.
 
 The sample's RAP flag is the RAP flag of the FI=0 or FI=1 object of
-its offset-0 data unit.  On a track under a keyframe overlay,
-`RAP_flag` marks overlay members ((#overlay-membership)), so a
-keyframe that the overlay leaves uncovered has a RAP flag of 0; a
-receiver that looks for random access points inside an MPU finds only
-the covered ones there.  FEC is unaffected by the partition: source
+its offset-0 data unit.  On a video track it is set on the first
+sample of an MPU and on no other (Section 5.3.4), with or without a
+keyframe overlay ((#overlay-membership)).  FEC is unaffected by the
+partition: source
 symbols are MMTP packets ((#iso-ssbg1-v1)), and the packet stream's
 block and interleave structure does not depend on data-unit boundaries.
 
@@ -1703,48 +1729,154 @@ Section 4.3).  Accordingly a receiver:
   [@!ISO.23008-1] Section 9.3.2.3), since these are decode-order
   roots upon which other access units depend.
 
-A publisher MAY state a sample's dependent run in the `dep_counter`
-of its DU header.  The value 0 states nothing.  A value N greater than
-0 states that each of the N samples that follow this sample in the
-track's authored order (Section 4.3) is not a RAP and cannot be
-decoded without this sample.  The value is a floor: a publisher MAY
-send less than the true count, and 255 states 255 or more.  This is
-the dependency_counter of [@!ISO.23008-1] Section 9.3.2.3, counted in
-samples and allowed to understate.
+On a video track a publisher MUST begin a new MPU at every RAP.  The
+first sample of an MPU is then its only RAP: no later sample of the
+MPU is one.  [@!ISO.23008-1] Section 6.4 says that "The first access
+unit of an MPU shall be an SAP (of SAP type 1, 2, or 3)"; this mapping
+adds that no later access unit of the MPU is one.  A publisher
+MUST NOT set `RAP_flag` on a packet of a later sample of the MPU.  An
+MPU is one group (Section 4.3), so a group begins at every RAP of the
+track and holds no other.  Section 4.4.1 gives each MPU a Group number
+greater than that of the MPU before it, so no two RAPs of a track fall
+in the same group-duration interval of that formula.  A publisher
+whose encoder could place a second RAP there, for example at a scene
+cut, sets the encoder not to.  A publisher whose encoder codes a
+keyframe inside a group all the same MAY send that picture as a later
+sample of the MPU, without `RAP_flag` and with a `priority` that the
+table below allows on a sample that is not a RAP.  It is then not a
+RAP, nor a keyframe in the sense of Section 4.4.3: no receiver begins
+decoding at it, and its loss is concealed as that of any later
+sample.  This mapping does not repacketize
+(Section 5.2): an input MMTP flow whose video MPUs hold a later RAP
+does not meet this requirement until its origin packetizer begins an
+MPU at every RAP.  This paragraph binds video tracks only.
 
-A publisher MUST send 0 unless, when it sends the sample, it knows
-that the next N samples are not RAPs and depend on this one.  A
-publisher with a fixed keyframe interval of K samples, each of whose
-samples is predicted from the sample before it, knows this: the
-sample p samples after a RAP carries the smaller of 255 and K - 1 -
-p.  It counts from the latest RAP, not from the start of the group,
-since a group can hold more than one RAP
-((#catalog-signaling-of-keyframe-interval)).  A
-publisher that reorders frames, or that does not know where its next
-RAP falls (for example one that may insert a RAP at a scene cut),
-sends 0.  A publisher that sends a non-zero
-`dep_counter` on any sample of a track:
+Every MMTP packet of an MPU carries the MPU sequence number
+(Section 4.3).  With one RAP in an MPU, a receiver that compares that
+number on the two sides of a loss knows whether the loss can hold a
+RAP, and [@!MOQ-FEC-MULTICAST] Section 6.1 gives the rule.  The rule
+reads no field that describes later samples, so it holds for reordered
+frames and for layered streams as it does for a chain of frames each
+predicted from the one before.
 
-- MUST set the RAP flag on the FI=0 or FI=1 object that begins the
-  offset-0 data unit of every RAP sample of that track, not only of
-  the first sample of each group (Section 4.3);
-- MUST, if the catalog protects the track with a keyframe overlay,
-  cover every RAP sample of the track with the overlay
-  ((#overlay-membership)), since a packet of a keyframe that the
-  overlay leaves uncovered does not set `RAP_flag`;
-- MUST place exactly one sample in each movie fragment of an MPU that
-  holds more than one movie fragment; and
-- MUST carry the same value in every subsample data unit of a sample
-  (Section 5.2.1).
+The packets of a stream do not name the revision that its publisher
+follows, and revisions of this document up to -02 let an MPU hold
+further RAPs after its first sample and required the RAP flag only on
+the first sample of a group.  A receiver therefore learns from the
+catalog that a track keeps to one RAP in an MPU: a keyframe interval
+that is equal to the group duration says so (Section 4.4.3).  A
+publisher that wants receivers to rely on it publishes that interval,
+and then lets no MPU of the track last longer than one group
+duration.  A track of an earlier revision whose catalog carries such
+an interval holds one RAP in each MPU that lasts no longer than the
+interval, since a published interval already bound every keyframe of
+the track to that cadence.  Those revisions did not bound how long an
+MPU lasts, so such a track can hold a further RAP in an MPU that
+lasts longer.  A receiver does not take one RAP in an MPU for granted
+on a track whose catalog carries no keyframe interval or one that
+differs from the group duration.  Nor does it on a track on which it
+has found a RAP that is not the first sample of its MPU, or an MPU
+that lasts longer than the keyframe interval.  [@!MOQ-FEC-MULTICAST]
+Section 6.1 says what it does then.
 
-A receiver draws no conclusion from the value 0, and none about a
-sample that precedes the one that carries the counter.
-[@!MOQ-FEC-MULTICAST] Section 6.1 says how a receiver on a multicast
-leg uses a dependent run to show that a loss carries no part of a RAP.
-A track whose frames are reordered cannot state one.  A header
-extension that locates the latest RAP by its first packet sequence
-number and its packet count would serve such a track without knowledge
-of later samples; this document does not define it.
+`dep_counter` is the dependency_counter of [@!ISO.23008-1]
+Section 9.3.2.3, which "indicates the number of data units that depend
+on their media processing upon the media data in this MFU".  This
+mapping gives the field no meaning of its own.  A publisher sends 0
+unless it knows that number.  A receiver MUST NOT take from
+`dep_counter` any decision that changes what it decodes or presents;
+the guidance above on recovery and retention is its only use.
+
+A sample needs another sample when a decoder cannot decode it
+correctly unless it has decoded the other.  That covers a picture the
+sample predicts from, a picture its reference lists name without
+using, stored entropy or filter state, a parameter set that only the
+other sample carried, and a counter that the decoder checks for gaps.
+
+A publisher MAY state what a video sample needs in the `priority` of
+its DU header.  Every sample that arrives carries its own statement,
+so a receiver applies it without the header of a sample that was lost.
+
+A RAP sample whose `priority` is 254 promises one thing about every
+sample after it up to the next RAP, that is every later sample of its
+MPU: the sample carries 128, or a value from 1 to 62 or from 65 to 126
+that is true of it by the table below.  It does not promise that any
+of them names an anchor: a sample that carries 128 states nothing.
+Any other value on a RAP sample promises
+nothing about the samples after it.  A publisher that makes no promise
+sends 255, or 0 where it authors no priority at all.  A publisher
+MUST NOT send a value from 129 to 253, and a receiver reads such a
+value on a RAP sample as 255.  A publisher MUST NOT send a value above
+128 on a sample that is not a RAP.
+
+| `priority` of a sample that is not a RAP | Meaning |
+|---|---|
+| 128 | The sample is not a RAP.  It states nothing about what it needs. |
+| 0 | States nothing, not even whether the sample is a RAP.  A publisher that authors no priority at all sends it on every sample. |
+| 1 to 62 | The sample's anchor is the sample D places before it, D being the value.  No later sample of the track needs this sample. |
+| 65 to 126 | The sample's anchor is the sample D places before it, D being the value minus 64.  A later sample may need this sample. |
+| 63, 64, 127 | Reserved.  A publisher MUST NOT send them.  A receiver reads them as stating nothing. |
+| 129 to 255 | Not sent on a sample that is not a RAP.  A receiver reads them as stating nothing. |
+
+"D places before" counts samples in the track's authored order
+(Section 4.3).  An anchor states that this sample can be decoded
+correctly once the anchor has been decoded correctly.  Every sample
+that this sample needs is its anchor or a sample that the anchor
+needs.  An anchor MUST NOT be earlier than the RAP with which the
+sample's MPU begins: a publisher sends 128 on a sample that needs a
+sample before that RAP.  An anchor therefore always lies in the MPU of
+the sample that names it.
+
+A publisher that sends 254 on a RAP MUST derive the `priority` of
+every later sample of that MPU from the sample's coded data: the
+reference lists the sample carries, or a marking that the codec makes
+binding.  These values are not configuration.  On such a sample it
+MUST send 128 when it cannot tell, when no single sample serves as
+anchor, or when the nearest sample that serves is more than 62 places
+back.  It MAY name as anchor a sample nearer than the sample strictly
+needs, provided the rule above holds.  It MUST NOT send a value from 1
+to 62 unless the sample itself shows that no later sample can need it.
+It MUST place exactly one sample in each movie fragment of an MPU that
+holds more than one movie fragment, so that a receiver can count the
+places between two samples from their DU headers.  It MUST carry the
+same `priority` in every subsample data unit of a sample
+(Section 5.2.1).
+
+A receiver takes a sample for a RAP when its RAP flag is set
+(Section 5.2.1), and reads the `priority` of any other sample from the
+table above.  It applies the table only on a sample that follows, in
+the same MPU, a RAP of `priority` 254 which it has decoded.  It draws
+nothing about a sample from the header of a sample that it did not
+receive.  It takes a sample that states nothing to need every sample
+from the RAP of its MPU up to itself.  A receiver that reads an anchor
+earlier than that RAP knows that the publisher does not follow this
+section, and reads no further statement of the track.
+[@!MOQ-FEC-MULTICAST] Section 6.3 says what a receiver does with a
+sample whose anchor was lost.
+
+A receiver finds an anchor from DU header fields, and only among the
+samples that carry the MPU sequence number of the sample that names
+it.  Where two DU headers carry the same
+`movie_fragment_sequence_number`, their samples are apart by the
+difference of their `sample_number` values.  Where they carry
+different ones and both carry `sample_number` 1, their samples are
+apart by the difference of the two `movie_fragment_sequence_number`
+values in serial number arithmetic.  In any other case the count is
+undetermined.  A receiver that cannot tell which sample a sample names
+reads that sample as stating nothing.  A sample of another MPU is
+never taken for an anchor, whatever numbers it carries.
+
+The bands keep the order of the subsample_priority of [@!ISO.23008-1]
+Section 9.3.2.3, in which a higher value has higher priority: a RAP
+(254, 255), then a sample that states nothing (128), then a sample
+that a later one may need (65 to 126), then a sample that no later one
+needs (1 to 62).  A sample that states nothing ranks above the samples
+that state a need because what depends on it is unknown, not because
+more does.  Inside a band the value is a distance and ranks nothing.
+The value 0 is outside this order: a publisher that authors no
+priority sends it on every sample.  The guidance at the head of this
+section, to favour a higher value in recovery and retention, applies
+to these values as to any other.
 
 On a multicast or AMT leg, [@!MOQ-FEC-MULTICAST] Section 6 specifies
 the receiver repair policy this implies, and on any other datagram
@@ -1823,12 +1955,17 @@ A subscriber joins a live mmtp-packaged track as follows:
 6. **Loss and discontinuity.** If a RAP MFU is discarded under
    unrepairable loss (Section 5.2), the subscriber MUST
    treat the track as discontinuous and MUST NOT resume presentation
-   before the next completely reassembled RAP MFU (normally the
-   start of the next group).  The same holds when the group's FT=0
+   before the next completely reassembled RAP MFU, which begins a
+   later group (Section 5.3.4).  The same holds when the group's FT=0
    data unit, or the FT=1 data unit governing its RAP, is lost, since
    the RAP then cannot be admitted (Section 4.3).  On a datagram leg
    (Section 2), loss that spares those three data units does not make
-   the track discontinuous.  On a multicast or AMT leg
+   the track discontinuous.  A receiver tells such loss from the MPU
+   sequence numbers of the packets that it holds on the two sides of
+   the loss, by the MPU rule of [@!MOQ-FEC-MULTICAST] Section 6.1.
+   Where that rule does not apply to the track, the receiver cannot
+   tell, and treats the loss as one that may include them.  On
+   a multicast or AMT leg
    [@!MOQ-FEC-MULTICAST] Section 6 specifies its handling.  On any
    other datagram leg the receiver stops waiting for a repair that it
    requested (Section 4.3.1) no later than the presentation time of the
@@ -2375,26 +2512,22 @@ Point with which its MPU begins (Section 5.3.4), to set `RAP_flag`.  On
 a track under an overlay that object is therefore a member, so the
 first sample of every MPU is a covered keyframe and the FT=0 data unit
 of every MPU is a member; an MPU without a Random Access Point does not
-occur in this profile.  A publisher MAY also cover, keyframe by
-keyframe, any keyframe that is not the first sample of its MPU: the
-fragments of a keyframe so covered, and the FT=1 data unit of the movie
-fragment that contains it, are then members by the list above, and no
-packet of a keyframe that the publisher leaves uncovered sets
-`RAP_flag`.  A receiver needs no signal of that choice, since it takes
-membership from the 0x8B01 extension alone
-((#overlay-header-extension)).  A publisher that states dependent runs on
-the track covers every keyframe with the overlay
-((#random-access-and-priority)).
+occur in this profile.  An MPU holds no keyframe after its first
+sample ((#random-access-and-priority)), so the overlay covers every
+keyframe of the track, and the members of an MPU are its FT=0 data
+unit, the FT=1 data unit of its first movie fragment and the fragments
+of its first sample.  A receiver takes membership from the 0x8B01
+extension alone ((#overlay-header-extension)).
 
 Overlay source symbols are numbered consecutively within the overlay
 instance, in the order the publisher emits them: the overlay SS_ID is 0
 at the first overlay source symbol of the stream and advances by one per
 overlay source symbol, modulo 2^32 ([@!MOQ-FEC-CORE] Section
 7.6).  Section 4.3 fixes that order within an MPU: its FT=0 data unit
-first, then, for each movie fragment that contains a covered keyframe,
-that fragment's FT=1 data unit followed by the fragments of the covered
-keyframes it contains (Section 5.2.2); a packet emitted between two
-members takes no overlay SS_ID.  The overlay SS_ID is the value the RAP
+first, then the FT=1 data unit of its first movie fragment, then the
+fragments of its first sample, the covered keyframe (Section 5.2.2); a
+packet emitted between two members takes no overlay SS_ID.  The
+overlay SS_ID is the value the RAP
 source packet carries in its 0x8B01 header extension
 ((#overlay-header-extension)).  It lives in the overlay instance's own
 SS_ID space, independent of the base instance's, and the two IDs on one
@@ -2952,7 +3085,7 @@ Per-track catalog fields for mmtp packaging:
 | `groupDurationMs` | Conditional | Number | REQUIRED without the tick form; positive integer ms (Section 4.4.2); informational when ticks are present |
 | `groupDurationTicks` | OPTIONAL | Number | Positive exact group duration in track ticks; authoritative when present (Section 4.4.2); defined by this document |
 | `altGroup` | OPTIONAL | Number | Switching-set membership key ([@!I-D.ietf-moq-msf] Section 5.2.12, profiled in Section 4.4) |
-| `keyframeIntervalMs` | OPTIONAL | Number | Keyframe/GOP cadence, integer ms; video only (Section 4.4.3); defined by this document |
+| `keyframeIntervalMs` | OPTIONAL | Number | Keyframe cadence, integer ms; video only; never shorter than the group duration, and equal to it where every keyframe begins a group (Section 4.4.3); defined by this document |
 | `keyframeIntervalTicks` | OPTIONAL | Number | Integer-tick override for the keyframe interval (Section 4.4.3); defined by this document |
 | `initRef` | OPTIONAL | String | `id` of the root `initDataList` entry, of type "inline", that holds the base64 ftyp+moov init segment ([@!I-D.ietf-moq-msf] Sections 5.1.7 and 5.2.13, profiled in Section 4.5) |
 | `fec` | OPTIONAL | Array | FEC instances, encoded per [@!MOQ-FEC-CATALOG] Section 3 (Section 8) |
@@ -3575,24 +3708,64 @@ publication as an RFC.
   count; it says such a value bounds the send span only when the
   publisher keeps it, by closing blocks early and withholding repair
   it cannot send in time.
-- Section 5.3.4 defines the dependent run.  A
-  non-zero `dep_counter` states that the samples that follow, as many
-  as its value, are not RAPs and cannot be decoded without the sample
-  that carries it; 0 states nothing.  The section says when a
-  publisher may send one and what it then keeps.  Item 4 of Section
-  5.2.1 requires a non-zero `dep_counter` to be identical across a
-  sample's subsample data units.  Until now the field was a priority
-  hint only.  A publisher that states dependent runs on a track under
-  a keyframe overlay covers every keyframe of the track with the
-  overlay (Sections 5.3.4 and 7.4.2): under an overlay, `RAP_flag`
-  marks overlay members only, so an uncovered keyframe would read as a
-  sample of a dependent run.  A publisher of -02 or earlier may have
-  sent a non-zero `dep_counter` as a priority hint, or as the
-  [@!ISO.23008-1] dependency_counter, which counts data units rather
-  than samples.  Such a value states no dependent run, and nothing in
-  the stream tells a receiver which reading applies, so a receiver
-  reads a dependent run only from a publisher that it knows follows
-  this revision.
+- Section 5.3.4 puts exactly one RAP in a video MPU.  A publisher
+  begins a new MPU at every RAP, so the first sample of an MPU is its
+  only RAP, and the group that the MPU maps to begins at that RAP and
+  holds no other.  [@!ISO.23008-1] Section 6.4 requires the first
+  access unit of an MPU to be a SAP; -02 let further RAPs follow it.
+  A receiver now tells from the MPU sequence numbers on the two sides
+  of a loss whether the loss can hold a RAP ([@!MOQ-FEC-MULTICAST]
+  Section 6.1), for any frame structure.  The class of a loss reads
+  no decode time.
+  No two RAPs fall in one group-duration interval of Section 4.4.1,
+  and no packet of a later sample of an MPU sets `RAP_flag`
+  (Sections 4.3, 5.2.1 and 5.3.4).  A publisher of -02 or earlier may
+  have placed further RAPs in an MPU, and nothing in the packets
+  names the revision.  A receiver therefore relies on one RAP in an
+  MPU only where the catalog carries a keyframe interval that is
+  equal to the group duration.  It stops relying on it once it has
+  found a RAP that is not the first sample of its MPU, or an MPU that
+  lasts longer than that interval: -02 did not bound how long an MPU
+  lasts, and a -02 track with equal values can hold a further RAP in
+  a longer MPU.  A keyframe that an encoder codes inside a group all
+  the same may be sent as a later sample that is not a RAP.
+- Section 4.3 requires the MPU sequence number to grow from each MPU
+  of a track instance to the next and never to return to a number
+  already used there, since a receiver now tells one MPU from the
+  next by it.  A publisher that restarts and cannot continue the
+  count starts a new track.
+- Section 4.4.3 gives the keyframe interval one job: it is the
+  publisher's statement, in the catalog, that every keyframe of the
+  track begins a group.  An interval equal to the group duration
+  makes the statement, and a publisher that makes it lets no MPU last
+  longer than one group duration.  A publisher MUST NOT publish an
+  interval
+  shorter than the group duration.  In -02 the fields also described
+  further keyframes inside an MPU, and
+  draft-ramadan-moq-fec-multicast-00 placed those keyframes by decode
+  time.  A -02 track whose interval is shorter than its group duration
+  loses that: a receiver of this revision treats each of its losses as
+  one that may hold a keyframe, as it does on a track with no
+  interval.  So does a receiver on a unicast datagram leg (step 6 of
+  Section 6.1).  The sentence that let the tracks of a switching set
+  carry
+  different keyframe cadences is gone, since a track's keyframes are
+  now its group starts.
+- Section 5.3.4 gives `priority` a value map.  A RAP of `priority` 254
+  promises that every later sample of its MPU carries 128 or a true
+  statement of the map.  A sample that is not a RAP states the one
+  earlier sample it
+  needs, its anchor, and, where the codec says so, that no later
+  sample needs it.  128 states nothing.  The values 0, 128 and 255,
+  which earlier publishers sent, keep their reading.  A receiver feeds
+  a decoder by these statements after a loss ([@!MOQ-FEC-MULTICAST]
+  Section 6.3).  Item 4 of Section 5.2.1 requires the same `priority`
+  in every subsample data unit of a sample of such an MPU.
+- Section 5.3.4 says what `dep_counter` is: the dependency_counter of
+  [@!ISO.23008-1] Section 9.3.2.3, to which this mapping gives no
+  meaning of its own.  A publisher sends 0 unless it knows that count,
+  and a receiver takes from it no decision that changes what it
+  decodes.  It stays a hint for recovery and retention, as in -02.
 - Erratum: Section 8.3 no longer lists
   `num_of_repair_symbol_per_packet` among the fields of an
   "iso-ssbg1-v1" entry.  [@!ISO.23008-1] Table C.3, in the 2023 edition
@@ -3612,10 +3785,9 @@ publication as an RFC.
   the FT=1 data unit of each movie fragment that contains one.  Each
   member sets `RAP_flag`, carries its overlay SS_ID in the 0x8B01
   header extension, and takes the next overlay SS_ID in emission
-  order.  The overlay covers the first sample of every MPU, and
-  covering a later keyframe is the publisher's choice, so on such a
-  track a keyframe left uncovered has a sample RAP flag of 0 (Section
-  5.2.1); since a receiver
+  order.  The overlay covers the first sample of every MPU, which is
+  the MPU's only keyframe (Section 5.3.4), so it covers every keyframe
+  of the track; since a receiver
   can use a recovered FT=0 or FT=1 member only within its bounded
   replay window, the overlay instance's own positive
   `interleaveDepthMs` (Section 7.4.1) tells it how long to hold what

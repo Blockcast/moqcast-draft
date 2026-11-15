@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import html
 import ipaddress
 import json
 import math
@@ -157,9 +158,9 @@ class PublishedExamples(unittest.TestCase):
         # the fragments of each keyframe MFU it covers, the FT=0 of an MPU whose first sample is one
         # and the FT=1 of a movie fragment that contains one; on a track under an overlay RAP_flag,
         # membership and the 0x8B01 extension coincide.  FEC multicast -01 Section 6.6 follows.
-        # Covering a keyframe after the first sample of its MPU is the publisher's choice, and the
-        # overlay's own interleaveDepthMs, which Section 7.4.1 recommends, tells a receiver how long
-        # to hold what a recovered FT=0 or FT=1 member governs.
+        # An MPU holds no keyframe after its first sample (Section 5.3.4), so the overlay covers
+        # every keyframe of the track, and the overlay's own interleaveDepthMs, which Section 7.4.1
+        # recommends, tells a receiver how long to hold what a recovered FT=0 or FT=1 member governs.
         mmt_md = (ROOT / "draft-ramadan-moq-mmt-03.md").read_text(encoding="utf-8")
         mmt_xml = (ROOT / "draft-ramadan-moq-mmt-03.xml").read_text(encoding="utf-8")
         self.assertIn("value='draft-ramadan-moq-fec-multicast-01'", mmt_md)
@@ -178,11 +179,14 @@ class PublishedExamples(unittest.TestCase):
                 "a publisher that declares an overlay MUST NOT set RAP_flag on it",
                 "if and only if that packet is an overlay member",
                 "are therefore exactly its overlay members, the FT=0 and FT=1 members included",
-                "A publisher MAY also cover, keyframe by keyframe, any keyframe that is not the first "
-                "sample of its MPU",
+                "An MPU holds no keyframe after its first sample",
+                "so the overlay covers every keyframe of the track",
                 "recommends, bounds every overlay block's send span",
             ):
                 self.assertIn(rule, text)
+            # one RAP in an MPU leaves the publisher no keyframe to cover or to leave uncovered
+            self.assertNotIn("keyframe by keyframe", text)
+            self.assertNotIn("uncovered", text)
         stem = "draft-ramadan-moq-fec-multicast-01"
         markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
         xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
@@ -198,6 +202,270 @@ class PublishedExamples(unittest.TestCase):
                 text,
             )
             self.assertNotIn("does not by itself recover", text)
+
+    def plain(self, stem: str, start: str, end: str):
+        """One section of a draft as plain text on one line, from the markdown and from the XML."""
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        xml = (ROOT / f"{stem}.xml").read_text(encoding="utf-8")
+        for text in (
+            self.sec(markdown, f"{{#{start}}}", f"{{#{end}}}"),
+            html.unescape(re.sub(r"<[^>]+>", "", self.sec(xml, f'anchor="{start}"', f'anchor="{end}"'))),
+        ):
+            yield " ".join(text.replace("`", "").split())
+
+    def test_the_dependent_run_and_the_run_rule_stay_out(self):
+        # Author ruling 2026-11-15: the MPU rule replaces the dependent run of MMT Section 5.3.4
+        # and the run rule of FEC multicast Section 6.1.  dep_counter stays ISO's field, with no
+        # meaning of its own here, and no anchor rule classes a block.  None of the three comes back,
+        # in any draft of the set, with a space or with a hyphen.
+        paths = sorted(ROOT.glob("draft-*.md")) + sorted(ROOT.glob("draft-*.xml"))
+        self.assertIn(ROOT / "draft-ramadan-moq-multicast-03.md", paths)
+        for path in paths:
+            raw = path.read_text(encoding="utf-8")
+            if path.suffix == ".xml":  # the markdown has bare "<" signs, so tags are stripped from the XML only
+                raw = html.unescape(re.sub(r"<[^>]+>", "", raw))
+            text = " ".join(raw.replace("`", "").lower().split())
+            self.assertIsNone(re.search(r"dependent[- ]runs?\b|\brun[- ]rule|\banchor[- ]rule", text), path.name)
+
+    def test_mmt_puts_one_rap_in_an_mpu(self):
+        # MMT Section 5.3.4: a video publisher begins a new MPU at every RAP, which tightens
+        # ISO/IEC 23008-1:2023 6.4 (the first access unit of an MPU is a SAP) to "and no other".
+        # No packet names the revision and -02 let an MPU hold further RAPs, so a receiver learns
+        # from the catalog that a track keeps to it: a keyframe interval equal to the group duration
+        # (Section 4.4.3).  -02 bound a published interval's keyframes to whole intervals after a
+        # group start but not the length of an MPU, so a -02 track with equal values holds one RAP
+        # only in an MPU that lasts no longer than the interval.
+        stem = "draft-ramadan-moq-mmt-03"
+        for text in self.plain(stem, "random-access-and-priority", "subscriber-join-and-relay-behavior"):
+            for rule in (
+                "On a video track a publisher MUST begin a new MPU at every RAP.",
+                "The first sample of an MPU is then its only RAP",
+                '"The first access unit of an MPU shall be an SAP (of SAP type 1, 2, or 3)"',
+                "A publisher MUST NOT set RAP_flag on a packet of a later sample of the MPU.",
+                "no two RAPs of a track fall in the same group-duration interval of that formula",
+                "A receiver therefore learns from the catalog that a track keeps to one RAP in an MPU: "
+                "a keyframe interval that is equal to the group duration says so",
+                "A track of an earlier revision whose catalog carries such an interval holds one RAP in "
+                "each MPU that lasts no longer than the interval",
+                "Those revisions did not bound how long an MPU lasts, so such a track can hold a further "
+                "RAP in an MPU that lasts longer.",
+                "A receiver does not take one RAP in an MPU for granted on a track whose catalog "
+                "carries no keyframe interval or one that differs from the group duration.",
+                "Nor does it on a track on which it has found a RAP that is not the first sample of its "
+                "MPU, or an MPU that lasts longer than the keyframe interval.",
+                # a keyframe that an encoder codes inside a group all the same
+                "MAY send that picture as a later sample of the MPU, without RAP_flag and with a "
+                "priority that the table below allows on a sample that is not a RAP",
+                "It is then not a RAP, nor a keyframe in the sense of Section 4.4.3",
+                # dep_counter: ISO's field (9.3.2.3), no meaning of its own in this mapping
+                '"indicates the number of data units that depend on their media processing upon the '
+                'media data in this MFU"',
+                "This mapping gives the field no meaning of its own.",
+                "A publisher sends 0 unless it knows that number.",
+                "A receiver MUST NOT take from dep_counter any decision that changes what it decodes "
+                "or presents",
+            ):
+                self.assertIn(rule, text)
+            self.assertNotIn("keeps to one RAP in an MPU as well", text)  # false of a -02 track with a longer MPU
+        # Section 4.3: the MPU rule compares MPU sequence numbers, so a number is never reused on a
+        # track instance (ISO/IEC 23008-1:2023 7.3.3), and the first sample of a group is its only RAP.
+        for text in self.plain(stem, "group-boundaries", "datagram-delivery"):
+            for rule in (
+                "On a video track that sample is the group's only RAP, and no object of a later sample "
+                "of the group has RAP Flag = 1",
+                "On a track instance a publisher MUST give each MPU a greater MPU sequence number than "
+                "the MPU before it, in serial number arithmetic modulo 2^32: greater by one, or by more "
+                "where it dropped MPUs between the two.",
+                "It MUST NOT go back to a number that it has used on that track instance",
+                '"The sequence number is unique within an Asset"',
+                "A publisher that restarts and cannot continue the count MUST close the track instance "
+                "and start a new track",
+            ):
+                self.assertIn(rule, text)
+        # Section 6.1, step 6: on a datagram leg the same rule tells a loss that spares the RAP.
+        for text in self.plain(stem, "subscriber-join-procedure", "relay-retention-for-late-joiners"):
+            for rule in (
+                "A receiver tells such loss from the MPU sequence numbers of the packets that it holds "
+                "on the two sides of the loss, by the MPU rule of",
+                "Where that rule does not apply to the track, the receiver cannot tell, and treats the "
+                "loss as one that may include them.",
+            ):
+                self.assertIn(rule, text)
+        # Section 4.4.3: the keyframe interval is the publisher's statement of it in the catalog.
+        for text in self.plain(stem, "catalog-signaling-of-keyframe-interval", "init-segment-signaling"):
+            for rule in (
+                "so the keyframes of a video track are its group starts",
+                "A publisher MUST NOT publish a keyframe interval shorter than the track's group duration",
+                "the publisher MUST NOT emit a keyframe other than at a group start",
+                "a publisher whose keyframe interval equals the group duration MUST NOT let an MPU of "
+                "the track last longer than one group duration",
+                "A receiver that reads a keyframe interval equal to the group duration relies on every "
+                "keyframe of the track being the first sample of an MPU.",
+                "It does not rely on that for a track whose catalog carries no keyframe interval, or "
+                "one that differs from the group duration.",
+                "and did not bound how long an MPU lasts",
+            ):
+                self.assertIn(rule, text)
+            for gone in ("additional keyframes", "MAY carry different keyframe cadences"):
+                self.assertNotIn(gone, text)
+
+    def test_mmt_priority_value_map(self):
+        # MMT Section 5.3.4: a RAP of priority 254 promises only that every later sample of its MPU
+        # carries 128 or a true statement of the map (the table lists every byte, so "a value of the
+        # table" would promise nothing); a sample that is not a RAP names one earlier sample, its anchor.
+        stem = "draft-ramadan-moq-mmt-03"
+        for text in self.plain(stem, "random-access-and-priority", "subscriber-join-and-relay-behavior"):
+            for rule in (
+                "A RAP sample whose priority is 254 promises one thing about every sample after it up "
+                "to the next RAP, that is every later sample of its MPU: the sample carries 128, or a "
+                "value from 1 to 62 or from 65 to 126 that is true of it by the table below.",
+                "It does not promise that any of them names an anchor: a sample that carries 128 states "
+                "nothing.",
+                "A publisher MUST NOT send a value above 128 on a sample that is not a RAP.",
+                "A publisher that sends 254 on a RAP MUST derive the priority of every later sample of "
+                "that MPU from the sample's coded data",
+                "On such a sample it MUST send 128 when it cannot tell",
+                "It MUST NOT send a value from 1 to 62 unless the sample itself shows that no later "
+                "sample can need it.",
+                "It applies the table only on a sample that follows, in the same MPU, a RAP of priority "
+                "254 which it has decoded.",
+                "A publisher that makes no promise sends 255, or 0 where it authors no priority at all.",
+                "The sample's anchor is the sample D places before it, D being the value minus 64.",
+                "An anchor MUST NOT be earlier than the RAP with which the sample's MPU begins",
+                "It takes a sample that states nothing to need every sample from the RAP of its MPU "
+                "up to itself.",
+                "A sample of another MPU is never taken for an anchor, whatever numbers it carries.",
+                "a RAP (254, 255), then a sample that states nothing (128), then a sample that a later "
+                "one may need (65 to 126), then a sample that no later one needs (1 to 62)",
+                "Inside a band the value is a distance and ranks nothing.",
+            ):
+                self.assertIn(rule, text)
+            self.assertNotIn("carries a value of the table", text)
+            # the two bands, each with its meaning (a table row: cell bars and cell tags are dropped)
+            rows = " ".join(text.replace("|", " ").split())
+            for row in (
+                "1 to 62 The sample's anchor is the sample D places before it, D being the value. "
+                "No later sample of the track needs this sample.",
+                "65 to 126 The sample's anchor is the sample D places before it, D being the value "
+                "minus 64. A later sample may need this sample.",
+                "128 The sample is not a RAP. It states nothing about what it needs.",
+            ):
+                self.assertIn(row, rows)
+        for text in self.plain(stem, "subsample-data-units", "source-contiguity"):
+            self.assertIn(
+                "priority MUST be identical across them on every sample of an MPU whose RAP carries "
+                "priority 254 in any of its data units",
+                text,
+            )
+        # The rows of the table give every value from 0 to 255 one reading and no value two.
+        markdown = (ROOT / f"{stem}.md").read_text(encoding="utf-8")
+        table = self.sec(markdown, "| `priority` of a sample that is not a RAP | Meaning |", "\n\n")
+        seen: list[int] = []
+        for row in table.splitlines()[2:]:
+            for part in row.split("|")[1].split(","):
+                low, _, high = part.strip().partition(" to ")
+                seen.extend(range(int(low), int(high or low) + 1))
+        self.assertEqual(sorted(seen), list(range(256)))
+
+    def test_fec_multicast_classes_blocks_by_the_mpu_rule(self):
+        # FEC multicast Sections 6.1 to 6.3: a block is classed from the MPU sequence numbers of
+        # the DU headers held on the two sides of its missing symbols, on a track whose catalog
+        # states that every keyframe begins a group (keyframe interval equal to the group duration);
+        # the class reads no decode time, no priority and no dep_counter.  One guard reads decode
+        # times: an MPU that lasts longer than the interval, which is where a -02 track can hold a
+        # second RAP.  Concealment follows what each frame needs and may end before the next RAP.
+        stem = "draft-ramadan-moq-fec-multicast-01"
+        for text in self.plain(stem, "block-classification", "audio-blocks"):
+            for rule in (
+                "A keyframe interval that is equal to the group duration tells the receiver that the "
+                "publisher keeps to this.",
+                "The receiver reads neither priority nor dep_counter.",
+                "It reads a decode time for one purpose only, to check that statement",
+                "The class goes by what the receiver lacks",
+                # which headers the rule reads, and when the lower side is clear
+                "The lower DU header is the last FT=2 source packet carrying a DU header that the "
+                "receiver holds, in SS_ID order, before the block's first missing source symbol.",
+                "The upper DU header is the first one it holds after the block's last missing source "
+                "symbol.",
+                "The lower side is clear when the receiver can tell that the lower DU header's sample "
+                "is not the first sample of its MPU, or when it holds every packet of that first sample.",
+                "So a DU header that carries offset zero in a packet that does not set RAP_flag "
+                "belongs to a later sample.",
+                "the MPU metadata packet (FT=0) of that MPU, the movie fragment metadata packet (FT=1) "
+                "sent before its first sample, and every packet of that first sample",
+                "Same MPU. The two DU headers carry the same MPU sequence number, and the lower side "
+                "is clear.",
+                "so none carries part of a RAP or of the FT=0 or FT=1 data unit that governs one. The "
+                "block is non-keyframe-bearing.",
+                "Next MPU. The upper DU header's MPU sequence number is the lower DU header's plus one, "
+                "modulo 2^32.",
+                "The block is non-keyframe-bearing if the lower side is clear and the receiver holds "
+                "the start of the upper header's MPU whole. Otherwise it is keyframe-bearing.",
+                "the FT=0 and FT=1 packets of that start are enough",
+                "More than one MPU apart. The two MPU sequence numbers differ in any other way. A whole "
+                "MPU can then lie between the two headers, its RAP with it. The block is keyframe-bearing.",
+                "A block whose two DU headers carry the same MPU sequence number, and whose lower side "
+                "is not clear, is keyframe-bearing",
+                "No header on one side. The receiver holds no lower or no upper DU header. The block "
+                "is of unknown class.",
+                "A receiver MUST treat a block of unknown class as keyframe-bearing.",
+                "A receiver MUST NOT apply items 1 and 2 to a track unless its catalog carries a "
+                "keyframe interval that is equal to the track's group duration",
+                "It MUST NOT apply them to a track once it has found on that track either of two things",
+                "a RAP that is not the first sample of its MPU; or",
+                "an MPU that lasts longer than the keyframe interval, that is, an MPU one of whose "
+                "samples has an authored decode time",
+                "one keyframe interval or more after that of its first sample",
+                "A receiver that applies items 1 and 2 MUST look for the second",
+                "every block that item 1 or item 2 classed, or would class, is of unknown class",
+                # what it costs a track that does not make the statement
+                "Each loss on it is treated as one that may hold a RAP",
+                "a track of an earlier revision whose keyframe interval is shorter than its group duration",
+                # Section 6.2: resume before the next RAP once a later header proves no RAP was lost
+                "does not resume video before the earlier of these two samples: the next RAP",
+                "shows by item 1 or item 2 of that rule that the data it could not recover includes "
+                "no part of a RAP",
+                # Section 6.3: concealment by what each frame needs
+                "a later frame depends on a lost frame when its anchor was lost or was itself concealed",
+                "A receiver MUST NOT submit to a decoder a frame that depends on a lost frame, unless "
+                "it knows that the decoder produces output from a sample with a missing reference.",
+                "Concealment ends at the first frame that depends on no lost frame, and the receiver "
+                "resumes decoding from it.",
+                "A receiver MAY conceal until the next RAP.",
+            ):
+                self.assertIn(rule, text)
+            for gone in (
+                "whole number of keyframe intervals",
+                "usable keyframe interval",
+                "until the next RAP, and keeps",
+                "not shorter than",
+                "the one that follows",
+            ):
+                self.assertNotIn(gone, text)
+        # Section 6.5: the budget is credited by what a block carries, so a session with no keyframe
+        # loss still has credit for audio and non-keyframe repair.
+        for text in self.plain(stem, "unicast-repair-budget", "relationship-to-the-keyframe-overlay"):
+            for rule in (
+                "A block of a video source track that carries, or may carry, the start of an MPU "
+                "credits the budget with P_t x T bytes when it reaches its FEC deadline",
+                "The credit goes by what the block carries, whether or not the receiver lacks any of it",
+                "A block carries the start of an MPU when a source packet that the receiver holds from "
+                "it is an FT=0 packet or sets RAP_flag, or when two source packets that the receiver "
+                "holds from it carry different MPU sequence numbers.",
+                "A block may carry one when",
+                "A credit expires when the next block of the same source track that credits the budget "
+                "reaches its FEC deadline",
+            ):
+                self.assertIn(rule, text)
+            self.assertNotIn("Each block that", text)
+        # Security considerations, item 5: one injected packet can end the rule for a track.
+        for text in self.plain(stem, "security-considerations", "iana-considerations"):
+            for rule in (
+                "An injected packet that shows a RAP after the first sample of an MPU, or an MPU that "
+                "lasts longer than the keyframe interval, ends the use of items 1 and 2 of",
+                "for that track at that receiver",
+            ):
+                self.assertIn(rule, text)
 
     def test_mboned_manifest_draft_md_and_xml_agree_on_docname(self):
         stem = "draft-ramadan-mboned-mcast-manifest-02"
