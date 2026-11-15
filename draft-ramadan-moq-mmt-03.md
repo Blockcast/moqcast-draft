@@ -1807,7 +1807,11 @@ nothing about the samples after it.  A publisher that makes no promise
 sends 255, or 0 where it authors no priority at all.  A publisher
 MUST NOT send a value from 129 to 253, and a receiver reads such a
 value on a RAP sample as 255.  A publisher MUST NOT send a value above
-128 on a sample that is not a RAP.
+128 on a sample that is not a RAP.  A publisher of an earlier revision
+that sent 255 on such a sample does not meet this requirement.  Its
+tracks keep working all the same: a receiver reads a value from 129
+to 255 on a sample that is not a RAP as stating nothing, as the table
+below says.
 
 | `priority` of a sample that is not a RAP | Meaning |
 |---|---|
@@ -3758,7 +3762,9 @@ publication as an RFC.
   earlier sample it
   needs, its anchor, and, where the codec says so, that no later
   sample needs it.  128 states nothing.  The values 0, 128 and 255,
-  which earlier publishers sent, keep their reading.  A receiver feeds
+  which earlier publishers sent, keep their reading at a receiver.  A
+  publisher of this revision no longer sends 255 on a sample that is
+  not a RAP.  A receiver feeds
   a decoder by these statements after a loss ([@!MOQ-FEC-MULTICAST]
   Section 6.3).  Item 4 of Section 5.2.1 requires the same `priority`
   in every subsample data unit of a sample of such an MPU.

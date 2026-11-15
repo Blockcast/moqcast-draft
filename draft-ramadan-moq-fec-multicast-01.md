@@ -1474,7 +1474,14 @@ apply:
    (#block-classification) for that track at that receiver.  Each
    later block of the track that stays unrecovered is then treated as
    keyframe-bearing: it costs the repair that its own credit covers,
-   and video may stall for it.  Deployments
+   and video may stall for it.  The finding belongs to the track.  A
+   new track, such as the one that a publisher starts under
+   [@!MOQ-MMT] Section 4.4.1 when it cannot continue its numbering,
+   begins without it.  A change of the catalog does not end it,
+   because it does not refute what the receiver saw.  Where a receiver
+   verifies an integrity mechanism of the kind named next before it
+   reads a packet, an injected packet cannot produce either finding.
+   Deployments
    exposed to injection SHOULD authenticate source and repair packets
    with an integrity mechanism whose coverage includes the complete
    packet, the Source FEC Payload ID and the Repair FEC Payload ID

@@ -234,6 +234,25 @@ class PublishedExamples(unittest.TestCase):
                           "Section 4.4.3 permits one", text)
             self.assertNotIn("Signal the keyframe cadence in", text)
             self.assertIn("a publisher that cannot state one interval for the track omits it", text)
+            # 255 on a sample that is not a RAP: no longer sent, still read as "states nothing".
+            self.assertIn("A publisher of an earlier revision that sent 255 on such a sample does not meet this "
+                          "requirement.", text)
+            self.assertIn("a receiver reads a value from 129 to 255 on a sample that is not a RAP as stating "
+                          "nothing", text)
+            self.assertIn("keep their reading at a receiver", text)
+        # The guard's finding is scoped to the track, and a catalog change does not end it.
+        raw = (ROOT / "draft-ramadan-moq-fec-multicast-01.xml").read_text(encoding="utf-8")
+        for text in (
+            " ".join((ROOT / "draft-ramadan-moq-fec-multicast-01.md").read_text(encoding="utf-8").replace("`", "").split()),
+            " ".join(html.unescape(re.sub(r"<[^>]+>", "", raw)).replace("`", "").split()),
+        ):
+            for rule in (
+                "The finding belongs to the track.",
+                "begins without it.",
+                "A change of the catalog does not end it, because it does not refute what the receiver saw.",
+                "an injected packet cannot produce either finding.",
+            ):
+                self.assertIn(rule, text)
 
     def test_the_dependent_run_and_the_run_rule_stay_out(self):
         # Author ruling 2026-11-15: the MPU rule replaces the dependent run of MMT Section 5.3.4
