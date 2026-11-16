@@ -136,7 +136,7 @@ document adds one track-level field, the <tt>fec</tt> array defined in
 level:</t>
 
 <sourcecode type="json"><![CDATA[{
-  "version": 1,
+  "version": "draft-02",
   "tracks": [
     {
       "name": "video",
@@ -321,9 +321,9 @@ field or inside a <tt>fec</tt> array of its own: <tt>scheme</tt>, <tt>blockProfi
 (<xref target="MOQ-FEC-CORE"></xref> Section
 10.2).</t>
 <t>The <tt>repairTrack</tt>, <tt>symbolTrack</tt> and <tt>source</tt> fields carry only a
-Track Name (<xref target="I-D.ietf-moq-transport"></xref> Section 2.4.1), and a receiver
-resolves each in the source track's Track Namespace, as
-<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.14 does for <tt>depends</tt>.  Track names
+Track Name (<xref target="I-D.ietf-moq-transport"></xref> Section 2.4.1), as a string
+entry of <tt>depends</tt> does (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.15), and a
+receiver resolves each in the source track's Track Namespace.  Track names
 carry no meaning in any of this.  A receiver resolves every
 relationship from <tt>repairTrack</tt>, <tt>symbolTrack</tt>, <tt>source</tt>,
 <tt>instanceId</tt> and <tt>repairLayer</tt>; it does not infer one by parsing a
@@ -707,7 +707,7 @@ instance 1 is declared by each object's FEC Source Info Property
 the catalog:</t>
 
 <sourcecode type="json"><![CDATA[{
-  "version": 1,
+  "version": "draft-02",
   "tracks": [
     {
       "name": "video",
@@ -855,7 +855,7 @@ on &quot;video/symbols&quot; can also count toward instance 1, as
 tracks under &quot;iso-ssbg1-v1&quot; (<xref target="MOQ-MMT"></xref> Section 7.1):</t>
 
 <sourcecode type="json"><![CDATA[{
-  "version": 1,
+  "version": "draft-02",
   "tracks": [
     {
       "name": "video",
@@ -1117,7 +1117,8 @@ complete catalog's video instance is K = 200, P = 40, T = 1400
 (was K = 625, P = 125, T = 1000 under &quot;raptorq&quot;), and the
 packet-budget arithmetic is recomputed for it; the layered
 example's second instance is K = 128, P = 32 (was an overlay with
-K = 256, P = 32).  The catalog <tt>version</tt> is 1.</li>
+K = 256, P = 32).  The catalog <tt>version</tt> is &quot;draft-02&quot; (was
+&quot;draft-01&quot;).</li>
 <li>The republished-subset rule and the orphan rule cover
 &quot;fec-source&quot; tracks as well as &quot;fec-repair&quot; tracks.</li>
 <li>The unimplemented-scheme sentence of <xref target="instance-fields"></xref> now reads
@@ -1236,6 +1237,17 @@ draft-ramadan-moq-multicast-03.</li>
 <li>After the -00 posting: the first paragraph of this appendix gains
 the sentence &quot;In it, -01 means draft-ramadan-moq-fec-01, not a
 revision of this document.&quot;</li>
+<li>After the -00 posting: citations of other Internet-Drafts follow
+draft-ietf-moq-transport-23, draft-ietf-moq-msf-02 and
+draft-ietf-moq-cmsf-01.  In <xref target="track-fields"></xref>, <tt>depends</tt> is cited as
+Section 5.2.15 of the MOQT Streaming Format, which no longer says in
+which namespace a dependency is resolved; the sentence now states
+the namespace rule for <tt>repairTrack</tt>, <tt>symbolTrack</tt> and <tt>source</tt> in
+this document's own words.  The rule is unchanged.</li>
+<li>After the -00 posting: the worked catalogs carry
+<tt>&quot;version&quot;: &quot;draft-02&quot;</tt>.  The <tt>version</tt> field is a string
+(<xref target="I-D.ietf-moq-msf"></xref> Section 5.1.1), and &quot;draft-02&quot; names
+draft-ietf-moq-msf-02; -00 carried the number 1.</li>
 </ul>
 </section>
 

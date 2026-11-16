@@ -164,7 +164,7 @@ level:
 
 ~~~ json
 {
-  "version": 1,
+  "version": "draft-02",
   "tracks": [
     {
       "name": "video",
@@ -372,9 +372,9 @@ field or inside a `fec` array of its own: `scheme`, `blockProfile`,
 10.2).
 
 The `repairTrack`, `symbolTrack` and `source` fields carry only a
-Track Name ([@!I-D.ietf-moq-transport] Section 2.4.1), and a receiver
-resolves each in the source track's Track Namespace, as
-[@!I-D.ietf-moq-msf] Section 5.2.14 does for `depends`.  Track names
+Track Name ([@!I-D.ietf-moq-transport] Section 2.4.1), as a string
+entry of `depends` does ([@!I-D.ietf-moq-msf] Section 5.2.15), and a
+receiver resolves each in the source track's Track Namespace.  Track names
 carry no meaning in any of this.  A receiver resolves every
 relationship from `repairTrack`, `symbolTrack`, `source`,
 `instanceId` and `repairLayer`; it does not infer one by parsing a
@@ -692,7 +692,7 @@ the catalog:
 
 ~~~ json
 {
-  "version": 1,
+  "version": "draft-02",
   "tracks": [
     {
       "name": "video",
@@ -816,7 +816,7 @@ tracks under "iso-ssbg1-v1" ([@?MOQ-MMT] Section 7.1):
 
 ~~~ json
 {
-  "version": 1,
+  "version": "draft-02",
   "tracks": [
     {
       "name": "video",
@@ -1080,7 +1080,8 @@ What changed in the carried text:
   (was K = 625, P = 125, T = 1000 under "raptorq"), and the
   packet-budget arithmetic is recomputed for it; the layered
   example's second instance is K = 128, P = 32 (was an overlay with
-  K = 256, P = 32).  The catalog `version` is 1.
+  K = 256, P = 32).  The catalog `version` is "draft-02" (was
+  "draft-01").
 - The republished-subset rule and the orphan rule cover
   "fec-source" tracks as well as "fec-repair" tracks.
 - The unimplemented-scheme sentence of (#instance-fields) now reads
@@ -1198,6 +1199,17 @@ New sentences, not carried from -01:
 - After the -00 posting: the first paragraph of this appendix gains
   the sentence "In it, -01 means draft-ramadan-moq-fec-01, not a
   revision of this document."
+- After the -00 posting: citations of other Internet-Drafts follow
+  draft-ietf-moq-transport-23, draft-ietf-moq-msf-02 and
+  draft-ietf-moq-cmsf-01.  In (#track-fields), `depends` is cited as
+  Section 5.2.15 of the MOQT Streaming Format, which no longer says in
+  which namespace a dependency is resolved; the sentence now states
+  the namespace rule for `repairTrack`, `symbolTrack` and `source` in
+  this document's own words.  The rule is unchanged.
+- After the -00 posting: the worked catalogs carry
+  `"version": "draft-02"`.  The `version` field is a string
+  ([@!I-D.ietf-moq-msf] Section 5.1.1), and "draft-02" names
+  draft-ietf-moq-msf-02; -00 carried the number 1.
 
 {numbered="false"}
 # Acknowledgements

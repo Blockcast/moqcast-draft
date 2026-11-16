@@ -1333,7 +1333,7 @@ Priorities follow the ranges of Section
 11 of [@!MOQ-FEC-CORE].  A keyframe
 repair FETCH
 MUST carry a SUBSCRIBER_PRIORITY ([@!I-D.ietf-moq-transport]
-Section 9.20.7) in the source track range, numerically at most 191.
+Section 9.19.7) in the source track range, numerically at most 191.
 It MUST also be numerically no greater than the SUBSCRIBER_PRIORITY of
 the receiver's subscription to the source track, where the receiver
 holds one on the session, and numerically lower than the
@@ -1765,6 +1765,12 @@ Changed sentences:
 - The references to the companion documents now name
   draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
   draft-ramadan-moq-mmt-03 and draft-ramadan-moq-multicast-03.
+- Citations of other Internet-Drafts follow
+  draft-ietf-moq-transport-23, draft-ietf-moq-secure-objects-01 and
+  draft-jholland-quic-multicast-09.  In (#unicast-repair-budget), the
+  SUBSCRIBER_PRIORITY parameter is cited as Section 9.19.7 of MoQ
+  Transport; it was Section 9.20.7 in draft-ietf-moq-transport-22.  No
+  other word changes.
 
 {#changes-from-draft-ramadan-moq-fec-01}
 # Changes from draft-ramadan-moq-fec-01

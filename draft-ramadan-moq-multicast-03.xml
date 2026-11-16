@@ -853,14 +853,14 @@ subscriber falls back to MoQ/QUIC unicast.  It resumes a unicast
 subscription that it paused when it switched to multicast, as
 Section 6.3 describes.  Otherwise it subscribes again, with a
 SUBSCRIBE whose LOCATION_FILTER parameter (<xref target="I-D.ietf-moq-transport"></xref>
-Section 9.20.9) sets where delivery starts, using one of the joins of
+Section 9.19.9) sets where delivery starts, using one of the joins of
 <xref target="I-D.ietf-moq-transport"></xref> Section 3.5:</t>
 
 <ul spacing="compact">
 <li>Next Object (Location Filter Type 0x05) starts at the live edge.
 Delivery can begin in the middle of a group.</li>
 <li>Next Object together with a FILL_PARAMETERS parameter
-(<xref target="I-D.ietf-moq-transport"></xref> Section 9.20.15) whose LOCATION_FILTER
+(<xref target="I-D.ietf-moq-transport"></xref> Section 9.19.15) whose LOCATION_FILTER
 is Relative Start (0x01) with StartGroup 1 also delivers the
 current group from its start, on a fill fetch stream
 (<xref target="I-D.ietf-moq-transport"></xref> Section 3.4).  This is the join of
@@ -878,7 +878,7 @@ in place.</t>
 <section anchor="packaging-negotiation"><name>Packaging Negotiation</name>
 <t>Packaging is advertised per track in the catalog, and a subscriber
 subscribes by name to the tracks whose packaging it supports.  The
-<tt>altGroup</tt> catalog field (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.12,
+<tt>altGroup</tt> catalog field (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.13,
 profiled in <xref target="MOQ-MMT"></xref> Section 4.4) groups
 alternatives of the same content in different packaging formats.</t>
 </section>
@@ -903,9 +903,9 @@ therefore establishes the wrap epoch, as <xref target="MOQ-FEC-CORE"></xref> Sec
 received such a Group ID or has observed the
 FEC instance from its first block.  To do so, it sends a TRACK_STATUS
 request for the repair track (<xref target="I-D.ietf-moq-transport"></xref>
-Section 9.13).  The epoch comes from the Group of the Largest Object
+Section 9.12).  The epoch comes from the Group of the Largest Object
 (<xref target="I-D.ietf-moq-transport"></xref> Section 3.1.4) carried in the
-LARGEST_OBJECT parameter (<xref target="I-D.ietf-moq-transport"></xref> Section 9.20.17)
+LARGEST_OBJECT parameter (<xref target="I-D.ietf-moq-transport"></xref> Section 9.19.17)
 of the REQUEST_OK (TRACK_STATUS_OK) that answers it.  For
 lost source packets whose block it has not delimited, because it
 holds no repair packet of that block, the receiver instead fetches
@@ -917,7 +917,7 @@ a MoQ session cannot request unicast repair; it relies on in-band FEC
 and, where published, the keyframe overlay (<xref target="MOQ-MMT"></xref> Section
 7.4).</t>
 <t>A relay that does not hold the requested objects fetches them
-upstream (<xref target="I-D.ietf-moq-transport"></xref> Sections 3.2.3 and 7.6).  A
+upstream (<xref target="I-D.ietf-moq-transport"></xref> Sections 3.2.3 and 7.7).  A
 FETCH for a repair-track group that neither the relay nor any
 publisher upstream of it still holds fails or returns none of the
 group's objects, and the receiver then treats the block as
@@ -940,8 +940,8 @@ subscriptions or end them:</t>
 
 <ul spacing="compact">
 <li>To pause a subscription, the receiver sends a REQUEST_UPDATE with
-the FORWARD parameter set to 0 (<xref target="I-D.ietf-moq-transport"></xref>
-Sections 3.1.1 and 9.20.18).  The subscription stays Established,
+the PAUSED parameter set to 1 (<xref target="I-D.ietf-moq-transport"></xref>
+Sections 3.1.1 and 9.19.18).  The subscription stays Established,
 and the publisher sends no objects on it.  Failover then needs no
 new SUBSCRIBE.</li>
 <li>To end a subscription, the receiver sends STOP_SENDING
@@ -953,7 +953,7 @@ repair layer that no endpoint it holds carries and that it combines
 with multicast source symbols (Section 6, item 2;
 <xref target="MOQ-FEC-MULTICAST"></xref> Section 4).</t>
 <t>On failover (Section 6), the receiver resumes a paused subscription
-with a REQUEST_UPDATE that sets FORWARD to 1.  FILL_PARAMETERS
+with a REQUEST_UPDATE that sets PAUSED to 0.  FILL_PARAMETERS
 carried while a subscription is paused opens no fill fetch stream,
 and resuming without re-sending FILL_PARAMETERS opens none either
 (<xref target="I-D.ietf-moq-transport"></xref> Section 3.4.1).  A receiver that needs
@@ -3135,6 +3135,17 @@ are in draft-ramadan-moq-multicast-02.</li>
 draft-ramadan-moq-mmt-03, draft-ramadan-moq-fec-core-01,
 draft-ramadan-moq-fec-catalog-01, draft-ramadan-moq-fec-multicast-01
 and draft-ramadan-mboned-mcast-manifest-02.</li>
+<li>Citations of other Internet-Drafts follow
+draft-ietf-moq-transport-23, draft-ietf-moq-msf-02,
+draft-ietf-moq-loc-05, draft-ietf-moq-cmsf-01,
+draft-ietf-mboned-multicast-security-02 and
+draft-jholland-quic-multicast-09.  Section 6.3 pauses a
+subscription with the PAUSED parameter set to 1 and resumes it with
+PAUSED set to 0.  -02 named the FORWARD parameter of
+draft-ietf-moq-transport-22, set to 0 and to 1; the receiver asks
+for the same thing.  Six MoQ Transport sections and the section
+of <tt>altGroup</tt> in the MOQT Streaming Format, cited in Sections 6,
+6.1, 6.2 and 6.3, have new numbers there.</li>
 </ul>
 </section>
 
