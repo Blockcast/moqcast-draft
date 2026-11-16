@@ -4018,7 +4018,9 @@ publication as an RFC.
   rules that draft-ietf-moq-msf-02 adds, in its Sections 4.3 and 6.3,
   for alternate tracks with dissimilar keyframe intervals (Sections
   4.3, 4.4.1, 4.4.2, 8.1 and 13.1).  Every track of such a set carries
-  `keyframeSpacing`, which counts samples on an mmtp track.  All its
+  `keyframeSpacing`, which counts samples on an mmtp track.  A track
+  of another packaging in such a set, a cmaf track for one, puts one
+  sample in each object, which -02 did not ask of it.  All its
   tracks have one sample period and start together at Group 0.  None
   leaves a gap in its Group numbers or sends a keyframe inside a
   group.  A publisher that cannot publish the next Group number of a
