@@ -577,7 +577,7 @@ Section 3.4):</t>
 ]]></artwork>
 <t><xref target="MOQ-FEC-CORE"></xref> Section 13.2 states how a publisher chooses
 K and T for CMAF objects and how segment boundaries relate to blocks;
-the mmtp rendition of CMAF content is described by <xref target="MOQ-MMT"></xref>.</t>
+the mmtp alternate track of CMAF content is described by <xref target="MOQ-MMT"></xref>.</t>
 </section>
 
 <section anchor="security-considerations"><name>Security Considerations</name>
@@ -999,7 +999,7 @@ array.  Per <xref target="MOQ-MULTICAST"></xref> Sections
 4.1 and
 5, a multicast endpoint lists
 only mmtp tracks and their repair tracks, and a loc or cmaf track
-reaches multicast through an mmtp rendition track; symbol tracks are
+reaches multicast through an mmtp alternate track; symbol tracks are
 not listed on a multicast endpoint (<xref target="MOQ-FEC-MULTICAST"></xref> Section
 3.3).  Each track listed on the
 endpoint carries a <tt>packetId</tt> that routes its MMTP packets on the
@@ -1053,7 +1053,7 @@ the scheme-neutral rules are now <xref target="MOQ-FEC-CORE"></xref>'s and the
 scheme bounds <xref target="MOQ-FEC-BLOCK"></xref>'s.</li>
 <li>-01 Section 13 (Interaction with CMAF Packaging): the direct
 protection of a cmaf track and its diagram, to <xref target="cmsf"></xref>; the mmtp
-rendition went to <xref target="MOQ-MMT"></xref> and the segment-boundary paragraph
+alternate track went to <xref target="MOQ-MMT"></xref> and the segment-boundary paragraph
 to <xref target="MOQ-FEC-CORE"></xref>.</li>
 <li>-01 Section 15.3 (Catalog Packaging Value), to
 <xref target="iana-considerations"></xref>, now with &quot;fec-source&quot;.</li>
@@ -1211,7 +1211,7 @@ further instances have no conventional name.&quot;</li>
 <li>In <xref target="cmsf"></xref>: the first paragraph, and &quot;<xref target="MOQ-FEC-CORE"></xref> Section
 13.2 states how a publisher chooses K and T for CMAF
 objects and how segment boundaries relate to blocks; the mmtp
-rendition of CMAF content is described by <xref target="MOQ-MMT"></xref>.&quot;</li>
+alternate track of CMAF content is described by <xref target="MOQ-MMT"></xref>.&quot;</li>
 <li>The sentences of <xref target="security-considerations"></xref>.</li>
 <li>In <xref target="layered-instances"></xref>: the introductory paragraph, &quot;Both
 instances are valid under &quot;reed-solomon&quot;: 64 + 56 = 120 and
@@ -1248,6 +1248,9 @@ this document's own words.  The rule is unchanged.</li>
 <tt>&quot;version&quot;: &quot;draft-02&quot;</tt>.  The <tt>version</tt> field is a string
 (<xref target="I-D.ietf-moq-msf"></xref> Section 5.1.1), and &quot;draft-02&quot; names
 draft-ietf-moq-msf-02; -00 carried the number 1.</li>
+<li>After the -00 posting: &quot;rendition&quot; now reads &quot;alternate track&quot;.
+Tracks that share an <tt>altGroup</tt> are alternate tracks in
+draft-ietf-moq-msf-02 (its Section 5.2.13).  No requirement changes.</li>
 </ul>
 </section>
 

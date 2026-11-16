@@ -241,7 +241,7 @@ which carries the same source packets as unicast datagrams under FEC
 instances and repair tracks of its own ([@!MOQ-MMT] Section 4.3.1),
 use FEC too, and repair as that section specifies.  A multicast
 endpoint carries only mmtp tracks,
-so a loc or cmaf track reaches multicast through an mmtp rendition
+so a loc or cmaf track reaches multicast through an mmtp alternate
 track, which is a separate FEC instance ([@!MOQ-MULTICAST] Section
 4.1; see
 (#symbol-tracks-on-multicast)).
@@ -315,7 +315,7 @@ mmtp tracks and their repair tracks only ([@!MOQ-MULTICAST] Section
 multicast leg carries is protected under the `iso-ssbg1-v1` block
 profile of [@!MOQ-MMT], where one MMTP packet is one source symbol.  A
 loc or cmaf track reaches a multicast endpoint only through an mmtp
-rendition track, which is a separate FEC instance.  A symbol track of
+alternate track, which is a separate FEC instance.  A symbol track of
 the symbol carriage of [@!MOQ-FEC-CORE] (its Section
 6.2) has the packaging value `fec-source`
 ([@!MOQ-FEC-CATALOG] Section 3.3), which the
@@ -477,13 +477,13 @@ receives source packets once while adding layers 1 and 2 to the same
 decode.
 
 A repair-only endpoint is never a media tier.  A receiver MUST NOT
-treat one as a rendition or quality choice, and endpoint or ladder
+treat one as an alternate track or quality choice, and endpoint or ladder
 selection MUST exclude it on every path by which a receiver picks
 what to render.  A repair-only endpoint's `bandwidth`
 ([@!MOQ-MULTICAST] Section 4.1) is
 the cost of adding repair to a
 stream the receiver has already selected, not the cost of an
-alternative rendition, and MUST NOT be compared against a media
+alternate track, and MUST NOT be compared against a media
 endpoint's `bandwidth` when choosing one.
 
 A receiver joins a repair-only endpoint on measured loss: the rate at
@@ -1771,6 +1771,9 @@ Changed sentences:
   SUBSCRIBER_PRIORITY parameter is cited as Section 9.19.7 of MoQ
   Transport; it was Section 9.20.7 in draft-ietf-moq-transport-22.  No
   other word changes.
+- "Rendition" now reads "alternate track".  Tracks that share an
+  `altGroup` are alternate tracks in draft-ietf-moq-msf-02 (its
+  Section 5.2.13).  No requirement changes.
 
 {#changes-from-draft-ramadan-moq-fec-01}
 # Changes from draft-ramadan-moq-fec-01
@@ -1814,7 +1817,7 @@ Changed sentences:
   mmtp tracks, so a loc or cmaf track under moq-object-v1 reaches
   multicast through an mmtp rendition track" now reads "A multicast
   endpoint carries only mmtp tracks, so a loc or cmaf track reaches
-  multicast through an mmtp rendition track" and points at
+  multicast through an mmtp alternate track" and points at
   (#symbol-tracks-on-multicast).
 - In (#multicast-quic), "Item 1 assumes iso-ssbg1-v1, under which one
   MMTP packet is one source symbol.  This document defines no

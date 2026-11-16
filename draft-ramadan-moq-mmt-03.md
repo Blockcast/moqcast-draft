@@ -115,7 +115,7 @@ under "iso-ssbg1-v1", where an MPU corresponds to a CMAF Fragment
 ((#object-payload)).  Such a track is also how CMAF content reaches
 multicast, because a multicast endpoint carries only mmtp tracks
 ([@!MOQ-MULTICAST] Section 4.1).
-The cmaf track and its mmtp rendition are separate FEC instances
+The cmaf track and its mmtp alternate track are separate FEC instances
 ([@!MOQ-FEC-CORE] Section 5.1), and symbols of one
 never repair the other.
 
@@ -525,7 +525,7 @@ MUST NOT derive media time or switching decisions from it.  (The MPU
 sequence number is a per-Asset counter.  It starts at zero for the first
 MPU in an Asset and increments by one for every following MPU
 ([@!ISO.23008-1] Clause 7.3.3), but it is
-Asset-local: independently packetized renditions need not assign the
+Asset-local: independently packetized alternate tracks need not assign the
 same MPU number to the same media instant.  Counter-based group
 numbering therefore cannot satisfy the switching-set alignment
 requirements of Section 4.4.)
@@ -713,7 +713,7 @@ timeout does not drop ([@!MOQ-FEC-CORE] Section 12, item 1).
 {#switching-sets}
 ## Switching Sets
 
-When multiple tracks represent alternative renditions of the same
+When multiple tracks are alternate versions of the same
 media (e.g., an adaptive bitrate (ABR) ladder), they form a
 switching set: a set of alternate tracks that MUST be time-aligned per
 [@!I-D.ietf-moq-msf] Section 4.2 (the same construct that
@@ -747,10 +747,10 @@ carry the `altGroup` field and the values are equal.  A track that
 omits `altGroup` is a member of no switching set, and the
 switching-set requirements of this section do not bind it.  A repair
 track (Section 8.2) carries no `altGroup`.  It is not an alternate
-rendition, and its Groups are FEC blocks ([@!MOQ-FEC-CORE] Section
+track, and its Groups are FEC blocks ([@!MOQ-FEC-CORE] Section
 7.6), not media-time-aligned
-Groups.  A subscriber finds the repair tracks of the rendition it
-selects through the `repairTrack` of each of that rendition's FEC
+Groups.  A subscriber finds the repair tracks of the track it
+selects through the `repairTrack` of each of that track's FEC
 instances and the `source` fields of its repair tracks
 ([@!MOQ-FEC-CATALOG] Section 3.2; the data model of
 [@!MOQ-FEC-CORE] Section 10.2).
@@ -760,7 +760,7 @@ instances and the `source` fields of its repair tracks
 
 The Group number of every mmtp-packaged track MUST be computed from
 media time by the formula in this section.  This single definition is
-what makes group boundaries align across the renditions of a switching
+what makes group boundaries align across the tracks of a switching
 set.  FEC interleave timing is independent of this grouping;
 (#interleaving) does not derive FEC block boundaries or a number of
 Groups per FEC block from this formula:
@@ -888,8 +888,8 @@ exact ratio `timescale / mdhd.timescale` before applying this formula.
 It MUST reject a timestamp that is not an integer in the selected
 catalog clock; it MUST NOT relabel media ticks as asset-clock ticks.
 
-Worked example.  A switching set of two video renditions of the same
-content: rendition A with `timescale: 90000`, rendition B with
+Worked example.  A switching set of two video tracks of the same
+content: track A with `timescale: 90000`, track B with
 `timescale: 44100`, both with `presentationAnchorTicks: 0` and
 `groupDurationMs: 2000` in the catalog (Section 4.4.2).  The sample
 that is 10.5 seconds into the shared presentation timeline has an
@@ -904,7 +904,7 @@ A: relative_ticks = 945000 -> floor(945000 / 180000) = 5
 B: relative_ticks = 463050 -> floor(463050 /  88200) = 5
 ~~~
 
-Both renditions place the instant in group 5.  No intermediate value
+Both tracks place the instant in group 5.  No intermediate value
 is shared between the two computations -- only the integer results
 agree -- which is exactly the property group-boundary switching
 requires.
@@ -2324,7 +2324,7 @@ packet, so receivers MAY combine the symbols of a track from every
 transport path that delivers it toward the same FEC block recovery.
 An "mfu" track and its "mfu-datagram" track carry the same source
 packets but have FEC instances of their own (Section 4.3.1), and a loc
-or cmaf track reaches multicast only through a separate mmtp rendition
+or cmaf track reaches multicast only through a separate mmtp alternate
 track ([@!MOQ-MULTICAST] Section 4.1), whose symbols belong to another
 FEC instance; a receiver does not combine symbols across either pair
 ([@!MOQ-FEC-CORE] Section 5.1).
@@ -2504,7 +2504,7 @@ instance entry with its own repair track
 the source track's `scheme`, `blockProfile` and `symbolSize`. It does
 not share the base instance's K, its block partition, its SS_ID space,
 or its RS_ID space.  Because each source packet carries one base SS_ID,
-a different base K or interleave window needs a separate rendition; the
+a different base K or interleave window needs a separate alternate track; the
 keyframe overlay is a separate FEC instance, not a layer.
 
 An overlay instance whose base instance carries a positive
@@ -3207,8 +3207,8 @@ Per-track catalog fields for mmtp packaging:
 | `fec` | OPTIONAL | Array | FEC instances, encoded per [@!MOQ-FEC-CATALOG] Section 3 (Section 8) |
 
 All other base track fields of [@!I-D.ietf-moq-msf] Section 5.2
-apply unchanged.  In particular `name` and the rendition
-parameters -- `codec` ([@!I-D.ietf-moq-msf] Section 5.2.19; required
+apply unchanged.  In particular `name` and the selection
+properties -- `codec` ([@!I-D.ietf-moq-msf] Section 5.2.19; required
 for media tracks per that section), `framerate`, `width`, `height`,
 `samplerate`, `channelConfig`, `bitrate`, and `lang` -- are flat,
 top-level fields of the track object.
@@ -3419,7 +3419,7 @@ format of [@!MOQ-MULTICAST] Section
   provisioning does not so place, or whose symbols the field the
   converter first read already counted, it lists only by retiring
   the source encoding and publishing the source track and its repair
-  tracks as a separate rendition that lists it, since appending it
+  tracks as a new source encoding that lists it, since appending it
   would give it an O_i that is not the publisher's, which no check
   detects, or an O_i + P_i above the wire RSB_length, on which every
   receiver joining it fails closed (that section), while lowering
@@ -3440,14 +3440,14 @@ format of [@!MOQ-MULTICAST] Section
   next catalog refresh (that section), so the
   converter
   retires the source encoding and
-  publishes the source track and its repair tracks as a separate
-  rendition carrying the lowered value, as that section has a
+  publishes the source track and its repair tracks as a new source
+  encoding carrying the lowered value, as that section has a
   publisher that must retire a layer do; a repair packet whose
   RSB_length falls below that total once the track is published, on
   a block at or after, in that serial order, one of which it has
   received a repair packet carrying at least that total, is the same
   violation and has the converter retire the source encoding in the
-  same way, the separate rendition listing the repair track as the
+  same way, the new source encoding listing the repair track as the
   first listing did, once a repair packet of the flow received after
   that one carries at least the field of the version it then holds,
   as the violating packet, below the field of the version held when
@@ -4036,6 +4036,12 @@ publication as an RFC.
 - The worked catalogs carry `"version": "draft-02"`.  The `version`
   field is a string ([@!I-D.ietf-moq-msf] Section 5.1.1), and
   "draft-02" names draft-ietf-moq-msf-02; -02 carried the number 1.
+- "Rendition" now reads "alternate track".  Tracks that share an
+  `altGroup` are alternate tracks in [@!I-D.ietf-moq-msf] Section
+  5.2.13, and "the rendition parameters" reads "the selection
+  properties", as that section has it.  Where a publisher retires a
+  source encoding, "a separate rendition" now reads "a new source
+  encoding" ([@!MOQ-FEC-CORE] Section 7.6).  No requirement changes.
 
 {#changes-since-mmt-01}
 ## Changes Since draft-ramadan-moq-mmt-01
@@ -4063,7 +4069,7 @@ re-pointed.  The section numbers in the -00 entry below are those of
   the A3SA signed region (-01 Sections 8.5, 8.5.1 and 14.5, as the new
   Section 14.1), the "iso-ssbg1-v1" registration and the 0x8B01 note
   (-01 Sections 15.1 and 15.4, into Section 15), the MMTP capacity
-  arithmetic (-01 Appendix B, as Appendix B), the mmtp rendition of CMAF
+  arithmetic (-01 Appendix B, as Appendix B), the mmtp alternate track of CMAF
   content (-01 Section 13, 3893-3900, into Section 1.1; the diagram of
   -01 Section 13 depicts direct protection of a cmaf track under
   "moq-object-v1" and is not carried here) and the FEC terms specific to
@@ -4211,8 +4217,8 @@ re-pointed.  The section numbers in the -00 entry below are those of
     packet's Source FEC Payload ID (Section 7.2); the property is object
     metadata and is not inserted into this payload.
 
-  - A subscriber finds the repair tracks of the rendition it selects
-    through the repairTrack of each of that rendition's FEC instances
+  - A subscriber finds the repair tracks of the track it selects
+    through the repairTrack of each of that track's FEC instances
     and the source fields of its repair tracks ([MOQ-FEC-CATALOG]
     Section 3.2; the data model of [MOQ-FEC-CORE]
     Section 10.2).
@@ -4725,7 +4731,7 @@ re-pointed.  The section numbers in the -00 entry below are those of
   with no unlearned layer below it, the field's rise alone placing none,
   and listing one provisioning does not so place, or whose symbols the
   field it first read already counted, only by retiring the source
-  encoding and publishing a separate rendition.  Section 12.2 states
+  encoding and publishing a new source encoding.  Section 12.2 states
   that the field is a bound in [@!ISO.23008-1] where "iso-ssbg1-v1"
   carries P as every repair packet's RSB_length, lists the repair track
   only once a repair packet of the flow carries at least the field, and
@@ -4737,7 +4743,7 @@ re-pointed.  The section numbers in the -00 entry below are those of
   total (Section 8.3) while the path keeps no order between the message
   and the repair flow (Section 5.2.2); once the track is published such
   a packet, below the total its catalog derives for the highest layer it
-  lists, retires the source encoding, the separate rendition listing the
+  lists, retires the source encoding, the new source encoding listing the
   repair track again as the first listing did; a previous-total packet
   of an earlier block fails a receiver of the catalog closed on nothing,
   the own-track clause of [@?I-D.ramadan-moq-fec] Section 6.3.9 applying

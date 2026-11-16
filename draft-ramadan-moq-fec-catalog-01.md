@@ -582,7 +582,7 @@ Section 3.4):
 
 [@!MOQ-FEC-CORE] Section 13.2 states how a publisher chooses
 K and T for CMAF objects and how segment boundaries relate to blocks;
-the mmtp rendition of CMAF content is described by [@?MOQ-MMT].
+the mmtp alternate track of CMAF content is described by [@?MOQ-MMT].
 
 {#security-considerations}
 # Security Considerations
@@ -963,7 +963,7 @@ array.  Per [@?MOQ-MULTICAST] Sections
 4.1 and
 5, a multicast endpoint lists
 only mmtp tracks and their repair tracks, and a loc or cmaf track
-reaches multicast through an mmtp rendition track; symbol tracks are
+reaches multicast through an mmtp alternate track; symbol tracks are
 not listed on a multicast endpoint ([@?MOQ-FEC-MULTICAST] Section
 3.3).  Each track listed on the
 endpoint carries a `packetId` that routes its MMTP packets on the
@@ -1017,7 +1017,7 @@ What moved here:
   scheme bounds [@!MOQ-FEC-BLOCK]'s.
 - -01 Section 13 (Interaction with CMAF Packaging): the direct
   protection of a cmaf track and its diagram, to (#cmsf); the mmtp
-  rendition went to [@?MOQ-MMT] and the segment-boundary paragraph
+  alternate track went to [@?MOQ-MMT] and the segment-boundary paragraph
   to [@!MOQ-FEC-CORE].
 - -01 Section 15.3 (Catalog Packaging Value), to
   (#iana-considerations), now with "fec-source".
@@ -1173,7 +1173,7 @@ New sentences, not carried from -01:
 - In (#cmsf): the first paragraph, and "[@!MOQ-FEC-CORE] Section
   13.2 states how a publisher chooses K and T for CMAF
   objects and how segment boundaries relate to blocks; the mmtp
-  rendition of CMAF content is described by [@?MOQ-MMT]."
+  alternate track of CMAF content is described by [@?MOQ-MMT]."
 - The sentences of (#security-considerations).
 - In (#layered-instances): the introductory paragraph, "Both
   instances are valid under "reed-solomon": 64 + 56 = 120 and
@@ -1210,6 +1210,9 @@ New sentences, not carried from -01:
   `"version": "draft-02"`.  The `version` field is a string
   ([@!I-D.ietf-moq-msf] Section 5.1.1), and "draft-02" names
   draft-ietf-moq-msf-02; -00 carried the number 1.
+- After the -00 posting: "rendition" now reads "alternate track".
+  Tracks that share an `altGroup` are alternate tracks in
+  draft-ietf-moq-msf-02 (its Section 5.2.13).  No requirement changes.
 
 {numbered="false"}
 # Acknowledgements
