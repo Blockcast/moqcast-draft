@@ -58,7 +58,7 @@ TRANSPORT_23 = {
     "5.1.1": "Definitions", "5.1.2": "Scheduling Algorithm", "5.2": "Delivery Timeouts and Data Reliability",
     "6.2": "Session establishment", "6.4.2.1": "Request ID", "7.7": "Publisher Interactions",
     "7.9": "Relay Object Handling", "8.1": "Variable-Length Integers", "8.2": "Location Structure",
-    "8.3": "Key-Value-Pair Structure", "8.4": "Track and Object Properties", "9.1.6": "MAX FILTER RANGES",
+    "8.3": "Key-Value-Pair Structure", "8.4": "Track and Object Properties", "9.1.6": "MAX FILTER RANGES", "9.9": "PUBLISH_DONE",
     "9.12": "TRACK_STATUS", "9.19.4": "OBJECT_DELIVERY_TIMEOUT Parameter",
     "9.19.7": "SUBSCRIBER PRIORITY Parameter", "9.19.9": "LOCATION FILTER Parameter",
     "9.19.11": "OBJECTID FILTER Parameter", "9.19.15": "FILL PARAMETERS Parameter",
@@ -66,15 +66,15 @@ TRANSPORT_23 = {
     "9.19.19": "NEW GROUP REQUEST Parameter", "10.4": "DEFAULT PUBLISHER PRIORITY", "10.6": "DYNAMIC GROUPS",
     "10.7": "Immutable Properties", "10.8": "Prior Group ID Gap", "11.1.1": "Object Status",
     "11.2": "Datagrams", "11.2.1": "Object Datagram", "11.3.1": "Subgroup Header",
-    "11.3.2": "Closing Subgroup Streams", "11.4.1.1": "Flags",
+    "11.3.2": "Closing Subgroup Streams", "11.4.1.1": "Flags", "12.4": "Publish Done Codes",
 }
 MSF_02 = {
-    "4.1.1": "LOC to MOQT Stream mapping", "4.2": "Time-alignment", "4.3": "Packaging for multi-variant track switching",
+    "4.1": "LOC packaging", "4.1.1": "LOC to MOQT Stream mapping", "4.2": "Time-alignment", "4.3": "Packaging for multi-variant track switching",
     "5": "Catalog", "5.1": "Root Catalog Fields", "5.1.1": "MSF version", "5.1.7": "Initialization Data List", "5.2": "Track Object Fields",
     "5.2.2": "Track namespace", "5.2.4": "Packaging", "5.2.8": "Is Live", "5.2.13": "Alternate group",
     "5.2.14": "Initialization reference", "5.2.15": "Dependencies", "5.2.19": "Codec", "5.2.22": "Timescale",
     "5.2.23": "Maximum Bitrate", "5.2.46": "Keyframe spacing", "6": "Media transmission",
-    "6.1": "Group numbering", "6.2": "Object Numbering", "6.3": "Multi-Variant Fast Track Switching",
+    "6.1": "Group numbering", "6.2": "Object Numbering", "6.3": "Multi-Variant Fast Track Switching", "6.3.2": "Calculating Valid Switch Points",
 }
 # the parameter, message or field that a section defines; the drafts name it just before they cite the section
 NAMED_BEFORE = {
@@ -309,6 +309,7 @@ class SplitContracts(unittest.TestCase):
             self.assertIn("MUST close the session with MALFORMED_KEY_VALUE", core)
             # transport-23 Section 8.4: more instances of a supported Property than allowed make the track malformed
             self.assertIn("carries more than one, a receiver that implements this document MUST also treat the track as malformed", core)
+            self.assertIn("The count is over both lists because [@!I-D.ietf-moq-transport] Section 10.7", core)
             self.assertIn('"MOQ Properties" registry of [@!I-D.ietf-moq-transport] (Section 16.8 of that document)', core)
         if "MULTICAST" in self.text:
             multicast = flat(self.text["MULTICAST"])
@@ -320,9 +321,15 @@ class SplitContracts(unittest.TestCase):
             # msf-02 Section 6 leaves the stream mapping to the packaging; msf-01 put each object on a new stream
             self.assertNotIn("maps each object to a new stream", mmt)
             self.assertIn("Section 6 leaves the mapping of objects to streams to the packaging of each track", mmt)
-            # msf-02 Sections 4.3, 5.2.46 and 6.3 are new; the mmtp switching set keeps its own rules
-            self.assertIn("An mmtp track therefore does not carry the `keyframeSpacing` field", mmt)
-            self.assertIn("apply unchanged, except `keyframeSpacing`", mmt)
+            # msf-02 Sections 4.3, 5.2.46 and 6.3 are new; a switching set with an intra-only track follows them
+            self.assertNotIn("does not carry the `keyframeSpacing` field", mmt)
+            self.assertIn("its publisher MUST follow [@!I-D.ietf-moq-msf] Section 4.3", mmt)
+            self.assertIn("Every track MUST carry `keyframeSpacing`", mmt)
+            self.assertIn("so that the first Group of every track is Group 0", mmt)
+            self.assertIn("A publisher MUST NOT leave a numeric gap, whether after a restart", mmt)
+            self.assertIn("is called a mixed-interval switching set in this document", mmt)
+            self.assertIn("An mmtp track that is not in a mixed-interval switching set MUST NOT carry `keyframeSpacing`", mmt)
+            self.assertIn("is valid when `(g * S + N) / T` is an integer", mmt)
         if "CATALOG" in self.text:
             catalog = flat(self.text["CATALOG"])
             # msf-02 Section 5.2.15 no longer says in which namespace a dependency is resolved
