@@ -55,7 +55,7 @@ signaling of QUIC:
 2. **Catalog extension**: A multicast endpoint discovery mechanism
    for MoQ catalogs [@!I-D.ietf-moq-msf].  Endpoints carry mmtp tracks
    and their repair tracks, and a loc or cmaf track reaches multicast
-   through an mmtp rendition track (Section 4.1).
+   through an mmtp alternate track (Section 4.1).
 3. **MMTP wire format**: All multicast media delivery uses MMTP
    packets -- the same packet format that MoQ objects carry on QUIC
    streams and as QUIC datagrams -- and on a protected endpoint signed
@@ -450,16 +450,16 @@ that the `name` field does not permit.
 This document defines multicast carriage only for mmtp tracks
 (Section 5).  To offer a track packaged as loc [@?I-D.ietf-moq-loc]
 or cmaf [@?I-D.ietf-moq-cmsf] on multicast, a publisher also
-publishes an mmtp rendition of the same media: a separate track whose
+publishes an mmtp alternate track of the same media: a separate track whose
 `packaging` is `mmtp`, with its own name, `packetId`, `fec` array
 and repair tracks, in the same `altGroup` as the loc or cmaf track
-(Section 6.1).  The endpoint lists the mmtp rendition track.  A
+(Section 6.1).  The endpoint lists the mmtp alternate track.  A
 receiver that holds the loc or cmaf track over MoQ receives the mmtp
-rendition track on multicast in its place.  The two tracks are
+alternate track on multicast in its place.  The two tracks are
 separate FEC instances ([@!MOQ-FEC-CORE] Section
 5.1), so symbols of one never repair the other,
 and the multi-path combining of Section 6 applies within the mmtp
-rendition track only.
+alternate track only.
 
 Subscribers receiving a catalog with multicast endpoints MAY
 auto-connect to the multicast group when multicast APIs are
@@ -682,7 +682,7 @@ relies on the in-band signaling below.
 Multicast carriage uses MMTP: an endpoint lists only mmtp tracks
 and their repair
 tracks, and a loc or cmaf track reaches multicast through an mmtp
-rendition track (Section 4.1).
+alternate track (Section 4.1).
 
 This design means the same MMTP packet can be delivered via four
 transports without modification:
@@ -3153,6 +3153,9 @@ as an RFC.
   for the same thing.  Six MoQ Transport sections and the section
   of `altGroup` in the MOQT Streaming Format, cited in Sections 6,
   6.1, 6.2 and 6.3, have new numbers there.
+- "Rendition" now reads "alternate track".  Tracks that share an
+  `altGroup` are alternate tracks in [@!I-D.ietf-moq-msf] Section
+  5.2.13.  No requirement changes.
 
 {#changes-since-draft-ramadan-moq-multicast-01}
 ## Changes Since draft-ramadan-moq-multicast-01
@@ -3186,7 +3189,7 @@ as an RFC.
   scheme of [@!MOQ-FEC-BLOCK] derives from it, in place of the
   RaptorQ OTI and the Reed-Solomon parameters.
 - (#multicast-endpoint-format): the separately packetized copy and
-  the mmtp rendition each carry their own `fec` array, the array of
+  the mmtp alternate track each carry their own `fec` array, the array of
   FEC instance objects of [@!MOQ-FEC-CATALOG] Section
   3.1, in place of -01's `fec` object.  The section no longer states
   a MUST for parsers that do not support multicast; it says that such

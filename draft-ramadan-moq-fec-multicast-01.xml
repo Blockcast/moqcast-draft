@@ -209,7 +209,7 @@ which carries the same source packets as unicast datagrams under FEC
 instances and repair tracks of its own (<xref target="MOQ-MMT"></xref> Section 4.3.1),
 use FEC too, and repair as that section specifies.  A multicast
 endpoint carries only mmtp tracks,
-so a loc or cmaf track reaches multicast through an mmtp rendition
+so a loc or cmaf track reaches multicast through an mmtp alternate
 track, which is a separate FEC instance (<xref target="MOQ-MULTICAST"></xref> Section
 4.1; see
 <xref target="symbol-tracks-on-multicast"></xref>).</t>
@@ -282,7 +282,7 @@ mmtp tracks and their repair tracks only (<xref target="MOQ-MULTICAST"></xref> S
 multicast leg carries is protected under the <tt>iso-ssbg1-v1</tt> block
 profile of <xref target="MOQ-MMT"></xref>, where one MMTP packet is one source symbol.  A
 loc or cmaf track reaches a multicast endpoint only through an mmtp
-rendition track, which is a separate FEC instance.  A symbol track of
+alternate track, which is a separate FEC instance.  A symbol track of
 the symbol carriage of <xref target="MOQ-FEC-CORE"></xref> (its Section
 6.2) has the packaging value <tt>fec-source</tt>
 (<xref target="MOQ-FEC-CATALOG"></xref> Section 3.3), which the
@@ -436,13 +436,13 @@ second is repair-only: a receiver on a lossy path holds both, and
 receives source packets once while adding layers 1 and 2 to the same
 decode.</t>
 <t>A repair-only endpoint is never a media tier.  A receiver MUST NOT
-treat one as a rendition or quality choice, and endpoint or ladder
+treat one as an alternate track or quality choice, and endpoint or ladder
 selection MUST exclude it on every path by which a receiver picks
 what to render.  A repair-only endpoint's <tt>bandwidth</tt>
 (<xref target="MOQ-MULTICAST"></xref> Section 4.1) is
 the cost of adding repair to a
 stream the receiver has already selected, not the cost of an
-alternative rendition, and MUST NOT be compared against a media
+alternate track, and MUST NOT be compared against a media
 endpoint's <tt>bandwidth</tt> when choosing one.</t>
 <t>A receiver joins a repair-only endpoint on measured loss: the rate at
 which its FEC blocks fail to recover, and the margin by which
@@ -1718,6 +1718,9 @@ draft-jholland-quic-multicast-09.  In <xref target="unicast-repair-budget"></xre
 SUBSCRIBER_PRIORITY parameter is cited as Section 9.19.7 of MoQ
 Transport; it was Section 9.20.7 in draft-ietf-moq-transport-22.  No
 other word changes.</li>
+<li>&quot;Rendition&quot; now reads &quot;alternate track&quot;.  Tracks that share an
+<tt>altGroup</tt> are alternate tracks in draft-ietf-moq-msf-02 (its
+Section 5.2.13).  No requirement changes.</li>
 </ul>
 </section>
 
@@ -1762,7 +1765,7 @@ end of concealment in <xref target="other-video-blocks"></xref> have changed sin
 mmtp tracks, so a loc or cmaf track under moq-object-v1 reaches
 multicast through an mmtp rendition track&quot; now reads &quot;A multicast
 endpoint carries only mmtp tracks, so a loc or cmaf track reaches
-multicast through an mmtp rendition track&quot; and points at
+multicast through an mmtp alternate track&quot; and points at
 <xref target="symbol-tracks-on-multicast"></xref>.</li>
 <li>In <xref target="multicast-quic"></xref>, &quot;Item 1 assumes iso-ssbg1-v1, under which one
 MMTP packet is one source symbol.  This document defines no
