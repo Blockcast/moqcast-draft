@@ -56,7 +56,7 @@ TRANSPORT_23 = {
     "3.3.1": "Location Filters", "3.3.2": "Range Filters", "3.4": "Fill Semantics",
     "3.4.1": "Opening and Closing Fill Fetch Streams", "3.5": "Joining an Ongoing Track",
     "5.1.1": "Definitions", "5.1.2": "Scheduling Algorithm", "5.2": "Delivery Timeouts and Data Reliability",
-    "6.2": "Session establishment", "6.4.2.1": "Request ID", "7.7": "Publisher Interactions",
+    "6.2": "Session establishment", "6.4.2.1": "Request ID", "7.1": "Caching Relays", "7.7": "Publisher Interactions",
     "7.9": "Relay Object Handling", "8.1": "Variable-Length Integers", "8.2": "Location Structure",
     "8.3": "Key-Value-Pair Structure", "8.4": "Track and Object Properties", "9.1.6": "MAX FILTER RANGES", "9.9": "PUBLISH_DONE",
     "9.12": "TRACK_STATUS", "9.19.4": "OBJECT_DELIVERY_TIMEOUT Parameter",
@@ -355,7 +355,7 @@ class SplitContracts(unittest.TestCase):
             self.skipTest("the core draft is not present")
         core = self.text["CORE"]
         rows = re.findall(r"^\| (\S+) \| (FEC_[A-Z_]+) \| Object \|", core, re.M)
-        self.assertEqual(rows, [("0x85", "FEC_SOURCE_INFO"), ("TBD1", "FEC_UNIT_START")])
+        self.assertEqual(rows, [("0x85", "FEC_SOURCE_INFO"), ("TBD1", "FEC_UNIT_START"), ("TBD2", "FEC_DELIVERY_INFO")])
         value = int(rows[0][0], 16)
         self.assertEqual(value % 2, 1, "a value of bytes needs an odd type")
         self.assertTrue(0x80 <= value <= 0x37FF, "the Specification Required range of draft-ietf-moq-transport-23 Section 16.8")

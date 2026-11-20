@@ -912,17 +912,17 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 </tr>
 
 <tr>
-<td>TBD2</td>
-<td>FEC_DELIVERY_INFO</td>
-<td>Object</td>
-<td>This document, Section 5.7</td>
-</tr>
-
-<tr>
 <td>TBD1</td>
 <td>FEC_UNIT_START</td>
 <td>Object</td>
 <td>This document, Section 6.2</td>
+</tr>
+
+<tr>
+<td>TBD2</td>
+<td>FEC_DELIVERY_INFO</td>
+<td>Object</td>
+<td>This document, Section 5.7</td>
 </tr>
 </tbody>
 </table><t>FEC_SOURCE_INFO is odd-typed because its value is bytes. It is requested as 0x85, an odd value from the range 0x80 to 0x37FF, for which <xref target="I-D.ietf-moq-transport"></xref> states a registration policy of Specification Required and which this document can reach on its own. Until IANA assigns the value, 0x85 is provisional and is the value implementations of this document use (Section 5.6). <xref target="I-D.ramadan-moq-fec"></xref> and revision -00 of this document requested 0x11, which lies in the range 0x00 to 0x77; the policy for that range, Standards Action or IESG Approval, is not reachable by an individual draft, and <xref target="I-D.ietf-moq-loc"></xref> now assigns 0x11 to its Codec String Property. The shortest encoding of the Delta Type of 0x85 is two bytes when no Property of type 0x06 or higher precedes it in the same sequence of Key-Value-Pairs and one byte otherwise, where that of a type from the range 0x00 to 0x77 is always one byte (<xref target="I-D.ietf-moq-transport"></xref> Sections 8.1 and 8.3). FEC_UNIT_START is even-typed because its value is an integer. It is requested as TBD1, an even value from the same range, and Section 6.2 refers to it by name until IANA assigns the value. FEC_DELIVERY_INFO is odd-typed because its value is bytes. It is requested as TBD2, an odd value from the same range, and Section 5.7 refers to it by name until IANA assigns the value. No request depends on this document being adopted. All three Properties have Object scope: each describes the object it tags and carries no track-wide meaning. The even value 0x10 is not requested for FEC_SOURCE_INFO: it is the TIMESTAMP Property of <xref target="I-D.ietf-moq-loc"></xref>, at Object scope in the same Property Type space (Section 5.6).</t>
@@ -1162,7 +1162,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 <li>After the -00 posting: citations of other Internet-Drafts follow draft-ietf-moq-transport-23, draft-ietf-moq-msf-02, draft-ietf-moq-loc-05, draft-ietf-moq-cmsf-01 and draft-ietf-moq-secure-objects-01. The MoQ Transport sections cited in Section 5.2, Section 7.6 and Section 7.7 have new numbers there. In Section 5.6 the session error has the name MALFORMED_KEY_VALUE, which draft-ietf-moq-transport-22 called KEY_VALUE_FORMATTING_ERROR, and a received object with more than one FEC Source Info Property makes its track malformed, as Section 8.4 of draft-ietf-moq-transport-23 requires of an endpoint that supports a Property; -00 only treated such an object as carrying none. Section 1.1 says &quot;subscribing and unsubscribing&quot; where -00 named an UNSUBSCRIBE message, which MoQ Transport does not have.</li>
 <li>After the -00 posting: the catalogs of Section 10.4 and of <xref target="rebuilding-a-block-worked-example"></xref> carry <tt>&quot;version&quot;: &quot;draft-02&quot;</tt>, the version string of draft-ietf-moq-msf-02, where -00 carried the number 1; that field is a string. The track of <xref target="rebuilding-a-block-worked-example"></xref> declares the &quot;object&quot; stream mapping of draft-ietf-moq-msf-02 (<xref target="I-D.ietf-moq-msf"></xref> Section 4.1.1), and the appendix says so, because its example loses two objects of a Group to a delivery timeout and receives the objects after them. Under the default mapping of draft-ietf-moq-msf-02 the objects of a Group share one Subgroup, whose stream that timeout resets; draft-ietf-moq-msf-01 put each object on a stream of its own. Section 5.6 and Section 15.1 give the one-byte and two-byte sizes of the Delta Type as those of its shortest encoding.</li>
 <li>After the -00 posting: &quot;rendition&quot; now reads &quot;alternate track&quot;. Tracks that share an <tt>altGroup</tt> are alternate tracks in draft-ietf-moq-msf-02 (its Section 5.2.13). Where a publisher retires a source encoding, &quot;a separate rendition&quot; now reads &quot;a new source encoding&quot;. No requirement changes.</li>
-<li>After the -00 posting: a relay can fill gaps in its cache from FEC. A publisher MAY record each object's Publisher Priority, Delivery Mode, Subgroup ID and End of Group in a new FEC Delivery Info Property (Section 5.7, requested as TBD2 in Section 15.1). It lies inside the Immutable Properties, so the unit's layout is unchanged and an object without it builds the same unit as before. A relay that implements FEC MAY rebuild a missing source object that carries the Property and cache, forward and serve it as an object of the source track (Sections 9.2 and 12). Without the Property, the rule of -00 stands: a rebuilt object is not forwarded as an object of the source track. Section 14.2 states what a corrupt rebuild at a relay costs, and Section 12 asks the relay to check a decode against spare symbols.</li>
+<li>After the -00 posting: a relay can fill gaps in its cache from FEC. A publisher can record each object's Publisher Priority, Delivery Mode, Subgroup ID and End of Group in a new FEC Delivery Info Property (Section 5.7, requested as TBD2 in Section 15.1). It lies inside the Immutable Properties, so the unit's layout is unchanged and an object without it builds the same unit as before. A relay that implements FEC can rebuild a missing source object that carries the Property and cache, forward and serve it as an object of the source track (Sections 9.2 and 12). Without the Property, the rule of -00 stands: a rebuilt object is not forwarded as an object of the source track. Section 14.2 states what a corrupt rebuild at a relay costs, and Section 12 asks the relay to check a decode against spare symbols.</li>
 </ul>
 <t>The questions this revision leaves open are marked [open] in the text: whether Section 4.3 holds for sliding-window schemes (Section 4.3); whether this document should itself require the mandatory-to-implement scheme (Section 4.4); and, in Section 6.2, whether the FEC Unit Start Property is worth its codepoint and whether PRIOR_GROUP_ID_GAP should be required on symbol-track objects; and, in Section 12, whether MoQ Transport lets a relay put an object it rebuilt into the source track.</t>
 </section>
