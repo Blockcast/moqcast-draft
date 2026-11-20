@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- name="GENERATOR" content="github.com/mmarkdown/mmark Mmark Markdown Processor - mmark.miek.nl" -->
-<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-block-codes-00" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
+<rfc version="3" ipr="trust200902" docName="draft-ramadan-moq-fec-block-codes-01" submissionType="IETF" category="std" xml:lang="en" xmlns:xi="http://www.w3.org/2001/XInclude" indexInclude="true">
 
 <front>
-<title abbrev="MoQ FEC Block Codes">Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ</title><seriesInfo value="draft-ramadan-moq-fec-block-codes-00" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
+<title abbrev="MoQ FEC Block Codes">Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ</title><seriesInfo value="draft-ramadan-moq-fec-block-codes-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="November" day="2"></date>
+</address></author><date year="2026" month="November" day="20"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -27,6 +27,14 @@ and symbol size, the decoding overhead, and how the scheme supports
 repair layers.  It restates the Reed-Solomon code and gives test vectors
 for it.</t>
 </abstract>
+
+<note removeInRFC="true"><name>Discussion Venues</name>
+<t>Discussion of this document takes place on the Media Over QUIC (moq)
+Working Group mailing list (moq@ietf.org), which is archived at
+<eref target="https://mailarchive.ietf.org/arch/browse/moq/">https://mailarchive.ietf.org/arch/browse/moq/</eref>.</t>
+<t>Source for this draft and an issue tracker can be found at
+<eref target="https://github.com/Blockcast/moqcast-draft">https://github.com/Blockcast/moqcast-draft</eref>.</t>
+</note>
 
 </front>
 
@@ -355,7 +363,7 @@ binding (<xref target="MOQ-FEC-CATALOG"></xref>), protects a LOC video track und
 &quot;reed-solomon&quot;:</t>
 
 <sourcecode type="json"><![CDATA[{
-  "version": 1,
+  "version": "draft-02",
   "tracks": [
     {
       "name": "video",
@@ -729,9 +737,9 @@ scheme admits repair layers (<xref target="MOQ-FEC-CORE"></xref> Section
     <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
       <organization>Rutgers University</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-01"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.2119.xml"/>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.6330.xml"/>
@@ -765,9 +773,9 @@ scheme admits repair layers (<xref target="MOQ-FEC-CORE"></xref> Section
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-MULTICAST" target="">
   <front>
@@ -775,9 +783,9 @@ scheme admits repair layers (<xref target="MOQ-FEC-CORE"></xref> Section
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-MMT" target="">
   <front>
@@ -785,9 +793,9 @@ scheme admits repair layers (<xref target="MOQ-FEC-CORE"></xref> Section
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-02"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-03"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml/reference.RFC.5510.xml"/>
 </references>
@@ -947,6 +955,25 @@ repair symbol at RS_ID 0 recovers the source symbol at ESI 1:</t>
   "recovered": ["090a0b0c0d0e0f10"]
 }
 ]]></sourcecode>
+</section>
+
+<section anchor="changes-from-00" removeInRFC="true"><name>Changes from draft-ramadan-moq-fec-block-codes-00</name>
+<t>This appendix is informative.  It lists every change since
+draft-ramadan-moq-fec-block-codes-00.  No requirement changes.</t>
+
+<ul spacing="compact">
+<li>References: the companion documents are now cited as
+draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
+draft-ramadan-moq-fec-multicast-01 and draft-ramadan-moq-mmt-03.
+Each section of them that this document cites keeps its number and
+its title there.</li>
+<li>The worked catalog of <xref target="rs-parameters"></xref> carries
+<tt>&quot;version&quot;: &quot;draft-02&quot;</tt>.  The <tt>version</tt> field of the catalog is a
+string in draft-ietf-moq-msf-02, and &quot;draft-02&quot; names that revision;
+-00 carried the number 1.</li>
+<li>A note before the Introduction names the mailing list and the
+repository where this document is discussed.</li>
+</ul>
 </section>
 
 <section anchor="changes-from-draft-ramadan-moq-fec-01"><name>Changes from draft-ramadan-moq-fec-01</name>

@@ -8,7 +8,7 @@
 </postal><email>omar@blockcast.net</email>
 </address></author><author initials="M. E." surname="Fiuczynski" fullname="Marc E. Fiuczynski"><organization>Rutgers University</organization><address><postal><street></street>
 </postal><email>mef@scarletmail.rutgers.edu</email>
-</address></author><date year="2026" month="November" day="15"></date>
+</address></author><date year="2026" month="November" day="20"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -19,6 +19,11 @@
 <abstract>
 <t>This document specifies how Forward Error Correction (FEC) repair data is carried alongside source media in Media over QUIC (MoQ) without naming a particular FEC code. It states the properties that an FEC scheme must have to be used with this mechanism, and defines everything that does not depend on the scheme: how source objects become source symbols, how source symbols are numbered and grouped into blocks, two ways of carrying source symbols (as the source track's own objects, or as a separate symbol track suited to datagram delivery), repair tracks that receivers subscribe to independently and in layers, the repair object format, repair Group IDs that make repair fetchable by block, and equal and unequal protection driven only by metadata that MoQ Transport exposes, so that FEC works when payloads are encrypted end to end. Relays need no FEC knowledge, and a relay that has it can rebuild source objects missing from its cache when the publisher records how each object is sent. Specific FEC schemes, catalog bindings, packaging-specific profiles and multicast delivery are left to companion documents.</t>
 </abstract>
+
+<note removeInRFC="true"><name>Discussion Venues</name>
+<t>Discussion of this document takes place on the Media Over QUIC (moq) Working Group mailing list (moq@ietf.org), which is archived at <eref target="https://mailarchive.ietf.org/arch/browse/moq/">https://mailarchive.ietf.org/arch/browse/moq/</eref>.</t>
+<t>Source for this draft and an issue tracker can be found at <eref target="https://github.com/Blockcast/moqcast-draft">https://github.com/Blockcast/moqcast-draft</eref>.</t>
+</note>
 
 </front>
 
@@ -50,6 +55,17 @@
 <li><xref target="MOQ-MMT"></xref>, which defines the packaging-specific block profile for tracks packaged as MPEG Media Transport Protocol (MMTP) packets, and the broadcast interworking that relies on it;</li>
 <li><xref target="MOQ-FEC-MULTICAST"></xref>, the multicast and hybrid unicast/multicast delivery of protected tracks, independent of how multicast is carried, which <xref target="MOQ-MULTICAST"></xref> specifies.</li>
 </ul>
+</section>
+
+<section anchor="use-of-moq-transport"><name>Use of MoQ Transport</name>
+<t>This document and its companions require no change to MoQ Transport <xref target="I-D.ietf-moq-transport"></xref>. They define no message, error code or parameter of it. A relay needs to implement nothing from them: it forwards their tracks and Properties as MoQ Transport already requires, and Section 12 lists what the mechanism relies on relays doing well. They build on these extension points:</t>
+
+<ul spacing="compact">
+<li><strong>Tracks.</strong> Repair tracks and symbol tracks are ordinary tracks in the source track's Track Namespace (Section 7.1). A receiver subscribes to them and fetches from them with SUBSCRIBE and FETCH, and their objects travel on streams or as datagrams like any other object.</li>
+<li><strong>Object Properties</strong> (<xref target="I-D.ietf-moq-transport"></xref> Section 8.4). This document requests three in the &quot;MOQ Properties&quot; registry (Section 15.1): FEC Source Info (Section 5.6), FEC Unit Start (Section 6.2) and FEC Delivery Info (Section 5.7). A relay that does not support a Property forwards it.</li>
+<li><strong>The catalog.</strong> The configuration data model of Section 10 travels in the catalog of the MOQT Streaming Format <xref target="I-D.ietf-moq-msf"></xref>, which a receiver obtains by subscribing to the catalog track. The documents extend that catalog with packaging values and catalog fields, as <xref target="I-D.ietf-moq-cmsf"></xref> extends it with &quot;cmaf&quot;. <xref target="MOQ-FEC-CATALOG"></xref> adds the packaging values &quot;fec-repair&quot; and &quot;fec-source&quot;, the track field <tt>fec</tt> and the fields with which a repair track or a symbol track describes its role. <xref target="MOQ-MMT"></xref> adds the packaging value &quot;mmtp&quot; and the track fields of an mmtp track. <xref target="MOQ-MULTICAST"></xref> adds the root field <tt>multicast</tt>, which names multicast endpoints.</li>
+</ul>
+<t>One optional behavior reaches past MoQ Transport as written. A relay that implements FEC can rebuild source objects into its cache (Section 12), where MoQ Transport has a relay treat the payloads it forwards as opaque (<xref target="I-D.ietf-moq-transport"></xref> Section 7.9). The Editor's Note in Section 12 leaves that question open. A relay that does not rebuild objects is not affected by it.</t>
 </section>
 
 <section anchor="editor-s-notes" removeInRFC="true"><name>Editor's Notes</name>
@@ -968,9 +984,9 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-CATALOG" target="">
   <front>
@@ -978,7 +994,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-01"></seriesInfo>
 </reference>
@@ -1018,7 +1034,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-01"></seriesInfo>
 </reference>
@@ -1028,7 +1044,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-03"></seriesInfo>
 </reference>
@@ -1038,7 +1054,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-03"></seriesInfo>
 </reference>
@@ -1163,6 +1179,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 <li>After the -00 posting: the catalogs of Section 10.4 and of <xref target="rebuilding-a-block-worked-example"></xref> carry <tt>&quot;version&quot;: &quot;draft-02&quot;</tt>, the version string of draft-ietf-moq-msf-02, where -00 carried the number 1; that field is a string. The track of <xref target="rebuilding-a-block-worked-example"></xref> declares the &quot;object&quot; stream mapping of draft-ietf-moq-msf-02 (<xref target="I-D.ietf-moq-msf"></xref> Section 4.1.1), and the appendix says so, because its example loses two objects of a Group to a delivery timeout and receives the objects after them. Under the default mapping of draft-ietf-moq-msf-02 the objects of a Group share one Subgroup, whose stream that timeout resets; draft-ietf-moq-msf-01 put each object on a stream of its own. Section 5.6 and Section 15.1 give the one-byte and two-byte sizes of the Delta Type as those of its shortest encoding.</li>
 <li>After the -00 posting: &quot;rendition&quot; now reads &quot;alternate track&quot;. Tracks that share an <tt>altGroup</tt> are alternate tracks in draft-ietf-moq-msf-02 (its Section 5.2.13). Where a publisher retires a source encoding, &quot;a separate rendition&quot; now reads &quot;a new source encoding&quot;. No requirement changes.</li>
 <li>After the -00 posting: a relay can fill gaps in its cache from FEC. A publisher can record each object's Publisher Priority, Delivery Mode, Subgroup ID and End of Group in a new FEC Delivery Info Property (Section 5.7, requested as TBD2 in Section 15.1). It lies inside the Immutable Properties, so the unit's layout is unchanged and an object without it builds the same unit as before. A relay that implements FEC can rebuild a missing source object that carries the Property and cache, forward and serve it as an object of the source track (Sections 9.2 and 12). Without the Property, the rule of -00 stands: a rebuilt object is not forwarded as an object of the source track. Section 14.2 states what a corrupt rebuild at a relay costs, and Section 12 asks the relay to check a decode against spare symbols.</li>
+<li>After the -00 posting: new Section 1.3 states that this document and its companions require no change to MoQ Transport, and lists the extension points they build on: tracks, three Object Properties and the MSF catalog. It names the relay rebuild of Section 12 as the one optional behavior that reaches past MoQ Transport as written. A note before the Introduction names the mailing list and the repository where this document is discussed. The reference to the block schemes now names draft-ramadan-moq-fec-block-codes-01.</li>
 </ul>
 <t>The questions this revision leaves open are marked [open] in the text: whether Section 4.3 holds for sliding-window schemes (Section 4.3); whether this document should itself require the mandatory-to-implement scheme (Section 4.4); and, in Section 6.2, whether the FEC Unit Start Property is worth its codepoint and whether PRIOR_GROUP_ID_GAP should be required on symbol-track objects; and, in Section 12, whether MoQ Transport lets a relay put an object it rebuilt into the source track.</t>
 </section>

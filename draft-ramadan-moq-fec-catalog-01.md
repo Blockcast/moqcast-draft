@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-15T00:00:00Z"
+date = "2026-11-20T00:00:00Z"
 keyword = ["FEC", "MoQ", "catalog", "MSF", "CMSF"]
 
 [seriesInfo]
@@ -36,6 +36,16 @@ encoding, and the handling of unknown keys, so that a receiver that
 obtains a track's catalog entry can configure its decoder without
 in-session signaling.
 
+{removeInRFC="true"}
+.# Discussion Venues
+
+Discussion of this document takes place on the Media Over QUIC (moq)
+Working Group mailing list (moq@ietf.org), which is archived at
+<https://mailarchive.ietf.org/arch/browse/moq/>.
+
+Source for this draft and an issue tracker can be found at
+<https://github.com/Blockcast/moqcast-draft>.
+
 {mainmatter}
 
 {#introduction}
@@ -57,7 +67,9 @@ array of FEC instance objects, two packaging values, `"fec-repair"`
 and `"fec-source"`, and the fields with which a repair track or a
 symbol track describes its own role.  The catalog `fec` array is the
 authoritative FEC signaling for every receiver that obtains the
-track's catalog entry; no in-session signaling is required.
+track's catalog entry; no in-session signaling is required.  This
+document defines no message, parameter or Property of MoQ Transport
+([@!MOQ-FEC-CORE] Section 1.3).
 
 {#relation-to-other-documents}
 ## Relation to Other Documents
@@ -625,7 +637,7 @@ requests registration of:
     <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
       <organization>Rutgers University</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-01'/>
 </reference>
@@ -636,9 +648,9 @@ requests registration of:
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='20'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-MULTICAST'>
@@ -647,7 +659,7 @@ requests registration of:
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-01'/>
 </reference>
@@ -658,7 +670,7 @@ requests registration of:
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-03'/>
 </reference>
@@ -669,7 +681,7 @@ requests registration of:
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-03'/>
 </reference>
@@ -1194,8 +1206,14 @@ New sentences, not carried from -01:
   receiver-local allowance.
 - After the -00 posting: the references to the companion documents
   now name draft-ramadan-moq-fec-core-01,
+  draft-ramadan-moq-fec-block-codes-01,
   draft-ramadan-moq-fec-multicast-01, draft-ramadan-moq-mmt-03 and
   draft-ramadan-moq-multicast-03.
+- After the -00 posting: (#introduction) says that this document
+  defines no message, parameter or Property of MoQ Transport, and
+  points to [@!MOQ-FEC-CORE] Section 1.3.  A note before the
+  Introduction names the mailing list and the repository where this
+  document is discussed.  No requirement changes.
 - After the -00 posting: the first paragraph of this appendix gains
   the sentence "In it, -01 means draft-ramadan-moq-fec-01, not a
   revision of this document."

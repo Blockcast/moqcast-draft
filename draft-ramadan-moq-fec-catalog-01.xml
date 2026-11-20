@@ -6,7 +6,7 @@
 <title abbrev="MoQ FEC Catalog Binding">Catalog Binding for Forward Error Correction in Media over QUIC</title><seriesInfo value="draft-ramadan-moq-fec-catalog-01" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="November" day="15"></date>
+</address></author><date year="2026" month="November" day="20"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -28,6 +28,14 @@ obtains a track's catalog entry can configure its decoder without
 in-session signaling.</t>
 </abstract>
 
+<note removeInRFC="true"><name>Discussion Venues</name>
+<t>Discussion of this document takes place on the Media Over QUIC (moq)
+Working Group mailing list (moq@ietf.org), which is archived at
+<eref target="https://mailarchive.ietf.org/arch/browse/moq/">https://mailarchive.ietf.org/arch/browse/moq/</eref>.</t>
+<t>Source for this draft and an issue tracker can be found at
+<eref target="https://github.com/Blockcast/moqcast-draft">https://github.com/Blockcast/moqcast-draft</eref>.</t>
+</note>
+
 </front>
 
 <middle>
@@ -48,7 +56,9 @@ array of FEC instance objects, two packaging values, <tt>&quot;fec-repair&quot;<
 and <tt>&quot;fec-source&quot;</tt>, and the fields with which a repair track or a
 symbol track describes its own role.  The catalog <tt>fec</tt> array is the
 authoritative FEC signaling for every receiver that obtains the
-track's catalog entry; no in-session signaling is required.</t>
+track's catalog entry; no in-session signaling is required.  This
+document defines no message, parameter or Property of MoQ Transport
+(<xref target="MOQ-FEC-CORE"></xref> Section 1.3).</t>
 
 <section anchor="relation-to-other-documents"><name>Relation to Other Documents</name>
 <t>This document is a companion of <xref target="MOQ-FEC-CORE"></xref>, which defines the
@@ -638,9 +648,9 @@ requests registration of:</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-CORE" target="">
   <front>
@@ -651,7 +661,7 @@ requests registration of:</t>
     <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
       <organization>Rutgers University</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-01"></seriesInfo>
 </reference>
@@ -667,7 +677,7 @@ requests registration of:</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-01"></seriesInfo>
 </reference>
@@ -677,7 +687,7 @@ requests registration of:</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-03"></seriesInfo>
 </reference>
@@ -687,7 +697,7 @@ requests registration of:</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-03"></seriesInfo>
 </reference>
@@ -1232,8 +1242,14 @@ deadline, as <xref target="MOQ-FEC-CORE"></xref> Section 9.3 states; -00 called 
 receiver-local allowance.</li>
 <li>After the -00 posting: the references to the companion documents
 now name draft-ramadan-moq-fec-core-01,
+draft-ramadan-moq-fec-block-codes-01,
 draft-ramadan-moq-fec-multicast-01, draft-ramadan-moq-mmt-03 and
 draft-ramadan-moq-multicast-03.</li>
+<li>After the -00 posting: <xref target="introduction"></xref> says that this document
+defines no message, parameter or Property of MoQ Transport, and
+points to <xref target="MOQ-FEC-CORE"></xref> Section 1.3.  A note before the
+Introduction names the mailing list and the repository where this
+document is discussed.  No requirement changes.</li>
 <li>After the -00 posting: the first paragraph of this appendix gains
 the sentence &quot;In it, -01 means draft-ramadan-moq-fec-01, not a
 revision of this document.&quot;</li>

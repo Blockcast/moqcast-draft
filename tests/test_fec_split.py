@@ -17,15 +17,15 @@ ROOT = Path(__file__).resolve().parents[1]
 # anchor -> (file, KEY); KEY is the token prefix the drafts were written with
 SET = {
     "MOQ-FEC-CORE": ("draft-ramadan-moq-fec-core-01.md", "CORE"),
-    "MOQ-FEC-BLOCK": ("draft-ramadan-moq-fec-block-codes-00.md", "BLOCK"),
+    "MOQ-FEC-BLOCK": ("draft-ramadan-moq-fec-block-codes-01.md", "BLOCK"),
     "MOQ-FEC-CATALOG": ("draft-ramadan-moq-fec-catalog-01.md", "CATALOG"),
     "MOQ-FEC-MULTICAST": ("draft-ramadan-moq-fec-multicast-01.md", "MCAST"),
     "MOQ-MMT": ("draft-ramadan-moq-mmt-03.md", "MMT"),
     "MOQ-MULTICAST": ("draft-ramadan-moq-multicast-03.md", "MULTICAST"),
 }
 # drafts revised since the batch posted on 2026-11-02; a draft that is still as posted cites their previous revision
-REVISED = {"MOQ-FEC-CORE", "MOQ-FEC-CATALOG", "MOQ-FEC-MULTICAST", "MOQ-MMT", "MOQ-MULTICAST"}
-AS_POSTED = {"BLOCK"}
+REVISED = {"MOQ-FEC-CORE", "MOQ-FEC-BLOCK", "MOQ-FEC-CATALOG", "MOQ-FEC-MULTICAST", "MOQ-MMT", "MOQ-MULTICAST"}
+AS_POSTED: set[str] = set()
 
 
 def previous(name: str) -> str:
@@ -33,7 +33,7 @@ def previous(name: str) -> str:
     return f"{stem}-{int(rev) - 1:02d}"
 FRONT = {
     "CORE": ("draft-ramadan-moq-fec-core-01", "Forward Error Correction for Media over QUIC: Core Mechanism", ["Omar Ramadan", "Marc E. Fiuczynski"]),
-    "BLOCK": ("draft-ramadan-moq-fec-block-codes-00", "Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ", ["Omar Ramadan"]),
+    "BLOCK": ("draft-ramadan-moq-fec-block-codes-01", "Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ", ["Omar Ramadan"]),
     "CATALOG": ("draft-ramadan-moq-fec-catalog-01", "Catalog Binding for Forward Error Correction in Media over QUIC", ["Omar Ramadan"]),
     "MCAST": ("draft-ramadan-moq-fec-multicast-01", "Forward Error Correction for Multicast Delivery of Media over QUIC", ["Omar Ramadan"]),
     "MMT": ("draft-ramadan-moq-mmt-03", "MPEG Media Transport (MMT) Packaging for Media over QUIC", ["Omar Ramadan"]),
