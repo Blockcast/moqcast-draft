@@ -1074,6 +1074,16 @@ URI's host, which the catalog chooses, and to the path where the
 fetch is not encrypted.  A receiver that must not disclose this stays
 on MoQ unicast.
 
+Nothing on the multicast path authorizes a receiver.  Any host that
+knows an endpoint's addresses can join it, and the profile of
+(#content-authentication) authenticates the sender, not the receiver.
+A receiver that holds a MoQ session learns the addresses from the
+catalog, so the authorization that the publisher or a relay applies
+to a subscription to the catalog track decides which receivers learn
+them over MoQ.  It does not stop a host that learns them in another
+way, from the path or from another receiver.  Encryption of the
+media, not the join, decides who can play it.
+
 {#content-authentication}
 ## Content Authentication
 
@@ -3166,6 +3176,10 @@ as an RFC.
   that joining a multicast group is a local action of the receiver.
   It points to [@!MOQ-FEC-CORE] Section 1.3 for the extension points
   that the document set builds on.  No requirement changes.
+- (#multicast-security) says that nothing on the multicast path
+  authorizes a receiver: catalog authorization decides which receivers
+  learn an endpoint's addresses over MoQ, and encryption of the media
+  decides who can play it.  The paragraph adds no requirement.
 - A note before the Introduction names the mailing list and the
   repository where this document is discussed.
 - References: the companion documents are now cited as
