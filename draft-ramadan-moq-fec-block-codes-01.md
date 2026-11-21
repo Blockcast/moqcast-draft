@@ -752,8 +752,9 @@ Schemes" registry that [@!MOQ-FEC-CORE] Section
 The Identifier is the string that the scheme parameter of an FEC
 instance carries ([@!MOQ-FEC-CORE] Section
 10.1).  When reviewing a registration in that
-registry, the designated expert checks that the specification gives the
-scheme's symbol construction, the derivation of its decoder parameters
+registry, the designated expert applies the criteria of
+[@!MOQ-FEC-CORE] Section 15.2; in particular, it checks that the
+specification gives the scheme's symbol construction, the derivation of its decoder parameters
 from the configuration and the Repair FEC Payload ID, and the semantics
 of its repair objects ([@!MOQ-FEC-CORE] Section
 4.2), and that it states whether the
@@ -837,9 +838,9 @@ scheme admits repair layers ([@!MOQ-FEC-CORE] Section
     <author>
       <organization>ATSC</organization>
     </author>
-    <date year='2026' month='February'/>
+    <date year='2026' month='April'/>
   </front>
-  <seriesInfo name='ATSC' value='A/331:2026-02'/>
+  <seriesInfo name='ATSC' value='A/331:2026-04'/>
 </reference>
 
 {#test-vectors}
@@ -1031,6 +1032,11 @@ draft-ramadan-moq-fec-block-codes-00.  No requirement changes.
   -00 carried the number 1.
 - A note before the Introduction names the mailing list and the
   repository where this document is discussed.
+- (#iana-considerations) has the designated expert apply the criteria
+  of [@!MOQ-FEC-CORE] Section 15.2, and names the checks it already
+  listed as part of them.
+- [@?ATSC-A331] is cited at its April 2026 edition, as the companion
+  documents cite it.
 
 {#changes-from-draft-ramadan-moq-fec-01}
 # Changes from draft-ramadan-moq-fec-01

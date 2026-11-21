@@ -704,8 +704,9 @@ Schemes&quot; registry that <xref target="MOQ-FEC-CORE"></xref> Section
 </table><t>The Identifier is the string that the scheme parameter of an FEC
 instance carries (<xref target="MOQ-FEC-CORE"></xref> Section
 10.1).  When reviewing a registration in that
-registry, the designated expert checks that the specification gives the
-scheme's symbol construction, the derivation of its decoder parameters
+registry, the designated expert applies the criteria of
+<xref target="MOQ-FEC-CORE"></xref> Section 15.2; in particular, it checks that the
+specification gives the scheme's symbol construction, the derivation of its decoder parameters
 from the configuration and the Repair FEC Payload ID, and the semantics
 of its repair objects (<xref target="MOQ-FEC-CORE"></xref> Section
 4.2), and that it states whether the
@@ -752,9 +753,9 @@ scheme admits repair layers (<xref target="MOQ-FEC-CORE"></xref> Section
     <author>
       <organization>ATSC</organization>
     </author>
-    <date year="2026" month="February"></date>
+    <date year="2026" month="April"></date>
   </front>
-  <seriesInfo name="ATSC" value="A/331:2026-02"></seriesInfo>
+  <seriesInfo name="ATSC" value="A/331:2026-04"></seriesInfo>
 </reference>
 <xi:include href="https://bib.ietf.org/public/rfc/bibxml3/reference.I-D.ramadan-moq-fec.xml"/>
 <reference anchor="ISO.23008-1" target="">
@@ -973,6 +974,11 @@ string in draft-ietf-moq-msf-02, and &quot;draft-02&quot; names that revision;
 -00 carried the number 1.</li>
 <li>A note before the Introduction names the mailing list and the
 repository where this document is discussed.</li>
+<li><xref target="iana-considerations"></xref> has the designated expert apply the criteria
+of <xref target="MOQ-FEC-CORE"></xref> Section 15.2, and names the checks it already
+listed as part of them.</li>
+<li><xref target="ATSC-A331"></xref> is cited at its April 2026 edition, as the companion
+documents cite it.</li>
 </ul>
 </section>
 

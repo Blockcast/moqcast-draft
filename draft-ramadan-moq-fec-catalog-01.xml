@@ -326,10 +326,12 @@ Section 11 states, and MAY use this value
 as that SUBSCRIBER_PRIORITY.</t>
 <t>A repair or symbol track carries no geometry field, whether as a flat
 field or inside a <tt>fec</tt> array of its own: <tt>scheme</tt>, <tt>blockProfile</tt>,
-<tt>mmtpMode</tt>, <tt>timescale</tt>, any <tt>groupDuration</tt> field, <tt>symbolSize</tt>,
-<tt>interleaveDepthMs</tt>, <tt>reorderToleranceMs</tt> and <tt>sourceSymbols</tt>
-(<xref target="MOQ-FEC-CORE"></xref> Section
-10.2).</t>
+<tt>symbolSize</tt>, <tt>interleaveDepthMs</tt>, <tt>reorderToleranceMs</tt> and
+<tt>sourceSymbols</tt> (<xref target="MOQ-FEC-CORE"></xref> Section 10.2).  Nor does it carry
+the source track's timing fields from which a block profile derives
+an instance's blocks: <tt>mmtpMode</tt>, <tt>timescale</tt> and any <tt>groupDuration</tt>
+field.  This binding treats either as the violation that
+<xref target="MOQ-FEC-CORE"></xref> Section 10.3 calls geometry on a repair track.</t>
 <t>The <tt>repairTrack</tt>, <tt>symbolTrack</tt> and <tt>source</tt> fields carry only a
 Track Name (<xref target="I-D.ietf-moq-transport"></xref> Section 2.4.1), as a string
 entry of <tt>depends</tt> does (<xref target="I-D.ietf-moq-msf"></xref> Section 5.2.15), and a
@@ -359,16 +361,17 @@ specification do not recognize the values and ignore such tracks.</t>
 <t>A receiver MUST ignore a track-level key, or a key of an instance
 object, that it does not recognize, and MUST NOT treat its presence
 as an error, so that this suite can add fields without a flag day.
-Two keys defined by this document are exceptions, because ignoring
+Two keys are exceptions, because ignoring
 either would change how the receiver must interpret the symbols it
 receives, which <xref target="MOQ-FEC-CORE"></xref> Section 10.3 requires
 a binding to prevent:</t>
 
 <ul spacing="compact">
 <li><tt>enhancementRepair</tt>, at track level or inside an instance object:
-a receiver MUST reject a catalog carrying it.  The member is not
-defined.  Repair layers are declared on their own repair-track
-entries (<xref target="track-fields"></xref>).</li>
+the member is not defined, and a catalog that carries it violates
+rule 4 of <xref target="validation"></xref>, for which the receiver fails closed as
+that section states.  Repair layers are declared on their own
+repair-track entries (<xref target="track-fields"></xref>).</li>
 <li><tt>blockProfile</tt>: FEC is unavailable for an instance whose
 <tt>blockProfile</tt> names a profile the receiver does not implement
 (<xref target="MOQ-FEC-CORE"></xref> Section 10.3, rule 1), so the key
@@ -1264,6 +1267,14 @@ this document's own words.  The rule is unchanged.</li>
 <tt>&quot;version&quot;: &quot;draft-02&quot;</tt>.  The <tt>version</tt> field is a string
 (<xref target="I-D.ietf-moq-msf"></xref> Section 5.1.1), and &quot;draft-02&quot; names
 draft-ietf-moq-msf-02; -00 carried the number 1.</li>
+<li>After the -00 posting, from a review before posting:
+<xref target="track-fields"></xref> separates the geometry fields of <xref target="MOQ-FEC-CORE"></xref>
+Section 10.2 from the timing fields that this binding also keeps off
+repair and symbol tracks; the rule is unchanged.  In
+<xref target="unknown-keys"></xref>, a catalog that carries <tt>enhancementRepair</tt> makes
+the receiver fail closed for the instance, as rule 4 of
+<xref target="validation"></xref> states, where that section had said to reject the
+catalog.</li>
 <li>After the -00 posting: &quot;rendition&quot; now reads &quot;alternate track&quot;.
 Tracks that share an <tt>altGroup</tt> are alternate tracks in
 draft-ietf-moq-msf-02 (its Section 5.2.13).  No requirement changes.</li>

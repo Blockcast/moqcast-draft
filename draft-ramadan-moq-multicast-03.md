@@ -1074,8 +1074,9 @@ URI's host, which the catalog chooses, and to the path where the
 fetch is not encrypted.  A receiver that must not disclose this stays
 on MoQ unicast.
 
-Nothing on the multicast path authorizes a receiver.  Any host that
-knows an endpoint's addresses can join it, and the profile of
+This document defines no authorization of receivers on the multicast
+path.  Unless the network or the AMT relay restricts joins, any host
+that knows an endpoint's addresses can join it, and the profile of
 (#content-authentication) authenticates the sender, not the receiver.
 A receiver that holds a MoQ session learns the addresses from the
 catalog, so the authorization that the publisher or a relay applies
@@ -2349,6 +2350,16 @@ FILL_PARAMETERS as in the join of (#multi-path-delivery), which
 delivers the catalog track's current group from its independent
 catalog.
 
+**Key compromise.** The key that replaces a compromised one MUST
+carry a `kid` that no earlier key of the catalog has carried.  A
+receiver that pins keys keeps the highest `epoch` it has verified
+under each pinned `kid` (above), the key with the largest
+`firstEpoch` signs every later epoch ((#catalog-signaling)), and an
+attacker holding the
+compromised key can have raised that floor past every epoch the
+publisher will use, so a replacement under the same `kid` would be
+dropped at join by every such receiver.
+
 **Cost.** A datagram on `port` from another source, or to another
 destination than `G`, costs one or two address comparisons; one on
 `port` that spoofs `S` and is addressed to `G`, or one that a relay
@@ -3176,10 +3187,16 @@ as an RFC.
   that joining a multicast group is a local action of the receiver.
   It points to [@!MOQ-FEC-CORE] Section 1.3 for the extension points
   that the document set builds on.  No requirement changes.
-- (#multicast-security) says that nothing on the multicast path
-  authorizes a receiver: catalog authorization decides which receivers
-  learn an endpoint's addresses over MoQ, and encryption of the media
-  decides who can play it.  The paragraph adds no requirement.
+- (#multicast-security) says that this document defines no
+  authorization of receivers on the multicast path: unless the network
+  or the AMT relay restricts joins, catalog authorization decides
+  which receivers learn an endpoint's addresses over MoQ, and
+  encryption of the media decides who can play it.  The paragraph adds
+  no requirement.
+- (#receiver-enforcement-and-state) requires that the key replacing a
+  compromised one carry a `kid` that no earlier key of the catalog has
+  carried, as [@?MCAST-MANIFEST] requires of a sender, since a receiver
+  that pins keys drops a replacement under the old `kid`.
 - A note before the Introduction names the mailing list and the
   repository where this document is discussed.
 - References: the companion documents are now cited as

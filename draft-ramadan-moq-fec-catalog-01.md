@@ -378,10 +378,12 @@ as that SUBSCRIBER_PRIORITY.
 
 A repair or symbol track carries no geometry field, whether as a flat
 field or inside a `fec` array of its own: `scheme`, `blockProfile`,
-`mmtpMode`, `timescale`, any `groupDuration` field, `symbolSize`,
-`interleaveDepthMs`, `reorderToleranceMs` and `sourceSymbols`
-([@!MOQ-FEC-CORE] Section
-10.2).
+`symbolSize`, `interleaveDepthMs`, `reorderToleranceMs` and
+`sourceSymbols` ([@!MOQ-FEC-CORE] Section 10.2).  Nor does it carry
+the source track's timing fields from which a block profile derives
+an instance's blocks: `mmtpMode`, `timescale` and any `groupDuration`
+field.  This binding treats either as the violation that
+[@!MOQ-FEC-CORE] Section 10.3 calls geometry on a repair track.
 
 The `repairTrack`, `symbolTrack` and `source` fields carry only a
 Track Name ([@!I-D.ietf-moq-transport] Section 2.4.1), as a string
@@ -414,15 +416,16 @@ specification do not recognize the values and ignore such tracks.
 A receiver MUST ignore a track-level key, or a key of an instance
 object, that it does not recognize, and MUST NOT treat its presence
 as an error, so that this suite can add fields without a flag day.
-Two keys defined by this document are exceptions, because ignoring
+Two keys are exceptions, because ignoring
 either would change how the receiver must interpret the symbols it
 receives, which [@!MOQ-FEC-CORE] Section 10.3 requires
 a binding to prevent:
 
 - `enhancementRepair`, at track level or inside an instance object:
-  a receiver MUST reject a catalog carrying it.  The member is not
-  defined.  Repair layers are declared on their own repair-track
-  entries ((#track-fields)).
+  the member is not defined, and a catalog that carries it violates
+  rule 4 of (#validation), for which the receiver fails closed as
+  that section states.  Repair layers are declared on their own
+  repair-track entries ((#track-fields)).
 - `blockProfile`: FEC is unavailable for an instance whose
   `blockProfile` names a profile the receiver does not implement
   ([@!MOQ-FEC-CORE] Section 10.3, rule 1), so the key
@@ -1228,6 +1231,14 @@ New sentences, not carried from -01:
   `"version": "draft-02"`.  The `version` field is a string
   ([@!I-D.ietf-moq-msf] Section 5.1.1), and "draft-02" names
   draft-ietf-moq-msf-02; -00 carried the number 1.
+- After the -00 posting, from a review before posting:
+  (#track-fields) separates the geometry fields of [@!MOQ-FEC-CORE]
+  Section 10.2 from the timing fields that this binding also keeps off
+  repair and symbol tracks; the rule is unchanged.  In
+  (#unknown-keys), a catalog that carries `enhancementRepair` makes
+  the receiver fail closed for the instance, as rule 4 of
+  (#validation) states, where that section had said to reject the
+  catalog.
 - After the -00 posting: "rendition" now reads "alternate track".
   Tracks that share an `altGroup` are alternate tracks in
   draft-ietf-moq-msf-02 (its Section 5.2.13).  No requirement changes.

@@ -128,9 +128,8 @@ metadata names, those of (#receiver-behavior) for
 [@?MOQ-MULTICAST] Section 7.2 profiles this format for Media over QUIC
 (MoQ) as "bc-provenance" version 2: it derives `ctx` from the MoQ
 catalog, mirrors records on a MoQ track as a second path and carries
-flows in broadcasts, and it restates the format by value, so that the
-two documents agree on every wire-format fact and every rule of this
-document.  A browser profile, proposed for the web platform under the
+flows in broadcasts, and it restates the wire format by value, so that
+the two documents agree on every wire-format fact.  A browser profile, proposed for the web platform under the
 title "Multicast Receive for Secure Contexts", names the format
 `manifest-ed25519-2`, scheme 1 of
 (#multicast-datagram-integrity-schemes-registry), fetches the
@@ -2207,6 +2206,9 @@ as an RFC.
   draft-ramadan-moq-multicast-03.
 - A note before the Introduction names the mailing list and the
   repository where this document is discussed.
+- The Introduction says that the MoQ profile restates the wire format
+  by value, so that the two documents agree on every wire-format fact;
+  it no longer claims that they agree on every rule of this document.
 
 ## Changes Since draft-ramadan-mboned-mcast-manifest-00
 

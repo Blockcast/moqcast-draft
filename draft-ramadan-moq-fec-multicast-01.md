@@ -299,7 +299,7 @@ which tracks each endpoint carries, not a protocol constant.
 - **FEC-capable broadcast PHYs.**  ATSC 3.0, DVB-S2/S2X, and 5G broadcast
   already apply bit-error correction on their own radio link (e.g.,
   LDPC/BCH in ATSC 3.0 and DVB-S2/S2X).
-  Application-layer FEC is NOT a duplicate of that correction: it recovers
+  Application-layer FEC is not a duplicate of that correction: it recovers
   *packet erasures* the PHY cannot address -- bursts when reception falls
   below the PHY threshold (rain fade, mobility, indoor reception), and
   losses on upstream aggregation or backbone hops that the last-hop PHY
@@ -1185,11 +1185,11 @@ A keyframe repair is moot when both of the following hold:
    that arrives by the playout deadline holds nothing, and a repair
    that arrives only within such a hold stalls video for media the
    receiver no longer needs.  The repair cannot arrive by the playout
-   deadline when either the current time is not earlier than it, or T +
-   RTT is not earlier than it, where RTT is the receiver's current
+   deadline when either the current time is not earlier than it, or
+   t_sent + RTT is not earlier than it, where RTT is the receiver's current
    round-trip time estimate for the QUIC
    connection that carries or would carry the FETCH (for instance the
-   smoothed_rtt of [@?RFC9002] Section 5.3), and T is the time the
+   smoothed_rtt of [@?RFC9002] Section 5.3), and t_sent is the time the
    receiver sent the FETCH or, for a repair not yet requested, the
    current time.  A FETCH already sent is judged by the time it was
    sent, not by the time the RAP completes.  A receiver that has no
@@ -1679,7 +1679,7 @@ New sentences:
   the repair; a FETCH already sent is judged by its send time plus the
   round-trip time estimate until the deadline passes, and by the
   current time thereafter; a receiver without an estimate treats the
-  repair as moot.  The rule as written in -00 cancelled repairs
+  repair as unable to arrive by the playout deadline.  The rule as written in -00 cancelled repairs
   that would have arrived before their media was due, giving up that
   media while stalling nothing.  The first paragraph of
   (#keyframe-bearing-blocks) points to the new section instead of
@@ -1728,6 +1728,10 @@ New sentences:
 
 Changed sentences:
 
+- In (#moot-keyframe-repair), the time a FETCH was sent is named
+  t_sent, since T is the symbol size elsewhere in this document.  In
+  (#deployment-applicability), "is NOT a duplicate" reads "is not a
+  duplicate".
 - In (#conventions-and-definitions), the Keyframe Overlay's source
   symbols are "only the fragments of Random Access Points and the FT=0
   and FT=1 data units that govern them", where -00 had "only the

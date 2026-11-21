@@ -310,13 +310,11 @@ additional version or packet-counter semantics.</t>
 <t>Key fields for MoQ mapping:</t>
 
 <ul spacing="compact">
-<li><t><strong>Packet ID</strong>: Maps to MoQ track within namespace.  This document
+<li><strong>Packet ID</strong>: Maps to MoQ track within namespace.  This document
 reserves packet_id 0 for the MMTP signaling flow: MMTP packets of
 packet type 0x02 carrying signaling messages, such as the PA message
-of a multicast endpoint flow (<xref target="MOQ-MULTICAST"></xref> Section</t>
-
-<ol spacing="compact" start="5" type="%d)">
-<li>and the
+of a multicast endpoint flow (<xref target="MOQ-MULTICAST"></xref> Section 5)
+and the
 AL-FEC message of Section 8.3.  No MoQ track is advertised for
 the signaling flow, but an mmtp source track MAY carry its AL-FEC
 message as an object (Section 8).  An MMTP packet carrying media
@@ -333,7 +331,6 @@ signaling reads it as a signaling message, and any other receiver
 discards it (<xref target="MOQ-MULTICAST"></xref> Section
 5 states the same rule for
 every unlisted packet_id on multicast)</li>
-</ol></li>
 <li><strong>Timestamp</strong>: UTC wallclock send time in the NTP short format of
 <xref target="RFC5905"></xref> Section 6 (32 bits: 16-bit seconds and 16-bit fraction,
 relative to the NTP epoch), carried inside the object payload.  MoQ
@@ -2846,13 +2843,11 @@ encodes them (<xref target="MOQ-FEC-CATALOG"></xref> Section 3.1),
 map as follows:</t>
 
 <ul>
-<li><t><strong>scheme</strong>: the scheme identifier (<xref target="MOQ-FEC-BLOCK"></xref> Section</t>
-
-<ol spacing="compact" start="3" type="%d)">
-<li>whose <xref target="ISO.23008-10"></xref> code point the
+<li><t><strong>scheme</strong>: the scheme identifier (<xref target="MOQ-FEC-BLOCK"></xref> Section 3)
+whose <xref target="ISO.23008-10"></xref> code point the
 MMTP AL-FEC message carries in <tt>fec_code_id_for_repair_flow</tt> (Section
-8.3)</li>
-</ol></li>
+8.3)</t>
+</li>
 <li><t><strong>blockProfile</strong>: &quot;iso-ssbg1-v1&quot; (<xref target="iso-ssbg1-v1"></xref>; registered in
 <xref target="MOQ-FEC-CORE"></xref> Section 15.3),
 the ISO 23008-1 Annex C block profile, for which an AL-FEC message
@@ -3065,8 +3060,9 @@ two, &quot;reed-solomon&quot; (code point 1, mandatory to implement) and &quot;r
 10); Section 8.3 gives the AL-FEC message
 a publisher sends for a track of either, and an MMTP session whose
 AL-FEC message names any other code is outside this document and its
-companions until the &quot;MoQ FEC Schemes&quot; registry of <xref target="MOQ-FEC-CORE"></xref>
-Section 15.2 lists that code.  A publisher
+companions until a scheme registered in the &quot;MoQ FEC Schemes&quot; registry
+of <xref target="MOQ-FEC-CORE"></xref> Section 15.2 is specified for that code point.  A
+publisher
 that ingests an A/331 MMTP session takes the FEC parameters of its
 tracks from that message and the asset locations of the MP table
 (Section 13.2), and a receiver that consumes the session without the
@@ -3319,8 +3315,8 @@ one source track), a flow under any other coding structure,
 <tt>ssbg_mode</tt>, FFSRP_TS or FEC payload ID mode is not one that
 &quot;iso-ssbg1-v1&quot; describes (<xref target="iso-ssbg1-v1"></xref>), a session whose message
 names any other code is outside this document and its companions until
-the &quot;MoQ FEC Schemes&quot; registry of <xref target="MOQ-FEC-CORE"></xref> Section
-15.2 lists that code
+a scheme registered in the &quot;MoQ FEC Schemes&quot; registry of
+<xref target="MOQ-FEC-CORE"></xref> Section 15.2 is specified for that code point
 (<xref target="atsc-compatibility"></xref>), and the conversion of such a flow fails. The
 one
 repair flow the
@@ -3808,9 +3804,9 @@ control-message codepoint.</t>
     <author>
       <organization>ATSC</organization>
     </author>
-    <date year="2026" month="February"></date>
+    <date year="2026" month="April"></date>
   </front>
-  <seriesInfo name="ATSC" value="A/331:2026-02"></seriesInfo>
+  <seriesInfo name="ATSC" value="A/331:2026-04"></seriesInfo>
 </reference>
 <reference anchor="ATSC-A360" target="https://www.atsc.org/atsc-documents/3602018-atsc-3-0-security-service-protection/">
   <front>
@@ -4032,6 +4028,14 @@ citation of &quot;Section 5.2, item 5&quot; named no list item.</li>
 draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-block-codes-01,
 draft-ramadan-moq-fec-catalog-01,
 draft-ramadan-moq-fec-multicast-01 and draft-ramadan-moq-multicast-03.</li>
+<li>From a review before posting: Section 10 and Section 13.2 keep a
+session whose AL-FEC message names another code outside these
+documents until a scheme registered in the &quot;MoQ FEC Schemes&quot; registry
+is specified for that code point; they had said until that registry
+lists the code, which it has no field for.  Four citations that
+wrapped onto a new line as numbered list items now render as text.
+<xref target="ATSC-A331"></xref> is cited at its April 2026 edition, as
+<xref target="MOQ-MULTICAST"></xref> cites it.</li>
 <li><xref target="relationship-to-other-moq-media-formats"></xref> says that MMTP packaging
 requires no change to MoQ Transport, as LOC and CMAF packaging
 require none, and points to <xref target="MOQ-FEC-CORE"></xref> Section 1.3 for the
@@ -4530,13 +4534,11 @@ nor a zero value supplies an elapsed-time deadline. [-01 5.1 723 and
 mmt-01 7.1 1497-1498 merged]</t>
 </li>
 <li><t>FEC parameters for mmtp-packaged tracks are signaled in the catalog
-fec field, whose encoding [MOQ-FEC-CATALOG] defines (its Section</t>
-
-<ol spacing="compact" start="3" type="%d)">
-<li>for the configuration data model of
+fec field, whose encoding [MOQ-FEC-CATALOG] defines (its Section 3)
+for the configuration data model of
 [MOQ-FEC-CORE] Section 10, which is
-authoritative for MoQ receivers (that section).</li>
-</ol></li>
+authoritative for MoQ receivers (that section).</t>
+</li>
 <li><t>the message MUST NOT signal FEC parameters that contradict the
 track's catalog fec instances, and where the two disagree the
 catalog governs, as [MOQ-FEC-CORE] Section
@@ -4547,13 +4549,11 @@ catalog governs, as [MOQ-FEC-CORE] Section
 encodes them ([MOQ-FEC-CATALOG] Section
 3.1), map as follows:</t>
 </li>
-<li><t>scheme: the scheme identifier ([MOQ-FEC-BLOCK] Section</t>
-
-<ol spacing="compact" start="3" type="%d)">
-<li>whose [ISO.23008-10] code point the
+<li><t>scheme: the scheme identifier ([MOQ-FEC-BLOCK] Section 3)
+whose [ISO.23008-10] code point the
 MMTP AL-FEC message carries in fec_code_id_for_repair_flow (Section
-8.3)</li>
-</ol></li>
+8.3)</t>
+</li>
 <li><t>blockProfile: ... REQUIRED on every FEC instance, with no default
 [replaces &quot;REQUIRED when algorithm is not none&quot;]</t>
 </li>
