@@ -136,10 +136,11 @@ cf3c7f0b0558516d891b45b3630b065e6b50eb877cdba5bfdd649a1f2cbf62b9  draft-ramadan-
 461aed019786a1ebc4ee36e77b7c8156b12a5b7f7fd206611bf40c61a284001b  draft-ramadan-mboned-mcast-manifest-01.xml
 ```
 
-All seven drafts have changed in the repository since that posting. The
+All seven drafts changed in the repository after that posting, and their next
+revisions were posted on 21 November 2026 (below). The
 checksums above are the posted copies'. The Datatracker takes a draft's next
 posting only under the next number, so each changed working copy carries that
-name. None of these names is posted. The working copies cite one another at
+name. None of these names was posted at the time. The working copies cite one another at
 these names, so they are posted together.
 
 | Posted | Working copy | Changed by |
@@ -172,3 +173,54 @@ for all seven.
 
 State endpoints: <https://datatracker.ietf.org/api/submission/172046/status> to
 <https://datatracker.ietf.org/api/submission/172052/status>.
+
+## The 21 November 2026 batch
+
+Seven drafts were submitted on 21 November 2026 from the XML of commit
+[`be88810df25dc37b6fa5f6ed9706582c6ebb2dba`](https://github.com/Blockcast/moqcast-draft/tree/be88810df25dc37b6fa5f6ed9706582c6ebb2dba)
+on `main` (#41 and #42), dated 20 November 2026. These are the next revisions of
+all seven drafts of the 2 November batch, after IETF 127. Only the XML was
+uploaded, through the submission API, with `replaces=draft-ramadan-moq-fec` on
+the FEC core document. The author email authentication was completed, and all
+seven were posted at about 06:20 UTC.
+
+| Draft | Submission receipt | Published document |
+| --- | --- | --- |
+| `draft-ramadan-moq-fec-core-01` | [173032](https://datatracker.ietf.org/submit/status/173032/) | [XML](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-core-01.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-core-01.txt) |
+| `draft-ramadan-moq-fec-block-codes-01` | [173033](https://datatracker.ietf.org/submit/status/173033/) | [XML](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-block-codes-01.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-block-codes-01.txt) |
+| `draft-ramadan-moq-fec-catalog-01` | [173034](https://datatracker.ietf.org/submit/status/173034/) | [XML](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-catalog-01.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-catalog-01.txt) |
+| `draft-ramadan-moq-fec-multicast-01` | [173035](https://datatracker.ietf.org/submit/status/173035/) | [XML](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-multicast-01.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-moq-fec-multicast-01.txt) |
+| `draft-ramadan-moq-mmt-03` | [173036](https://datatracker.ietf.org/submit/status/173036/) | [XML](https://www.ietf.org/archive/id/draft-ramadan-moq-mmt-03.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-moq-mmt-03.txt) |
+| `draft-ramadan-moq-multicast-03` | [173037](https://datatracker.ietf.org/submit/status/173037/) | [XML](https://www.ietf.org/archive/id/draft-ramadan-moq-multicast-03.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-moq-multicast-03.txt) |
+| `draft-ramadan-mboned-mcast-manifest-02` | [173038](https://datatracker.ietf.org/submit/status/173038/) | [XML](https://www.ietf.org/archive/id/draft-ramadan-mboned-mcast-manifest-02.xml) · [TXT](https://www.ietf.org/archive/id/draft-ramadan-mboned-mcast-manifest-02.txt) |
+
+The uploaded XML checksums, matched byte for byte against the archive copies
+after posting:
+
+```text
+b7c47b5792a9298391e033c6e3bfb25a460bffb807547988d7f2dfcf3b7fbcba  draft-ramadan-moq-fec-core-01.xml
+fd8638d2fc63d2e76dd9e2deadce549bd3fd5ee2dcbe29fd8789e0de359510e1  draft-ramadan-moq-fec-block-codes-01.xml
+7f6fa9cbcdb1b3a30de1ddfd152de6091445bd3ec2b183697c67f9270d02b677  draft-ramadan-moq-fec-catalog-01.xml
+8a1e9fe85c383949ac61abf2b095ed7a45f1c73ca94d2adf53ee95ae6816b841  draft-ramadan-moq-fec-multicast-01.xml
+58573f43b842bc47c35ebc0248bf112fd33e8599e31b6bec8c5ac02d7e90d74f  draft-ramadan-moq-mmt-03.xml
+c672d96a759e420c71bbd04eb19ce17185861922a6cd0a96e98f06cd51f0e0fd  draft-ramadan-moq-multicast-03.xml
+bad2a2694c7b958576f8b81520062c9f2f765a3b4d3130f74dd9a3a5ffedb09e  draft-ramadan-mboned-mcast-manifest-02.xml
+```
+
+Validation of the uploaded XML:
+- each file is the output of mmark 2.2.48 for its Markdown;
+- `xmllint --noout --nonet` passes;
+- idnits 3.1.0, run offline in submission mode, reports no nits for any of the seven.
+
+The Datatracker's submission checks passed for all seven, and its idnits 2.17.1
+found no nits. Its idnits 3 reported one error on each,
+SUBMISSION_TYPE_UNEXPECTED: the XML names a stream, but the posted version has
+no stream on the Datatracker. The Datatracker says that error does not affect a
+submission. `python3 -m pytest -q tests` gives 44 passed and 4 skipped.
+
+The Datatracker records the FEC core document's relation to
+`draft-ramadan-moq-fec` as "possibly replaces" until it is confirmed on the
+document's replaces page.
+
+State endpoints: <https://datatracker.ietf.org/api/submission/173032/status> to
+<https://datatracker.ietf.org/api/submission/173038/status>.
