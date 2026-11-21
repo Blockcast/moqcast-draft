@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "ops"
 workgroup = "mboned"
 submissiontype = "IETF"
-date = "2026-11-15T00:00:00Z"
+date = "2026-11-20T00:00:00Z"
 keyword = ["multicast", "AMBI", "authentication", "manifest", "Ed25519", "SSM"]
 
 [seriesInfo]
@@ -40,6 +40,16 @@ datagram only after its digest matches an entry of a verified record;
 it needs no return channel.  A well-known document supplies a flow's
 keys and parameters.  A Media over QUIC profile and a browser profile
 use the format.
+
+{removeInRFC="true"}
+.# Discussion Venues
+
+Discussion of this document takes place on the MBONE Deployment
+(mboned) Working Group mailing list (mboned@ietf.org), which is
+archived at <https://mailarchive.ietf.org/arch/browse/mboned/>.
+
+Source for this draft and an issue tracker can be found at
+<https://github.com/Blockcast/moqcast-draft>.
 
 {mainmatter}
 
@@ -1998,7 +2008,7 @@ policy.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-03'/>
 </reference>
@@ -2195,6 +2205,8 @@ as an RFC.
   spaces a window's datagrams.
 - References: the MoQ multicast document is now cited as
   draft-ramadan-moq-multicast-03.
+- A note before the Introduction names the mailing list and the
+  repository where this document is discussed.
 
 ## Changes Since draft-ramadan-mboned-mcast-manifest-00
 

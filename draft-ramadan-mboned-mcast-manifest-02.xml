@@ -6,7 +6,7 @@
 <title abbrev="Multicast Manifests">Signed Digest Manifests for Multicast Datagram Authentication</title><seriesInfo value="draft-ramadan-mboned-mcast-manifest-02" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="November" day="15"></date>
+</address></author><date year="2026" month="November" day="20"></date>
 <area>ops</area>
 <workgroup>mboned</workgroup>
 <keyword>multicast</keyword>
@@ -33,6 +33,14 @@ it needs no return channel.  A well-known document supplies a flow's
 keys and parameters.  A Media over QUIC profile and a browser profile
 use the format.</t>
 </abstract>
+
+<note removeInRFC="true"><name>Discussion Venues</name>
+<t>Discussion of this document takes place on the MBONE Deployment
+(mboned) Working Group mailing list (mboned@ietf.org), which is
+archived at <eref target="https://mailarchive.ietf.org/arch/browse/mboned/">https://mailarchive.ietf.org/arch/browse/mboned/</eref>.</t>
+<t>Source for this draft and an issue tracker can be found at
+<eref target="https://github.com/Blockcast/moqcast-draft">https://github.com/Blockcast/moqcast-draft</eref>.</t>
+</note>
 
 </front>
 
@@ -2109,7 +2117,7 @@ policy.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-03"></seriesInfo>
 </reference>
@@ -2276,6 +2284,8 @@ last window can still go at once; -01 did not say how a sender
 spaces a window's datagrams.</li>
 <li>References: the MoQ multicast document is now cited as
 draft-ramadan-moq-multicast-03.</li>
+<li>A note before the Introduction names the mailing list and the
+repository where this document is discussed.</li>
 </ul>
 </section>
 

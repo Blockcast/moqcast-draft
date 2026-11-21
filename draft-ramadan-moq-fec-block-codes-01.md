@@ -5,12 +5,12 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-02T00:00:00Z"
+date = "2026-11-20T00:00:00Z"
 keyword = ["FEC", "MoQ", "Reed-Solomon", "RaptorQ", "erasure code"]
 
 [seriesInfo]
 name = "Internet-Draft"
-value = "draft-ramadan-moq-fec-block-codes-00"
+value = "draft-ramadan-moq-fec-block-codes-01"
 stream = "IETF"
 status = "standard"
 
@@ -35,6 +35,16 @@ FEC Payload ID with no in-session signaling, the bounds on block size
 and symbol size, the decoding overhead, and how the scheme supports
 repair layers.  It restates the Reed-Solomon code and gives test vectors
 for it.
+
+{removeInRFC="true"}
+.# Discussion Venues
+
+Discussion of this document takes place on the Media Over QUIC (moq)
+Working Group mailing list (moq@ietf.org), which is archived at
+<https://mailarchive.ietf.org/arch/browse/moq/>.
+
+Source for this draft and an issue tracker can be found at
+<https://github.com/Blockcast/moqcast-draft>.
 
 {mainmatter}
 
@@ -402,7 +412,7 @@ binding ([@?MOQ-FEC-CATALOG]), protects a LOC video track under
 
 ~~~ json
 {
-  "version": 1,
+  "version": "draft-02",
   "tracks": [
     {
       "name": "video",
@@ -761,9 +771,9 @@ scheme admits repair layers ([@!MOQ-FEC-CORE] Section
     <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
       <organization>Rutgers University</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='20'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-CATALOG'>
@@ -772,9 +782,9 @@ scheme admits repair layers ([@!MOQ-FEC-CORE] Section
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='20'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-MULTICAST'>
@@ -783,9 +793,9 @@ scheme admits repair layers ([@!MOQ-FEC-CORE] Section
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='20'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-01'/>
 </reference>
 
 <reference anchor='MOQ-MMT'>
@@ -794,9 +804,9 @@ scheme admits repair layers ([@!MOQ-FEC-CORE] Section
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='20'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-02'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-03'/>
 </reference>
 
 <reference anchor='ISO.23008-1'>
@@ -1003,6 +1013,24 @@ repair symbol at RS_ID 0 recovers the source symbol at ESI 1:
   "recovered": ["090a0b0c0d0e0f10"]
 }
 ~~~
+
+{#changes-from-00 removeInRFC="true"}
+# Changes from draft-ramadan-moq-fec-block-codes-00
+
+This appendix is informative.  It lists every change since
+draft-ramadan-moq-fec-block-codes-00.  No requirement changes.
+
+- References: the companion documents are now cited as
+  draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
+  draft-ramadan-moq-fec-multicast-01 and draft-ramadan-moq-mmt-03.
+  Each section of them that this document cites keeps its number and
+  its title there.
+- The worked catalog of (#rs-parameters) carries
+  `"version": "draft-02"`.  The `version` field of the catalog is a
+  string in draft-ietf-moq-msf-02, and "draft-02" names that revision;
+  -00 carried the number 1.
+- A note before the Introduction names the mailing list and the
+  repository where this document is discussed.
 
 {#changes-from-draft-ramadan-moq-fec-01}
 # Changes from draft-ramadan-moq-fec-01

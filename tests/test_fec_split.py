@@ -17,15 +17,15 @@ ROOT = Path(__file__).resolve().parents[1]
 # anchor -> (file, KEY); KEY is the token prefix the drafts were written with
 SET = {
     "MOQ-FEC-CORE": ("draft-ramadan-moq-fec-core-01.md", "CORE"),
-    "MOQ-FEC-BLOCK": ("draft-ramadan-moq-fec-block-codes-00.md", "BLOCK"),
+    "MOQ-FEC-BLOCK": ("draft-ramadan-moq-fec-block-codes-01.md", "BLOCK"),
     "MOQ-FEC-CATALOG": ("draft-ramadan-moq-fec-catalog-01.md", "CATALOG"),
     "MOQ-FEC-MULTICAST": ("draft-ramadan-moq-fec-multicast-01.md", "MCAST"),
     "MOQ-MMT": ("draft-ramadan-moq-mmt-03.md", "MMT"),
     "MOQ-MULTICAST": ("draft-ramadan-moq-multicast-03.md", "MULTICAST"),
 }
 # drafts revised since the batch posted on 2026-11-02; a draft that is still as posted cites their previous revision
-REVISED = {"MOQ-FEC-CORE", "MOQ-FEC-CATALOG", "MOQ-FEC-MULTICAST", "MOQ-MMT", "MOQ-MULTICAST"}
-AS_POSTED = {"BLOCK"}
+REVISED = {"MOQ-FEC-CORE", "MOQ-FEC-BLOCK", "MOQ-FEC-CATALOG", "MOQ-FEC-MULTICAST", "MOQ-MMT", "MOQ-MULTICAST"}
+AS_POSTED: set[str] = set()
 
 
 def previous(name: str) -> str:
@@ -33,7 +33,7 @@ def previous(name: str) -> str:
     return f"{stem}-{int(rev) - 1:02d}"
 FRONT = {
     "CORE": ("draft-ramadan-moq-fec-core-01", "Forward Error Correction for Media over QUIC: Core Mechanism", ["Omar Ramadan", "Marc E. Fiuczynski"]),
-    "BLOCK": ("draft-ramadan-moq-fec-block-codes-00", "Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ", ["Omar Ramadan"]),
+    "BLOCK": ("draft-ramadan-moq-fec-block-codes-01", "Block FEC Schemes for Media over QUIC: Reed-Solomon and RaptorQ", ["Omar Ramadan"]),
     "CATALOG": ("draft-ramadan-moq-fec-catalog-01", "Catalog Binding for Forward Error Correction in Media over QUIC", ["Omar Ramadan"]),
     "MCAST": ("draft-ramadan-moq-fec-multicast-01", "Forward Error Correction for Multicast Delivery of Media over QUIC", ["Omar Ramadan"]),
     "MMT": ("draft-ramadan-moq-mmt-03", "MPEG Media Transport (MMT) Packaging for Media over QUIC", ["Omar Ramadan"]),
@@ -56,7 +56,7 @@ TRANSPORT_23 = {
     "3.3.1": "Location Filters", "3.3.2": "Range Filters", "3.4": "Fill Semantics",
     "3.4.1": "Opening and Closing Fill Fetch Streams", "3.5": "Joining an Ongoing Track",
     "5.1.1": "Definitions", "5.1.2": "Scheduling Algorithm", "5.2": "Delivery Timeouts and Data Reliability",
-    "6.2": "Session establishment", "6.4.2.1": "Request ID", "7.7": "Publisher Interactions",
+    "6.2": "Session establishment", "6.4.2.1": "Request ID", "7.1": "Caching Relays", "7.7": "Publisher Interactions",
     "7.9": "Relay Object Handling", "8.1": "Variable-Length Integers", "8.2": "Location Structure",
     "8.3": "Key-Value-Pair Structure", "8.4": "Track and Object Properties", "9.1.6": "MAX FILTER RANGES", "9.9": "PUBLISH_DONE",
     "9.12": "TRACK_STATUS", "9.19.4": "OBJECT_DELIVERY_TIMEOUT Parameter",
@@ -355,7 +355,7 @@ class SplitContracts(unittest.TestCase):
             self.skipTest("the core draft is not present")
         core = self.text["CORE"]
         rows = re.findall(r"^\| (\S+) \| (FEC_[A-Z_]+) \| Object \|", core, re.M)
-        self.assertEqual(rows, [("0x85", "FEC_SOURCE_INFO"), ("TBD1", "FEC_UNIT_START")])
+        self.assertEqual(rows, [("0x85", "FEC_SOURCE_INFO"), ("TBD1", "FEC_UNIT_START"), ("TBD2", "FEC_DELIVERY_INFO")])
         value = int(rows[0][0], 16)
         self.assertEqual(value % 2, 1, "a value of bytes needs an odd type")
         self.assertTrue(0x80 <= value <= 0x37FF, "the Specification Required range of draft-ietf-moq-transport-23 Section 16.8")

@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-15T00:00:00Z"
+date = "2026-11-20T00:00:00Z"
 keyword = ["MMT", "MMTP", "MoQ", "ATSC 3.0", "FEC"]
 
 [seriesInfo]
@@ -35,6 +35,16 @@ packets -- its source symbols, its Source FEC Payload ID trailer, its
 repair packet and its keyframe overlay -- the derivation of MoQ catalogs
 from MMTP signaling, and compatibility considerations for both ATSC 3.0
 and ARIB STD-B60 systems, including the ATSC 3.0 signed region.
+
+{removeInRFC="true"}
+.# Discussion Venues
+
+Discussion of this document takes place on the Media Over QUIC (moq)
+Working Group mailing list (moq@ietf.org), which is archived at
+<https://mailarchive.ietf.org/arch/browse/moq/>.
+
+Source for this draft and an issue tracker can be found at
+<https://github.com/Blockcast/moqcast-draft>.
 
 {mainmatter}
 
@@ -79,7 +89,15 @@ This specification complements existing MoQ packaging formats.  The
 MOQT Streaming Format (MSF) [@!I-D.ietf-moq-msf] carries media
 packaged with the Low Overhead Media Container (LOC)
 [@!I-D.ietf-moq-loc], and CMSF [@?I-D.ietf-moq-cmsf] carries media
-packaged in the Common Media Application Format (CMAF):
+packaged in the Common Media Application Format (CMAF).  Like those
+packagings, MMTP packaging requires no change to MoQ Transport: an
+mmtp track is an ordinary track, each of its objects carries one MMTP
+packet ((#object-payload)), and a relay treats that packet as opaque
+payload.  This document adds the packaging value "mmtp" and its track
+fields to the MSF catalog and defines no message, parameter or
+Property of MoQ Transport; [@!MOQ-FEC-CORE] Section 1.3 lists the
+extension points that the document set builds on.  The formats
+compare as follows:
 
 | Format | Container | Primary Use Case | FEC Block Profile |
 |--------|-----------|------------------|-------------------|
@@ -3723,7 +3741,7 @@ control-message codepoint.
     <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
       <organization>Rutgers University</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-01'/>
 </reference>
@@ -3734,9 +3752,9 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='20'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-CATALOG'>
@@ -3745,7 +3763,7 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-01'/>
 </reference>
@@ -3756,7 +3774,7 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-multicast-01'/>
 </reference>
@@ -3767,7 +3785,7 @@ control-message codepoint.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-03'/>
 </reference>
@@ -3996,8 +4014,15 @@ publication as an RFC.
   as list items; in -02 they ran into the paragraph before them, so a
   citation of "Section 5.2, item 5" named no list item.
 - References: the companion documents are now cited as
-  draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
+  draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-block-codes-01,
+  draft-ramadan-moq-fec-catalog-01,
   draft-ramadan-moq-fec-multicast-01 and draft-ramadan-moq-multicast-03.
+- (#relationship-to-other-moq-media-formats) says that MMTP packaging
+  requires no change to MoQ Transport, as LOC and CMAF packaging
+  require none, and points to [@!MOQ-FEC-CORE] Section 1.3 for the
+  extension points that the document set builds on.  A note before the
+  Introduction names the mailing list and the repository where this
+  document is discussed.  No requirement changes.
 - Section 4.2 no longer restates the type of the FEC Source Info
   Object Property, which [@!MOQ-FEC-CORE] Section 5.6 gives.  -02 said
   0x11, which that document no longer uses.

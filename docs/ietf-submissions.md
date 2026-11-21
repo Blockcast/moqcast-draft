@@ -136,7 +136,7 @@ cf3c7f0b0558516d891b45b3630b065e6b50eb877cdba5bfdd649a1f2cbf62b9  draft-ramadan-
 461aed019786a1ebc4ee36e77b7c8156b12a5b7f7fd206611bf40c61a284001b  draft-ramadan-mboned-mcast-manifest-01.xml
 ```
 
-Six of the seven drafts have changed in the repository since that posting. The
+All seven drafts have changed in the repository since that posting. The
 checksums above are the posted copies'. The Datatracker takes a draft's next
 posting only under the next number, so each changed working copy carries that
 name. None of these names is posted. The working copies cite one another at
@@ -145,7 +145,7 @@ these names, so they are posted together.
 | Posted | Working copy | Changed by |
 | --- | --- | --- |
 | `draft-ramadan-moq-fec-core-00` | `draft-ramadan-moq-fec-core-01` | #30 |
-| `draft-ramadan-moq-fec-block-codes-00` | the posted files, unchanged | nothing |
+| `draft-ramadan-moq-fec-block-codes-00` | `draft-ramadan-moq-fec-block-codes-01` | #41 |
 | `draft-ramadan-moq-fec-catalog-00` | `draft-ramadan-moq-fec-catalog-01` | #30 |
 | `draft-ramadan-moq-fec-multicast-00` | `draft-ramadan-moq-fec-multicast-01` | #24, #27, #28, #29, #30, #31, #34 |
 | `draft-ramadan-moq-mmt-02` | `draft-ramadan-moq-mmt-03` | #24, #25, #27, #28, #30, #33, #34 |

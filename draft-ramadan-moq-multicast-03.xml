@@ -6,7 +6,7 @@
 <title abbrev="MoQ Multicast">Multicast Delivery and Endpoint Discovery for Media over QUIC</title><seriesInfo value="draft-ramadan-moq-multicast-03" stream="IETF" status="standard" name="Internet-Draft"></seriesInfo>
 <author initials="O." surname="Ramadan" fullname="Omar Ramadan"><organization>Blockcast</organization><address><postal><street></street>
 </postal><email>omar@blockcast.net</email>
-</address></author><date year="2026" month="November" day="15"></date>
+</address></author><date year="2026" month="November" day="20"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>multicast</keyword>
@@ -28,6 +28,14 @@ on QUIC streams and as QUIC datagrams.  A manifest-based
 content-authentication profile protects multicast delivery with signed
 manifest records that travel in band beside those packets.</t>
 </abstract>
+
+<note removeInRFC="true"><name>Discussion Venues</name>
+<t>Discussion of this document takes place on the Media Over QUIC (moq)
+Working Group mailing list (moq@ietf.org), which is archived at
+<eref target="https://mailarchive.ietf.org/arch/browse/moq/">https://mailarchive.ietf.org/arch/browse/moq/</eref>.</t>
+<t>Source for this draft and an issue tracker can be found at
+<eref target="https://github.com/Blockcast/moqcast-draft">https://github.com/Blockcast/moqcast-draft</eref>.</t>
+</note>
 
 </front>
 
@@ -71,6 +79,18 @@ to receive the catalog, negotiate parameters, and receive initial
 media.  Multicast MAY then be used as an additional delivery path
 for ongoing media data.  This ensures that codec configuration is
 available before multicast reception begins.</t>
+<t>The MoQ session is the control plane, and this document adds no
+message to it.  Over the session a receiver obtains the catalog,
+which names the multicast endpoints
+(<xref target="multicast-catalog-extension"></xref>), subscribes to tracks, and fetches
+repair for blocks that FEC did not recover
+(<xref target="per-block-unicast-repair"></xref>).  Joining a multicast group is a local
+action of the receiver, which no MoQ Transport message signals.
+MMTP signaling takes the place of the session only in the exception
+below.  <xref target="MOQ-FEC-CORE"></xref> Section 1.3 lists the extension points of
+MoQ Transport and of the MOQT Streaming Format that this document and
+its companions build on; this document adds the root catalog field
+<tt>multicast</tt> (<xref target="multicast-endpoint-format"></xref>).</t>
 <t>Exception: MMTP-packaged streams <xref target="MOQ-MMT"></xref> delivered via ATSC 3.0
 broadcast <xref target="ATSC-A331"></xref> or native SSM MAY operate as unidirectional
 data streams without a MoQ session.  MMTP carries per-packet routing
@@ -1012,6 +1032,15 @@ the receiver's address, and the service whose SLS it fetches, to the
 URI's host, which the catalog chooses, and to the path where the
 fetch is not encrypted.  A receiver that must not disclose this stays
 on MoQ unicast.</t>
+<t>Nothing on the multicast path authorizes a receiver.  Any host that
+knows an endpoint's addresses can join it, and the profile of
+<xref target="content-authentication"></xref> authenticates the sender, not the receiver.
+A receiver that holds a MoQ session learns the addresses from the
+catalog, so the authorization that the publisher or a relay applies
+to a subscription to the catalog track decides which receivers learn
+them over MoQ.  It does not stop a host that learns them in another
+way, from the path or from another receiver.  Encryption of the
+media, not the join, decides who can play it.</t>
 </section>
 
 <section anchor="content-authentication"><name>Content Authentication</name>
@@ -2877,9 +2906,9 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-CATALOG" target="">
   <front>
@@ -2887,7 +2916,7 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-01"></seriesInfo>
 </reference>
@@ -2900,7 +2929,7 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Marc E. Fiuczynski" initials="M. E." surname="Fiuczynski">
       <organization>Rutgers University</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-core-01"></seriesInfo>
 </reference>
@@ -2910,7 +2939,7 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-01"></seriesInfo>
 </reference>
@@ -2920,7 +2949,7 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-03"></seriesInfo>
 </reference>
@@ -2962,7 +2991,7 @@ catalog extension (Section 4) requires no registration.</t>
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-mboned-mcast-manifest-02"></seriesInfo>
 </reference>
@@ -3131,8 +3160,20 @@ explanatory text that no rule depends on, are cut in
 changes.</li>
 <li>This appendix no longer carries the changes from -00 to -01; they
 are in draft-ramadan-moq-multicast-02.</li>
+<li><xref target="multicast-as-supplement-to-moq-unicast"></xref> says that the MoQ session
+is the control plane, that this document adds no message to it, and
+that joining a multicast group is a local action of the receiver.
+It points to <xref target="MOQ-FEC-CORE"></xref> Section 1.3 for the extension points
+that the document set builds on.  No requirement changes.</li>
+<li><xref target="multicast-security"></xref> says that nothing on the multicast path
+authorizes a receiver: catalog authorization decides which receivers
+learn an endpoint's addresses over MoQ, and encryption of the media
+decides who can play it.  The paragraph adds no requirement.</li>
+<li>A note before the Introduction names the mailing list and the
+repository where this document is discussed.</li>
 <li>References: the companion documents are now cited as
 draft-ramadan-moq-mmt-03, draft-ramadan-moq-fec-core-01,
+draft-ramadan-moq-fec-block-codes-01,
 draft-ramadan-moq-fec-catalog-01, draft-ramadan-moq-fec-multicast-01
 and draft-ramadan-mboned-mcast-manifest-02.</li>
 <li>Citations of other Internet-Drafts follow

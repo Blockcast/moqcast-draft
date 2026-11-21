@@ -5,7 +5,7 @@ ipr = "trust200902"
 area = "wit"
 workgroup = "moq"
 submissiontype = "IETF"
-date = "2026-11-15T00:00:00Z"
+date = "2026-11-20T00:00:00Z"
 keyword = ["FEC", "MoQ", "multicast", "AMT", "repair policy"]
 
 [seriesInfo]
@@ -38,6 +38,16 @@ with a budget and priorities derived from the catalog.  It is
 independent of how multicast is carried, whether by Source-Specific
 Multicast and Automatic Multicast Tunneling or by a multicast QUIC
 channel.
+
+{removeInRFC="true"}
+.# Discussion Venues
+
+Discussion of this document takes place on the Media Over QUIC (moq)
+Working Group mailing list (moq@ietf.org), which is archived at
+<https://mailarchive.ietf.org/arch/browse/moq/>.
+
+Source for this draft and an issue tracker can be found at
+<https://github.com/Blockcast/moqcast-draft>.
 
 {mainmatter}
 
@@ -89,7 +99,8 @@ carriage itself, endpoint discovery, the multicast packet format and
 the bc-provenance content-authentication profile are defined in
 [@!MOQ-MULTICAST]; this document adds the FEC-specific behavior on
 top of them and does not depend on which carriage delivers the
-multicast packets.  Most of the text of this document is taken from
+multicast packets.  Like the core, it defines no message, parameter
+or Property of MoQ Transport ([@!MOQ-FEC-CORE] Section 1.3).  Most of the text of this document is taken from
 [@?I-D.ramadan-moq-fec]; (#changes-from-draft-ramadan-moq-fec-01)
 lists what moved here and what changed.
 
@@ -1508,7 +1519,7 @@ This document has no IANA actions.
     <author initials='M. E.' surname='Fiuczynski' fullname='Marc E. Fiuczynski'>
       <organization>Rutgers University</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-core-01'/>
 </reference>
@@ -1519,9 +1530,9 @@ This document has no IANA actions.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='2'/>
+    <date year='2026' month='November' day='20'/>
   </front>
-  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-00'/>
+  <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-block-codes-01'/>
 </reference>
 
 <reference anchor='MOQ-FEC-CATALOG'>
@@ -1530,7 +1541,7 @@ This document has no IANA actions.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-fec-catalog-01'/>
 </reference>
@@ -1541,7 +1552,7 @@ This document has no IANA actions.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-mmt-03'/>
 </reference>
@@ -1552,7 +1563,7 @@ This document has no IANA actions.
     <author initials='O.' surname='Ramadan' fullname='Omar Ramadan'>
       <organization>Blockcast</organization>
     </author>
-    <date year='2026' month='November' day='15'/>
+    <date year='2026' month='November' day='20'/>
   </front>
   <seriesInfo name='Internet-Draft' value='draft-ramadan-moq-multicast-03'/>
 </reference>
@@ -1605,6 +1616,10 @@ changed since draft-ramadan-moq-fec-multicast-00.
 
 New sentences:
 
+- (#relation-to-other-documents): "Like the core, it defines no
+  message, parameter or Property of MoQ Transport ([MOQ-FEC-CORE]
+  Section 1.3)."  A note before the Introduction names the mailing
+  list and the repository where this document is discussed.
 - (#block-classification) classes a block by the MPU rule.
   [@!MOQ-MMT] Section 5.3.4 now puts exactly one RAP in a video MPU,
   its first sample, so the MPU sequence numbers of the DU headers that
@@ -1763,8 +1778,9 @@ Changed sentences:
   section number after the clause it supports, as in "moves between
   them Section 4".  No word changes.
 - The references to the companion documents now name
-  draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-catalog-01,
-  draft-ramadan-moq-mmt-03 and draft-ramadan-moq-multicast-03.
+  draft-ramadan-moq-fec-core-01, draft-ramadan-moq-fec-block-codes-01,
+  draft-ramadan-moq-fec-catalog-01, draft-ramadan-moq-mmt-03 and
+  draft-ramadan-moq-multicast-03.
 - Citations of other Internet-Drafts follow
   draft-ietf-moq-transport-23, draft-ietf-moq-secure-objects-01 and
   draft-jholland-quic-multicast-09.  In (#unicast-repair-budget), the

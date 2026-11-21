@@ -8,7 +8,7 @@
 </postal><email>omar@blockcast.net</email>
 </address></author><author initials="M. E." surname="Fiuczynski" fullname="Marc E. Fiuczynski"><organization>Rutgers University</organization><address><postal><street></street>
 </postal><email>mef@scarletmail.rutgers.edu</email>
-</address></author><date year="2026" month="November" day="15"></date>
+</address></author><date year="2026" month="November" day="20"></date>
 <area>wit</area>
 <workgroup>moq</workgroup>
 <keyword>FEC</keyword>
@@ -17,8 +17,13 @@
 <keyword>unequal error protection</keyword>
 
 <abstract>
-<t>This document specifies how Forward Error Correction (FEC) repair data is carried alongside source media in Media over QUIC (MoQ) without naming a particular FEC code. It states the properties that an FEC scheme must have to be used with this mechanism, and defines everything that does not depend on the scheme: how source objects become source symbols, how source symbols are numbered and grouped into blocks, two ways of carrying source symbols (as the source track's own objects, or as a separate symbol track suited to datagram delivery), repair tracks that receivers subscribe to independently and in layers, the repair object format, repair Group IDs that make repair fetchable by block, and equal and unequal protection driven only by metadata that MoQ Transport exposes, so that FEC works when payloads are encrypted end to end. Relays need no FEC knowledge. Specific FEC schemes, catalog bindings, packaging-specific profiles and multicast delivery are left to companion documents.</t>
+<t>This document specifies how Forward Error Correction (FEC) repair data is carried alongside source media in Media over QUIC (MoQ) without naming a particular FEC code. It states the properties that an FEC scheme must have to be used with this mechanism, and defines everything that does not depend on the scheme: how source objects become source symbols, how source symbols are numbered and grouped into blocks, two ways of carrying source symbols (as the source track's own objects, or as a separate symbol track suited to datagram delivery), repair tracks that receivers subscribe to independently and in layers, the repair object format, repair Group IDs that make repair fetchable by block, and equal and unequal protection driven only by metadata that MoQ Transport exposes, so that FEC works when payloads are encrypted end to end. Relays need no FEC knowledge, and a relay that has it can rebuild source objects missing from its cache when the publisher records how each object is sent. Specific FEC schemes, catalog bindings, packaging-specific profiles and multicast delivery are left to companion documents.</t>
 </abstract>
+
+<note removeInRFC="true"><name>Discussion Venues</name>
+<t>Discussion of this document takes place on the Media Over QUIC (moq) Working Group mailing list (moq@ietf.org), which is archived at <eref target="https://mailarchive.ietf.org/arch/browse/moq/">https://mailarchive.ietf.org/arch/browse/moq/</eref>.</t>
+<t>Source for this draft and an issue tracker can be found at <eref target="https://github.com/Blockcast/moqcast-draft">https://github.com/Blockcast/moqcast-draft</eref>.</t>
+</note>
 
 </front>
 
@@ -29,7 +34,7 @@
 <t>Forward Error Correction (FEC) lets a receiver recover lost data from repair data sent ahead of need, without a round trip. This document defines how repair data is carried in MoQ so that:</t>
 
 <ol spacing="compact">
-<li>relays forward and cache repair data as ordinary MoQ objects and need no knowledge of FEC;</li>
+<li>relays forward and cache repair data as ordinary MoQ objects and need no knowledge of FEC, and a relay that implements FEC can rebuild source objects missing from its cache when the publisher records how each object is sent (Section 12);</li>
 <li>each receiver chooses for itself whether to take repair data and how much, by subscribing to repair tracks, as it already chooses among alternate tracks;</li>
 <li>the mechanism does not depend on a particular FEC code: it states what a code must provide (Section 4), and companion documents specify codes;</li>
 <li>no receiver or relay needs to read a source object's payload, so FEC works when payloads are encrypted by Digital Rights Management (DRM) or by MoQ end-to-end encryption <xref target="I-D.ietf-moq-secure-objects"></xref>.</li>
@@ -50,6 +55,17 @@
 <li><xref target="MOQ-MMT"></xref>, which defines the packaging-specific block profile for tracks packaged as MPEG Media Transport Protocol (MMTP) packets, and the broadcast interworking that relies on it;</li>
 <li><xref target="MOQ-FEC-MULTICAST"></xref>, the multicast and hybrid unicast/multicast delivery of protected tracks, independent of how multicast is carried, which <xref target="MOQ-MULTICAST"></xref> specifies.</li>
 </ul>
+</section>
+
+<section anchor="use-of-moq-transport"><name>Use of MoQ Transport</name>
+<t>This document and its companions require no change to MoQ Transport <xref target="I-D.ietf-moq-transport"></xref>. They define no message, error code or parameter of it. A relay needs to implement nothing from them: it forwards their tracks and Properties as MoQ Transport already requires, and Section 12 lists what the mechanism relies on relays doing well. They build on these extension points:</t>
+
+<ul spacing="compact">
+<li><strong>Tracks.</strong> Repair tracks and symbol tracks are ordinary tracks in the source track's Track Namespace (Section 7.1). A receiver subscribes to them and fetches from them with SUBSCRIBE and FETCH, and their objects travel on streams or as datagrams like any other object.</li>
+<li><strong>Object Properties</strong> (<xref target="I-D.ietf-moq-transport"></xref> Section 8.4). This document requests three in the &quot;MOQ Properties&quot; registry (Section 15.1): FEC Source Info (Section 5.6), FEC Unit Start (Section 6.2) and FEC Delivery Info (Section 5.7). A relay that does not support a Property forwards it.</li>
+<li><strong>The catalog.</strong> The configuration data model of Section 10 travels in the catalog of the MOQT Streaming Format <xref target="I-D.ietf-moq-msf"></xref>, which a receiver obtains by subscribing to the catalog track. The documents extend that catalog with packaging values and catalog fields, as <xref target="I-D.ietf-moq-cmsf"></xref> extends it with &quot;cmaf&quot;. <xref target="MOQ-FEC-CATALOG"></xref> adds the packaging values &quot;fec-repair&quot; and &quot;fec-source&quot;, the track field <tt>fec</tt> and the fields with which a repair track or a symbol track describes its role. <xref target="MOQ-MMT"></xref> adds the packaging value &quot;mmtp&quot; and the track fields of an mmtp track. <xref target="MOQ-MULTICAST"></xref> adds the root field <tt>multicast</tt>, which names multicast endpoints.</li>
+</ul>
+<t>One optional behavior reaches past MoQ Transport as written. A relay that implements FEC can rebuild source objects into its cache (Section 12), where MoQ Transport has a relay treat the payloads it forwards as opaque (<xref target="I-D.ietf-moq-transport"></xref> Section 7.9). The Editor's Note in Section 12 leaves that question open. A relay that does not rebuild objects is not affected by it.</t>
 </section>
 
 <section anchor="editor-s-notes" removeInRFC="true"><name>Editor's Notes</name>
@@ -208,7 +224,7 @@ repair layer n --- ...                  (not subscribed)
 <li><strong>Payload Length</strong>: the length in bytes of o's Object Payload.</li>
 <li><strong>Payload</strong>: o's Object Payload, as transmitted. When the payload is encrypted, this is the ciphertext.</li>
 </ul>
-<t>The fields are fixed-width because a variable-length integer has several valid encodings, so a variable-length field would make the unit depend on the encoding a session chose. The unit is 22 bytes longer than the Immutable Properties value and the payload together. The mutable Properties, Subgroup ID, Publisher Priority and delivery mode of o are not in the unit, so none of them affects FEC: a relay may add, change or remove mutable Properties as <xref target="I-D.ietf-moq-transport"></xref> Section 8.4 allows, and the publisher chooses the other three, which <xref target="I-D.ietf-moq-transport"></xref> Section 7.9 forbids a relay to modify.</t>
+<t>The fields are fixed-width because a variable-length integer has several valid encodings, so a variable-length field would make the unit depend on the encoding a session chose. The unit is 22 bytes longer than the Immutable Properties value and the payload together. The mutable Properties, Subgroup ID, Publisher Priority and delivery mode of o are not in the unit, so none of them affects FEC: a relay may add, change or remove mutable Properties as <xref target="I-D.ietf-moq-transport"></xref> Section 8.4 allows, and the publisher chooses the other three, which <xref target="I-D.ietf-moq-transport"></xref> Section 7.9 forbids a relay to modify. A publisher that lets relays rebuild o records those three in an FEC Delivery Info Property (Section 5.7), which is one of the Immutable Properties and so lies inside the unit.</t>
 <t>Let len(o) be the length of the unit in bytes and T the instance's symbol size. The unit occupies</t>
 
 <artwork><![CDATA[s(o) = ceil(len(o) / T)
@@ -274,6 +290,27 @@ Instance Entry {
 <t>The Property carries no block coordinate and no length. A receiver places the object's symbols by SS_ID (Section 5.5) and learns the block's extent from repair objects or the symbol track (Sections 5.4 and 6.2). The lengths that rebuilding needs are inside the unit and are recovered with it.</t>
 <t>Deployed implementations of earlier drafts used the even value 0x10 for this purpose. That value is the TIMESTAMP Property of <xref target="I-D.ietf-moq-loc"></xref> in the same type space, and a receiver that implements TIMESTAMP misparses a 0x10-tagged FEC value as a variable-length integer and can lose its place in the Property sequence. An implementation of this document MUST NOT send 0x10 for this purpose; the defence is necessarily at the publisher, because a receiver cannot tell such an object from a well-formed TIMESTAMP.</t>
 <t>Revision -00 of this document and <xref target="I-D.ramadan-moq-fec"></xref> used the odd value 0x11 for this purpose. That value is now the Codec String Property of <xref target="I-D.ietf-moq-loc"></xref> in the same type space, and a receiver that read a Property of type 0x11 as FEC Source Info would take a codec string of 4 bytes for an SS_ID. An implementation of this document MUST NOT send 0x11 for this purpose and MUST NOT read a Property of type 0x11 as FEC Source Info.</t>
+</section>
+
+<section anchor="fec-delivery-info-property"><name>FEC Delivery Info Property</name>
+<t>The Protected Object Unit leaves out an object's Subgroup ID, Publisher Priority and Delivery Mode (Section 5.2), so an object rebuilt from it lacks them (Section 9.2). MoQ Transport sends an object according to those fields, and an endpoint that receives a duplicate object with a different Delivery Mode, Subgroup ID or Priority treats the track as malformed (<xref target="I-D.ietf-moq-transport"></xref> Section 7.1), so a relay cannot supply them by guessing. Nor does an object's Location show whether it is the first object published in its Subgroup, which a relay that opens a subgroup stream at the object states in the stream's FIRST_OBJECT bit (<xref target="I-D.ietf-moq-transport"></xref> Section 2.2). A publisher MAY record these facts in an FEC Delivery Info Object Property, whose type is the odd value TBD2 (Section 15.1). Carried inside the object's Immutable Properties, the Property is part of the unit, so it is protected and rebuilt with the object, and a rebuilt object that carries it has every field a relay needs to serve it as an object of the source track (Section 12).</t>
+<t>The value is:</t>
+
+<artwork><![CDATA[FEC Delivery Info {
+  Publisher Priority (8),
+  Flags (8),
+  [Subgroup ID (64),]
+}
+]]></artwork>
+
+<ul spacing="compact">
+<li><strong>Publisher Priority</strong>: the object's Publisher Priority (<xref target="I-D.ietf-moq-transport"></xref> Section 2.1.1), including when the publisher sends the object without a Priority field and the object takes the priority of its subscription.</li>
+<li><strong>Flags</strong>: bit 0x01 (Datagram) is 1 when the object's Delivery Mode is Datagram and 0 when it is Subgroup. Bit 0x02 (End of Group) is 1 when no object with the same Group ID and a greater Object ID exists, as the END_OF_GROUP bit of <xref target="I-D.ietf-moq-transport"></xref> Section 11.2.1 states for a datagram; 0 asserts nothing. Bit 0x04 (First Object) is 1 when the Datagram bit is 0 and the object is the first object that the Original Publisher published in its Subgroup, and 0 otherwise; it states what the FIRST_OBJECT bit of a subgroup stream that begins with the object states (<xref target="I-D.ietf-moq-transport"></xref> Sections 2.2 and 11.3.1). The other bits are 0.</li>
+<li><strong>Subgroup ID</strong>: the object's Subgroup ID, present exactly when the Datagram bit is 0.</li>
+</ul>
+<t>The value is 10 bytes long when the Datagram bit is 0 and 2 bytes long when it is 1. A value of any other length, with the First Object bit set together with the Datagram bit, or with any other bit of Flags set, does not match the serialization of this type. When an object it receives carries such a value, a receiver that implements this Property MUST close the session with MALFORMED_KEY_VALUE, as for the FEC Source Info Property (Section 5.6); such a value in a rebuilt object is not a protocol error, and the rebuilt object is treated as one that carries no FEC Delivery Info Property. The fields are fixed-width for the reason given for SS_ID in Section 5.6.</t>
+<t>A publisher that carries the Property on one source object of a track MUST carry it on every source object of the track, with the values with which it sends that object, and MUST send the object with that Publisher Priority on every subscription, so that a copy rebuilt on any path agrees with the original. It MUST carry it inside the object's Immutable Properties and MUST NOT carry it inside an encrypted container, for the reasons of Section 5.6. It MUST NOT carry it on an object that it sends with any mutable Property: a rebuilt object has no mutable Properties (Section 9.2), so the Property asserts that the object rebuilt from the unit is the object the publisher sent. Publishers of the same encoding (Section 4.2, requirement 8) MUST all carry the Property with identical values or all omit it, so that the unit stays the same bytes from each. An object that carries more than one FEC Delivery Info Property, counting mutable and Immutable Properties together, or one outside its Immutable Properties, is treated as an object that carries none.</t>
+<t>A receiver that does not forward rebuilt objects need not implement the Property. A receiver does not compare it with the fields of an object it receives. An object without the Property builds the same unit as it did before this Property was defined.</t>
 </section>
 </section>
 
@@ -475,7 +512,7 @@ ESI   = SSB_length + RS_ID
 <t>If any check fails, the receiver MUST NOT deliver any object from the run. It also MUST NOT deliver a rebuilt object whose Immutable Properties do not parse as a sequence of Key-Value-Pairs, or contain an Immutable Properties Property; whose FEC Source Info Property is absent, has a value that does not match the serialization of Section 5.6, or does not name, for this instance, the SS_ID SS_Start plus the ESI at which the walk found the unit, modulo 2^32; or whose Location is that of an object the receiver already holds. A failed check concerns bytes the receiver computed, not an object it received, so it is not a protocol error of the session.</t>
 <t>A receiver need not wait for a block to be delimited or decoded to rebuild a unit whose symbols it holds in full and whose start it knows: ESI 0 of every block is a unit start, and the end of each unit is the start of the next. It MAY rebuild and deliver such a unit at once, applying the checks above with the run being the unit's own symbols, so that symbol carriage adds no latency when nothing is lost.</t>
 <t>When a block cannot be decoded, a receiver that takes the symbol track can still rebuild every unit whose symbols it holds in full, if it knows where the unit starts: from an FEC Unit Start Property on the unit's first symbol (Section 6.2), or from the end of the preceding unit, which it can walk to from any unit start it knows. It applies the checks above to each such unit, with the run being the unit's own s(o) symbols.</t>
-<t>A rebuilt object that passes these checks is the object at its Location, with the rebuilt Immutable Properties as its only Properties and the rebuilt payload as its payload. The receiver delivers it to its own consumer. Its mutable Properties, Subgroup ID, Publisher Priority and delivery mode are not recovered, and MoQ Transport sends an object according to those fields, so an entity that rebuilds an object MUST NOT forward it as an object of the source track.</t>
+<t>A rebuilt object that passes these checks is the object at its Location, with the rebuilt Immutable Properties as its only Properties and the rebuilt payload as its payload. The receiver delivers it to its own consumer. Its mutable Properties are not recovered, and its Subgroup ID, Publisher Priority and Delivery Mode, and whether it is the first object of its Subgroup, are recovered only from an FEC Delivery Info Property (Section 5.7). MoQ Transport sends an object according to those fields, so an entity that rebuilds an object MUST NOT forward it as an object of the source track unless its rebuilt Immutable Properties carry exactly one FEC Delivery Info Property whose value matches the serialization of Section 5.7. A relay that forwards such an object follows Section 12.</t>
 <t>A receiver MUST NOT read, copy or allocate beyond the end of the run it walks on the strength of a length field it rebuilt, because a corrupt decode can put any value there. The checks detect many corrupt decodes, but not all (Section 14).</t>
 </section>
 
@@ -814,7 +851,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 </section>
 
 <section anchor="relay-considerations"><name>Relay Considerations</name>
-<t>Relays need not implement FEC. Repair tracks and symbol tracks are ordinary tracks, and the FEC Source Info and FEC Unit Start Properties are ordinary Properties. The mechanism nevertheless relies on relays doing a few simple things well, and a relay that does not do them prevents FEC, or part of it, for the tracks it serves:</t>
+<t>Relays need not implement FEC. Repair tracks and symbol tracks are ordinary tracks, and the FEC Source Info, FEC Delivery Info and FEC Unit Start Properties are ordinary Properties. The mechanism nevertheless relies on relays doing a few simple things well, and a relay that does not do them prevents FEC, or part of it, for the tracks it serves:</t>
 
 <ol spacing="compact">
 <li><strong>Forward every object of a Group, including Groups delivered as datagrams.</strong> A symbol or repair Group holds many objects. A relay that forwards only one object per datagram Group delivers one symbol per block. A publisher whose receivers sit behind such a relay can send repair objects on streams, which carry every object's Object ID; a symbol track has the same option (Section 6.2).</li>
@@ -824,7 +861,10 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 <li><strong>Apply MoQ Transport priority to objects sent as datagrams</strong> as to objects sent on streams.</li>
 <li><strong>Withdraw an upstream subscription promptly when its last downstream subscriber leaves.</strong> A receiver drops a repair layer to save its own bandwidth, and the saving reaches the links above the relay only when the relay unsubscribes upstream.</li>
 </ol>
-<t>A relay MUST NOT forward an object that it rebuilt by FEC as an object of the source track (Section 9.2). An entity that recovers objects and republishes them is a publisher of a new track.</t>
+<t>A relay that implements FEC MAY decode the blocks of a source track it serves and rebuild source objects missing from its cache, such as an object lost as a datagram on its upstream hop or abandoned there by a delivery timeout. It MAY cache such an object, forward it and serve it to FETCH as an object of the source track only when the object passes the checks of Section 9.2 and its rebuilt Immutable Properties carry an FEC Delivery Info Property (Section 5.7). It then gives the object exactly the Subgroup ID, Publisher Priority and Delivery Mode that the Property states, the rebuilt Immutable Properties as its only Properties, and the rebuilt payload. Built this way, the object has the fields and bytes the publisher sent, and a later copy of the original is a duplicate that agrees with it (<xref target="I-D.ietf-moq-transport"></xref> Section 7.1). The relay reads the repair objects as a subscriber does and forwards them unmodified. When the Property's End of Group bit is 1, the relay MAY convey the end of the Group in any form <xref target="I-D.ietf-moq-transport"></xref> Section 7.1 allows. A relay forwards a rebuilt object whose Delivery Mode is Subgroup in a subscription only where <xref target="I-D.ietf-moq-transport"></xref> lets it send an object of that Subgroup at that point; once it has sent a later object of the Subgroup on the stream, it caches the rebuilt object and serves it to FETCH. When the relay opens a subgroup stream that begins with a rebuilt object, it sets the stream's FIRST_OBJECT bit exactly when the Property's First Object bit is 1 (<xref target="I-D.ietf-moq-transport"></xref> Sections 2.2 and 11.3.1).</t>
+<t>Editor's Note: whether <xref target="I-D.ietf-moq-transport"></xref> lets a relay put into a track an object that it rebuilt rather than received, given that its Section 7.9 has a relay treat the payloads it forwards as opaque, is [open].</t>
+<t>A corrupt decode at a relay reaches every receiver the relay serves, not one (Section 14.2). A relay that holds more than SSB_length + e symbols of a block SHOULD re-encode the recovered block and compare the result with the symbols it did not use before it serves any object rebuilt from the block.</t>
+<t>A relay MUST NOT forward any other object that it rebuilt by FEC as an object of the source track (Section 9.2). An entity that recovers objects without the Property and republishes them is a publisher of a new track. A block profile other than &quot;moq-object-v1&quot; allows a relay to rebuild objects into its cache only if its specification states how the relay obtains each of these fields for a rebuilt source symbol; <xref target="MOQ-MMT"></xref> states none at this revision.</t>
 </section>
 
 <section anchor="packaging-considerations"><name>Packaging Considerations</name>
@@ -852,6 +892,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 
 <section anchor="integrity"><name>Integrity</name>
 <t>An attacker who can modify or inject symbols can make a receiver rebuild incorrect objects. QUIC protects each hop, so on a MoQ path this requires a compromised relay. The checks of Section 9.2 discard many corrupt rebuilds but not all, and a decoder given a wrong symbol yields wrong source symbols without reporting an error; a receiver that decodes from exactly SSB_length symbols cannot detect it from the code. A receiver that holds more than SSB_length + e symbols of a block can re-encode the recovered block and compare the result with the symbols it did not use. End-to-end authentication of objects, such as MoQ Secure Objects, lets a receiver verify a rebuilt object as it verifies a received one (Section 8.6), which detects a corrupt rebuild.</t>
+<t>A relay that rebuilds objects into its cache (Section 12) extends a corrupt rebuild from one receiver to every receiver it serves, including receivers that do not authenticate objects end to end. A receiver that later receives the original object as well treats the track as malformed, because the two differ (<xref target="I-D.ietf-moq-transport"></xref> Section 7.1). Section 12 therefore asks such a relay to check a decode against spare symbols when it holds them. A false FEC Delivery Info Property can come only from the publisher or from a node that can already alter objects, as can a false object header.</t>
 <t>Block signaling (SS_Start, SSB_length, RSB_length, and the PRIOR_GROUP_ID_GAP Property) is not authenticated end to end by this document. A compromised relay that injects a repair object with a false SSB_length, accepted before the genuine ones, can mis-delimit a block or cause the genuine repair objects to be discarded as inconsistent (Section 5.4). The effect is a block that fails to recover, not wrong media, when objects are authenticated end to end. The FEC Unit Start Property (Section 6.2) is likewise unauthenticated when carried among mutable Properties, which a relay may alter. A false Property starts the walk of Section 9.2 at a symbol that is not a unit start, or gives a unit a wrong s(o); the checks of Section 9.2 then reject the unit, or end-to-end authentication rejects what they pass, so the effect is a unit that fails to rebuild, not wrong media. A stripped Property costs only the partial rebuild, because a receiver does not infer from its absence that a symbol is not a unit start.</t>
 </section>
 
@@ -867,7 +908,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 <section anchor="iana-considerations"><name>IANA Considerations</name>
 
 <section anchor="moq-properties"><name>MoQ Properties</name>
-<t>This document requests two registrations in the &quot;MOQ Properties&quot; registry of <xref target="I-D.ietf-moq-transport"></xref> (Section 16.8 of that document):</t>
+<t>This document requests three registrations in the &quot;MOQ Properties&quot; registry of <xref target="I-D.ietf-moq-transport"></xref> (Section 16.8 of that document):</t>
 <table>
 <thead>
 <tr>
@@ -892,8 +933,15 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 <td>Object</td>
 <td>This document, Section 6.2</td>
 </tr>
+
+<tr>
+<td>TBD2</td>
+<td>FEC_DELIVERY_INFO</td>
+<td>Object</td>
+<td>This document, Section 5.7</td>
+</tr>
 </tbody>
-</table><t>FEC_SOURCE_INFO is odd-typed because its value is bytes. It is requested as 0x85, an odd value from the range 0x80 to 0x37FF, for which <xref target="I-D.ietf-moq-transport"></xref> states a registration policy of Specification Required and which this document can reach on its own. Until IANA assigns the value, 0x85 is provisional and is the value implementations of this document use (Section 5.6). <xref target="I-D.ramadan-moq-fec"></xref> and revision -00 of this document requested 0x11, which lies in the range 0x00 to 0x77; the policy for that range, Standards Action or IESG Approval, is not reachable by an individual draft, and <xref target="I-D.ietf-moq-loc"></xref> now assigns 0x11 to its Codec String Property. The shortest encoding of the Delta Type of 0x85 is two bytes when no Property of type 0x06 or higher precedes it in the same sequence of Key-Value-Pairs and one byte otherwise, where that of a type from the range 0x00 to 0x77 is always one byte (<xref target="I-D.ietf-moq-transport"></xref> Sections 8.1 and 8.3). FEC_UNIT_START is even-typed because its value is an integer. It is requested as TBD1, an even value from the same range, and Section 6.2 refers to it by name until IANA assigns the value. Neither request depends on this document being adopted. Both Properties have Object scope: each describes the object it tags and carries no track-wide meaning. The even value 0x10 is not requested for FEC_SOURCE_INFO: it is the TIMESTAMP Property of <xref target="I-D.ietf-moq-loc"></xref>, at Object scope in the same Property Type space (Section 5.6).</t>
+</table><t>FEC_SOURCE_INFO is odd-typed because its value is bytes. It is requested as 0x85, an odd value from the range 0x80 to 0x37FF, for which <xref target="I-D.ietf-moq-transport"></xref> states a registration policy of Specification Required and which this document can reach on its own. Until IANA assigns the value, 0x85 is provisional and is the value implementations of this document use (Section 5.6). <xref target="I-D.ramadan-moq-fec"></xref> and revision -00 of this document requested 0x11, which lies in the range 0x00 to 0x77; the policy for that range, Standards Action or IESG Approval, is not reachable by an individual draft, and <xref target="I-D.ietf-moq-loc"></xref> now assigns 0x11 to its Codec String Property. The shortest encoding of the Delta Type of 0x85 is two bytes when no Property of type 0x06 or higher precedes it in the same sequence of Key-Value-Pairs and one byte otherwise, where that of a type from the range 0x00 to 0x77 is always one byte (<xref target="I-D.ietf-moq-transport"></xref> Sections 8.1 and 8.3). FEC_UNIT_START is even-typed because its value is an integer. It is requested as TBD1, an even value from the same range, and Section 6.2 refers to it by name until IANA assigns the value. FEC_DELIVERY_INFO is odd-typed because its value is bytes. It is requested as TBD2, an odd value from the same range, and Section 5.7 refers to it by name until IANA assigns the value. No request depends on this document being adopted. All three Properties have Object scope: each describes the object it tags and carries no track-wide meaning. The even value 0x10 is not requested for FEC_SOURCE_INFO: it is the TIMESTAMP Property of <xref target="I-D.ietf-moq-loc"></xref>, at Object scope in the same Property Type space (Section 5.6).</t>
 <t>This document requests no MoQ control message type.</t>
 </section>
 
@@ -936,9 +984,9 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="2"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-00"></seriesInfo>
+  <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-block-codes-01"></seriesInfo>
 </reference>
 <reference anchor="MOQ-FEC-CATALOG" target="">
   <front>
@@ -946,7 +994,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-catalog-01"></seriesInfo>
 </reference>
@@ -986,7 +1034,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-fec-multicast-01"></seriesInfo>
 </reference>
@@ -996,7 +1044,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-mmt-03"></seriesInfo>
 </reference>
@@ -1006,7 +1054,7 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
     <author fullname="Omar Ramadan" initials="O." surname="Ramadan">
       <organization>Blockcast</organization>
     </author>
-    <date year="2026" month="November" day="15"></date>
+    <date year="2026" month="November" day="20"></date>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-ramadan-moq-multicast-03"></seriesInfo>
 </reference>
@@ -1130,8 +1178,10 @@ Repair Groups:  ext(S0) ext(S2) ext(S4) ext(S6)
 <li>After the -00 posting: citations of other Internet-Drafts follow draft-ietf-moq-transport-23, draft-ietf-moq-msf-02, draft-ietf-moq-loc-05, draft-ietf-moq-cmsf-01 and draft-ietf-moq-secure-objects-01. The MoQ Transport sections cited in Section 5.2, Section 7.6 and Section 7.7 have new numbers there. In Section 5.6 the session error has the name MALFORMED_KEY_VALUE, which draft-ietf-moq-transport-22 called KEY_VALUE_FORMATTING_ERROR, and a received object with more than one FEC Source Info Property makes its track malformed, as Section 8.4 of draft-ietf-moq-transport-23 requires of an endpoint that supports a Property; -00 only treated such an object as carrying none. Section 1.1 says &quot;subscribing and unsubscribing&quot; where -00 named an UNSUBSCRIBE message, which MoQ Transport does not have.</li>
 <li>After the -00 posting: the catalogs of Section 10.4 and of <xref target="rebuilding-a-block-worked-example"></xref> carry <tt>&quot;version&quot;: &quot;draft-02&quot;</tt>, the version string of draft-ietf-moq-msf-02, where -00 carried the number 1; that field is a string. The track of <xref target="rebuilding-a-block-worked-example"></xref> declares the &quot;object&quot; stream mapping of draft-ietf-moq-msf-02 (<xref target="I-D.ietf-moq-msf"></xref> Section 4.1.1), and the appendix says so, because its example loses two objects of a Group to a delivery timeout and receives the objects after them. Under the default mapping of draft-ietf-moq-msf-02 the objects of a Group share one Subgroup, whose stream that timeout resets; draft-ietf-moq-msf-01 put each object on a stream of its own. Section 5.6 and Section 15.1 give the one-byte and two-byte sizes of the Delta Type as those of its shortest encoding.</li>
 <li>After the -00 posting: &quot;rendition&quot; now reads &quot;alternate track&quot;. Tracks that share an <tt>altGroup</tt> are alternate tracks in draft-ietf-moq-msf-02 (its Section 5.2.13). Where a publisher retires a source encoding, &quot;a separate rendition&quot; now reads &quot;a new source encoding&quot;. No requirement changes.</li>
+<li>After the -00 posting: a relay can fill gaps in its cache from FEC. A publisher can record each object's Publisher Priority, Delivery Mode, Subgroup ID and End of Group, and whether it is the first object of its Subgroup, in a new FEC Delivery Info Property (Section 5.7, requested as TBD2 in Section 15.1). It lies inside the Immutable Properties, so the unit's layout is unchanged and an object without it builds the same unit as before. A relay that implements FEC can rebuild a missing source object that carries the Property and cache, forward and serve it as an object of the source track (Sections 9.2 and 12). Without the Property, the rule of -00 stands: a rebuilt object is not forwarded as an object of the source track. Section 14.2 states what a corrupt rebuild at a relay costs, and Section 12 asks the relay to check a decode against spare symbols, and has a relay that opens a subgroup stream at a rebuilt object set the stream's FIRST_OBJECT bit from the Property.</li>
+<li>After the -00 posting: new Section 1.3 states that this document and its companions require no change to MoQ Transport, and lists the extension points they build on: tracks, three Object Properties and the MSF catalog. It names the relay rebuild of Section 12 as the one optional behavior that reaches past MoQ Transport as written. A note before the Introduction names the mailing list and the repository where this document is discussed. The reference to the block schemes now names draft-ramadan-moq-fec-block-codes-01.</li>
 </ul>
-<t>The questions this revision leaves open are marked [open] in the text: whether Section 4.3 holds for sliding-window schemes (Section 4.3); whether this document should itself require the mandatory-to-implement scheme (Section 4.4); and, in Section 6.2, whether the FEC Unit Start Property is worth its codepoint and whether PRIOR_GROUP_ID_GAP should be required on symbol-track objects.</t>
+<t>The questions this revision leaves open are marked [open] in the text: whether Section 4.3 holds for sliding-window schemes (Section 4.3); whether this document should itself require the mandatory-to-implement scheme (Section 4.4); and, in Section 6.2, whether the FEC Unit Start Property is worth its codepoint and whether PRIOR_GROUP_ID_GAP should be required on symbol-track objects; and, in Section 12, whether MoQ Transport lets a relay put an object it rebuilt into the source track.</t>
 </section>
 
 <section anchor="block-span-conformance-cases"><name>Block Span Conformance Cases</name>
