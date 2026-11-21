@@ -140,7 +140,7 @@ All seven drafts changed in the repository after that posting, and their next
 revisions were posted on 21 November 2026 (below). The
 checksums above are the posted copies'. The Datatracker takes a draft's next
 posting only under the next number, so each changed working copy carries that
-name. None of these names is posted. The working copies cite one another at
+name. None of these names was posted at the time. The working copies cite one another at
 these names, so they are posted together.
 
 | Posted | Working copy | Changed by |
