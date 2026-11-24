@@ -182,7 +182,7 @@ on `main` (#41 and #42), dated 20 November 2026. These are the next revisions of
 all seven drafts of the 2 November batch, after IETF 127. Only the XML was
 uploaded, through the submission API, with `replaces=draft-ramadan-moq-fec` on
 the FEC core document. The author email authentication was completed, and all
-seven were posted at about 06:20 UTC.
+seven were posted between 06:48 and 06:50 UTC.
 
 | Draft | Submission receipt | Published document |
 | --- | --- | --- |
@@ -224,3 +224,26 @@ document's replaces page.
 
 State endpoints: <https://datatracker.ietf.org/api/submission/173032/status> to
 <https://datatracker.ietf.org/api/submission/173038/status>.
+
+## Before the next revision
+
+The next revisions wait for draft-ietf-moq-transport-24, which had not been
+posted on 21 November 2026. The editor's copy after -23 (#2049, #2055, #2060)
+changes nothing these drafts use. These open pull requests would:
+
+- moq-transport #2069 and #2076 (stacked) remove LOCATION_FILTER from
+  FILL_PARAMETERS. The current-group join becomes a SUBSCRIBE with Relative
+  Start (0x01), StartGroup 1, and a FILL_PARAMETERS parameter. That join is in
+  mmt Section 6.1 step 3, the fec-core join figure, multicast Section 6 (the
+  join list), multicast Section 6.3 (FILL_PARAMETERS after a resume) and the
+  multicast catalog re-fetch on an unknown `kid`.
+- Any -24 renumbering moves the cited sections. Update `TRANSPORT_23` in
+  `tests/test_fec_split.py` from the posted -24 text, then fix each citation
+  the test flags.
+
+Review items left for that revision:
+
+- fec-core Section 14.4: a receiver that uses SUBSCRIBE_TRACKS for a repair
+  namespace SHOULD set PAUSED to 1 and resume only the layers it chooses.
+- fec-core Section 8.6: say that the unit carries the Publisher Priority only
+  when the object has an FEC Delivery Info Property.

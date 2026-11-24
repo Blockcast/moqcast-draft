@@ -311,11 +311,21 @@ class SplitContracts(unittest.TestCase):
             self.assertIn("carries more than one, a receiver that implements this document MUST also treat the track as malformed", core)
             self.assertIn("The count is over both lists because [@!I-D.ietf-moq-transport] Section 10.7", core)
             self.assertIn('"MOQ Properties" registry of [@!I-D.ietf-moq-transport] (Section 16.8 of that document)', core)
+            # the same transport-23 Section 8.4 rule for FEC Delivery Info (Section 5.7)
+            self.assertIn("When an object it receives carries more than one, a receiver that implements this Property MUST also treat the track as malformed", core)
+            # Section 14.4: SUBSCRIBE_TRACKS is a request for every repair track under its prefix
+            self.assertIn("a repair or symbol track that a receiver did not request, by a SUBSCRIBE or FETCH for that track or a SUBSCRIBE_TRACKS whose namespace prefix covers it", core)
+        if "CATALOG" in self.text:
+            # enhancementRepair is not defined, and the receiver fails closed under rule 4 rather than rejecting the catalog
+            self.assertIn("a catalog that carries it violates rule 4 of (#validation), for which the receiver fails closed", flat(self.text["CATALOG"]))
         if "MULTICAST" in self.text:
             multicast = flat(self.text["MULTICAST"])
             # transport-23 Section 3.1.1: PAUSED set to 1 pauses, PAUSED set to 0 resumes
             self.assertIn("To pause a subscription, the receiver sends a REQUEST_UPDATE with the PAUSED parameter set to 1", multicast)
             self.assertIn("resumes a paused subscription with a REQUEST_UPDATE that sets PAUSED to 0", multicast)
+            # a replacement key never reuses a kid, so a pinned epoch floor cannot block it
+            self.assertIn("The key that replaces a compromised one MUST carry a `kid` that no earlier key of the catalog has carried", multicast)
+            self.assertIn("This document defines no authorization of receivers on the multicast path.", multicast)
         if "MMT" in self.text:
             mmt = flat(self.text["MMT"])
             # msf-02 Section 6 leaves the stream mapping to the packaging; msf-01 put each object on a new stream
